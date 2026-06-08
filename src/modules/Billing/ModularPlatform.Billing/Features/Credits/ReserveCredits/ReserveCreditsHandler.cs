@@ -22,11 +22,16 @@ internal sealed class ReserveCreditsHandler(BillingDbContext db, IClock clock)
     {
         var now = clock.UtcNow;
 
+        // Explicit transaction so the row lock is HELD until commit (a lock in autocommit releases immediately
+        // and serializes nothing). Lock, then reload the account so Posted/xmin are fresh under the lock.
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+
         var account = await db.CreditAccounts.FirstOrDefaultAsync(a => a.UserId == command.UserId, ct)
             ?? throw new NotFoundException("credit.account_not_found", "Credit account not found.");
 
         await db.Database.ExecuteSqlInterpolatedAsync(
-            $"SELECT id FROM credit_accounts WHERE id = {account.Id} FOR NO KEY UPDATE", ct);
+            $"SELECT 1 FROM credit_accounts WHERE \"Id\" = {account.Id} FOR NO KEY UPDATE", ct);
+        await db.Entry(account).ReloadAsync(ct);
 
         var activeHolds = await db.CreditHolds
             .Where(h => h.AccountId == account.Id && h.Status == HoldStatus.Active && h.ExpiresAt > now)
@@ -65,6 +70,7 @@ internal sealed class ReserveCreditsHandler(BillingDbContext db, IClock clock)
         account.Available = available - command.Amount;
 
         await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
 
         return new ReserveCreditsResponse(hold.Id, account.Available);
     }

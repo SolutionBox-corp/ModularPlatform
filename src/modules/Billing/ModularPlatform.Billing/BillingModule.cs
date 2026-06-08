@@ -59,10 +59,10 @@ public sealed class BillingModule : IModule
 
     public void ConfigureMessaging(WolverineOptions options)
     {
-        // Wolverine auto-discovers the in-assembly handlers:
-        //  - UserRegisteredHandler        (consumes Identity's UserRegisteredIntegrationEvent)
-        //  - ProcessStripeEventHandler    (idempotent ledger top-up off the webhook)
-        // Billing publishes CreditsToppedUp / CreditsSpent via the transactional outbox.
+        // Register this module's message handlers EXPLICITLY (conventional cross-assembly discovery is not
+        // reliable for module assemblies). Billing publishes CreditsToppedUp / CreditsSpent via the outbox.
+        options.Discovery.IncludeType<Messaging.ProvisionCreditAccountHandler>();
+        options.Discovery.IncludeType<Messaging.ProcessStripeEventHandler>();
     }
 
     public async Task ApplyMigrationsAsync(IServiceProvider services, CancellationToken ct)

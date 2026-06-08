@@ -10,7 +10,7 @@ namespace ModularPlatform.Gdpr.Messaging;
 /// Boundary-clean: depends only on the Abstractions port, never on another module's Core. Modules may
 /// also subscribe to the event directly with their own handler — both paths converge on EraseAsync.
 /// </summary>
-internal sealed class UserErasureRequestedHandler
+public sealed class UserErasureRequestedHandler
 {
     public async Task Handle(
         UserErasureRequested message,

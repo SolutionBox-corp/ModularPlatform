@@ -25,23 +25,37 @@ internal sealed class CreditTopUpHandler(
         var db = outbox.DbContext;
         var now = clock.UtcNow;
 
+        // Explicit transaction so the row lock is HELD until commit (a lock in autocommit serializes nothing).
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+
         var account = await db.CreditAccounts.FirstOrDefaultAsync(a => a.UserId == command.UserId, ct);
         if (account is null)
         {
             account = new CreditAccount { UserId = command.UserId, Posted = 0, Pending = 0, Available = 0 };
             db.CreditAccounts.Add(account);
-            await outbox.SaveChangesAndFlushMessagesAsync();
+            try
+            {
+                await db.SaveChangesAsync(ct); // INSERT within the tx, not a premature commit
+            }
+            catch (DbUpdateException)
+            {
+                // Lost the UNIQUE(UserId) creation race — reload the account the other writer created.
+                db.Entry(account).State = EntityState.Detached;
+                account = await db.CreditAccounts.FirstAsync(a => a.UserId == command.UserId, ct);
+            }
         }
 
-        // Pessimistic lock on the account row for the duration of the transaction.
+        // Lock the account row, then reload so Posted/xmin are fresh under the lock.
         await db.Database.ExecuteSqlInterpolatedAsync(
-            $"SELECT id FROM credit_accounts WHERE id = {account.Id} FOR NO KEY UPDATE", ct);
+            $"SELECT 1 FROM credit_accounts WHERE \"Id\" = {account.Id} FOR NO KEY UPDATE", ct);
+        await db.Entry(account).ReloadAsync(ct);
 
         // Idempotency pre-check inside the lock: same key already applied -> return existing state, ONE credit.
         var alreadyApplied = await db.CreditEntries
             .AnyAsync(e => e.IdempotencyKey == command.IdempotencyKey, ct);
         if (alreadyApplied)
         {
+            await tx.CommitAsync(ct);
             return new CreditTopUpResponse(account.Id, account.Posted, AlreadyApplied: true);
         }
 
@@ -82,16 +96,24 @@ internal sealed class CreditTopUpHandler(
 
         try
         {
+            // Wolverine saves AND commits the ambient transaction (holding the row lock) + relays the outbox.
             await outbox.SaveChangesAndFlushMessagesAsync();
         }
         catch (DbUpdateException)
         {
+            await tx.RollbackAsync(ct);
+
             // Lost the idempotency race? If the key now exists, another writer applied it — exactly one credit stands.
+            // Re-read the REAL posted balance (our in-memory increment was rolled back).
+            var posted = await db.CreditAccounts.AsNoTracking()
+                .Where(a => a.Id == account.Id)
+                .Select(a => (long?)a.Posted)
+                .FirstOrDefaultAsync(ct);
             var raceLost = await db.CreditEntries.AsNoTracking()
                 .AnyAsync(e => e.IdempotencyKey == command.IdempotencyKey, ct);
-            if (raceLost)
+            if (raceLost && posted is not null)
             {
-                return new CreditTopUpResponse(account.Id, account.Posted, AlreadyApplied: true);
+                return new CreditTopUpResponse(account.Id, posted.Value, AlreadyApplied: true);
             }
 
             throw;

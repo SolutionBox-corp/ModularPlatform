@@ -51,9 +51,8 @@ public sealed class GdprModule : IModule
 
     public void ConfigureMessaging(WolverineOptions options)
     {
-        // Gdpr publishes UserErasureRequested (via the outbox) and consumes it in-proc through
-        // UserErasureRequestedHandler, which fans out across IErasePersonalData. Wolverine auto-discovers
-        // both. Other modules subscribe to UserErasureRequested with their own handlers as well.
+        // Register this module's message handlers explicitly (cross-assembly conventional discovery is unreliable).
+        options.Discovery.IncludeType<Messaging.UserErasureRequestedHandler>();
     }
 
     public async Task ApplyMigrationsAsync(IServiceProvider services, CancellationToken ct)

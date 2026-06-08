@@ -38,5 +38,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ModularPlatform.ArchitectureTests/ModularPlatform.ArchitectureTests.csproj" />
+    <Project Path="tests/ModularPlatform.IntegrationTesting/ModularPlatform.IntegrationTesting.csproj" />
   </Folder>
 </Solution>

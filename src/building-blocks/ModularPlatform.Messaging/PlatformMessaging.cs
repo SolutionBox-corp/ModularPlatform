@@ -26,6 +26,9 @@ public static class PlatformMessaging
 
         foreach (var module in modules)
         {
+            // Discover each module's Wolverine message handlers (integration-event consumers live in module
+            // assemblies, not the host). Without this, cross-module events publish but are NEVER consumed.
+            options.Discovery.IncludeAssembly(module.GetType().Assembly);
             module.ConfigureMessaging(options);
         }
     }

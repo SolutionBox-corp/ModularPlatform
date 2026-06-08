@@ -24,11 +24,14 @@ internal sealed class ConfirmSpendHandler(
         var db = outbox.DbContext;
         var now = clock.UtcNow;
 
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+
         var account = await db.CreditAccounts.FirstOrDefaultAsync(a => a.UserId == command.UserId, ct)
             ?? throw new NotFoundException("credit.account_not_found", "Credit account not found.");
 
         await db.Database.ExecuteSqlInterpolatedAsync(
-            $"SELECT id FROM credit_accounts WHERE id = {account.Id} FOR NO KEY UPDATE", ct);
+            $"SELECT 1 FROM credit_accounts WHERE \"Id\" = {account.Id} FOR NO KEY UPDATE", ct);
+        await db.Entry(account).ReloadAsync(ct);
 
         var hold = await db.CreditHolds
             .FirstOrDefaultAsync(h => h.Id == command.ReservationId && h.AccountId == account.Id, ct)
@@ -36,6 +39,7 @@ internal sealed class ConfirmSpendHandler(
 
         if (hold.Status == HoldStatus.Confirmed)
         {
+            await tx.CommitAsync(ct);
             return new ConfirmSpendResponse(account.Id, account.Posted, account.Available);
         }
 
@@ -97,6 +101,7 @@ internal sealed class ConfirmSpendHandler(
             Amount: hold.Amount,
             NewPosted: account.Posted));
 
+        // Wolverine saves AND commits the ambient transaction (holding the row lock) + relays the outbox.
         await outbox.SaveChangesAndFlushMessagesAsync();
 
         return new ConfirmSpendResponse(account.Id, account.Posted, account.Available);

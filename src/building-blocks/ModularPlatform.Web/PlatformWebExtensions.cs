@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
@@ -37,7 +38,10 @@ public static class PlatformWebExtensions
         services.AddPipelineBehavior(typeof(LoggingBehavior<,>));
         services.AddPipelineBehavior(typeof(ValidationBehavior<,>));
 
-        services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
+        services.AddOptions<JwtOptions>()
+            .Bind(configuration.GetSection(JwtOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<JwtOptions>, JwtOptionsValidator>();
         AddJwt(services, configuration);
         AddRateLimiter(services);
 

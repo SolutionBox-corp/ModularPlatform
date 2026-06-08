@@ -18,11 +18,14 @@ internal sealed class ReleaseHoldHandler(BillingDbContext db, IClock clock)
     {
         var now = clock.UtcNow;
 
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+
         var account = await db.CreditAccounts.FirstOrDefaultAsync(a => a.UserId == command.UserId, ct)
             ?? throw new NotFoundException("credit.account_not_found", "Credit account not found.");
 
         await db.Database.ExecuteSqlInterpolatedAsync(
-            $"SELECT id FROM credit_accounts WHERE id = {account.Id} FOR NO KEY UPDATE", ct);
+            $"SELECT 1 FROM credit_accounts WHERE \"Id\" = {account.Id} FOR NO KEY UPDATE", ct);
+        await db.Entry(account).ReloadAsync(ct);
 
         var hold = await db.CreditHolds
             .FirstOrDefaultAsync(h => h.Id == command.ReservationId && h.AccountId == account.Id, ct)
@@ -30,6 +33,7 @@ internal sealed class ReleaseHoldHandler(BillingDbContext db, IClock clock)
 
         if (hold.Status != HoldStatus.Active)
         {
+            await tx.CommitAsync(ct);
             return new ReleaseHoldResponse(account.Id, account.Available);
         }
 
@@ -55,6 +59,7 @@ internal sealed class ReleaseHoldHandler(BillingDbContext db, IClock clock)
         account.Available = account.Posted - activeHolds;
 
         await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
 
         return new ReleaseHoldResponse(account.Id, account.Available);
     }

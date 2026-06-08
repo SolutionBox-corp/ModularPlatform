@@ -54,8 +54,10 @@ public sealed class NotificationsModule : IModule
 
     public void ConfigureMessaging(WolverineOptions options)
     {
-        // Consumes Identity's UserRegisteredIntegrationEvent (welcome) and its own EmailDeliveryRequested /
-        // PushDeliveryRequested channel messages. Wolverine auto-discovers the Handle methods in this assembly.
+        // Register this module's message handlers explicitly (cross-assembly conventional discovery is unreliable).
+        options.Discovery.IncludeType<Messaging.SendWelcomeHandler>();
+        options.Discovery.IncludeType<Messaging.EmailDeliveryHandler>();
+        options.Discovery.IncludeType<Messaging.PushDeliveryHandler>();
     }
 
     public async Task ApplyMigrationsAsync(IServiceProvider services, CancellationToken ct)

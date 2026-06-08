@@ -121,9 +121,20 @@ public sealed class AuditInterceptor(IClock clock, ITenantContext tenant) : Save
 
     private static Dictionary<string, object?> CurrentValues(EntityEntry entry) =>
         entry.Properties.Where(p => !p.Metadata.IsPrimaryKey())
-            .ToDictionary(p => p.Metadata.Name, p => p.CurrentValue);
+            .ToDictionary(p => p.Metadata.Name, ProviderValue);
 
     private static Dictionary<string, object?> ChangedValues(EntityEntry entry) =>
         entry.Properties.Where(p => p.IsModified && !p.Metadata.IsPrimaryKey())
-            .ToDictionary(p => p.Metadata.Name, p => p.CurrentValue);
+            .ToDictionary(p => p.Metadata.Name, ProviderValue);
+
+    /// <summary>
+    /// Audit the value as it is STORED, applying any EF value converter — so a <c>HasConversion&lt;string&gt;()</c>
+    /// enum is recorded as "Confirmed", not 1, and the audit JSON matches the column.
+    /// </summary>
+    private static object? ProviderValue(PropertyEntry property)
+    {
+        var value = property.CurrentValue;
+        var converter = property.Metadata.GetValueConverter();
+        return converter is null || value is null ? value : converter.ConvertToProvider(value);
+    }
 }

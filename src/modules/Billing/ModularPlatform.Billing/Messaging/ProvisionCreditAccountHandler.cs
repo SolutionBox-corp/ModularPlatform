@@ -10,7 +10,7 @@ namespace ModularPlatform.Billing.Messaging;
 /// PUBLIC shell (Wolverine-discovered, runs in the Worker, inbox-deduped) that dispatches the internal command —
 /// it takes only public types so the module's Core stays internal.
 /// </summary>
-public sealed class UserRegisteredHandler
+public sealed class ProvisionCreditAccountHandler
 {
     public Task Handle(UserRegisteredIntegrationEvent message, IDispatcher dispatcher, CancellationToken ct) =>
         dispatcher.Send(new EnsureCreditAccountCommand(message.UserId), ct);

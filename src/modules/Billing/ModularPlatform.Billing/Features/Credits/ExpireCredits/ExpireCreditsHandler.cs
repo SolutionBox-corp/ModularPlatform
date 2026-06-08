@@ -26,8 +26,10 @@ internal sealed class ExpireCreditsHandler(BillingDbContext db, IClock clock)
 
         foreach (var accountId in accountIds)
         {
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
+
             await db.Database.ExecuteSqlInterpolatedAsync(
-                $"SELECT id FROM credit_accounts WHERE id = {accountId} FOR NO KEY UPDATE", ct);
+                $"SELECT 1 FROM credit_accounts WHERE \"Id\" = {accountId} FOR NO KEY UPDATE", ct);
 
             var account = await db.CreditAccounts.FirstAsync(a => a.Id == accountId, ct);
 
@@ -83,6 +85,7 @@ internal sealed class ExpireCreditsHandler(BillingDbContext db, IClock clock)
             account.Available = account.Posted - activeHolds;
 
             await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
         }
 
         return new ExpireCreditsResponse(expiredHoldCount, expiredBucketCount, expiredCredits);

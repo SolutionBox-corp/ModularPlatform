@@ -33,7 +33,7 @@ foreach (var module in modules)
 // Durable messaging: Postgres outbox/inbox transport; each module contributes its handlers/routes.
 var messagingConn = builder.Configuration.GetConnectionString("Write")
     ?? throw new InvalidOperationException("Missing ConnectionStrings:Write");
-builder.Host.UseWolverine(opts => PlatformMessaging.Configure(opts, messagingConn, modules));
+builder.UseWolverine(opts => PlatformMessaging.Configure(opts, messagingConn, modules));
 
 var app = builder.Build();
 

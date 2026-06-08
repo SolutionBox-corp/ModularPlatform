@@ -215,6 +215,11 @@ Notes that bite if forgotten:
 - **Notifications welcome needs a `NotificationTemplate` row** `Key="welcome", Locale="en"` seeded, else the welcome handler throws `notification.template_not_found` (non-fatal — retried/dead-lettered).
 - **Audit is NOT a separate module** — it's a platform capability (`AuditInterceptor` writes per-module `{module}_audit_entries`). A central "Audit module" reading every module's tables would violate the boundary law, so don't build one; expose per-module audit queries if needed.
 - **Realtime fan-out** lives in the `ModularPlatform.Realtime` building-block (Redis pub/sub + per-instance registry; local-only fallback without Redis). The browser SSE endpoint is a host follow-up.
+- **Wolverine message handlers MUST be `public`** (Wolverine scans `ExportedTypes` only) and every type in their `Handle(...)` signature must be public too. A handler that publishes/dispatches takes only public types (the message + `IDispatcher`); register them explicitly in the module's `ConfigureMessaging` via `options.Discovery.IncludeType<TheHandler>()`.
+- **KNOWN BLOCKER (tracked):** cross-module integration-event *delivery* — a relayed event (e.g. `UserRegisteredIntegrationEvent`) is currently marked Handled without invoking the registered handler, so modules don't yet react to each other's events (no auto credit-account, welcome, or erasure). The money/HTTP paths are unaffected. The acceptance test is `CrossModuleEventTests` (skipped); needs Wolverine log-level debugging of outbox→local-queue routing.
+
+### Money correctness (Billing) — hard rules learned
+- The credit DEBIT path is **pessimistic**: open an explicit `BeginTransactionAsync`, `SELECT 1 … WHERE "Id" = … FOR NO KEY UPDATE`, then `ReloadAsync` the account (fresh `Posted`/xmin) — a lock in autocommit serializes NOTHING. For outbox handlers, `SaveChangesAndFlushMessagesAsync` commits the ambient transaction (do NOT also call `tx.CommitAsync`); for plain handlers commit explicitly. Proven by `BillingConcurrencyTests`/`BillingLedgerTests`.
 
 ## 9. Before you say "done" (checklist)
 

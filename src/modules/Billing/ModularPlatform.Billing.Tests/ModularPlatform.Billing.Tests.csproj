@@ -13,11 +13,17 @@
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Shouldly" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\ModularPlatform.Billing\ModularPlatform.Billing.csproj" />
     <ProjectReference Include="..\ModularPlatform.Billing.Contracts\ModularPlatform.Billing.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\..\tests\ModularPlatform.IntegrationTesting\ModularPlatform.IntegrationTesting.csproj" />
   </ItemGroup>
 
 </Project>
