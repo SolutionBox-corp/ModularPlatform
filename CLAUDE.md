@@ -17,8 +17,10 @@ design a parallel mechanism.**
 1. **Everything is a `ICommand<T>` or `IQuery<T>`. There are NO generic "services".** Business logic lives in a
    handler inside a vertical slice `Features/{Feature}/{Action}/`. If you're tempted to write a `FooService`,
    you're doing it wrong — make it a command or query.
-2. **Commands mutate; queries read.** Commands run the full pipeline (validation → idempotency → transaction →
-   outbox → concurrency-retry). Queries NEVER open a transaction, NEVER publish, NEVER mutate.
+2. **Commands mutate; queries read.** The CQRS pipeline behaviors are Telemetry → Logging → Validation →
+   ConcurrencyRetry (command-only). **Idempotency and the transaction/outbox commit are the HANDLER's job**, not
+   free pipeline steps: a write that publishes uses `IDbContextOutbox.SaveChangesAndFlushMessagesAsync` (that IS the
+   commit); idempotency is a UNIQUE key + `catch (DbUpdateException)`. Queries NEVER open a transaction / publish / mutate.
 3. **Modules talk to each other ONLY through `*.Contracts`** (integration events + DTOs). A module's `Core` is
    `internal`. **Never** reference another module's Core type. **Never** JOIN across modules — reference by Id.
 4. **REUSE-FIRST / DRY.** Don't reinvent what the platform already solved (§4): outbox, inbox dedup, audit,
@@ -32,6 +34,10 @@ design a parallel mechanism.**
 8. **Never run migrations against a shared DB.** Use a local/Testcontainers Postgres or a per-branch clone.
 9. **Tests reuse the shared harness** `tests/ModularPlatform.IntegrationTesting` (`PlatformApiFactory`) — never write
    a new Testcontainers fixture. See the `writing-modularplatform-tests` skill.
+10. **Identity ALWAYS comes from the token** (`ITenantContext.UserId`), NEVER from a route/body id — a client-supplied
+   subject id is an IDOR. (Billing + the GDPR `/gdpr/me/*` endpoints do this; copy them.)
+11. **A concern is "solved" only if a working canonical example exists (§2/§4).** If it's listed in §10 "NOT YET",
+   there is NO pattern — **stop and ask the user for the decision; do not invent a parallel flow.**
 
 ---
 
@@ -129,16 +135,15 @@ ships as different products.**
 | **Validation** | `ValidationBehavior` + FluentValidation | add a `{Action}Validator` with `.WithErrorCode(...)` | validate inside handlers/endpoints |
 | **Transaction + outbox (publish events atomically)** | **Wolverine** EF integration | inject `IDbContextOutbox<TContext>`, do work on `.DbContext`, `PublishAsync(evt)`, then `SaveChangesAndFlushMessagesAsync()` | hand-roll an outbox table or a BackgroundService poller |
 | **Message idempotency (dedup)** | **Wolverine inbox** (UNIQUE MessageId) | nothing — it's automatic for durable handlers | write your own "already processed?" table for messages |
-| **Optimistic concurrency** | Postgres `xmin` (applied to every `Entity` by convention) + `ConcurrencyRetryBehavior` (3× backoff) | nothing — just mutate entities | add a manual RowVersion column; catch concurrency yourself |
-| **Audit (only changed fields → JSONB)** | `AuditInterceptor` (per-module `{module}_audit_entries`) | nothing — automatic on SaveChanges | write your own change log |
+| **Optimistic concurrency** | Postgres `xmin` (every `Entity`) + `ConcurrencyRetryBehavior` (5× backoff, clears tracker before retry) | nothing — just mutate tracked entities | manual RowVersion; catch concurrency yourself |
+| **Audit (only changed fields → JSONB)** | `AuditInterceptor` on **SaveChanges** → per-module `{module}_audit_entries` | nothing — automatic on `SaveChanges` | write your own change log. **CAVEAT: `ExecuteUpdate`/`ExecuteDelete` BYPASS the interceptor + xmin** — use them only where the change need not be audited (e.g. the ledger debit guard, whose `credit_entries` ARE the audit; GDPR scrubs). Audit JSON currently stores PLAINTEXT PII — see §10 |
 | **Errors → HTTP** | throw a `ModularPlatformException` subclass (`NotFoundException`, `ConflictException`, `ForbiddenException`, `UnauthorizedException`, `BusinessRuleException`, `ValidationException`) | `throw new ConflictException("user.email_taken", "...")` | return `BadRequest()`/`Problem()` from endpoints; build ProblemDetails yourself |
 | **Error translation (i18n)** | `GlobalExceptionMiddleware` + `IStringLocalizer<SharedResource>`, **resx key == errorCode** | add the errorCode to `Web/Localization/SharedResource.resx` (+ `.cs.resx` for Czech) | translate on the client; hardcode messages |
 | **Success envelope** | `ApiResponse<T>.Ok(data)` | wrap successful results | wrap errors in ApiResponse (errors are RFC 9457) |
-| **Tenant scoping** | `ITenantContext` (JWT claim) + global query filter + Postgres RLS | mark entity `ITenantScoped` | read tenant from anywhere but `ITenantContext` |
+| **Tenant scoping (read filter)** | `ITenantContext` (JWT claim) + EF global query filter (`IsSystem ‖ TenantId == claim`). **No Postgres RLS exists; the EF filter is the sole layer.** **Currently single-tenant** — nothing assigns a tenant or stamps `TenantId` on insert yet (see §10) | mark entity `ITenantScoped` | read tenant from anywhere but `ITenantContext` |
 | **Auth / JWT / refresh rotation + reuse detection** | Identity module (`TokenIssuer`, `RefreshTokenHandler`) | reuse Identity; don't duplicate auth | parse/issue JWTs in other modules |
-| **Real-time push** | SSE (`Web/Sse/SseStream`, .NET 10 native) + `IRealtimePublisher` (Redis fan-out) | inject `IRealtimePublisher`, `PublishToUserAsync(...)` | open your own WebSocket; bypass the publisher |
-| **Dispatch work to the worker + await** | Wolverine `IMessageBus.InvokeAsync<T>(cmd)` | for SHORT work; for LONG work return `202` + a status endpoint | hold an HTTP request open across long work |
-| **Recurring/cron jobs** | Quartz in the **Jobs** host | add a Quartz job (reconciliation/retention/expiry) | put cron in the Worker; put durable event work in Jobs |
+| **Real-time push (producer)** | `IRealtimePublisher` (Redis fan-out) is wired | inject `IRealtimePublisher`, `PublishToUserAsync(...)` | open your own WebSocket. **The browser SSE *endpoint* is NOT wired — §10** |
+| **Recurring/cron jobs** | Quartz host exists (`AddQuartz`) but has **ZERO jobs and no registration convention** — §10 | — | put cron in the Worker; put durable event work in Jobs |
 | **Credits / money** | Billing append-only ledger + **EF-native atomic `ExecuteUpdate` guard** on the debit path (`WHERE available >= amount`) | reuse Billing commands; invariant `available = posted - pending` | raw SQL; mutate balances by read-then-write; trust a stale balance; double-credit (use the UNIQUE idempotency key) |
 | **GDPR erasure** | `UserErasureRequested` (Worker) fans out `IErasePersonalData` per module + crypto-shreds the subject key | implement `IExport/IErasePersonalData` per module + register both in `RegisterServices` | physically delete append-only ledger/audit rows (retained for AML/tax; anonymize instead) |
 | **Auth hardening** | per-account lockout (`FailedAccessCount`/`LockoutEndUtc` on `User`, 5 strikes → 15 min) + per-IP `"auth"` rate-limit policy on `/login` `/refresh`; family-revoke is tracked+audited | reuse Identity | bulk `ExecuteUpdate` on audited security rows (bypasses audit/xmin); user-enumeration on login |
@@ -273,3 +278,26 @@ dispatches an internal command. Proven end-to-end by `CrossModuleEventTests`.
 - [ ] No cross-module Core reference, no cross-module JOIN (ArchUnitNET green).
 - [ ] Migration generated + a test (slice + boundary) added.
 - [ ] No raw SQL (EF/LINQ only). Money debit path uses the atomic `ExecuteUpdate` guard; append-only ledger; idempotency via UNIQUE key.
+- [ ] Identity from the token (`ITenantContext.UserId`), never a route/body id.
+
+## 10. NOT YET SOLVED — there is NO pattern; ASK before inventing
+
+The everyday slice (entity → command/query → validator → endpoint → cross-module event → money → notification) is
+**done and tested — just write business logic**. The concerns below have **no canonical example**; if a task needs
+one, **stop and ask the user for the decision** (do not invent a parallel flow — that breaks Law 11).
+
+| Concern | State | Decision needed |
+|---|---|---|
+| **Authorization / roles / permissions** | only `.RequireAuthorization()` (authenticated-vs-anonymous); JWT carries NO role/permission claim; no admin policy | roles-in-JWT + `RequireRole`, or a permission/policy table? + how "admin" endpoints are gated |
+| **Multi-tenancy write path** | read filter exists but **inert** — nothing assigns a tenant or stamps `TenantId` on insert; JWT never carries a tenant claim | tenant entity + provisioning + a `TenantStampingInterceptor` + claim issuance; or stay single-tenant |
+| **Long-running command (202 + status)** | `IMessageBus.InvokeAsync` and a 202/status endpoint are described but **never demonstrated** | operation-status entity + status endpoint pattern, or restrict to short work |
+| **Scheduled / cron jobs** | Jobs host registers Quartz but has **zero jobs**; `ExpireCredits`/Stripe reconciliation are never dispatched | an `IModule` job-registration hook + the first canonical job (the Jobs host also doesn't register module services/`IDispatcher`) |
+| **Browser SSE endpoint** | `SseStream`/registry/publisher exist; **no host maps an SSE endpoint** | wire `TypedResults.ServerSentEvents` + registry bridge + Redis subscribe loop |
+| **Pagination / filter / sort** | the one list query returns ALL rows; no paged-response envelope | a `PagedResponse<T>` + skip/take/total convention |
+| **File upload / blobs** | none | a storage port + provider (S3/Azure/MinIO) |
+| **API versioning** | unversioned literal routes | `Asp.Versioning` + `/v1` convention, or header strategy |
+| **Saga / multi-step self-healing workflow** | Wolverine supports it; **none exists** | saga vs orchestrating command-chain; example if in scope |
+| **Search**, **feature flags**, **bulk ops** | none | per need |
+| **Audit-log PII erasure / encryption-at-rest** | `CryptoShredder` exists but **nothing encrypts**; audit JSON holds plaintext PII that erasure can't reach | crypto-shred PII columns under a per-subject key, or hash/anonymize audit on erase |
+| **Secrets management** | JWT key is a plaintext dev value in appsettings | env / user-secrets / KeyVault convention |
+| **Messaging resilience** | Wolverine durable defaults; no configured retry/dead-letter policy or reconciliation job | retry+DLQ policy + a stuck-outbox/reconciliation job |

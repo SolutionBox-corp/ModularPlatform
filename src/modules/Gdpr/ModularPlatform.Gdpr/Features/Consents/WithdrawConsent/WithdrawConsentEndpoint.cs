@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Web;
 
@@ -12,11 +13,12 @@ internal static class WithdrawConsentEndpoint
     {
         app.MapPost("/gdpr/consents/withdraw", async (
                 WithdrawConsentRequest request,
+                ITenantContext tenant,
                 IDispatcher dispatcher,
                 CancellationToken ct) =>
             {
-                var result = await dispatcher.Send(
-                    new WithdrawConsentCommand(request.UserId, request.ConsentType), ct);
+                var userId = tenant.UserId ?? throw new UnauthorizedException("auth.required", "Authentication required.");
+                var result = await dispatcher.Send(new WithdrawConsentCommand(userId, request.ConsentType), ct);
                 return Results.Ok(ApiResponse<WithdrawConsentResponse>.Ok(result));
             })
             .RequireAuthorization()

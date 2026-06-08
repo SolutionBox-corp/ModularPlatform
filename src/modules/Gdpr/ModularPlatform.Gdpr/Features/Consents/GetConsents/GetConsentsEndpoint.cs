@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Web;
 
@@ -10,12 +11,13 @@ internal static class GetConsentsEndpoint
 {
     public static void MapGetConsents(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/gdpr/users/{id:guid}/consents", async (
-                Guid id,
+        app.MapGet("/gdpr/me/consents", async (
+                ITenantContext tenant,
                 IDispatcher dispatcher,
                 CancellationToken ct) =>
             {
-                var consents = await dispatcher.Query(new GetConsentsQuery(id), ct);
+                var userId = tenant.UserId ?? throw new UnauthorizedException("auth.required", "Authentication required.");
+                var consents = await dispatcher.Query(new GetConsentsQuery(userId), ct);
                 return Results.Ok(ApiResponse<IReadOnlyList<ConsentResponse>>.Ok(consents));
             })
             .RequireAuthorization()

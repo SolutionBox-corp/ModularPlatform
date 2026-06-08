@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
+using ModularPlatform.Identity.Gdpr;
 using ModularPlatform.Identity.Features.Auth.Login;
 using ModularPlatform.Identity.Features.Auth.RefreshToken;
 using ModularPlatform.Identity.Features.Users.GetProfile;
@@ -40,6 +41,10 @@ public sealed class IdentityModule : IModule
 
         services.AddScoped<IPasswordHasher, Argon2PasswordHasher>();
         services.AddScoped<ITokenIssuer, JwtTokenIssuer>();
+
+        // GDPR: Identity owns the account PII (email/name) — export it and erase it on request.
+        services.AddScoped<IExportPersonalData, IdentityPersonalDataExporter>();
+        services.AddScoped<IErasePersonalData, IdentityPersonalDataEraser>();
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)

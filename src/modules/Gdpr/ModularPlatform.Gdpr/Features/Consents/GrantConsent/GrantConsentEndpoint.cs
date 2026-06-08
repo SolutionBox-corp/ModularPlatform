@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Web;
 
@@ -12,11 +13,13 @@ internal static class GrantConsentEndpoint
     {
         app.MapPost("/gdpr/consents/grant", async (
                 GrantConsentRequest request,
+                ITenantContext tenant,
                 IDispatcher dispatcher,
                 CancellationToken ct) =>
             {
-                var result = await dispatcher.Send(
-                    new GrantConsentCommand(request.UserId, request.ConsentType), ct);
+                // Identity comes from the token, NOT request.UserId (which is ignored to prevent acting as another user).
+                var userId = tenant.UserId ?? throw new UnauthorizedException("auth.required", "Authentication required.");
+                var result = await dispatcher.Send(new GrantConsentCommand(userId, request.ConsentType), ct);
                 return Results.Ok(ApiResponse<GrantConsentResponse>.Ok(result));
             })
             .RequireAuthorization()
