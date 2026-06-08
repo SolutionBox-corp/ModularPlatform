@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\ModularPlatform.Cqrs\ModularPlatform.Cqrs.csproj" />
+    <ProjectReference Include="..\ModularPlatform.Abstractions\ModularPlatform.Abstractions.csproj" />
+    <ProjectReference Include="..\ModularPlatform.Persistence\ModularPlatform.Persistence.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WolverineFx" />
+    <PackageReference Include="WolverineFx.Postgresql" />
+    <PackageReference Include="WolverineFx.EntityFrameworkCore" />
+  </ItemGroup>
+
+</Project>

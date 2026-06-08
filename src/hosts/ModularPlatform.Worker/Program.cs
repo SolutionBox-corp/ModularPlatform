@@ -1,0 +1,37 @@
+using ModularPlatform.Abstractions;
+using ModularPlatform.Billing;
+using ModularPlatform.Gdpr;
+using ModularPlatform.Identity;
+using ModularPlatform.Messaging;
+using ModularPlatform.Notifications;
+using ModularPlatform.Persistence;
+using ModularPlatform.Realtime;
+using ModularPlatform.Telemetry;
+using Wolverine;
+
+var builder = Host.CreateApplicationBuilder(args);
+
+// System context (no HTTP). Modules register their handlers + DbContext (Wolverine EF outbox).
+builder.Services.AddPlatformCore();
+builder.Services.AddPlatformTelemetry("ModularPlatform.Worker");
+builder.Services.AddPlatformRealtime(builder.Configuration);
+
+var modules = ModuleLoader.Discover(
+    builder.Configuration,
+    typeof(IdentityModule).Assembly,
+    typeof(BillingModule).Assembly,
+    typeof(NotificationsModule).Assembly,
+    typeof(GdprModule).Assembly);
+foreach (var module in modules)
+{
+    module.RegisterServices(builder.Services, builder.Configuration);
+}
+
+var conn = builder.Configuration.GetConnectionString("Write")
+    ?? throw new InvalidOperationException("Missing ConnectionStrings:Write");
+
+// This host LISTENS on the durable Postgres queues and runs dispatched commands + integration-event handlers.
+builder.UseWolverine(opts => PlatformMessaging.Configure(opts, conn, modules));
+
+var host = builder.Build();
+host.Run();

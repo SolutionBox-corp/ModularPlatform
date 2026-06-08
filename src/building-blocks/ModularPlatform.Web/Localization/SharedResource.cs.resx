@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+
+  <data name="error.unexpected" xml:space="preserve"><value>Došlo k neočekávané chybě.</value></data>
+  <data name="validation.failed" xml:space="preserve"><value>Vyskytla se jedna nebo více chyb validace.</value></data>
+  <data name="auth.invalid_credentials" xml:space="preserve"><value>Neplatný e-mail nebo heslo.</value></data>
+  <data name="auth.refresh_token_invalid" xml:space="preserve"><value>Obnovovací token je neplatný nebo byl odvolán.</value></data>
+  <data name="auth.refresh_token_reused" xml:space="preserve"><value>Tato relace byla z bezpečnostních důvodů odvolána. Přihlaste se prosím znovu.</value></data>
+  <data name="user.not_found" xml:space="preserve"><value>Uživatel nenalezen.</value></data>
+  <data name="user.email_taken" xml:space="preserve"><value>Tento e-mail je již zaregistrován.</value></data>
+  <data name="auth.required" xml:space="preserve"><value>Vyžadováno přihlášení.</value></data>
+
+  <data name="credit.insufficient_balance" xml:space="preserve"><value>Nedostatečný zůstatek kreditů.</value></data>
+  <data name="credit.account_not_found" xml:space="preserve"><value>Kreditní účet nenalezen.</value></data>
+  <data name="credit.reservation_not_found" xml:space="preserve"><value>Rezervace kreditů nenalezena.</value></data>
+  <data name="credit.reservation_not_active" xml:space="preserve"><value>Rezervace kreditů už není aktivní.</value></data>
+  <data name="credit.amount.must_be_positive" xml:space="preserve"><value>Částka musí být kladné číslo.</value></data>
+  <data name="credit.user.required" xml:space="preserve"><value>Uživatel je povinný.</value></data>
+  <data name="credit.reservation.required" xml:space="preserve"><value>Rezervace je povinná.</value></data>
+  <data name="credit.idempotency_key.required" xml:space="preserve"><value>Idempotency klíč je povinný.</value></data>
+  <data name="credit.idempotency_key.too_long" xml:space="preserve"><value>Idempotency klíč je příliš dlouhý.</value></data>
+  <data name="credit.bucket_expiry.must_be_positive" xml:space="preserve"><value>Expirace balíčku musí být kladný počet dní.</value></data>
+  <data name="credit.hold_minutes.must_be_positive" xml:space="preserve"><value>Doba rezervace musí být kladný počet minut.</value></data>
+
+  <data name="notification.user.required" xml:space="preserve"><value>Uživatel je povinný.</value></data>
+  <data name="notification.template_key.required" xml:space="preserve"><value>Klíč šablony je povinný.</value></data>
+  <data name="notification.template_key.too_long" xml:space="preserve"><value>Klíč šablony je příliš dlouhý.</value></data>
+  <data name="notification.channels.required" xml:space="preserve"><value>Je vyžadován alespoň jeden kanál.</value></data>
+  <data name="notification.channel.invalid" xml:space="preserve"><value>Neznámý kanál notifikace.</value></data>
+  <data name="notification.id.required" xml:space="preserve"><value>ID notifikace je povinné.</value></data>
+  <data name="notification.template_not_found" xml:space="preserve"><value>Šablona notifikace nenalezena.</value></data>
+  <data name="notification.not_found" xml:space="preserve"><value>Notifikace nenalezena.</value></data>
+
+  <data name="gdpr.erasure.user_id.required" xml:space="preserve"><value>ID uživatele je povinné.</value></data>
+  <data name="gdpr.consent.user_id.required" xml:space="preserve"><value>ID uživatele je povinné.</value></data>
+  <data name="gdpr.consent.type.required" xml:space="preserve"><value>Typ souhlasu je povinný.</value></data>
+  <data name="gdpr.consent.type.too_long" xml:space="preserve"><value>Typ souhlasu je příliš dlouhý.</value></data>
+</root>

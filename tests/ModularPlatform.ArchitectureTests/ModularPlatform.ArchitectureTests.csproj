@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="TngTech.ArchUnitNET.xUnit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\building-blocks\ModularPlatform.Cqrs\ModularPlatform.Cqrs.csproj" />
+    <ProjectReference Include="..\..\src\building-blocks\ModularPlatform.Abstractions\ModularPlatform.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\modules\Identity\ModularPlatform.Identity\ModularPlatform.Identity.csproj" />
+    <ProjectReference Include="..\..\src\modules\Identity\ModularPlatform.Identity.Contracts\ModularPlatform.Identity.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\modules\Billing\ModularPlatform.Billing\ModularPlatform.Billing.csproj" />
+    <ProjectReference Include="..\..\src\modules\Billing\ModularPlatform.Billing.Contracts\ModularPlatform.Billing.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\modules\Notifications\ModularPlatform.Notifications\ModularPlatform.Notifications.csproj" />
+    <ProjectReference Include="..\..\src\modules\Notifications\ModularPlatform.Notifications.Contracts\ModularPlatform.Notifications.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\modules\Gdpr\ModularPlatform.Gdpr\ModularPlatform.Gdpr.csproj" />
+    <ProjectReference Include="..\..\src\modules\Gdpr\ModularPlatform.Gdpr.Contracts\ModularPlatform.Gdpr.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

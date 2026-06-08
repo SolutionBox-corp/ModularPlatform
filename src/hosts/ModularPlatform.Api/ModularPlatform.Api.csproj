@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\building-blocks\ModularPlatform.Web\ModularPlatform.Web.csproj" />
+    <ProjectReference Include="..\..\building-blocks\ModularPlatform.Telemetry\ModularPlatform.Telemetry.csproj" />
+    <ProjectReference Include="..\..\building-blocks\ModularPlatform.Messaging\ModularPlatform.Messaging.csproj" />
+    <ProjectReference Include="..\..\building-blocks\ModularPlatform.Persistence\ModularPlatform.Persistence.csproj" />
+    <ProjectReference Include="..\..\modules\Identity\ModularPlatform.Identity\ModularPlatform.Identity.csproj" />
+    <ProjectReference Include="..\..\modules\Identity\ModularPlatform.Identity.Contracts\ModularPlatform.Identity.Contracts.csproj" />
+    <ProjectReference Include="..\..\building-blocks\ModularPlatform.Realtime\ModularPlatform.Realtime.csproj" />
+    <ProjectReference Include="..\..\modules\Billing\ModularPlatform.Billing\ModularPlatform.Billing.csproj" />
+    <ProjectReference Include="..\..\modules\Notifications\ModularPlatform.Notifications\ModularPlatform.Notifications.csproj" />
+    <ProjectReference Include="..\..\modules\Gdpr\ModularPlatform.Gdpr\ModularPlatform.Gdpr.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WolverineFx" />
+    <PackageReference Include="WolverineFx.Postgresql" />
+    <PackageReference Include="WolverineFx.EntityFrameworkCore" />
+    <PackageReference Include="WolverineFx.RuntimeCompilation" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+</Project>

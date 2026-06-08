@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\ModularPlatform.Cqrs\ModularPlatform.Cqrs.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- IEndpointRouteBuilder / IServiceCollection for IModule -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <!-- WolverineOptions for IModule.ConfigureMessaging -->
+    <PackageReference Include="WolverineFx" />
+  </ItemGroup>
+
+</Project>

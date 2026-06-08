@@ -1,0 +1,28 @@
+# Build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+
+# IDE
+.vs/
+.idea/
+*.user
+*.suo
+
+# Rider/EF
+*.DotSettings.user
+
+# OS
+.DS_Store
+
+# Secrets / local
+appsettings.*.Local.json
+*.env
+.env
+
+# Transient tooling state
+.claude/scheduled_tasks.lock
+.claude/settings.local.json
+.orchestrator/

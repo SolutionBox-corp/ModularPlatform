@@ -1,0 +1,42 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/building-blocks/">
+    <Project Path="src/building-blocks/ModularPlatform.Abstractions/ModularPlatform.Abstractions.csproj" />
+    <Project Path="src/building-blocks/ModularPlatform.Cqrs/ModularPlatform.Cqrs.csproj" />
+    <Project Path="src/building-blocks/ModularPlatform.Messaging/ModularPlatform.Messaging.csproj" />
+    <Project Path="src/building-blocks/ModularPlatform.Persistence/ModularPlatform.Persistence.csproj" />
+    <Project Path="src/building-blocks/ModularPlatform.Realtime/ModularPlatform.Realtime.csproj" />
+    <Project Path="src/building-blocks/ModularPlatform.Telemetry/ModularPlatform.Telemetry.csproj" />
+    <Project Path="src/building-blocks/ModularPlatform.Web/ModularPlatform.Web.csproj" />
+  </Folder>
+  <Folder Name="/src/hosts/">
+    <Project Path="src/hosts/ModularPlatform.Api/ModularPlatform.Api.csproj" />
+    <Project Path="src/hosts/ModularPlatform.Jobs/ModularPlatform.Jobs.csproj" />
+    <Project Path="src/hosts/ModularPlatform.MigrationService/ModularPlatform.MigrationService.csproj" />
+    <Project Path="src/hosts/ModularPlatform.Worker/ModularPlatform.Worker.csproj" />
+  </Folder>
+  <Folder Name="/src/modules/" />
+  <Folder Name="/src/modules/Billing/">
+    <Project Path="src/modules/Billing/ModularPlatform.Billing.Contracts/ModularPlatform.Billing.Contracts.csproj" />
+    <Project Path="src/modules/Billing/ModularPlatform.Billing.Tests/ModularPlatform.Billing.Tests.csproj" />
+    <Project Path="src/modules/Billing/ModularPlatform.Billing/ModularPlatform.Billing.csproj" />
+  </Folder>
+  <Folder Name="/src/modules/Gdpr/">
+    <Project Path="src/modules/Gdpr/ModularPlatform.Gdpr.Contracts/ModularPlatform.Gdpr.Contracts.csproj" />
+    <Project Path="src/modules/Gdpr/ModularPlatform.Gdpr.Tests/ModularPlatform.Gdpr.Tests.csproj" />
+    <Project Path="src/modules/Gdpr/ModularPlatform.Gdpr/ModularPlatform.Gdpr.csproj" />
+  </Folder>
+  <Folder Name="/src/modules/Identity/">
+    <Project Path="src/modules/Identity/ModularPlatform.Identity.Contracts/ModularPlatform.Identity.Contracts.csproj" />
+    <Project Path="src/modules/Identity/ModularPlatform.Identity.Tests/ModularPlatform.Identity.Tests.csproj" />
+    <Project Path="src/modules/Identity/ModularPlatform.Identity/ModularPlatform.Identity.csproj" />
+  </Folder>
+  <Folder Name="/src/modules/Notifications/">
+    <Project Path="src/modules/Notifications/ModularPlatform.Notifications.Contracts/ModularPlatform.Notifications.Contracts.csproj" />
+    <Project Path="src/modules/Notifications/ModularPlatform.Notifications.Tests/ModularPlatform.Notifications.Tests.csproj" />
+    <Project Path="src/modules/Notifications/ModularPlatform.Notifications/ModularPlatform.Notifications.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ModularPlatform.ArchitectureTests/ModularPlatform.ArchitectureTests.csproj" />
+  </Folder>
+</Solution>

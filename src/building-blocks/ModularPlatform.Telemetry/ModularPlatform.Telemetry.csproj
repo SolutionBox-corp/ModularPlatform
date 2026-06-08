@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\ModularPlatform.Cqrs\ModularPlatform.Cqrs.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+  </ItemGroup>
+
+</Project>
