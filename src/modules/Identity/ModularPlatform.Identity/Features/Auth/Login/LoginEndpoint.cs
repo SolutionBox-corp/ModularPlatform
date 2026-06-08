@@ -19,6 +19,7 @@ internal static class LoginEndpoint
                 return Results.Ok(ApiResponse<AuthTokensResponse>.Ok(tokens));
             })
             .AllowAnonymous()
+            .RequireRateLimiting("auth")
             .WithTags("Identity")
             .WithName("Login");
     }

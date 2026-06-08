@@ -3,6 +3,7 @@ using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -54,6 +55,12 @@ public static class PlatformWebExtensions
     /// </summary>
     public static WebApplication UsePlatformWeb(this WebApplication app)
     {
+        // Resolve the real client IP behind a proxy for rate limiting + audit. Production must set KnownProxies.
+        app.UseForwardedHeaders(new ForwardedHeadersOptions
+        {
+            ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+        });
+
         app.UseMiddleware<SecurityHeadersMiddleware>();
 
         app.UseRequestLocalization(o =>
@@ -117,6 +124,19 @@ public static class PlatformWebExtensions
                     TokensPerPeriod = 100,
                     ReplenishmentPeriod = TimeSpan.FromMinutes(1),
                     AutoReplenishment = true,
+                    QueueLimit = 0,
+                });
+            });
+
+            // Tight per-IP limit for credential endpoints (/login, /refresh) — brute-force defence in depth on
+            // top of per-account lockout. Endpoints opt in with .RequireRateLimiting("auth").
+            options.AddPolicy("auth", context =>
+            {
+                var key = context.Connection.RemoteIpAddress?.ToString() ?? "anon";
+                return RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 10,
+                    Window = TimeSpan.FromMinutes(1),
                     QueueLimit = 0,
                 });
             });

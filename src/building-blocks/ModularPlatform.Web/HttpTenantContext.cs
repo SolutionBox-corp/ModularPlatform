@@ -18,6 +18,9 @@ public sealed class HttpTenantContext(IHttpContextAccessor accessor) : ITenantCo
 
     public Guid? UserId => ParseGuid(User?.FindFirstValue(ClaimTypes.NameIdentifier) ?? User?.FindFirstValue("sub"));
 
+    /// <summary>An HTTP request is never a system principal — even an unauthenticated one must stay tenant-scoped.</summary>
+    public bool IsSystem => false;
+
     public string? IpAddress => accessor.HttpContext?.Connection.RemoteIpAddress?.ToString();
 
     private ClaimsPrincipal? User => accessor.HttpContext?.User;

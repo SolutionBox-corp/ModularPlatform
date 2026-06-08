@@ -22,14 +22,48 @@ internal sealed class LoginHandler(
     IOptions<JwtOptions> jwtOptions)
     : ICommandHandler<LoginCommand, AuthTokensResponse>
 {
+    private const int MaxFailedAccessAttempts = 5;
+    private static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
+
     public async Task<AuthTokensResponse> Handle(LoginCommand command, CancellationToken ct)
     {
+        var now = clock.UtcNow;
         var normalizedEmail = command.Email.Trim().ToUpperInvariant();
         var user = await db.Users.FirstOrDefaultAsync(u => u.NormalizedEmail == normalizedEmail, ct);
 
-        if (user is null || !passwordHasher.Verify(user.PasswordHash, command.Password))
+        // Unknown user: nothing to mutate; respond with the generic credential error (no user enumeration).
+        if (user is null)
         {
             throw new UnauthorizedException("auth.invalid_credentials", "Invalid email or password.");
+        }
+
+        // Reject even CORRECT credentials while the account is locked out.
+        if (user.LockoutEndUtc is { } lockoutEnd && lockoutEnd > now)
+        {
+            throw new UnauthorizedException("auth.locked_out",
+                "This account is temporarily locked. Try again later.");
+        }
+
+        if (!passwordHasher.Verify(user.PasswordHash, command.Password))
+        {
+            // Wrong password: count the failure; lock out once the threshold is crossed.
+            user.FailedAccessCount += 1;
+            if (user.FailedAccessCount >= MaxFailedAccessAttempts)
+            {
+                user.LockoutEndUtc = now.Add(LockoutDuration);
+                user.FailedAccessCount = 0;
+            }
+
+            await db.SaveChangesAsync(ct);
+
+            throw new UnauthorizedException("auth.invalid_credentials", "Invalid email or password.");
+        }
+
+        // Successful login: clear any accumulated failure state.
+        if (user.FailedAccessCount != 0 || user.LockoutEndUtc is not null)
+        {
+            user.FailedAccessCount = 0;
+            user.LockoutEndUtc = null;
         }
 
         var access = tokenIssuer.IssueAccessToken(user.Id, tenantId: null, user.Email);

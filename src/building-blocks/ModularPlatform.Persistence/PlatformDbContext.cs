@@ -25,6 +25,9 @@ public abstract class PlatformDbContext(DbContextOptions options, ITenantContext
     /// <summary>Referenced by tenant query filters; EF parameterises it per current tenant.</summary>
     protected Guid? CurrentTenantId => tenant.TenantId;
 
+    /// <summary>True only for trusted system principals (worker/jobs/migration), which bypass the tenant filter.</summary>
+    protected bool IsSystemContext => tenant.IsSystem;
+
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -75,8 +78,11 @@ public abstract class PlatformDbContext(DbContextOptions options, ITenantContext
 
     private LambdaExpression BuildTenantFilter<TEntity>() where TEntity : class
     {
+        // Only a real SYSTEM principal (worker/jobs/migration) bypasses the filter. An authenticated user whose
+        // token lacks a tenant sees only their tenant's rows (null included) — NEVER everyone's. The old
+        // `CurrentTenantId == null` short-circuit was a cross-tenant leak for any user with a missing claim.
         Expression<Func<TEntity, bool>> filter = e =>
-            CurrentTenantId == null || EF.Property<Guid?>(e, "TenantId") == CurrentTenantId;
+            IsSystemContext || EF.Property<Guid?>(e, "TenantId") == CurrentTenantId;
         return filter;
     }
 

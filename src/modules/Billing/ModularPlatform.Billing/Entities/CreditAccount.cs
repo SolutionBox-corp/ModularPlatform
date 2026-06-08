@@ -27,7 +27,15 @@ internal sealed class CreditAccountConfiguration : IEntityTypeConfiguration<Cred
 {
     public void Configure(EntityTypeBuilder<CreditAccount> builder)
     {
-        builder.ToTable("credit_accounts");
+        builder.ToTable("credit_accounts", t =>
+        {
+            // Defence-in-depth at the DB level: the balance projection must never go negative even if a
+            // handler bug or a manual write tried to. Postgres rejects the write; the application-level
+            // atomic ExecuteUpdate guard (WHERE available >= amount) is the primary protection.
+            t.HasCheckConstraint("ck_credit_accounts_posted_non_negative", "\"Posted\" >= 0");
+            t.HasCheckConstraint("ck_credit_accounts_pending_non_negative", "\"Pending\" >= 0");
+            t.HasCheckConstraint("ck_credit_accounts_available_non_negative", "\"Available\" >= 0");
+        });
         builder.HasKey(a => a.Id);
         builder.Property(a => a.UserId).IsRequired();
         builder.Property(a => a.Posted).IsRequired();

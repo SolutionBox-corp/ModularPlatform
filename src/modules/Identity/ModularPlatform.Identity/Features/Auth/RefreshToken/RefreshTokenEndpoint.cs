@@ -19,6 +19,7 @@ internal static class RefreshTokenEndpoint
                 return Results.Ok(ApiResponse<AuthTokensResponse>.Ok(tokens));
             })
             .AllowAnonymous()
+            .RequireRateLimiting("auth")
             .WithTags("Identity")
             .WithName("RefreshToken");
     }

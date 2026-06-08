@@ -9,6 +9,12 @@ public interface ITenantContext
     /// <summary>Current authenticated user; <c>null</c> for anonymous/system context.</summary>
     Guid? UserId { get; }
 
+    /// <summary>
+    /// True ONLY for a trusted system principal (worker/jobs/migration) that may bypass the tenant query filter.
+    /// An authenticated HTTP user is NEVER system — a missing tenant claim must NOT grant cross-tenant access.
+    /// </summary>
+    bool IsSystem { get; }
+
     /// <summary>Client IP for audit, if available.</summary>
     string? IpAddress { get; }
 }

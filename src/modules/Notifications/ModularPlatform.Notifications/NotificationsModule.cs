@@ -43,6 +43,7 @@ public sealed class NotificationsModule : IModule
         services.AddScoped<IPushSender, NoOpPushSender>();
 
         services.AddScoped<IExportPersonalData, NotificationsPersonalDataExporter>();
+        services.AddScoped<IErasePersonalData, NotificationsPersonalDataEraser>();
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)

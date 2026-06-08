@@ -9,5 +9,6 @@ public sealed class SystemTenantContext : ITenantContext
 {
     public Guid? TenantId => null;
     public Guid? UserId => null;
+    public bool IsSystem => true;
     public string? IpAddress => null;
 }

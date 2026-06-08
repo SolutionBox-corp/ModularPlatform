@@ -134,7 +134,9 @@ ships as different products.**
 | **Dispatch work to the worker + await** | Wolverine `IMessageBus.InvokeAsync<T>(cmd)` | for SHORT work; for LONG work return `202` + a status endpoint | hold an HTTP request open across long work |
 | **Recurring/cron jobs** | Quartz in the **Jobs** host | add a Quartz job (reconciliation/retention/expiry) | put cron in the Worker; put durable event work in Jobs |
 | **Credits / money** | Billing append-only ledger + **EF-native atomic `ExecuteUpdate` guard** on the debit path (`WHERE available >= amount`) | reuse Billing commands; invariant `available = posted - pending` | raw SQL; mutate balances by read-then-write; trust a stale balance; double-credit (use the UNIQUE idempotency key) |
-| **GDPR erasure** | crypto-shredding (per-subject key) + anonymization fallback + `UserErasureRequested` event | implement `IExport/IErasePersonalData` per module | physically delete rows from append-only audit |
+| **GDPR erasure** | `UserErasureRequested` (Worker) fans out `IErasePersonalData` per module + crypto-shreds the subject key | implement `IExport/IErasePersonalData` per module + register both in `RegisterServices` | physically delete append-only ledger/audit rows (retained for AML/tax; anonymize instead) |
+| **Auth hardening** | per-account lockout (`FailedAccessCount`/`LockoutEndUtc` on `User`, 5 strikes → 15 min) + per-IP `"auth"` rate-limit policy on `/login` `/refresh`; family-revoke is tracked+audited | reuse Identity | bulk `ExecuteUpdate` on audited security rows (bypasses audit/xmin); user-enumeration on login |
+| **Tenant isolation** | EF global query filter `IsSystem ‖ TenantId == claim` (no null-escape); only `SystemTenantContext` (worker/jobs) bypasses | mark entity `ITenantScoped` | trust a missing tenant claim as "see everything" |
 
 ---
 

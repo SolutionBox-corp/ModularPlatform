@@ -46,6 +46,8 @@
   <data name="credit.idempotency_key.too_long" xml:space="preserve"><value>The idempotency key is too long.</value></data>
   <data name="credit.bucket_expiry.must_be_positive" xml:space="preserve"><value>The bucket expiry must be a positive number of days.</value></data>
   <data name="credit.hold_minutes.must_be_positive" xml:space="preserve"><value>The hold duration must be a positive number of minutes.</value></data>
+  <data name="credit.amount.too_large" xml:space="preserve"><value>The amount exceeds the maximum allowed.</value></data>
+  <data name="auth.locked_out" xml:space="preserve"><value>This account is temporarily locked. Please try again later.</value></data>
 
   <data name="notification.user.required" xml:space="preserve"><value>User is required.</value></data>
   <data name="notification.template_key.required" xml:space="preserve"><value>A template key is required.</value></data>

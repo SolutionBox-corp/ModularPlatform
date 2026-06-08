@@ -39,9 +39,19 @@ internal sealed class RefreshTokenHandler(
         if (token.ConsumedAt is not null)
         {
             // Reuse of a consumed token: the family is compromised. Revoke all of it.
-            await db.RefreshTokens
+            // SECURITY: load the family TRACKED and SaveChanges so the AuditInterceptor records this
+            // revocation (a security event) and xmin concurrency is honored — never a set-based
+            // ExecuteUpdate, which bypasses both. Reuse-detection semantics are unchanged.
+            var family = await db.RefreshTokens
                 .Where(t => t.FamilyId == token.FamilyId && t.RevokedAt == null)
-                .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, now), ct);
+                .ToListAsync(ct);
+
+            foreach (var familyToken in family)
+            {
+                familyToken.RevokedAt = now;
+            }
+
+            await db.SaveChangesAsync(ct);
 
             throw new UnauthorizedException("auth.refresh_token_reused",
                 "This session has been revoked for security reasons.");

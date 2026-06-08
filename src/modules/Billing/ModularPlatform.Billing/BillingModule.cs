@@ -45,6 +45,7 @@ public sealed class BillingModule : IModule
         services.Configure<StripeOptions>(configuration.GetSection(StripeOptions.SectionName));
 
         services.AddScoped<IExportPersonalData, BillingPersonalDataExporter>();
+        services.AddScoped<IErasePersonalData, BillingPersonalDataEraser>();
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
