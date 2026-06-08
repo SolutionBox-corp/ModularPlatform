@@ -48,6 +48,7 @@
   <ItemGroup Label="Security">
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.8" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.8" />
+    <PackageVersion Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Identity.Core" Version="10.0.8" />
     <PackageVersion Include="Isopoh.Cryptography.Argon2" Version="2.0.0" />
   </ItemGroup>

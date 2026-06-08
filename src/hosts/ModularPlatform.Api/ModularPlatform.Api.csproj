@@ -19,6 +19,7 @@
     <PackageReference Include="WolverineFx.EntityFrameworkCore" />
     <PackageReference Include="WolverineFx.RuntimeCompilation" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="AspNetCore.HealthChecks.NpgSql" />
   </ItemGroup>
 
   <PropertyGroup>
