@@ -1,44 +1,61 @@
 ---
 name: adding-billing-command
-description: Add a credit-ledger or Stripe command in the Billing module. Use when touching credits, top-ups, spend/reservations, subscriptions, coupons, packages, or Stripe webhooks. Enforces the append-only ledger + pessimistic-lock + idempotent-webhook rules so money is never corrupted.
+description: Add a credit-ledger or Stripe command in the Billing module. Use when touching credits, top-ups, spend/reservations, subscriptions, coupons, packages, or Stripe webhooks. Enforces the append-only ledger + EF-native atomic guard + idempotent-webhook rules so money is never corrupted.
 ---
 
 # Adding a Billing command
 
-**Read `CLAUDE.md` §4 (billing row) first.** Money correctness is non-negotiable. The ledger is the source of
-truth for the wallet; Stripe holds the money.
+**Read `CLAUDE.md` §4 (Credits/money row) + "Money correctness (Billing)" first.** Money correctness is
+non-negotiable. **Copy the existing handlers — `ReserveCreditsHandler` / `ConfirmSpendHandler` / `CreditTopUpHandler`
+are the canonical, tested shapes. Do not invent a new flow.** Proven by `BillingConcurrencyTests` + `BillingLedgerTests`.
 
 ## The ledger model (never violate)
-- `credit_account` — one per user/tenant; cached `posted`/`pending`/`available` (a projection, verified against
-  entries inside the lock — never trusted alone).
-- `credit_entry` — **append-only, immutable**. Never UPDATE/DELETE an entry. Each `transaction_id` groups a
-  balanced set. Has `idempotency_key`.
-- `credit_bucket` — per top-up with `expires_at`; spend draws soonest-to-expire (FIFO).
+- `credit_account` — one per user; **stored** `posted`/`pending`/`available` are AUTHORITATIVE, maintained
+  transactionally. Invariant **`available = posted − pending`** preserved by arithmetic in every handler.
+- `credit_entry` — **append-only, immutable**. Never UPDATE/DELETE. Has a **UNIQUE `idempotency_key`** (the dedup guard).
+- `credit_bucket` — per top-up with `expires_at`; spend draws soonest-to-expire (FIFO). DB CHECK constraints keep
+  posted/available/pending ≥ 0 as a backstop.
 
-## Rules
-1. **Debit/reserve = pessimistic.** `SELECT … FOR NO KEY UPDATE` on the account row, then check-and-debit in ONE
-   serialized transaction. **Never** optimistic concurrency on the debit path. Invariant everywhere: `available >= 0`.
-2. **`available = posted - active_holds`**, computed so an EXPIRED reservation is ignored by the query even before
-   the sweep job runs (the Jobs sweep is cleanup, not correctness).
-3. **Reservations:** `ReserveCredits` (hold) → `ConfirmSpend` (posted debit) → `ReleaseHold`. Every reservation has
-   a hard `expires_at`.
-4. **Top-up is idempotent** by `idempotency_key` (Stripe event id) — applying the same event twice = ONE credit.
+## EF-native rules — NEVER raw SQL
+1. **DEBIT path = atomic conditional `ExecuteUpdate` guard** (the EF pessimistic equivalent — the UPDATE locks the
+   row + evaluates the guard atomically, so DB serializes; no double-spend, no retry storm):
+   ```csharp
+   var debited = await db.CreditAccounts
+       .Where(a => a.Id == accountId && a.Available >= amount)
+       .ExecuteUpdateAsync(s => s
+           .SetProperty(a => a.Available, a => a.Available - amount)
+           .SetProperty(a => a.Pending,   a => a.Pending   + amount), ct);
+   if (debited == 0) throw new BusinessRuleException("credit.insufficient_balance", "…");
+   ```
+   Wrap the guard + the hold/entry insert in `BeginTransactionAsync … SaveChangesAsync … CommitAsync` so the reserve
+   always has a matching hold.
+2. **Confirm/release/expire/top-up = tracked entities + xmin** (the `ConcurrencyRetryBehavior` handles conflicts —
+   it clears the tracker before retry). Maintain the invariant by arithmetic. **Idempotency** = the UNIQUE
+   `idempotency_key` + `catch (DbUpdateException ex) when (ex is not DbUpdateConcurrencyException)` → re-read and
+   return the already-applied state.
+3. **Outbox handlers** (confirm/top-up publish events): `await outbox.SaveChangesAndFlushMessagesAsync()` **IS the
+   commit** — never also call `tx.CommitAsync`.
+4. `GetCreditBalance` returns the STORED `available` (so the shown balance == what a reservation will allow).
 
-## Stripe webhook (copy this shape)
-- The endpoint is a thin ingest: verify signature against the **raw body bytes** (`EventUtility.ConstructEvent`),
-  persist `event.id` under a UNIQUE constraint **in the same transaction**, return **200 immediately**, enqueue.
-- A **Worker** handler does the idempotent ledger top-up. Events arrive **out of order** — reconcile against object
-  state, never assume sequence.
-- A daily **reconciliation Job** (Jobs host) re-applies Stripe events for a window (Stripe = source of truth).
+## Stripe webhook (copy `StripeWebhookEndpoint`)
+- Thin ingest: verify signature against **raw body bytes** (`EventUtility.ConstructEvent`), persist `StripeEvent`
+  (UNIQUE `StripeEventId`) AND enqueue `ProcessStripeEventMessage` **atomically via `IDbContextOutbox`**, return 200.
+- `.AllowAnonymous().DisableRateLimiting()` (Stripe bursts from many IPs).
+- A **Worker** handler runs the idempotent top-up (key = Stripe event id). Events arrive out of order — reconcile
+  against object state. A daily reconciliation Job re-applies events (Stripe = source of truth).
 
 ## Subscriptions / coupons / packages
-- Subscriptions, coupons, promotion codes, proration → **Stripe** (don't re-implement discount math).
-- Credit packages → our DB (`credit_package`), each mapped to a one-time Stripe Price.
+Subscriptions, coupons, promo codes, proration → **Stripe** (don't re-implement discount math). Credit packages →
+our DB (`credit_package`), each mapped to a one-time Stripe Price. Bound amounts in the validator (`> 0` and `≤ max`).
 
-## Commands you extend
-`CreditTopUp, ReserveCredits, ConfirmSpend, ReleaseHold, ExpireCredits, HandleStripeEvent` — follow the
-building-modularplatform-feature skill for the slice mechanics.
+## GDPR
+The append-only ledger is **retained for AML/tax** — `BillingPersonalDataEraser` is a documented near-no-op; never
+delete ledger rows for erasure.
 
-## Never
-Mutate a balance in place. Update/delete a ledger entry. Trust the cached balance outside the lock. Do ledger work
-inline in the webhook HTTP request. Assume webhook ordering.
+## NEVER
+Raw SQL · mutate a balance by read-then-write outside an atomic guard/transaction · update/delete a ledger entry ·
+trust a stale balance · double-credit (use the UNIQUE key) · ledger work inline in the webhook request · assume
+webhook ordering.
+
+## Verify
+`dotnet test src/modules/Billing/ModularPlatform.Billing.Tests` (concurrency + idempotency cases) green; `dotnet build` 0/0.

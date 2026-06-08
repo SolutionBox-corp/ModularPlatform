@@ -21,11 +21,17 @@ design a parallel mechanism.**
    outbox → concurrency-retry). Queries NEVER open a transaction, NEVER publish, NEVER mutate.
 3. **Modules talk to each other ONLY through `*.Contracts`** (integration events + DTOs). A module's `Core` is
    `internal`. **Never** reference another module's Core type. **Never** JOIN across modules — reference by Id.
-4. **Don't reinvent what the platform already solved (§4).** Outbox, inbox dedup, audit, concurrency, error
-   translation, refresh-token rotation, the credit ledger — all exist. Use them.
-5. **Only free, battle-tested libraries** (§6). No MediatR (commercial), no MassTransit v9 (commercial).
-6. **All times UTC** (`IClock.UtcNow`, `DateTimeOffset`). Never `DateTime.Now`.
-7. **Never run migrations against a shared DB.** Use a local/Testcontainers Postgres or a per-branch clone.
+4. **REUSE-FIRST / DRY.** Don't reinvent what the platform already solved (§4): outbox, inbox dedup, audit,
+   concurrency, error translation, refresh-token rotation, the credit ledger, the test harness — all exist. **Copy
+   the canonical slice (§2), call the building-block, chain a command — never duplicate logic or re-implement a
+   solved concern.** When two handlers need the same behavior, one dispatches the other; you do not copy-paste.
+5. **EF / LINQ only — NEVER raw SQL.** Pessimistic guard = atomic `ExecuteUpdate` with a `WHERE`; otherwise xmin +
+   `ConcurrencyRetryBehavior`; idempotency = UNIQUE key + catch `DbUpdateException`.
+6. **Only free, battle-tested libraries** (§6). No MediatR (commercial), no MassTransit v9 (commercial).
+7. **All times UTC** (`IClock.UtcNow`, `DateTimeOffset`). Never `DateTime.Now`.
+8. **Never run migrations against a shared DB.** Use a local/Testcontainers Postgres or a per-branch clone.
+9. **Tests reuse the shared harness** `tests/ModularPlatform.IntegrationTesting` (`PlatformApiFactory`) — never write
+   a new Testcontainers fixture. See the `writing-modularplatform-tests` skill.
 
 ---
 
@@ -188,6 +194,9 @@ dotnet run --project src/hosts/ModularPlatform.Jobs
 ```
 Local Postgres for dev/tests: a Docker Postgres on `localhost:5432` (db `modularplatform`, `postgres/postgres`),
 or Testcontainers in integration tests. **Connection strings: `ConnectionStrings:Write` and `:Read`.**
+
+**Test plan / coverage map:** `docs/test-scenarios.md` (Given/When/Then per module + cross-cutting, with status).
+Skills: `building-modularplatform-feature`, `adding-a-module`, `adding-billing-command`, `writing-modularplatform-tests`.
 
 ---
 

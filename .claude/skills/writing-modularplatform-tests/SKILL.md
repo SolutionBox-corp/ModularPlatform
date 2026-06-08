@@ -1,36 +1,46 @@
 ---
 name: writing-modularplatform-tests
-description: Write tests for a ModularPlatform feature or module — slice/integration tests on Testcontainers-Postgres plus ArchUnitNET boundary rules. Use right after implementing a feature or module.
+description: Write tests for a ModularPlatform feature or module — integration tests on the shared Testcontainers-Postgres host harness plus ArchUnitNET boundary rules. Use right after implementing a feature or module. Enforces reuse of the shared harness.
 ---
 
 # Writing ModularPlatform tests
 
-**Read `CLAUDE.md` §9 first.** Test the behavior through the real seams (dispatcher, DbContext, outbox), not the
-internals.
+**Read `CLAUDE.md` §9 first.** Test behavior through the REAL seams (HTTP endpoints / dispatcher / DbContext /
+outbox), never the internals. **REUSE the shared harness — do not write a new Testcontainers fixture.**
+
+## Reuse the shared harness (DRY)
+`tests/ModularPlatform.IntegrationTesting` → **`PlatformApiFactory`** already boots the full Api host against a
+Testcontainers Postgres, applies all migrations, sets `Messaging:SoloMode=true` (so durable events drain), and
+gives you: `Client`, `RegisterAndLoginAsync(email,pw) → (userId, accessToken)`, `Authed(method,url,token,body?)`,
+`ExecuteSqlAsync`, `ScalarAsync<T>`, `WaitForCountAsync(countSql, n)`. Your module's `*.Tests` references it and
+uses `IClassFixture<PlatformApiFactory>`.
+
+**Templates to copy** (don't reinvent): `Billing.Tests/BillingConcurrencyTests` (no-double-spend, 20-way),
+`BillingLedgerTests` (confirm exactly-once, idempotent top-up), `CrossModuleEventTests` (event → handler →
+side-effect, with `WaitForCountAsync`), `Identity.Tests/IdentityE2ETests`, `Gdpr.Tests/SubjectKeyShredTests` (pure unit).
 
 ## Three layers
-1. **Architecture (ArchUnitNET)** — in `tests/ModularPlatform.ArchitectureTests`. When you add a module, add its
-   assemblies to `LoadAssemblies(...)`. The existing rules then automatically assert:
-   - `*.Contracts` depends on no infrastructure.
-   - a module's Core depends on no other module's Core.
-   These must stay green — they are the boundary law.
+1. **Architecture (ArchUnitNET)** — `tests/ModularPlatform.ArchitectureTests`. Add new module assemblies to
+   `LoadAssemblies(...)`; the rules (Contracts pure, no cross-module Core) then auto-cover them. Must stay green.
+2. **Integration** — via `PlatformApiFactory`. Drive real HTTP endpoints (or seed DB state via `ExecuteSqlAsync`
+   for preconditions that have no command). For event-driven setup, `WaitForCountAsync` until the handler ran.
+   Assert on the response AND the DB state.
+3. **Validation / pure unit** — `AbstractValidator` returns the right `errorCode`; pure helpers (e.g. crypto-shred)
+   without a host. xUnit + `Shouldly`.
 
-2. **Slice / integration** — per module `*.Tests`, on **Testcontainers-Postgres** (real DB, real migrations,
-   real interceptors). Pattern:
-   - spin a `PostgreSqlContainer`, point `ConnectionStrings:Write/Read` at it, run `ApplyMigrationsAsync`.
-   - resolve `IDispatcher`; `Send`/`Query` real commands; assert on the response AND on DB state.
-   - **Must-cover behaviors:**
-     - audit row contains ONLY changed fields (JSONB) after an update;
-     - duplicate integration event / Stripe id is processed once (idempotency);
-     - concurrent debit never goes below zero (no double-spend) — for billing;
-     - refresh-token reuse revokes the whole family — for auth.
-
-3. **Validation** — a validator unit test asserting the right `errorCode` for bad input (no DB needed).
+## Must-cover scenarios (the ones that bite)
+- **No double-spend**: N concurrent reservations on a fixed balance → exactly the affordable count succeed, rest 422, available never negative.
+- **Idempotency**: same key / same Stripe event / redelivered message applied → exactly ONE effect.
+- **Cross-module event**: register a user → the consuming module's side-effect appears (`WaitForCountAsync`).
+- **Audit**: after an update, the audit row holds ONLY changed fields (value-converted, e.g. enum → string).
+- **Auth**: refresh-token reuse revokes the family (401) + writes an audit row; lockout after N failures.
+- **GDPR**: erasure blanks PII + shreds the subject key; the ledger is retained.
 
 ## Conventions
-- xUnit + `Shouldly`. One behavior per test. Arrange via real commands, not by poking the DB directly where a
-  command exists.
-- Never mock the DbContext — use Testcontainers. Never assert on private state — assert through queries.
+- One behavior per test. Arrange via real commands/HTTP where one exists, not by poking the DB.
+- Never mock the DbContext — use the container. Assert through queries/responses, never private state.
+- A money/concurrency test fires commands with `Task.WhenAll` over the SHARED host (don't wrap in a test-owned
+  transaction — that would hide the real concurrency).
 
 ## Verify
-`dotnet test` green, including the ArchUnitNET project.
+`dotnet test` green (incl. ArchUnitNET).
