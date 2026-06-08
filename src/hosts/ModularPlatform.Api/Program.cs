@@ -33,7 +33,10 @@ foreach (var module in modules)
 // Durable messaging: Postgres outbox/inbox transport; each module contributes its handlers/routes.
 var messagingConn = builder.Configuration.GetConnectionString("Write")
     ?? throw new InvalidOperationException("Missing ConnectionStrings:Write");
-builder.UseWolverine(opts => PlatformMessaging.Configure(opts, messagingConn, modules));
+// Solo durability when the Api is the only node (tests, single-instance deploy) so the durable-queue agent
+// drains immediately. With a dedicated Worker scaled out, set Messaging:SoloMode=false on both for Balanced.
+var soloMode = builder.Configuration.GetValue("Messaging:SoloMode", builder.Environment.IsEnvironment("Testing"));
+builder.UseWolverine(opts => PlatformMessaging.Configure(opts, messagingConn, modules, soloMode));
 
 var app = builder.Build();
 

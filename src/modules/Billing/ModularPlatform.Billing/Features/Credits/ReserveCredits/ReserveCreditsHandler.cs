@@ -7,11 +7,11 @@ using ModularPlatform.Cqrs;
 namespace ModularPlatform.Billing.Features.Credits.ReserveCredits;
 
 /// <summary>
-/// PESSIMISTIC debit path. Locks the account row (<c>FOR NO KEY UPDATE</c>), then computes
-/// <c>available = posted - active(non-expired) holds</c> INSIDE the lock and refuses to let it go negative
-/// (invariant <c>available &gt;= 0</c>). Creates a hold with a hard expiry — an expired hold is ignored by the
-/// availability query even before the sweep. No integration event, so it injects the scoped DbContext directly.
-/// Concurrency on this path is serialized by the lock, NOT optimistic.
+/// PESSIMISTIC debit, done the EF-native way: a single conditional <c>ExecuteUpdate</c> with a
+/// <c>Available &gt;= amount</c> guard. Postgres locks the row for that UPDATE and the guard is evaluated
+/// atomically, so concurrent reservations serialize at the database with no double-spend and no retry storm —
+/// no raw SQL, no <c>FOR UPDATE</c>. The hold + ledger entry are written in the same transaction so the
+/// reserved amount always has a matching hold. <c>available</c>/<c>pending</c> are authoritative stored columns.
 /// </summary>
 internal sealed class ReserveCreditsHandler(BillingDbContext db, IClock clock)
     : ICommandHandler<ReserveCreditsCommand, ReserveCreditsResponse>
@@ -22,23 +22,25 @@ internal sealed class ReserveCreditsHandler(BillingDbContext db, IClock clock)
     {
         var now = clock.UtcNow;
 
-        // Explicit transaction so the row lock is HELD until commit (a lock in autocommit releases immediately
-        // and serializes nothing). Lock, then reload the account so Posted/xmin are fresh under the lock.
+        var accountId = await db.CreditAccounts
+            .Where(a => a.UserId == command.UserId)
+            .Select(a => a.Id)
+            .FirstOrDefaultAsync(ct);
+        if (accountId == Guid.Empty)
+        {
+            throw new NotFoundException("credit.account_not_found", "Credit account not found.");
+        }
+
         await using var tx = await db.Database.BeginTransactionAsync(ct);
 
-        var account = await db.CreditAccounts.FirstOrDefaultAsync(a => a.UserId == command.UserId, ct)
-            ?? throw new NotFoundException("credit.account_not_found", "Credit account not found.");
+        // Atomic check-and-debit: the row is locked by the UPDATE and only decremented when sufficient.
+        var debited = await db.CreditAccounts
+            .Where(a => a.Id == accountId && a.Available >= command.Amount)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(a => a.Available, a => a.Available - command.Amount)
+                .SetProperty(a => a.Pending, a => a.Pending + command.Amount), ct);
 
-        await db.Database.ExecuteSqlInterpolatedAsync(
-            $"SELECT 1 FROM credit_accounts WHERE \"Id\" = {account.Id} FOR NO KEY UPDATE", ct);
-        await db.Entry(account).ReloadAsync(ct);
-
-        var activeHolds = await db.CreditHolds
-            .Where(h => h.AccountId == account.Id && h.Status == HoldStatus.Active && h.ExpiresAt > now)
-            .SumAsync(h => (long?)h.Amount, ct) ?? 0L;
-
-        var available = account.Posted - activeHolds;
-        if (available < command.Amount)
+        if (debited == 0)
         {
             throw new BusinessRuleException(
                 "credit.insufficient_balance", "Insufficient available credit for this reservation.");
@@ -46,7 +48,7 @@ internal sealed class ReserveCreditsHandler(BillingDbContext db, IClock clock)
 
         var hold = new CreditHold
         {
-            AccountId = account.Id,
+            AccountId = accountId,
             Amount = command.Amount,
             Status = HoldStatus.Active,
             ExpiresAt = now.AddMinutes(command.HoldMinutes ?? DefaultHoldMinutes),
@@ -56,7 +58,7 @@ internal sealed class ReserveCreditsHandler(BillingDbContext db, IClock clock)
 
         db.CreditEntries.Add(new CreditEntry
         {
-            AccountId = account.Id,
+            AccountId = accountId,
             Direction = CreditDirection.Debit,
             Amount = command.Amount,
             TransactionId = hold.Id,
@@ -66,12 +68,10 @@ internal sealed class ReserveCreditsHandler(BillingDbContext db, IClock clock)
             CreatedAt = now,
         });
 
-        account.Pending = activeHolds + command.Amount;
-        account.Available = available - command.Amount;
-
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
 
-        return new ReserveCreditsResponse(hold.Id, account.Available);
+        var available = await db.CreditAccounts.Where(a => a.Id == accountId).Select(a => a.Available).FirstAsync(ct);
+        return new ReserveCreditsResponse(hold.Id, available);
     }
 }

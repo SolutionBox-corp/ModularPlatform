@@ -7,10 +7,10 @@ using ModularPlatform.Cqrs;
 namespace ModularPlatform.Billing.Features.Credits.ExpireCredits;
 
 /// <summary>
-/// Sweep: materializes lapsed reservations and expired buckets into the append-only ledger. Per affected
-/// account it locks the row (<c>FOR NO KEY UPDATE</c>), marks expired holds, writes Expiry entries for the
-/// remaining balance of expired buckets (reducing <c>posted</c>), zeroes those buckets' remaining, and
-/// recomputes the projection. Cleanup, not correctness — the availability query already ignores expired holds.
+/// Sweep: materializes lapsed reservations and expired buckets into the append-only ledger and the account
+/// projection. EF-native + tracked (xmin) per account — a concurrent mutation conflicts and is retried. Keeps
+/// the invariant <c>available = posted - pending</c>: an expired hold restores availability; an expired bucket
+/// destroys credits (posted and available drop). No raw SQL.
 /// </summary>
 internal sealed class ExpireCreditsHandler(BillingDbContext db, IClock clock)
     : ICommandHandler<ExpireCreditsCommand, ExpireCreditsResponse>
@@ -26,11 +26,6 @@ internal sealed class ExpireCreditsHandler(BillingDbContext db, IClock clock)
 
         foreach (var accountId in accountIds)
         {
-            await using var tx = await db.Database.BeginTransactionAsync(ct);
-
-            await db.Database.ExecuteSqlInterpolatedAsync(
-                $"SELECT 1 FROM credit_accounts WHERE \"Id\" = {accountId} FOR NO KEY UPDATE", ct);
-
             var account = await db.CreditAccounts.FirstAsync(a => a.Id == accountId, ct);
 
             var lapsedHolds = await db.CreditHolds
@@ -51,12 +46,13 @@ internal sealed class ExpireCreditsHandler(BillingDbContext db, IClock clock)
                     IdempotencyKey = $"expire-hold:{hold.Id}",
                     CreatedAt = now,
                 });
+                account.Available += hold.Amount;
+                account.Pending -= hold.Amount;
                 expiredHoldCount++;
             }
 
             var expiredBuckets = await db.CreditBuckets
-                .Where(b => b.AccountId == accountId && b.Remaining > 0
-                    && b.ExpiresAt != null && b.ExpiresAt <= now)
+                .Where(b => b.AccountId == accountId && b.Remaining > 0 && b.ExpiresAt != null && b.ExpiresAt <= now)
                 .ToListAsync(ct);
             foreach (var bucket in expiredBuckets)
             {
@@ -74,18 +70,12 @@ internal sealed class ExpireCreditsHandler(BillingDbContext db, IClock clock)
                 });
                 bucket.Remaining = 0;
                 account.Posted -= lost;
+                account.Available -= lost;
                 expiredCredits += lost;
                 expiredBucketCount++;
             }
 
-            var activeHolds = await db.CreditHolds
-                .Where(h => h.AccountId == accountId && h.Status == HoldStatus.Active && h.ExpiresAt > now)
-                .SumAsync(h => (long?)h.Amount, ct) ?? 0L;
-            account.Pending = activeHolds;
-            account.Available = account.Posted - activeHolds;
-
             await db.SaveChangesAsync(ct);
-            await tx.CommitAsync(ct);
         }
 
         return new ExpireCreditsResponse(expiredHoldCount, expiredBucketCount, expiredCredits);

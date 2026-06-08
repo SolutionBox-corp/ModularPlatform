@@ -31,7 +31,9 @@ var conn = builder.Configuration.GetConnectionString("Write")
     ?? throw new InvalidOperationException("Missing ConnectionStrings:Write");
 
 // This host LISTENS on the durable Postgres queues and runs dispatched commands + integration-event handlers.
-builder.UseWolverine(opts => PlatformMessaging.Configure(opts, conn, modules));
+// Solo by default (single Worker). Scale to multiple coordinated Workers by setting Messaging:SoloMode=false.
+var soloMode = builder.Configuration.GetValue("Messaging:SoloMode", true);
+builder.UseWolverine(opts => PlatformMessaging.Configure(opts, conn, modules, soloMode));
 
 var host = builder.Build();
 host.Run();

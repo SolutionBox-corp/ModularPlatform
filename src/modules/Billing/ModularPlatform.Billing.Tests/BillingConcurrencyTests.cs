@@ -18,11 +18,11 @@ public sealed class BillingConcurrencyTests(PlatformApiFactory fixture) : IClass
         var (userId, token) = await fixture.RegisterAndLoginAsync(
             $"billing-{Guid.CreateVersion7():N}@example.com", "Sup3rSecret!");
 
-        // Seed a credit account with exactly 1000 posted credits (top-up is otherwise Stripe-driven).
-        // EnsureCreditAccount (the UserRegistered handler) is idempotent, so a concurrent provisioning is a no-op.
+        // The account is provisioned by the UserRegistered event handler; wait for it, then seed 1000 credits.
+        await fixture.WaitForCountAsync($"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{userId}'", 1);
         await fixture.ExecuteSqlAsync(
-            $"INSERT INTO credit_accounts (\"Id\", \"UserId\", \"Posted\", \"Pending\", \"Available\", \"CreatedAt\") " +
-            $"VALUES (gen_random_uuid(), '{userId}', 1000, 0, 1000, now())");
+            $"UPDATE credit_accounts SET \"Posted\" = 1000, \"Available\" = 1000, \"Pending\" = 0 " +
+            $"WHERE \"UserId\" = '{userId}'");
 
         // 20 simultaneous reservations of 100 against a 1000 balance.
         var attempts = await Task.WhenAll(Enumerable.Range(0, 20).Select(async _ =>

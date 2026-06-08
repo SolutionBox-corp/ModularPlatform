@@ -1,3 +1,4 @@
+using JasperFx.CodeGeneration.Model;
 using ModularPlatform.Abstractions;
 using Wolverine;
 using Wolverine.Postgresql;
@@ -12,11 +13,32 @@ namespace ModularPlatform.Messaging;
 /// </summary>
 public static class PlatformMessaging
 {
-    public static void Configure(WolverineOptions options, string postgresConnectionString, IEnumerable<IModule> modules)
+    /// <param name="soloMode">
+    /// True for a SINGLE-NODE host (integration tests, local dev, single-instance deploy). In the default
+    /// <c>Balanced</c> mode the durability agent that drains durable local queues is leadership-gated — a lone,
+    /// short-lived node may never win election, so persisted events sit undelivered and the handler never runs.
+    /// <c>Solo</c> starts that agent immediately. Use <c>Balanced</c> (false) only when an Api + dedicated Worker
+    /// run as multiple coordinated nodes.
+    /// </param>
+    public static void Configure(
+        WolverineOptions options,
+        string postgresConnectionString,
+        IEnumerable<IModule> modules,
+        bool soloMode = false)
     {
         // Durable transactional inbox/outbox on Postgres — no extra broker infra to start.
         // Swap to RabbitMQ here (one line) when a module is extracted to its own service.
         options.PersistMessagesWithPostgresql(postgresConnectionString);
+
+        // Our message handlers intentionally resolve a scoped service (IDispatcher) to dispatch internal commands.
+        // Wolverine 6 makes ServiceLocationPolicy.NotAllowed the default, which SILENTLY skips generating such a
+        // handler (the event gets marked Handled but the handler never runs). Allow service location explicitly.
+        options.ServiceLocationPolicy = ServiceLocationPolicy.AlwaysAllowed;
+
+        if (soloMode)
+        {
+            options.Durability.Mode = DurabilityMode.Solo;
+        }
 
         // Wrap message handlers in a transaction + outbox automatically (the outbox guarantee).
         options.Policies.AutoApplyTransactions();

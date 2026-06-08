@@ -9,14 +9,13 @@ using Wolverine.EntityFrameworkCore;
 namespace ModularPlatform.Billing.Features.Credits.ConfirmSpend;
 
 /// <summary>
-/// Confirms an active reservation into a POSTED debit. Pessimistic: locks the account row, validates the
-/// hold is still Active and not expired, appends a balanced Spend entry, draws buckets soonest-to-expire
-/// (FIFO), decrements <c>posted</c>, marks the hold Confirmed, and publishes <see cref="CreditsSpentIntegrationEvent"/>
-/// — all in ONE transaction via the outbox. Idempotent: a hold already Confirmed returns its current state.
+/// Confirms an active reservation into a posted spend. EF-native concurrency: the hold and account are tracked,
+/// so the xmin concurrency token serializes a double-confirm (a second concurrent confirm conflicts and is
+/// retried by ConcurrencyRetryBehavior, then sees the hold already Confirmed and returns idempotently). Draws
+/// buckets soonest-to-expire (FIFO), keeps the invariant <c>available = posted - pending</c>, and publishes
+/// <see cref="CreditsSpentIntegrationEvent"/> atomically via the outbox. No raw SQL.
 /// </summary>
-internal sealed class ConfirmSpendHandler(
-    IDbContextOutbox<BillingDbContext> outbox,
-    IClock clock)
+internal sealed class ConfirmSpendHandler(IDbContextOutbox<BillingDbContext> outbox, IClock clock)
     : ICommandHandler<ConfirmSpendCommand, ConfirmSpendResponse>
 {
     public async Task<ConfirmSpendResponse> Handle(ConfirmSpendCommand command, CancellationToken ct)
@@ -24,14 +23,8 @@ internal sealed class ConfirmSpendHandler(
         var db = outbox.DbContext;
         var now = clock.UtcNow;
 
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
-
         var account = await db.CreditAccounts.FirstOrDefaultAsync(a => a.UserId == command.UserId, ct)
             ?? throw new NotFoundException("credit.account_not_found", "Credit account not found.");
-
-        await db.Database.ExecuteSqlInterpolatedAsync(
-            $"SELECT 1 FROM credit_accounts WHERE \"Id\" = {account.Id} FOR NO KEY UPDATE", ct);
-        await db.Entry(account).ReloadAsync(ct);
 
         var hold = await db.CreditHolds
             .FirstOrDefaultAsync(h => h.Id == command.ReservationId && h.AccountId == account.Id, ct)
@@ -39,14 +32,12 @@ internal sealed class ConfirmSpendHandler(
 
         if (hold.Status == HoldStatus.Confirmed)
         {
-            await tx.CommitAsync(ct);
             return new ConfirmSpendResponse(account.Id, account.Posted, account.Available);
         }
 
         if (hold.Status != HoldStatus.Active || hold.ExpiresAt <= now)
         {
-            throw new BusinessRuleException(
-                "credit.reservation_not_active", "Reservation is no longer active.");
+            throw new BusinessRuleException("credit.reservation_not_active", "Reservation is no longer active.");
         }
 
         // Draw buckets soonest-to-expire first (FIFO over expiry).
@@ -57,7 +48,6 @@ internal sealed class ConfirmSpendHandler(
             .ThenBy(b => b.ExpiresAt)
             .ThenBy(b => b.CreatedAt)
             .ToListAsync(ct);
-
         foreach (var bucket in buckets)
         {
             if (remaining <= 0)
@@ -85,12 +75,10 @@ internal sealed class ConfirmSpendHandler(
         hold.Status = HoldStatus.Confirmed;
         hold.ResolvedAt = now;
 
+        // The held credits are now spent: posted and pending both drop by the amount; available is unchanged
+        // (it was already reduced at reservation). Invariant available = posted - pending is preserved.
         account.Posted -= hold.Amount;
-        var activeHolds = await db.CreditHolds
-            .Where(h => h.AccountId == account.Id && h.Status == HoldStatus.Active && h.ExpiresAt > now)
-            .SumAsync(h => (long?)h.Amount, ct) ?? 0L;
-        account.Pending = activeHolds;
-        account.Available = account.Posted - activeHolds;
+        account.Pending -= hold.Amount;
 
         await outbox.PublishAsync(new CreditsSpentIntegrationEvent(
             EventId: Guid.CreateVersion7(),
@@ -101,8 +89,26 @@ internal sealed class ConfirmSpendHandler(
             Amount: hold.Amount,
             NewPosted: account.Posted));
 
-        // Wolverine saves AND commits the ambient transaction (holding the row lock) + relays the outbox.
-        await outbox.SaveChangesAndFlushMessagesAsync();
+        try
+        {
+            // Wolverine saves all tracked changes (xmin-checked) + the outbox event in one transaction.
+            await outbox.SaveChangesAndFlushMessagesAsync();
+        }
+        catch (DbUpdateException ex) when (ex is not DbUpdateConcurrencyException)
+        {
+            // A concurrent confirm of the same reservation already posted the spend (UNIQUE spend:{holdId}).
+            // Idempotent: report the now-committed state.
+            if (await db.CreditEntries.AsNoTracking().AnyAsync(e => e.IdempotencyKey == $"spend:{hold.Id}", ct))
+            {
+                var current = await db.CreditAccounts.AsNoTracking()
+                    .Where(a => a.Id == account.Id)
+                    .Select(a => new { a.Posted, a.Available })
+                    .FirstAsync(ct);
+                return new ConfirmSpendResponse(account.Id, current.Posted, current.Available);
+            }
+
+            throw;
+        }
 
         return new ConfirmSpendResponse(account.Id, account.Posted, account.Available);
     }

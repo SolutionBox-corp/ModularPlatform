@@ -11,10 +11,7 @@ namespace ModularPlatform.Billing.Tests;
 /// </summary>
 public sealed class CrossModuleEventTests(PlatformApiFactory fixture) : IClassFixture<PlatformApiFactory>
 {
-    [Fact(Skip = "KNOWN BLOCKER: cross-module Wolverine event delivery. Handlers are now public + explicitly " +
-        "registered (present in the handler graph), but a relayed integration event is marked Handled WITHOUT " +
-        "invoking the handler, so no module reacts to UserRegisteredIntegrationEvent. Needs Wolverine log-level " +
-        "debugging of the outbox->local-queue routing. This test is the acceptance check; un-skip once it delivers.")]
+    [Fact]
     public async Task Registering_a_user_provisions_a_credit_account_via_the_event()
     {
         var (userId, _) = await fixture.RegisterAndLoginAsync(

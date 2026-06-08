@@ -7,9 +7,9 @@ using ModularPlatform.Cqrs;
 namespace ModularPlatform.Billing.Features.Credits.ReleaseHold;
 
 /// <summary>
-/// Releases an active reservation, restoring availability. Pessimistic: locks the account row, appends a
-/// balanced Release entry, marks the hold Released, and recomputes the projection. Idempotent: an already
-/// resolved hold returns current state. No integration event, so it injects the scoped DbContext directly.
+/// Releases an active reservation, restoring availability. EF-native: the hold and account are tracked, so a
+/// concurrent double-release conflicts on the xmin token and is retried (then sees the hold already resolved and
+/// returns idempotently). Keeps the invariant <c>available = posted - pending</c>. No raw SQL.
 /// </summary>
 internal sealed class ReleaseHoldHandler(BillingDbContext db, IClock clock)
     : ICommandHandler<ReleaseHoldCommand, ReleaseHoldResponse>
@@ -18,14 +18,8 @@ internal sealed class ReleaseHoldHandler(BillingDbContext db, IClock clock)
     {
         var now = clock.UtcNow;
 
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
-
         var account = await db.CreditAccounts.FirstOrDefaultAsync(a => a.UserId == command.UserId, ct)
             ?? throw new NotFoundException("credit.account_not_found", "Credit account not found.");
-
-        await db.Database.ExecuteSqlInterpolatedAsync(
-            $"SELECT 1 FROM credit_accounts WHERE \"Id\" = {account.Id} FOR NO KEY UPDATE", ct);
-        await db.Entry(account).ReloadAsync(ct);
 
         var hold = await db.CreditHolds
             .FirstOrDefaultAsync(h => h.Id == command.ReservationId && h.AccountId == account.Id, ct)
@@ -33,7 +27,6 @@ internal sealed class ReleaseHoldHandler(BillingDbContext db, IClock clock)
 
         if (hold.Status != HoldStatus.Active)
         {
-            await tx.CommitAsync(ct);
             return new ReleaseHoldResponse(account.Id, account.Available);
         }
 
@@ -52,14 +45,26 @@ internal sealed class ReleaseHoldHandler(BillingDbContext db, IClock clock)
         hold.Status = HoldStatus.Released;
         hold.ResolvedAt = now;
 
-        var activeHolds = await db.CreditHolds
-            .Where(h => h.AccountId == account.Id && h.Status == HoldStatus.Active && h.ExpiresAt > now)
-            .SumAsync(h => (long?)h.Amount, ct) ?? 0L;
-        account.Pending = activeHolds;
-        account.Available = account.Posted - activeHolds;
+        // The reservation is cancelled: availability is restored and the pending hold is removed.
+        account.Available += hold.Amount;
+        account.Pending -= hold.Amount;
 
-        await db.SaveChangesAsync(ct);
-        await tx.CommitAsync(ct);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (ex is not DbUpdateConcurrencyException)
+        {
+            // A concurrent release already ran (UNIQUE release:{holdId}). Idempotent: report current state.
+            if (await db.CreditEntries.AsNoTracking().AnyAsync(e => e.IdempotencyKey == $"release:{hold.Id}", ct))
+            {
+                var available = await db.CreditAccounts.AsNoTracking()
+                    .Where(a => a.Id == account.Id).Select(a => a.Available).FirstAsync(ct);
+                return new ReleaseHoldResponse(account.Id, available);
+            }
+
+            throw;
+        }
 
         return new ReleaseHoldResponse(account.Id, account.Available);
     }

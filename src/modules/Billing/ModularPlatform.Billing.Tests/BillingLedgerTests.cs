@@ -16,9 +16,10 @@ public sealed class BillingLedgerTests(PlatformApiFactory fixture) : IClassFixtu
     {
         var (userId, token) = await fixture.RegisterAndLoginAsync(
             $"confirm-{Guid.CreateVersion7():N}@example.com", "Sup3rSecret!");
+        await fixture.WaitForCountAsync($"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{userId}'", 1);
         await fixture.ExecuteSqlAsync(
-            $"INSERT INTO credit_accounts (\"Id\",\"UserId\",\"Posted\",\"Pending\",\"Available\",\"CreatedAt\") " +
-            $"VALUES (gen_random_uuid(), '{userId}', 1000, 0, 1000, now())");
+            $"UPDATE credit_accounts SET \"Posted\" = 1000, \"Available\" = 1000, \"Pending\" = 0 " +
+            $"WHERE \"UserId\" = '{userId}'");
 
         var reserve = await fixture.Client.SendAsync(
             fixture.Authed(HttpMethod.Post, "/billing/credits/reservations", token, new { amount = 100L }));

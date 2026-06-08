@@ -133,7 +133,7 @@ ships as different products.**
 | **Real-time push** | SSE (`Web/Sse/SseStream`, .NET 10 native) + `IRealtimePublisher` (Redis fan-out) | inject `IRealtimePublisher`, `PublishToUserAsync(...)` | open your own WebSocket; bypass the publisher |
 | **Dispatch work to the worker + await** | Wolverine `IMessageBus.InvokeAsync<T>(cmd)` | for SHORT work; for LONG work return `202` + a status endpoint | hold an HTTP request open across long work |
 | **Recurring/cron jobs** | Quartz in the **Jobs** host | add a Quartz job (reconciliation/retention/expiry) | put cron in the Worker; put durable event work in Jobs |
-| **Credits / money** | Billing module's append-only ledger + **pessimistic `SELECT … FOR NO KEY UPDATE`** on the debit path | reuse Billing commands; `available = posted - active_holds` | mutate balances in place; use optimistic concurrency on the debit path; trust a cached balance |
+| **Credits / money** | Billing append-only ledger + **EF-native atomic `ExecuteUpdate` guard** on the debit path (`WHERE available >= amount`) | reuse Billing commands; invariant `available = posted - pending` | raw SQL; mutate balances by read-then-write; trust a stale balance; double-credit (use the UNIQUE idempotency key) |
 | **GDPR erasure** | crypto-shredding (per-subject key) + anonymization fallback + `UserErasureRequested` event | implement `IExport/IErasePersonalData` per module | physically delete rows from append-only audit |
 
 ---
@@ -196,6 +196,7 @@ or Testcontainers in integration tests. **Connection strings: `ConnectionStrings
   (`UserRegisteredIntegrationEvent`), error codes dotted lowercase (`user.email_taken`).
 - **DTOs:** `record`s. Wire `Request` is separate from the `Command` (the endpoint maps Request→Command).
 - **IDs:** `Guid.CreateVersion7()` (time-ordered). Tables `snake_case`. No `Include`/navigation.
+- **Database access = EF / LINQ ONLY. NEVER raw SQL** (`ExecuteSqlRaw/Interpolated`, `FromSql`) — unmaintainable + injection-prone. Pessimistic guard = atomic `ExecuteUpdate` with a `WHERE`; concurrency otherwise = xmin + `ConcurrencyRetryBehavior`.
 - **Tenant/user/time:** only via `ITenantContext` and `IClock`. Never read claims or `DateTime.Now` directly.
 - **i18n:** every user-facing error has an errorCode whose resx entry exists in `en` and `cs`.
 
@@ -206,7 +207,7 @@ or Testcontainers in integration tests. **Connection strings: `ConnectionStrings
 | Module | What it owns | Talks to others via |
 |---|---|---|
 | **Identity** | users, JWT, refresh rotation+reuse detection, profile | publishes `UserRegisteredIntegrationEvent` |
-| **Billing** | append-only credit ledger (pessimistic debit), Stripe webhook+reconcile, packages | consumes `UserRegistered` (creates account); publishes `CreditsToppedUp`/`CreditsSpent`; implements `IExportPersonalData` |
+| **Billing** | append-only credit ledger (EF-native atomic debit), Stripe webhook+reconcile, packages | consumes `UserRegistered` (creates account); publishes `CreditsToppedUp`/`CreditsSpent`; implements `IExportPersonalData` |
 | **Notifications** | `SendNotification` (email/push/in-app) via outbox+Worker, templates, in-app feed | consumes `UserRegistered` (welcome); uses `IRealtimePublisher`; implements `IExportPersonalData` |
 | **Gdpr** | export fan-out, erasure event, consent, crypto-shredder | depends ONLY on `IExport`/`IErasePersonalData` ports — never on a module Core |
 
@@ -215,11 +216,42 @@ Notes that bite if forgotten:
 - **Notifications welcome needs a `NotificationTemplate` row** `Key="welcome", Locale="en"` seeded, else the welcome handler throws `notification.template_not_found` (non-fatal — retried/dead-lettered).
 - **Audit is NOT a separate module** — it's a platform capability (`AuditInterceptor` writes per-module `{module}_audit_entries`). A central "Audit module" reading every module's tables would violate the boundary law, so don't build one; expose per-module audit queries if needed.
 - **Realtime fan-out** lives in the `ModularPlatform.Realtime` building-block (Redis pub/sub + per-instance registry; local-only fallback without Redis). The browser SSE endpoint is a host follow-up.
-- **Wolverine message handlers MUST be `public`** (Wolverine scans `ExportedTypes` only) and every type in their `Handle(...)` signature must be public too. A handler that publishes/dispatches takes only public types (the message + `IDispatcher`); register them explicitly in the module's `ConfigureMessaging` via `options.Discovery.IncludeType<TheHandler>()`.
-- **KNOWN BLOCKER (tracked):** cross-module integration-event *delivery* — a relayed event (e.g. `UserRegisteredIntegrationEvent`) is currently marked Handled without invoking the registered handler, so modules don't yet react to each other's events (no auto credit-account, welcome, or erasure). The money/HTTP paths are unaffected. The acceptance test is `CrossModuleEventTests` (skipped); needs Wolverine log-level debugging of outbox→local-queue routing.
+### Wolverine cross-module events — the EXACT working setup (don't change blindly)
 
-### Money correctness (Billing) — hard rules learned
-- The credit DEBIT path is **pessimistic**: open an explicit `BeginTransactionAsync`, `SELECT 1 … WHERE "Id" = … FOR NO KEY UPDATE`, then `ReloadAsync` the account (fresh `Posted`/xmin) — a lock in autocommit serializes NOTHING. For outbox handlers, `SaveChangesAndFlushMessagesAsync` commits the ambient transaction (do NOT also call `tx.CommitAsync`); for plain handlers commit explicitly. Proven by `BillingConcurrencyTests`/`BillingLedgerTests`.
+Cross-module integration events (e.g. `UserRegisteredIntegrationEvent` → Billing provisions a credit account)
+work via Wolverine's durable outbox/inbox. Three things are REQUIRED — all are configured in
+`ModularPlatform.Messaging/PlatformMessaging.cs` + module `ConfigureMessaging`. If events stop firing, check these:
+1. **`options.ServiceLocationPolicy = ServiceLocationPolicy.AlwaysAllowed;`** — Wolverine 6 defaults to
+   `NotAllowed`, which SILENTLY skips generating any handler that resolves a scoped service (our handlers inject
+   `IDispatcher`). Symptom when wrong: the event is marked `Handled` in `wolverine_incoming_envelopes` but the
+   handler never runs, no dead letter, no side effect. **This is the #1 gotcha.**
+2. **Durability mode:** single-node hosts (tests, single-instance deploy) must run `DurabilityMode.Solo`
+   (`Messaging:SoloMode=true`) or the leadership-gated agent never drains the durable queue. Api+Worker multi-node
+   → `Balanced` (false) on both. The integration-test fixture sets `Messaging:SoloMode=true`.
+3. **Handlers are `public`** (Wolverine scans `ExportedTypes`); every type in their `Handle(...)` signature is
+   public too (so the abstractions they inject, e.g. `IEmailSender`, are public). Each module registers its
+   handlers explicitly in `ConfigureMessaging` via `options.Discovery.IncludeType<TheHandler>()`.
+
+A cross-module event handler is a thin public shell: `Handle(TEvent e, IDispatcher d, CancellationToken ct)` that
+dispatches an internal command. Proven end-to-end by `CrossModuleEventTests`.
+
+### Money correctness (Billing) — EF-native, NEVER raw SQL
+- **No raw SQL anywhere** (no `ExecuteSqlRaw/Interpolated`, no `FromSql`) — it's unmaintainable (silent breakage on
+  rename) and an injection surface. Use EF/LINQ.
+- The credit projection columns `posted`/`pending`/`available` are **authoritative**, maintained transactionally;
+  the invariant **`available = posted − pending`** is preserved by arithmetic in every handler. `GetCreditBalance`
+  returns the stored `available` (so the shown balance == what a reservation will allow).
+- **DEBIT path = atomic conditional `ExecuteUpdate` guard** (the EF-native pessimistic equivalent):
+  `db.CreditAccounts.Where(a => a.Id == id && a.Available >= amount).ExecuteUpdateAsync(s => s.SetProperty(a => a.Available, a => a.Available - amount)…)`.
+  The UPDATE locks the row and evaluates the guard atomically → concurrent reservations serialize at the DB with
+  **no double-spend and no retry storm**. `rows == 0` ⇒ insufficient.
+- **Confirm/release/expire/top-up** mutate **tracked** entities so the **xmin** token serializes; the
+  `ConcurrencyRetryBehavior` (5×, clears the change tracker before each retry) handles conflicts. Idempotency is the
+  **UNIQUE `credit_entries.idempotency_key`**; catch `DbUpdateException` (not `DbUpdateConcurrencyException`) and
+  return the already-applied state. Outbox handlers: `SaveChangesAndFlushMessagesAsync` IS the commit — never also
+  call `tx.CommitAsync`.
+- Proven by `BillingConcurrencyTests` (no double-spend, 20-way) + `BillingLedgerTests` (confirm exactly-once,
+  idempotent top-up).
 
 ## 9. Before you say "done" (checklist)
 
@@ -229,4 +261,4 @@ Notes that bite if forgotten:
 - [ ] Read used `IReadDbContextFactory`; write used `IDbContextOutbox`/scoped context.
 - [ ] No cross-module Core reference, no cross-module JOIN (ArchUnitNET green).
 - [ ] Migration generated + a test (slice + boundary) added.
-- [ ] Money path (if any) uses pessimistic lock + ledger; no in-place balance mutation.
+- [ ] No raw SQL (EF/LINQ only). Money debit path uses the atomic `ExecuteUpdate` guard; append-only ledger; idempotency via UNIQUE key.

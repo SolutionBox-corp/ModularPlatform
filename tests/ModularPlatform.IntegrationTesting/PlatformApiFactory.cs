@@ -27,6 +27,7 @@ public sealed class PlatformApiFactory : IAsyncLifetime
         await _postgres.StartAsync();
         _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
+            builder.UseSetting("Messaging:SoloMode", "true");  // single-node -> Solo durability (drains immediately)
             builder.UseSetting("ConnectionStrings:Write", _postgres.GetConnectionString());
             builder.UseSetting("ConnectionStrings:Read", _postgres.GetConnectionString());
             builder.UseSetting("RunMigrationsAtStartup", "true");
@@ -76,6 +77,22 @@ public sealed class PlatformApiFactory : IAsyncLifetime
         await conn.OpenAsync();
         await using var cmd = new NpgsqlCommand(sql, conn);
         await cmd.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>Polls a scalar count query until it reaches <paramref name="expected"/> (or times out).</summary>
+    public async Task WaitForCountAsync(string countSql, long expected, int attempts = 100, int delayMs = 200)
+    {
+        for (var i = 0; i < attempts; i++)
+        {
+            if (await ScalarAsync<long>(countSql) >= expected)
+            {
+                return;
+            }
+
+            await Task.Delay(delayMs);
+        }
+
+        throw new InvalidOperationException($"Condition not met in time: {countSql} >= {expected}");
     }
 
     public async Task<T> ScalarAsync<T>(string sql)

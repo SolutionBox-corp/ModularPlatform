@@ -9,24 +9,20 @@ using Wolverine.EntityFrameworkCore;
 namespace ModularPlatform.Billing.Features.Credits.CreditTopUp;
 
 /// <summary>
-/// Idempotent credit top-up. The account row is locked (<c>FOR NO KEY UPDATE</c>) before mutating its
-/// projection. Idempotency is enforced by the UNIQUE index on <c>credit_entries.idempotency_key</c>:
-/// applying the same key twice credits exactly ONCE (pre-check inside the lock + the DB constraint as the
-/// final guard). Appends a balanced ledger entry + a bucket, updates the projection, publishes the event —
-/// all in ONE transaction via the outbox.
+/// Idempotent credit top-up, EF-native. Idempotency is enforced by the UNIQUE index on
+/// <c>credit_entries.idempotency_key</c>: a pre-check short-circuits a repeat, and the DB constraint is the
+/// final guard if two callers race (the loser catches the unique violation and returns the already-applied
+/// state). The account projection is updated on the tracked entity (xmin guards concurrent different-key
+/// top-ups), a bucket + balanced entry are appended, and <see cref="CreditsToppedUpIntegrationEvent"/> is
+/// published — all atomically via the outbox. No raw SQL.
 /// </summary>
-internal sealed class CreditTopUpHandler(
-    IDbContextOutbox<BillingDbContext> outbox,
-    IClock clock)
+internal sealed class CreditTopUpHandler(IDbContextOutbox<BillingDbContext> outbox, IClock clock)
     : ICommandHandler<CreditTopUpCommand, CreditTopUpResponse>
 {
     public async Task<CreditTopUpResponse> Handle(CreditTopUpCommand command, CancellationToken ct)
     {
         var db = outbox.DbContext;
         var now = clock.UtcNow;
-
-        // Explicit transaction so the row lock is HELD until commit (a lock in autocommit serializes nothing).
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
 
         var account = await db.CreditAccounts.FirstOrDefaultAsync(a => a.UserId == command.UserId, ct);
         if (account is null)
@@ -35,7 +31,7 @@ internal sealed class CreditTopUpHandler(
             db.CreditAccounts.Add(account);
             try
             {
-                await db.SaveChangesAsync(ct); // INSERT within the tx, not a premature commit
+                await db.SaveChangesAsync(ct);
             }
             catch (DbUpdateException)
             {
@@ -45,21 +41,11 @@ internal sealed class CreditTopUpHandler(
             }
         }
 
-        // Lock the account row, then reload so Posted/xmin are fresh under the lock.
-        await db.Database.ExecuteSqlInterpolatedAsync(
-            $"SELECT 1 FROM credit_accounts WHERE \"Id\" = {account.Id} FOR NO KEY UPDATE", ct);
-        await db.Entry(account).ReloadAsync(ct);
-
-        // Idempotency pre-check inside the lock: same key already applied -> return existing state, ONE credit.
-        var alreadyApplied = await db.CreditEntries
-            .AnyAsync(e => e.IdempotencyKey == command.IdempotencyKey, ct);
-        if (alreadyApplied)
+        if (await db.CreditEntries.AnyAsync(e => e.IdempotencyKey == command.IdempotencyKey, ct))
         {
-            await tx.CommitAsync(ct);
             return new CreditTopUpResponse(account.Id, account.Posted, AlreadyApplied: true);
         }
 
-        var transactionId = Guid.CreateVersion7();
         var bucket = new CreditBucket
         {
             AccountId = account.Id,
@@ -75,7 +61,7 @@ internal sealed class CreditTopUpHandler(
             AccountId = account.Id,
             Direction = CreditDirection.Credit,
             Amount = command.Amount,
-            TransactionId = transactionId,
+            TransactionId = Guid.CreateVersion7(),
             Type = CreditEntryType.Topup,
             BucketId = bucket.Id,
             IdempotencyKey = command.IdempotencyKey,
@@ -96,22 +82,18 @@ internal sealed class CreditTopUpHandler(
 
         try
         {
-            // Wolverine saves AND commits the ambient transaction (holding the row lock) + relays the outbox.
             await outbox.SaveChangesAndFlushMessagesAsync();
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException ex) when (ex is not DbUpdateConcurrencyException)
         {
-            await tx.RollbackAsync(ct);
-
-            // Lost the idempotency race? If the key now exists, another writer applied it — exactly one credit stands.
-            // Re-read the REAL posted balance (our in-memory increment was rolled back).
+            // Lost the idempotency-key race — exactly one credit stands. Re-read the real posted balance.
             var posted = await db.CreditAccounts.AsNoTracking()
                 .Where(a => a.Id == account.Id)
                 .Select(a => (long?)a.Posted)
                 .FirstOrDefaultAsync(ct);
-            var raceLost = await db.CreditEntries.AsNoTracking()
+            var keyApplied = await db.CreditEntries.AsNoTracking()
                 .AnyAsync(e => e.IdempotencyKey == command.IdempotencyKey, ct);
-            if (raceLost && posted is not null)
+            if (keyApplied && posted is not null)
             {
                 return new CreditTopUpResponse(account.Id, posted.Value, AlreadyApplied: true);
             }

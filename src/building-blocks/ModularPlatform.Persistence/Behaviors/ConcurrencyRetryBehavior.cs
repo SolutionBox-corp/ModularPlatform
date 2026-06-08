@@ -5,16 +5,18 @@ using ModularPlatform.Cqrs;
 namespace ModularPlatform.Persistence.Behaviors;
 
 /// <summary>
-/// Command-only. Retries a command up to 3× with exponential backoff (100/200/400ms) when it fails
-/// with <see cref="DbUpdateConcurrencyException"/> (Postgres xmin conflict), reloading the conflicting
-/// entries before each retry. Read queries never hit this.
+/// Command-only. Retries a command up to 5× with exponential backoff on a Postgres xmin
+/// <see cref="DbUpdateConcurrencyException"/>. Before each retry it CLEARS the DbContext change tracker so the
+/// handler re-runs against a fully fresh view (reloading only the conflicting entries would leave sibling
+/// entities — e.g. an already-resolved hold — stale, causing the retry to repeat the same losing write).
+/// Read queries never hit this.
 /// </summary>
 public sealed class ConcurrencyRetryBehavior<TRequest, TResponse>(
     ILogger<ConcurrencyRetryBehavior<TRequest, TResponse>> logger)
     : IPipelineBehavior<TRequest, TResponse>, ICommandOnlyBehavior
 {
-    private const int MaxRetries = 3;
-    private const int BaseDelayMs = 100;
+    private const int MaxRetries = 5;
+    private const int BaseDelayMs = 50;
 
     public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken ct)
     {
@@ -32,10 +34,8 @@ public sealed class ConcurrencyRetryBehavior<TRequest, TResponse>(
                     "Concurrency conflict in {Request}, retry {Attempt}/{Max}.",
                     typeof(TRequest).Name, attempt, MaxRetries);
 
-                foreach (var entry in ex.Entries)
-                {
-                    await entry.ReloadAsync(ct);
-                }
+                // Detach everything so the re-run re-queries fresh (sees the winning writer's committed state).
+                ex.Entries.FirstOrDefault()?.Context.ChangeTracker.Clear();
 
                 await Task.Delay(BaseDelayMs * (int)Math.Pow(2, attempt - 1), ct);
             }

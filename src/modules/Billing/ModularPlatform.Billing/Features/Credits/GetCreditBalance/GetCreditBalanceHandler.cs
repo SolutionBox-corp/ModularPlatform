@@ -1,6 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using ModularPlatform.Abstractions;
-using ModularPlatform.Billing.Entities;
 using ModularPlatform.Billing.Persistence;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Persistence;
@@ -8,30 +6,21 @@ using ModularPlatform.Persistence;
 namespace ModularPlatform.Billing.Features.Credits.GetCreditBalance;
 
 /// <summary>
-/// Read slice. Computes <c>available = posted - sum(active, non-expired holds)</c> live so an EXPIRED
-/// reservation is ignored even before the sweep job runs. Never mutates; uses the no-tracking read factory.
+/// Read slice. Returns the authoritative stored projection (<c>posted</c>/<c>available</c>) so the displayed
+/// balance matches exactly what a reservation will allow. Expired-but-not-yet-swept holds keep <c>available</c>
+/// slightly conservative until the expiry sweep reconciles them. Uses the no-tracking read factory; never mutates.
 /// </summary>
-internal sealed class GetCreditBalanceHandler(
-    IReadDbContextFactory<BillingDbContext> readFactory,
-    IClock clock)
+internal sealed class GetCreditBalanceHandler(IReadDbContextFactory<BillingDbContext> readFactory)
     : IQueryHandler<GetCreditBalanceQuery, CreditBalanceResponse>
 {
     public async Task<CreditBalanceResponse> Handle(GetCreditBalanceQuery query, CancellationToken ct)
     {
         await using var db = readFactory.Create();
 
-        var account = await db.CreditAccounts
+        return await db.CreditAccounts
             .Where(a => a.UserId == query.UserId)
-            .Select(a => new { a.Id, a.UserId, a.Posted })
+            .Select(a => new CreditBalanceResponse(a.Id, a.UserId, a.Posted, a.Available))
             .FirstOrDefaultAsync(ct)
             ?? throw new NotFoundException("credit.account_not_found", "Credit account not found.");
-
-        var now = clock.UtcNow;
-        var activeHolds = await db.CreditHolds
-            .Where(h => h.AccountId == account.Id && h.Status == HoldStatus.Active && h.ExpiresAt > now)
-            .SumAsync(h => (long?)h.Amount, ct) ?? 0L;
-
-        var available = account.Posted - activeHolds;
-        return new CreditBalanceResponse(account.Id, account.UserId, account.Posted, available);
     }
 }
