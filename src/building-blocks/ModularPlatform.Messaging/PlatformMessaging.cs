@@ -1,6 +1,7 @@
 using JasperFx.CodeGeneration.Model;
 using ModularPlatform.Abstractions;
 using Wolverine;
+using Wolverine.ErrorHandling;
 using Wolverine.Postgresql;
 
 namespace ModularPlatform.Messaging;
@@ -39,6 +40,14 @@ public static class PlatformMessaging
         {
             options.Durability.Mode = DurabilityMode.Solo;
         }
+
+        // Resilience: a transient handler failure retries with growing cooldowns; once exhausted Wolverine moves
+        // the message to its durable dead-letter store (inspectable + replayable) instead of losing it. Combined
+        // with the inbox UNIQUE(MessageId) this stays effectively exactly-once. Per-external-system drift is
+        // handled by a module-specific reconciliation job (Jobs host) — there is no generic reconciler.
+        options.Policies.OnException<Exception>()
+            .RetryWithCooldown(TimeSpan.FromMilliseconds(100), TimeSpan.FromMilliseconds(500), TimeSpan.FromSeconds(3))
+            .Then.MoveToErrorQueue();
 
         // Wrap message handlers in a transaction + outbox automatically (the outbox guarantee).
         options.Policies.AutoApplyTransactions();

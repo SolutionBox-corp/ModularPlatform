@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Quartz;
 using Wolverine;
 
 namespace ModularPlatform.Abstractions;
@@ -30,4 +31,11 @@ public interface IModule
     /// MigrationService host before the Api serves. Default no-op for modules without a database.
     /// </summary>
     Task ApplyMigrationsAsync(IServiceProvider services, CancellationToken ct) => Task.CompletedTask;
+
+    /// <summary>
+    /// Registers the module's recurring (cron) jobs on the Jobs host's Quartz scheduler. A job is a thin
+    /// <see cref="IJob"/> that resolves <c>IDispatcher</c> and sends a command — cron only; durable event-driven
+    /// work belongs in the Worker via Wolverine. Default no-op for modules without scheduled work.
+    /// </summary>
+    void RegisterJobs(IServiceCollectionQuartzConfigurator quartz, IConfiguration configuration) { }
 }

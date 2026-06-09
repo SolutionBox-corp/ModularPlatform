@@ -9,6 +9,8 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <!-- WolverineOptions for IModule.ConfigureMessaging -->
     <PackageReference Include="WolverineFx" />
+    <!-- IServiceCollectionQuartzConfigurator for IModule.RegisterJobs -->
+    <PackageReference Include="Quartz.Extensions.Hosting" />
   </ItemGroup>
 
 </Project>

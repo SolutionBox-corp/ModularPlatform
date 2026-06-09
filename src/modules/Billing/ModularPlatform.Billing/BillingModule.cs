@@ -17,6 +17,7 @@ using ModularPlatform.Cqrs;
 using ModularPlatform.Messaging;
 using ModularPlatform.Persistence;
 using ModularPlatform.Persistence.Rls;
+using Quartz;
 using Wolverine;
 
 namespace ModularPlatform.Billing;
@@ -65,6 +66,15 @@ public sealed class BillingModule : IModule
         // reliable for module assemblies). Billing publishes CreditsToppedUp / CreditsSpent via the outbox.
         options.Discovery.IncludeType<Messaging.ProvisionCreditAccountHandler>();
         options.Discovery.IncludeType<Messaging.ProcessStripeEventHandler>();
+    }
+
+    public void RegisterJobs(IServiceCollectionQuartzConfigurator quartz, IConfiguration configuration)
+    {
+        // Cron sweep that materializes expired holds/buckets into the ledger (correctness is already live).
+        var cron = configuration["Modules:Billing:Jobs:ExpireCreditsCron"] ?? "0 0 * * * ?"; // hourly
+        var jobKey = new JobKey("billing-expire-credits");
+        quartz.AddJob<Jobs.BillingExpireCreditsJob>(jobKey);
+        quartz.AddTrigger(trigger => trigger.ForJob(jobKey).WithCronSchedule(cron));
     }
 
     public async Task ApplyMigrationsAsync(IServiceProvider services, CancellationToken ct)
