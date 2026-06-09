@@ -31,6 +31,7 @@
     <ProjectReference Include="..\..\src\modules\Gdpr\ModularPlatform.Gdpr\ModularPlatform.Gdpr.csproj" />
     <ProjectReference Include="..\..\src\modules\Gdpr\ModularPlatform.Gdpr.Contracts\ModularPlatform.Gdpr.Contracts.csproj" />
     <ProjectReference Include="..\..\src\modules\Operations\ModularPlatform.Operations\ModularPlatform.Operations.csproj" />
+    <ProjectReference Include="..\..\src\modules\Files\ModularPlatform.Files\ModularPlatform.Files.csproj" />
   </ItemGroup>
 
 </Project>

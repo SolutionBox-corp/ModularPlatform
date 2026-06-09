@@ -62,4 +62,11 @@
   <data name="gdpr.consent.user_id.required" xml:space="preserve"><value>ID uživatele je povinné.</value></data>
   <data name="gdpr.consent.type.required" xml:space="preserve"><value>Typ souhlasu je povinný.</value></data>
   <data name="gdpr.consent.type.too_long" xml:space="preserve"><value>Typ souhlasu je příliš dlouhý.</value></data>
+
+  <data name="file.not_found" xml:space="preserve"><value>Soubor nenalezen.</value></data>
+  <data name="file.empty" xml:space="preserve"><value>Soubor je prázdný.</value></data>
+  <data name="file.too_large" xml:space="preserve"><value>Soubor překračuje maximální povolenou velikost.</value></data>
+  <data name="file.content_type.not_allowed" xml:space="preserve"><value>Tento typ souboru není povolen.</value></data>
+  <data name="file.name.required" xml:space="preserve"><value>Název souboru je povinný.</value></data>
+  <data name="file.name.too_long" xml:space="preserve"><value>Název souboru je příliš dlouhý.</value></data>
 </root>

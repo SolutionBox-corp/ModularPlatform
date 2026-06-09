@@ -22,6 +22,7 @@ public sealed class PlatformApiFactory : IAsyncLifetime
     public const string AdminEmail = "admin@platform.test";
 
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:16-alpine").Build();
+    private readonly string _storageRoot = Path.Combine(Path.GetTempPath(), $"mp-storage-{Guid.CreateVersion7():N}");
     private WebApplicationFactory<Program> _factory = default!;
 
     public HttpClient Client { get; private set; } = default!;
@@ -44,6 +45,9 @@ public sealed class PlatformApiFactory : IAsyncLifetime
             builder.UseSetting("Jwt:SigningKey", "integration-test-signing-key-at-least-32b");
             builder.UseSetting("Jwt:Issuer", "test");
             builder.UseSetting("Jwt:Audience", "test");
+            // Files module: use the local-disk storage provider with an isolated per-run temp root.
+            builder.UseSetting("Storage:Provider", "local");
+            builder.UseSetting("Storage:Local:RootPath", _storageRoot);
         });
         Client = _factory.CreateClient();
     }
@@ -52,6 +56,17 @@ public sealed class PlatformApiFactory : IAsyncLifetime
     {
         _factory.Dispose();
         await _postgres.DisposeAsync();
+        try
+        {
+            if (Directory.Exists(_storageRoot))
+            {
+                Directory.Delete(_storageRoot, recursive: true);
+            }
+        }
+        catch
+        {
+            // Best-effort cleanup of the temp storage root; ignore if files are still held.
+        }
     }
 
     /// <summary>Registers a user, logs in, and returns the user id + a fresh access token.</summary>

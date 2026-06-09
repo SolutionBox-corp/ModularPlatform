@@ -62,4 +62,11 @@
   <data name="gdpr.consent.user_id.required" xml:space="preserve"><value>User id is required.</value></data>
   <data name="gdpr.consent.type.required" xml:space="preserve"><value>Consent type is required.</value></data>
   <data name="gdpr.consent.type.too_long" xml:space="preserve"><value>The consent type is too long.</value></data>
+
+  <data name="file.not_found" xml:space="preserve"><value>File not found.</value></data>
+  <data name="file.empty" xml:space="preserve"><value>The file is empty.</value></data>
+  <data name="file.too_large" xml:space="preserve"><value>The file exceeds the maximum allowed size.</value></data>
+  <data name="file.content_type.not_allowed" xml:space="preserve"><value>This file type is not allowed.</value></data>
+  <data name="file.name.required" xml:space="preserve"><value>A file name is required.</value></data>
+  <data name="file.name.too_long" xml:space="preserve"><value>The file name is too long.</value></data>
 </root>

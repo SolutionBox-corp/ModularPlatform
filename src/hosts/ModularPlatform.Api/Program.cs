@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Billing;
+using ModularPlatform.Files;
 using ModularPlatform.Gdpr;
 using ModularPlatform.Identity;
 using ModularPlatform.Messaging;
@@ -21,7 +22,8 @@ var modules = ModuleLoader.Discover(
     typeof(BillingModule).Assembly,
     typeof(NotificationsModule).Assembly,
     typeof(GdprModule).Assembly,
-    typeof(OperationsModule).Assembly);
+    typeof(OperationsModule).Assembly,
+    typeof(FilesModule).Assembly);
 
 // Platform cross-cutting concerns. Telemetry FIRST so its behavior is outer-most in the CQRS pipeline.
 builder.Services.AddPlatformTelemetry("ModularPlatform.Api");

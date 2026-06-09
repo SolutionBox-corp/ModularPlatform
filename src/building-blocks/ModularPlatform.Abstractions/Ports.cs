@@ -60,3 +60,23 @@ public interface IErasePersonalData
 
     Task EraseAsync(Guid userId, CancellationToken ct);
 }
+
+/// <summary>
+/// Blob storage port — the bytes of an uploaded file live behind this, the metadata lives in the owning module.
+/// Implemented by a local-disk provider (dev) and an S3-compatible provider (AWS S3 / MinIO / Cloudflare R2).
+/// <para>
+/// SECURITY: <paramref name="key"/> is a SERVER-GENERATED opaque id (never a client-supplied filename) — a client
+/// filename is a path-traversal vector. The provider treats the key as opaque and refuses any path-traversal token.
+/// </para>
+/// </summary>
+public interface IFileStorage
+{
+    /// <summary>Stores <paramref name="content"/> under <paramref name="key"/>, overwriting if it already exists.</summary>
+    Task PutAsync(string key, Stream content, string contentType, CancellationToken ct);
+
+    /// <summary>Opens the stored object for reading. Throws if the key does not exist.</summary>
+    Task<Stream> GetAsync(string key, CancellationToken ct);
+
+    /// <summary>Deletes the stored object. Idempotent — deleting a missing key is not an error.</summary>
+    Task DeleteAsync(string key, CancellationToken ct);
+}

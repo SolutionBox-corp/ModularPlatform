@@ -8,10 +8,12 @@
     <ProjectReference Include="..\..\modules\Identity\ModularPlatform.Identity\ModularPlatform.Identity.csproj" />
     <ProjectReference Include="..\..\modules\Identity\ModularPlatform.Identity.Contracts\ModularPlatform.Identity.Contracts.csproj" />
     <ProjectReference Include="..\..\building-blocks\ModularPlatform.Realtime\ModularPlatform.Realtime.csproj" />
+    <ProjectReference Include="..\..\building-blocks\ModularPlatform.Storage\ModularPlatform.Storage.csproj" />
     <ProjectReference Include="..\..\modules\Billing\ModularPlatform.Billing\ModularPlatform.Billing.csproj" />
     <ProjectReference Include="..\..\modules\Notifications\ModularPlatform.Notifications\ModularPlatform.Notifications.csproj" />
     <ProjectReference Include="..\..\modules\Gdpr\ModularPlatform.Gdpr\ModularPlatform.Gdpr.csproj" />
     <ProjectReference Include="..\..\modules\Operations\ModularPlatform.Operations\ModularPlatform.Operations.csproj" />
+    <ProjectReference Include="..\..\modules\Files\ModularPlatform.Files\ModularPlatform.Files.csproj" />
   </ItemGroup>
 
   <ItemGroup>
