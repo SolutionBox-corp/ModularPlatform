@@ -13,14 +13,17 @@ internal static class GetMyNotificationsEndpoint
     {
         app.MapGet("/notifications/me", async (
                 bool? unreadOnly,
+                int? page,
+                int? pageSize,
                 ITenantContext tenant,
                 IDispatcher dispatcher,
                 CancellationToken ct) =>
             {
                 var userId = tenant.UserId
                     ?? throw new UnauthorizedException("auth.required", "Authentication required.");
-                var feed = await dispatcher.Query(new GetMyNotificationsQuery(userId, unreadOnly ?? false), ct);
-                return Results.Ok(ApiResponse<IReadOnlyList<NotificationItem>>.Ok(feed));
+                var feed = await dispatcher.Query(
+                    new GetMyNotificationsQuery(userId, unreadOnly ?? false, new PageRequest(page, pageSize)), ct);
+                return Results.Ok(ApiResponse<PagedResponse<NotificationItem>>.Ok(feed));
             })
             .RequireAuthorization()
             .WithTags("Notifications")

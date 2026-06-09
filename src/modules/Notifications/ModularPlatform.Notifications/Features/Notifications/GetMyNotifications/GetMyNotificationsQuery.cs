@@ -2,7 +2,8 @@ using ModularPlatform.Cqrs;
 
 namespace ModularPlatform.Notifications.Features.Notifications.GetMyNotifications;
 
-public sealed record GetMyNotificationsQuery(Guid UserId, bool UnreadOnly) : IQuery<IReadOnlyList<NotificationItem>>;
+public sealed record GetMyNotificationsQuery(Guid UserId, bool UnreadOnly, PageRequest Page)
+    : IQuery<PagedResponse<NotificationItem>>;
 
 public sealed record NotificationItem(
     Guid Id,

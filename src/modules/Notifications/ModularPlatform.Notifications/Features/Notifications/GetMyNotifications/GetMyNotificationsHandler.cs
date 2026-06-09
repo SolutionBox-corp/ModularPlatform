@@ -10,9 +10,9 @@ namespace ModularPlatform.Notifications.Features.Notifications.GetMyNotification
 /// Newest first; optionally filters to unread (ReadAt == null).
 /// </summary>
 internal sealed class GetMyNotificationsHandler(IReadDbContextFactory<NotificationsDbContext> readFactory)
-    : IQueryHandler<GetMyNotificationsQuery, IReadOnlyList<NotificationItem>>
+    : IQueryHandler<GetMyNotificationsQuery, PagedResponse<NotificationItem>>
 {
-    public async Task<IReadOnlyList<NotificationItem>> Handle(GetMyNotificationsQuery query, CancellationToken ct)
+    public async Task<PagedResponse<NotificationItem>> Handle(GetMyNotificationsQuery query, CancellationToken ct)
     {
         await using var db = readFactory.Create();
 
@@ -26,6 +26,6 @@ internal sealed class GetMyNotificationsHandler(IReadDbContextFactory<Notificati
         return await feed
             .OrderByDescending(n => n.CreatedAt)
             .Select(n => new NotificationItem(n.Id, n.TemplateKey, n.Title, n.Body, n.ReadAt, n.CreatedAt))
-            .ToListAsync(ct);
+            .ToPagedResponseAsync(query.Page, ct);
     }
 }

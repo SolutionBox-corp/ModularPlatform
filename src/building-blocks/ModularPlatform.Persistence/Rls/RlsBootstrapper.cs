@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ModularPlatform.Persistence.Entities;
@@ -34,6 +35,17 @@ public static class RlsBootstrapper
         if (!SafeIdentifier.IsMatch(options.RuntimeRole))
         {
             throw new InvalidOperationException($"Invalid RLS runtime role name '{options.RuntimeRole}'.");
+        }
+
+        // Secrets fail-fast: refuse to start with the dev placeholder password outside Development — it would
+        // make the least-privilege role's credentials public knowledge. Provide a real secret (env/KeyVault).
+        var environment = services.GetService<IHostEnvironment>();
+        if (environment is not null && !environment.IsDevelopment()
+            && options.RuntimePassword == RlsOptions.DevPasswordPlaceholder)
+        {
+            throw new InvalidOperationException(
+                "Persistence:Rls:RuntimePassword is the dev placeholder — set a real secret outside Development "
+                + "(or set Persistence:Rls:Enabled=false on a DB where you cannot provision roles).");
         }
 
         var tables = CollectUserOwnedTables(services);

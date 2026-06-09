@@ -18,9 +18,12 @@ public sealed class RlsOptions
     /// <summary>The least-privilege login role the runtime data connections use (subject to RLS).</summary>
     public string RuntimeRole { get; set; } = "app_rls";
 
+    /// <summary>The dev/test placeholder password — the host refuses to start with this outside Development.</summary>
+    public const string DevPasswordPlaceholder = "dev_app_rls_password_change_me";
+
     /// <summary>
     /// Password the bootstrapper sets on <see cref="RuntimeRole"/> and the runtime connection authenticates with.
     /// Override from a secret in production; the default is a dev/test placeholder only.
     /// </summary>
-    public string RuntimePassword { get; set; } = "dev_app_rls_password_change_me";
+    public string RuntimePassword { get; set; } = DevPasswordPlaceholder;
 }
