@@ -18,25 +18,25 @@ public sealed class AccountLockoutTests(ApiFixture fixture) : IClassFixture<ApiF
     {
         var email = $"lockout-{Guid.CreateVersion7():N}@example.com";
 
-        var register = await fixture.Client.PostAsJsonAsync("/identity/users",
+        var register = await fixture.Client.PostAsJsonAsync("/v1/identity/users",
             new { email, password = Password, displayName = "Lockout User" });
         register.StatusCode.ShouldBe(HttpStatusCode.Created);
 
         // Sanity: correct credentials work before any failures.
-        var preLogin = await fixture.Client.PostAsJsonAsync("/identity/auth/login",
+        var preLogin = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/login",
             new { email, password = Password });
         preLogin.EnsureSuccessStatusCode();
 
         // Drive the account to the lockout threshold with wrong passwords.
         for (var attempt = 0; attempt < Threshold; attempt++)
         {
-            var wrong = await fixture.Client.PostAsJsonAsync("/identity/auth/login",
+            var wrong = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/login",
                 new { email, password = "wrong-password" });
             wrong.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
         }
 
         // Now even the CORRECT password must be rejected while locked out.
-        var lockedOut = await fixture.Client.PostAsJsonAsync("/identity/auth/login",
+        var lockedOut = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/login",
             new { email, password = Password });
         lockedOut.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
 

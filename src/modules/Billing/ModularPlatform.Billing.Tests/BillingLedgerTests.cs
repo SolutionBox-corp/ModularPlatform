@@ -23,14 +23,14 @@ public sealed class BillingLedgerTests(PlatformApiFactory fixture)
             $"WHERE \"UserId\" = '{userId}'");
 
         var reserve = await fixture.Client.SendAsync(
-            fixture.Authed(HttpMethod.Post, "/billing/credits/reservations", token, new { amount = 100L }));
+            fixture.Authed(HttpMethod.Post, "/v1/billing/credits/reservations", token, new { amount = 100L }));
         reserve.EnsureSuccessStatusCode();
         var reservationId = (await PlatformApiFactory.ReadData(reserve)).GetProperty("reservationId").GetGuid();
 
         // 10 simultaneous confirmations of the same reservation.
         var attempts = await Task.WhenAll(Enumerable.Range(0, 10).Select(async _ =>
         {
-            var request = fixture.Authed(HttpMethod.Post, "/billing/credits/reservations/confirm", token,
+            var request = fixture.Authed(HttpMethod.Post, "/v1/billing/credits/reservations/confirm", token,
                 new { reservationId });
             return (await fixture.Client.SendAsync(request)).StatusCode;
         }));
@@ -59,7 +59,7 @@ public sealed class BillingLedgerTests(PlatformApiFactory fixture)
         // Two simultaneous top-ups with the SAME idempotency key against a brand-new user.
         var attempts = await Task.WhenAll(Enumerable.Range(0, 2).Select(async _ =>
         {
-            var request = fixture.Authed(HttpMethod.Post, "/billing/credits/topup", token,
+            var request = fixture.Authed(HttpMethod.Post, "/v1/billing/credits/topup", token,
                 new { amount = 500L, bucketExpiryDays = (int?)null, idempotencyKey = key });
             return (await fixture.Client.SendAsync(request)).StatusCode;
         }));

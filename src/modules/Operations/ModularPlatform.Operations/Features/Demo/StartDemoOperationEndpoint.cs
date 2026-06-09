@@ -18,11 +18,17 @@ internal static class StartDemoOperationEndpoint
         app.MapPost("/operations/demo", async (
                 ITenantContext tenant,
                 IDispatcher dispatcher,
+                LinkGenerator links,
+                HttpContext http,
                 CancellationToken ct) =>
             {
                 var userId = tenant.UserId ?? throw new UnauthorizedException("auth.required", "Authentication required.");
                 var result = await dispatcher.Send(new StartDemoOperationCommand(userId), ct);
-                return Results.Accepted($"/operations/{result.OperationId}", ApiResponse<StartDemoOperationResponse>.Ok(result));
+                // Build the status Location from the named status route so it stays correct under any route-group
+                // prefix (e.g. the host's /v1 versioning group) instead of hardcoding the path.
+                var location = links.GetPathByName(http, "GetOperationStatus", new { operationId = result.OperationId })
+                    ?? $"/operations/{result.OperationId}";
+                return Results.Accepted(location, ApiResponse<StartDemoOperationResponse>.Ok(result));
             })
             .RequireAuthorization()
             .WithTags("Operations")

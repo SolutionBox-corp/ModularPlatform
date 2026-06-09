@@ -28,7 +28,7 @@ public sealed class BillingConcurrencyTests(PlatformApiFactory fixture)
         // 20 simultaneous reservations of 100 against a 1000 balance.
         var attempts = await Task.WhenAll(Enumerable.Range(0, 20).Select(async _ =>
         {
-            var request = fixture.Authed(HttpMethod.Post, "/billing/credits/reservations", token, new { amount = 100L });
+            var request = fixture.Authed(HttpMethod.Post, "/v1/billing/credits/reservations", token, new { amount = 100L });
             var response = await fixture.Client.SendAsync(request);
             return response.StatusCode;
         }));

@@ -53,12 +53,12 @@ public sealed class IdentityE2ETests(ApiFixture fixture) : IClassFixture<ApiFixt
         var email = $"user-{Guid.CreateVersion7():N}@example.com";
 
         // Register
-        var register = await fixture.Client.PostAsJsonAsync("/identity/users",
+        var register = await fixture.Client.PostAsJsonAsync("/v1/identity/users",
             new { email, password = "Sup3rSecret!", displayName = "Test User" });
         register.StatusCode.ShouldBe(HttpStatusCode.Created);
 
         // Login
-        var login = await fixture.Client.PostAsJsonAsync("/identity/auth/login",
+        var login = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/login",
             new { email, password = "Sup3rSecret!" });
         login.EnsureSuccessStatusCode();
         var tokens = await Unwrap<Tokens>(login);
@@ -66,7 +66,7 @@ public sealed class IdentityE2ETests(ApiFixture fixture) : IClassFixture<ApiFixt
         tokens.RefreshToken.ShouldNotBeNullOrWhiteSpace();
 
         // Profile with the access token
-        var meRequest = new HttpRequestMessage(HttpMethod.Get, "/identity/users/me");
+        var meRequest = new HttpRequestMessage(HttpMethod.Get, "/v1/identity/users/me");
         meRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokens.AccessToken);
         var me = await fixture.Client.SendAsync(meRequest);
         me.EnsureSuccessStatusCode();
@@ -74,14 +74,14 @@ public sealed class IdentityE2ETests(ApiFixture fixture) : IClassFixture<ApiFixt
         profile.Email.ShouldBe(email);
 
         // Refresh rotation: the old refresh token is consumed and replaced
-        var refresh = await fixture.Client.PostAsJsonAsync("/identity/auth/refresh",
+        var refresh = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/refresh",
             new { refreshToken = tokens.RefreshToken });
         refresh.EnsureSuccessStatusCode();
         var rotated = await Unwrap<Tokens>(refresh);
         rotated.RefreshToken.ShouldNotBe(tokens.RefreshToken);
 
         // REUSE DETECTION: replaying the consumed token must be rejected (401)
-        var reuse = await fixture.Client.PostAsJsonAsync("/identity/auth/refresh",
+        var reuse = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/refresh",
             new { refreshToken = tokens.RefreshToken });
         reuse.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
 

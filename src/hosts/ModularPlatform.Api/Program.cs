@@ -62,13 +62,18 @@ if (builder.Configuration.GetValue<bool>("RunMigrationsAtStartup"))
 app.UsePlatformWeb();
 app.MapOpenApi();
 
+// API versioning (URL strategy): every module/app endpoint is served under a single central `/v1` prefix
+// (e.g. /v1/identity/users, /v1/billing/..., /v1/realtime/stream). Health checks and OpenAPI stay UNVERSIONED
+// at root. Bump by adding a `/v2` group here when a breaking revision is needed.
+var v1 = app.MapGroup("/v1");
+
 foreach (var module in modules)
 {
-    module.MapEndpoints(app);
+    module.MapEndpoints(v1);
 }
 
 // Browser Server-Sent-Events stream (realtime fan-out is the Realtime building block; producers stay agnostic).
-app.MapRealtimeStream();
+v1.MapRealtimeStream();
 
 // Liveness = process is up (no dependency checks); readiness = dependencies (Postgres) are reachable.
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous();

@@ -18,7 +18,7 @@ public sealed class OperationsTests(PlatformApiFactory fixture)
         var (_, token) = await fixture.RegisterAndLoginAsync($"op-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
 
         // Accept: 202 + a Location header to the status endpoint + the operation id in the body.
-        var start = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Post, "/operations/demo", token));
+        var start = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Post, "/v1/operations/demo", token));
         start.StatusCode.ShouldBe(HttpStatusCode.Accepted);
         var operationId = (await PlatformApiFactory.ReadData(start)).GetProperty("operationId").GetGuid();
         start.Headers.Location!.ToString().ShouldContain(operationId.ToString());
@@ -27,7 +27,7 @@ public sealed class OperationsTests(PlatformApiFactory fixture)
         string status = "Pending";
         for (var attempt = 0; attempt < 60 && status is "Pending" or "Running"; attempt++)
         {
-            var poll = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Get, $"/operations/{operationId}", token));
+            var poll = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Get, $"/v1/operations/{operationId}", token));
             poll.StatusCode.ShouldBe(HttpStatusCode.OK);
             status = (await PlatformApiFactory.ReadData(poll)).GetProperty("status").GetString()!;
             if (status is "Pending" or "Running")
@@ -40,7 +40,7 @@ public sealed class OperationsTests(PlatformApiFactory fixture)
 
         // RLS owner-scoping: a DIFFERENT user cannot see the operation — it is simply not found.
         var (_, otherToken) = await fixture.RegisterAndLoginAsync($"other-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
-        var foreign = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Get, $"/operations/{operationId}", otherToken));
+        var foreign = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Get, $"/v1/operations/{operationId}", otherToken));
         foreign.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 }

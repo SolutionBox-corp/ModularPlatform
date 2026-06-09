@@ -16,7 +16,7 @@ public sealed class RealtimeSseTests(PlatformApiFactory fixture)
     [Fact]
     public async Task Unauthenticated_stream_is_rejected()
     {
-        var response = await fixture.Client.GetAsync("/realtime/stream");
+        var response = await fixture.Client.GetAsync("/v1/realtime/stream");
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 

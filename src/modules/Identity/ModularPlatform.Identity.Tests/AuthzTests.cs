@@ -26,7 +26,7 @@ public sealed class AuthzTests(PlatformApiFactory fixture)
 
         // A normal authenticated user is FORBIDDEN from the permission-gated admin endpoint.
         var forbidden = await fixture.Client.SendAsync(fixture.Authed(
-            HttpMethod.Post, $"/identity/admin/users/{normalId}/roles", normalToken, new { role = "admin" }));
+            HttpMethod.Post, $"/v1/identity/admin/users/{normalId}/roles", normalToken, new { role = "admin" }));
         forbidden.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
 
         // The configured admin email gets the admin role on login; its token carries the manage-roles permission.
@@ -36,7 +36,7 @@ public sealed class AuthzTests(PlatformApiFactory fixture)
 
         // The admin grants the normal user the admin role.
         var granted = await fixture.Client.SendAsync(fixture.Authed(
-            HttpMethod.Post, $"/identity/admin/users/{normalId}/roles", adminToken, new { role = "admin" }));
+            HttpMethod.Post, $"/v1/identity/admin/users/{normalId}/roles", adminToken, new { role = "admin" }));
         granted.StatusCode.ShouldBe(HttpStatusCode.OK);
 
         // After re-authenticating, the normal user's NEW token carries the permission and the endpoint now allows.
@@ -44,13 +44,13 @@ public sealed class AuthzTests(PlatformApiFactory fixture)
         ClaimValues(reloginToken, "permission").ShouldContain("identity.manage_roles");
 
         var nowAllowed = await fixture.Client.SendAsync(fixture.Authed(
-            HttpMethod.Post, $"/identity/admin/users/{normalId}/roles", reloginToken, new { role = "admin" }));
+            HttpMethod.Post, $"/v1/identity/admin/users/{normalId}/roles", reloginToken, new { role = "admin" }));
         nowAllowed.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     private async Task<string> LoginAsync(string email, string password)
     {
-        var login = await fixture.Client.PostAsJsonAsync("/identity/auth/login", new { email, password });
+        var login = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/login", new { email, password });
         login.EnsureSuccessStatusCode();
         return (await PlatformApiFactory.ReadData(login)).GetProperty("accessToken").GetString()!;
     }

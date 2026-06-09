@@ -57,7 +57,7 @@ public sealed class PlatformApiFactory : IAsyncLifetime
     /// <summary>Registers a user, logs in, and returns the user id + a fresh access token.</summary>
     public async Task<(Guid UserId, string AccessToken)> RegisterAndLoginAsync(string email, string password)
     {
-        var register = await Client.PostAsJsonAsync("/identity/users", new { email, password });
+        var register = await Client.PostAsJsonAsync("/v1/identity/users", new { email, password });
         if (!register.IsSuccessStatusCode)
         {
             throw new InvalidOperationException($"register failed {(int)register.StatusCode}: {await register.Content.ReadAsStringAsync()}");
@@ -65,7 +65,7 @@ public sealed class PlatformApiFactory : IAsyncLifetime
 
         var userId = (await ReadData(register)).GetProperty("userId").GetGuid();
 
-        var login = await Client.PostAsJsonAsync("/identity/auth/login", new { email, password });
+        var login = await Client.PostAsJsonAsync("/v1/identity/auth/login", new { email, password });
         if (!login.IsSuccessStatusCode)
         {
             throw new InvalidOperationException($"login failed {(int)login.StatusCode}: {await login.Content.ReadAsStringAsync()}");
