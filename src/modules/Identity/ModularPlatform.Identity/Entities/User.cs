@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using ModularPlatform.Abstractions;
 using ModularPlatform.Persistence.Entities;
 
 namespace ModularPlatform.Identity.Entities;
@@ -7,14 +8,20 @@ namespace ModularPlatform.Identity.Entities;
 /// <summary>
 /// A platform user. Flat aggregate — no navigation to RefreshTokens; they reference UserId.
 /// Tenant-scoped + soft-deletable. Audit + xmin concurrency are applied by convention.
+/// The user IS its own data subject, so PII captured in the audit trail is crypto-shredded under its own DEK.
 /// </summary>
-internal sealed class User : AuditableEntity, ITenantScoped, ISoftDeletable
+internal sealed class User : AuditableEntity, ITenantScoped, ISoftDeletable, IDataSubject
 {
+    [PersonalData]
     public string Email { get; set; } = string.Empty;
+    [PersonalData]
     public string NormalizedEmail { get; set; } = string.Empty;
     public string PasswordHash { get; set; } = string.Empty;
+    [PersonalData]
     public string? DisplayName { get; set; }
     public string Locale { get; set; } = "en";
+
+    Guid IDataSubject.SubjectId => Id;
 
     /// <summary>Consecutive failed login attempts since the last success; resets on success or lockout.</summary>
     public int FailedAccessCount { get; set; }

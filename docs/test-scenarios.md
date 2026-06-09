@@ -99,6 +99,7 @@ Status: **✓** implemented · **▢** gap (planned) · **◐** partially covere
 | PL-9 | Rate limiter: >100 req/min from one principal → `429` with the right headers | F | ▢ |
 | PL-10 | Migration race: two contexts → same fresh DB, parallel `ApplyMigrationsAsync` → exactly one applies, no throw | C | ▢ |
 | PL-11 | Worker/Jobs/Migration run under `SystemTenantContext` (tenant filter bypassed for system work) | I | ◐ (erasure relies on it) |
+| PL-12 | **Audit-PII crypto-shred**: a `[PersonalData]` value is stored in the audit trail ONLY as a `penc:v1:` envelope (never plaintext); an admin reveals it via `GET /v1/identity/admin/users/{id}/audit` (`audit.read`); after the subject erases themselves the DEK is shredded and the same value surfaces as `[erased]`, raw row still plaintext-free | I | ✓ `AuditPiiEncryptionTests` (Identity) + `Notification_pii_is_crypto_shredded_in_the_audit_trail` (Notifications) + `PersonalDataConventionTests` (Arch: `[PersonalData]` ⇒ `IDataSubject`) |
 
 ---
 

@@ -47,14 +47,11 @@ public sealed class GdprIntegrationTests(PlatformApiFactory fixture)
                      'Hello Jane Doe', 'Your email jane.doe@example.com is confirmed', now())
              """);
 
-        // SubjectKey rows are NOT auto-created by any production slice (ShredSubjectKeyHandler treats a missing
-        // key as a no-op), so seed one with a live DEK to prove the shred actually runs.
-        var subjectKeyId = Guid.CreateVersion7();
-        await fixture.ExecuteSqlAsync(
-            $"""
-             INSERT INTO subject_keys ("Id", "UserId", "WrappedDek", "CreatedAt", "DeletedAt")
-             VALUES ('{subjectKeyId}', '{userId}', '\x0102030405', now(), NULL)
-             """);
+        // The audit-PII protector auto-creates a live SubjectKey (DEK) for the user on the first audit-encrypt
+        // (the registration write), so we don't seed one — just confirm it's present with a live DEK before erasure.
+        await fixture.WaitForCountAsync(
+            $"""SELECT count(*)::bigint FROM subject_keys WHERE "UserId" = '{userId}' AND "WrappedDek" IS NOT NULL""",
+            1);
 
         // Capture the ledger row count BEFORE erasure — it must be retained unchanged for AML/tax.
         var entriesBefore = await fixture.ScalarAsync<long>(
@@ -71,12 +68,12 @@ public sealed class GdprIntegrationTests(PlatformApiFactory fixture)
 
         // The erasure is durable + async — poll until the crypto-shred has stamped DeletedAt.
         await fixture.WaitForCountAsync(
-            $"""SELECT count(*)::bigint FROM subject_keys WHERE "Id" = '{subjectKeyId}' AND "DeletedAt" IS NOT NULL""",
+            $"""SELECT count(*)::bigint FROM subject_keys WHERE "UserId" = '{userId}' AND "DeletedAt" IS NOT NULL""",
             1);
 
         // SubjectKey: DEK destroyed (WrappedDek null) + DeletedAt stamped.
         var liveKeyBytes = await fixture.ScalarAsync<long>(
-            $"""SELECT count(*)::bigint FROM subject_keys WHERE "Id" = '{subjectKeyId}' AND "WrappedDek" IS NOT NULL""");
+            $"""SELECT count(*)::bigint FROM subject_keys WHERE "UserId" = '{userId}' AND "WrappedDek" IS NOT NULL""");
         liveKeyBytes.ShouldBe(0);
 
         // Notification PII anonymized in place (rows kept, free-text blanked to empty — both columns are NOT NULL).
@@ -105,6 +102,26 @@ public sealed class GdprIntegrationTests(PlatformApiFactory fixture)
         var accountSurvives = await fixture.ScalarAsync<long>(
             $"""SELECT count(*)::bigint FROM credit_accounts WHERE "UserId" = '{userId}'""");
         accountSurvives.ShouldBe(1);
+    }
+
+    // The DEK must NEVER reach the audit trail. SubjectKey rows (whose WrappedDek IS the live DEK at creation) are
+    // written by the protector on an interceptor-free context, so a SubjectKey CREATE is never audited; only the
+    // shred Update (which writes WrappedDek = null) is. This locks the load-bearing invariant against a future
+    // refactor that routes SubjectKey writes through the standard audited context.
+    [Fact]
+    public async Task Subject_key_creation_is_never_audited_so_the_dek_never_reaches_the_audit_trail()
+    {
+        var email = $"keyaudit-{Guid.CreateVersion7():N}@example.com";
+        var (userId, _) = await fixture.RegisterAndLoginAsync(email, Password);
+
+        // Registration's first audit-encrypt provisions the subject's DEK.
+        await fixture.WaitForCountAsync(
+            $"""SELECT count(*)::bigint FROM subject_keys WHERE "UserId" = '{userId}' AND "WrappedDek" IS NOT NULL""",
+            1);
+
+        var auditedKeyCreates = await fixture.ScalarAsync<long>(
+            """SELECT count(*)::bigint FROM gdpr_audit_entries WHERE "EntityType" = 'SubjectKey' AND "Action" = 'Create'""");
+        auditedKeyCreates.ShouldBe(0);
     }
 
     // ---------------------------------------------------------------------------------------------------------

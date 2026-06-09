@@ -19,6 +19,9 @@ public static class PlatformPermissions
     /// <summary>Send a notification to an arbitrary user (system/admin operation, not self-service).</summary>
     public const string NotificationsSend = "notifications.send";
 
+    /// <summary>Read a user's audit trail with personal-data values decrypted (admin forensics, until erasure).</summary>
+    public const string AuditRead = "audit.read";
+
     /// <summary>Every declared permission, discovered by reflection over the public string consts above.</summary>
     public static IReadOnlyList<string> All { get; } = typeof(PlatformPermissions)
         .GetFields(BindingFlags.Public | BindingFlags.Static)

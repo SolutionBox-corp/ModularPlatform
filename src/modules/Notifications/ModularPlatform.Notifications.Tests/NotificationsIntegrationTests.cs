@@ -158,6 +158,40 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
             .ShouldBeFalse();
     }
 
+    // A notification's PII (Title/Body) is crypto-shredded in the audit trail: the live row keeps the rendered
+    // text, but notifications_audit_entries stores it as a penc:v1: envelope — never the plaintext.
+    [Fact]
+    public async Task Notification_pii_is_crypto_shredded_in_the_audit_trail()
+    {
+        var (recipientId, adminToken) = await AdminTokenAsync();
+
+        var templateKey = $"audit-{Guid.CreateVersion7():N}";
+        var marker = $"Secret-{Guid.CreateVersion7():N}";
+        await fixture.ExecuteSqlAsync(
+            $"INSERT INTO notification_templates (\"Id\", \"Key\", \"Locale\", \"Subject\", \"Body\") " +
+            $"VALUES ('{Guid.CreateVersion7()}', '{templateKey}', 'en', '{marker}', '{marker} body')");
+
+        var send = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/notifications/send", adminToken, new
+            {
+                userId = recipientId,
+                templateKey,
+                channels = new[] { "inapp" },
+                data = new Dictionary<string, string>(),
+            }));
+        send.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        // The live notification keeps the rendered title (only the AUDIT trail is encrypted).
+        var notificationId = await fixture.ScalarAsync<Guid>(
+            $"SELECT \"Id\" FROM notifications WHERE \"Title\" = '{marker}' LIMIT 1");
+
+        var rawAudit = await fixture.ScalarAsync<string>(
+            $"SELECT \"NewValues\"::text FROM notifications_audit_entries WHERE \"EntityType\" = 'Notification' " +
+            $"AND \"EntityId\" = '{notificationId}' AND \"Action\" = 'Create' LIMIT 1");
+        rawAudit.ShouldContain("penc:v1:");
+        rawAudit.ShouldNotContain(marker);
+    }
+
     /// <summary>
     /// The configured platform admin (PlatformApiFactory.AdminEmail), which holds every permission including
     /// notifications.send (admins are granted ALL permissions — IdentitySeeder + PlatformPermissions). Returns the

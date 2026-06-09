@@ -71,6 +71,7 @@ cross-module event → money → notification → 202 status → pagination) is 
 | File storage (local + S3/MinIO/R2) | ✅ | `Abstractions/Ports.cs` `IFileStorage`; building block `ModularPlatform.Storage`; `Files` module (`Upload`/`Download`/`List`); `Storage:Provider=local\|s3` |
 | API versioning | ✅ | `hosts/Api/Program.cs` `app.MapGroup("/v1")`; modules map **relative** routes; Locations via named-route + `LinkGenerator` |
 | Audit / concurrency / idempotency / error→HTTP i18n | ✅ | `AuditInterceptor`, xmin + `ConcurrencyRetryBehavior`, UNIQUE key + `catch DbUpdateException`, `GlobalExceptionMiddleware` (resx key == errorCode) — `CLAUDE.md` §4 |
+| Audit-PII crypto-shred (encryption-at-rest) | ✅ | `[PersonalData]`+`IDataSubject`+`IPersonalDataProtector` (Abstractions); Gdpr `PersonalDataProtector`; admin read `GET /v1/identity/admin/users/{id}/audit` (`AuditRead`); erasure → `[erased]`; `docs/audit-pii-encryption-design.md` — `CLAUDE.md` §4 |
 
 ---
 
@@ -81,8 +82,6 @@ Law 11: if a task needs one of these, **stop and ask the user for the decision**
 From `CLAUDE.md` §10:
 - **Saga / multi-step self-healing workflow** — Wolverine supports it; none exists. Decision: saga vs an
   orchestrating command-chain; an example if in scope.
-- **Audit-PII encryption-at-rest** — `CryptoShredder` exists but nothing encrypts; audit JSON holds plaintext PII
-  that erasure can't reach. Decision: crypto-shred PII columns under a per-subject key, or hash/anonymize audit on erase.
 - **Search / feature flags / bulk ops** — none. Decision: per-need design when first required.
 - **Messaging resilience completeness** — base retry/DLQ policy is wired; still missing a stuck-outbox /
   reconciliation job. Decision: reconciliation cadence + alerting.
@@ -129,17 +128,19 @@ remaining** (these are the A-items already implemented; tests assert them):
 
 ---
 
-## 7. Test status (last full `dotnet test` — 50 total, 0 failed, 0 skipped)
+## 7. Test status (last full `dotnet test` — 75 total, 0 failed, 0 skipped)
+
+Grew from 50 → 75: the robustness backlog wave (+20: ID/PL/BL/ST/GD/EV/NT) and audit-PII crypto-shred (+5).
 
 | Assembly | Pass |
 |---|---|
-| Notifications | 1/1 |
-| Gdpr | 4/4 |
-| ArchitectureTests | 2/2 |
+| Notifications | 5/5 |
+| Gdpr | 8/8 |
+| ArchitectureTests | 3/3 |
 | Operations | 3/3 |
 | Files | 15/15 |
-| Billing | 21/21 |
-| Identity | 4/4 |
-| **Total** | **50/50** |
+| Billing | 29/29 |
+| Identity | 12/12 |
+| **Total** | **75/75** |
 
 Build: 0 warnings / 0 errors.

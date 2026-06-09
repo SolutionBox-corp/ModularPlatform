@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Gdpr.Features.Consents.GetConsents;
@@ -11,6 +12,7 @@ using ModularPlatform.Gdpr.Features.Consents.WithdrawConsent;
 using ModularPlatform.Gdpr.Features.Erasure.RequestErasure;
 using ModularPlatform.Gdpr.Features.Export.ExportUserData;
 using ModularPlatform.Gdpr.Persistence;
+using ModularPlatform.Gdpr.Security;
 using ModularPlatform.Messaging;
 using ModularPlatform.Persistence;
 using ModularPlatform.Persistence.Rls;
@@ -39,6 +41,29 @@ public sealed class GdprModule : IModule
 
         services.AddModuleDbContext<GdprDbContext>(Name, write);
         services.AddModuleReadDbContext<GdprDbContext>(read);
+
+        // The audit interceptor (a platform singleton) crypto-shreds PII through this port. The protector runs on
+        // its OWN system-context GdprDbContext (no audit interceptor -> no reentrancy) so it can manage subject_keys
+        // for any subject. Registered as a singleton to match the singleton interceptor.
+        services.AddSingleton<IPersonalDataProtector>(sp =>
+        {
+            var rls = sp.GetRequiredService<IOptions<RlsOptions>>().Value;
+            var runtimeConnectionString = RlsConnectionString.ForRuntime(read, rls);
+            var system = new SystemTenantContext();
+
+            GdprDbContext NewContext()
+            {
+                var builder = new DbContextOptionsBuilder<GdprDbContext>().UseNpgsql(runtimeConnectionString);
+                if (rls.Enabled)
+                {
+                    builder.AddInterceptors(new PrincipalSessionConnectionInterceptor(system));
+                }
+
+                return new GdprDbContext(builder.Options, system);
+            }
+
+            return new PersonalDataProtector(NewContext, sp.GetRequiredService<IClock>());
+        });
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
