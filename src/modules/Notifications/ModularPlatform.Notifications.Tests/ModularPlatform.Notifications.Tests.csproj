@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
   </PropertyGroup>
 
   <ItemGroup>
@@ -22,6 +23,7 @@
   <ItemGroup>
     <ProjectReference Include="..\ModularPlatform.Notifications\ModularPlatform.Notifications.csproj" />
     <ProjectReference Include="..\ModularPlatform.Notifications.Contracts\ModularPlatform.Notifications.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\..\tests\ModularPlatform.IntegrationTesting\ModularPlatform.IntegrationTesting.csproj" />
   </ItemGroup>
 
 </Project>

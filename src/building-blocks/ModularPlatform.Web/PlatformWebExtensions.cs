@@ -44,7 +44,7 @@ public static class PlatformWebExtensions
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<JwtOptions>, JwtOptionsValidator>();
         AddJwt(services, configuration);
-        AddRateLimiter(services);
+        AddRateLimiter(services, configuration);
 
         return services;
     }
@@ -106,8 +106,14 @@ public static class PlatformWebExtensions
         services.AddAuthorization();
     }
 
-    private static void AddRateLimiter(IServiceCollection services)
+    private static void AddRateLimiter(IServiceCollection services, IConfiguration configuration)
     {
+        // Limits are config-driven (defaults match the production posture). A deployment can tune them, and the
+        // integration-test host raises them so functional tests aren't throttled by the shared loopback IP
+        // partition — a dedicated low-limit host is what the brute-force/rate-limit tests use to assert 429.
+        var globalPermits = configuration.GetValue<int?>("RateLimiting:GlobalPermitsPerMinute") ?? 100;
+        var authPermits = configuration.GetValue<int?>("RateLimiting:AuthPermitsPerMinute") ?? 10;
+
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -122,8 +128,8 @@ public static class PlatformWebExtensions
 
                 return RateLimitPartition.GetTokenBucketLimiter(key, _ => new TokenBucketRateLimiterOptions
                 {
-                    TokenLimit = 100,
-                    TokensPerPeriod = 100,
+                    TokenLimit = globalPermits,
+                    TokensPerPeriod = globalPermits,
                     ReplenishmentPeriod = TimeSpan.FromMinutes(1),
                     AutoReplenishment = true,
                     QueueLimit = 0,
@@ -137,7 +143,7 @@ public static class PlatformWebExtensions
                 var key = context.Connection.RemoteIpAddress?.ToString() ?? "anon";
                 return RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions
                 {
-                    PermitLimit = 10,
+                    PermitLimit = authPermits,
                     Window = TimeSpan.FromMinutes(1),
                     QueueLimit = 0,
                 });

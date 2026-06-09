@@ -45,6 +45,10 @@ public sealed class PlatformApiFactory : IAsyncLifetime
             builder.UseSetting("Jwt:SigningKey", "integration-test-signing-key-at-least-32b");
             builder.UseSetting("Jwt:Issuer", "test");
             builder.UseSetting("Jwt:Audience", "test");
+            // Functional tests share one loopback IP partition; raise the rate limits so they aren't throttled.
+            // (The brute-force/rate-limit scenarios assert 429 via a dedicated low-limit host, not this one.)
+            builder.UseSetting("RateLimiting:GlobalPermitsPerMinute", "100000");
+            builder.UseSetting("RateLimiting:AuthPermitsPerMinute", "100000");
             // Files module: use the local-disk storage provider with an isolated per-run temp root.
             builder.UseSetting("Storage:Provider", "local");
             builder.UseSetting("Storage:Local:RootPath", _storageRoot);
