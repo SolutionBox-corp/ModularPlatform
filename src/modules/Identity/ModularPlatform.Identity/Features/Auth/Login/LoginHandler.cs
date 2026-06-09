@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
+using ModularPlatform.Identity.Authorization;
+using ModularPlatform.Identity.Entities;
 using ModularPlatform.Identity.Persistence;
 using ModularPlatform.Identity.Security;
 using ModularPlatform.Web;
@@ -19,7 +21,8 @@ internal sealed class LoginHandler(
     IPasswordHasher passwordHasher,
     ITokenIssuer tokenIssuer,
     IClock clock,
-    IOptions<JwtOptions> jwtOptions)
+    IOptions<JwtOptions> jwtOptions,
+    IOptions<IdentityAuthOptions> authOptions)
     : ICommandHandler<LoginCommand, AuthTokensResponse>
 {
     private const int MaxFailedAccessAttempts = 5;
@@ -67,8 +70,13 @@ internal sealed class LoginHandler(
             user.LockoutEndUtc = null;
         }
 
+        // Bootstrap the first admin by config: a user whose email is in Identity:Auth:AdminEmails gets the admin
+        // role on login (works even if they registered after startup, which the startup seeder can't catch).
+        await EnsureConfiguredAdminAsync(user, ct);
+
         var tenantId = db.Entry(user).Property<Guid?>("TenantId").CurrentValue;
-        var access = tokenIssuer.IssueAccessToken(user.Id, tenantId, user.Email);
+        var (roles, permissions) = await UserAuthorizationQuery.LoadAsync(db, user.Id, ct);
+        var access = tokenIssuer.IssueAccessToken(user.Id, tenantId, user.Email, roles, permissions);
         var refresh = tokenIssuer.CreateRefreshToken();
 
         db.RefreshTokens.Add(new RefreshTokenEntity
@@ -83,5 +91,32 @@ internal sealed class LoginHandler(
         await db.SaveChangesAsync(ct);
 
         return new AuthTokensResponse(access.Value, access.ExpiresAt, refresh.Raw);
+    }
+
+    /// <summary>
+    /// Idempotently grants the system admin role to a user whose email is configured in
+    /// <c>Identity:Auth:AdminEmails</c>. Persisted before the roles are loaded so the issued token already
+    /// carries admin claims on the very first admin login. No-op when no admin emails are configured.
+    /// </summary>
+    private async Task EnsureConfiguredAdminAsync(User user, CancellationToken ct)
+    {
+        var adminEmails = authOptions.Value.AdminEmails;
+        if (adminEmails.Length == 0
+            || !adminEmails.Any(e => e.Trim().ToUpperInvariant() == user.NormalizedEmail))
+        {
+            return;
+        }
+
+        var adminRole = await db.Roles.FirstOrDefaultAsync(r => r.Name == SystemRoles.Admin, ct);
+        if (adminRole is null)
+        {
+            return; // the seeder hasn't created the role yet; the next login will catch it.
+        }
+
+        if (!await db.UserRoles.AnyAsync(ur => ur.UserId == user.Id && ur.RoleId == adminRole.Id, ct))
+        {
+            db.UserRoles.Add(new UserRole { UserId = user.Id, RoleId = adminRole.Id });
+            await db.SaveChangesAsync(ct);
+        }
     }
 }

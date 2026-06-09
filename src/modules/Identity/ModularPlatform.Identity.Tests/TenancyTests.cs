@@ -10,7 +10,8 @@ namespace ModularPlatform.Identity.Tests;
 /// the tenant claim; two registrations get two distinct tenants. (Cross-user-within-tenant isolation is covered
 /// once an admin "list users in my tenant" query exists.)
 /// </summary>
-public sealed class TenancyTests(PlatformApiFactory fixture) : IClassFixture<PlatformApiFactory>
+[Collection("Integration")]
+public sealed class TenancyTests(PlatformApiFactory fixture)
 {
     [Fact]
     public async Task Registration_provisions_a_tenant_and_the_token_carries_it()

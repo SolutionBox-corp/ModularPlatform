@@ -98,6 +98,8 @@ public static class PlatformWebExtensions
                             ? new string('0', 32) // placeholder so DI builds in dev; real key from env/KeyVault
                             : jwt.SigningKey)),
                     ClockSkew = TimeSpan.FromSeconds(30),
+                    // Role claims are emitted as type "role" — make RequireRole / IsInRole match them.
+                    RoleClaimType = AuthorizationClaims.Role,
                 };
             });
 

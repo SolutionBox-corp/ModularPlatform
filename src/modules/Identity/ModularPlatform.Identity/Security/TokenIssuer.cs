@@ -14,7 +14,9 @@ internal sealed record RefreshTokenValue(string Raw, string Hash);
 
 internal interface ITokenIssuer
 {
-    AccessToken IssueAccessToken(Guid userId, Guid? tenantId, string email);
+    AccessToken IssueAccessToken(
+        Guid userId, Guid? tenantId, string email,
+        IReadOnlyCollection<string> roles, IReadOnlyCollection<string> permissions);
     RefreshTokenValue CreateRefreshToken();
     string HashRefreshToken(string raw);
 }
@@ -24,7 +26,9 @@ internal sealed class JwtTokenIssuer(IOptions<JwtOptions> options, IClock clock)
 {
     private readonly JwtOptions _jwt = options.Value;
 
-    public AccessToken IssueAccessToken(Guid userId, Guid? tenantId, string email)
+    public AccessToken IssueAccessToken(
+        Guid userId, Guid? tenantId, string email,
+        IReadOnlyCollection<string> roles, IReadOnlyCollection<string> permissions)
     {
         var now = clock.UtcNow;
         var expires = now.AddMinutes(_jwt.AccessTokenMinutes);
@@ -40,6 +44,11 @@ internal sealed class JwtTokenIssuer(IOptions<JwtOptions> options, IClock clock)
         {
             claims.Add(new Claim(HttpTenantContext.TenantClaim, tenantId.Value.ToString()));
         }
+
+        // Authorization snapshot: one claim per role + per permission. Endpoints gate on these (no per-request
+        // DB hit). RequireRole matches "role" (RoleClaimType); RequirePermission matches "permission".
+        claims.AddRange(roles.Select(role => new Claim(AuthorizationClaims.Role, role)));
+        claims.AddRange(permissions.Select(permission => new Claim(AuthorizationClaims.Permission, permission)));
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwt.SigningKey));
         var descriptor = new SecurityTokenDescriptor

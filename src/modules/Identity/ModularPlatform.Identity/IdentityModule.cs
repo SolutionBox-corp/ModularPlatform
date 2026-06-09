@@ -5,7 +5,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
+using ModularPlatform.Identity.Authorization;
 using ModularPlatform.Identity.Gdpr;
+using ModularPlatform.Identity.Features.Admin.AssignRole;
+using ModularPlatform.Identity.Features.Admin.RevokeRole;
 using ModularPlatform.Identity.Features.Auth.Login;
 using ModularPlatform.Identity.Features.Auth.RefreshToken;
 using ModularPlatform.Identity.Features.Users.GetProfile;
@@ -43,6 +46,10 @@ public sealed class IdentityModule : IModule
         services.AddScoped<IPasswordHasher, Argon2PasswordHasher>();
         services.AddScoped<ITokenIssuer, JwtTokenIssuer>();
 
+        // Authorization seeding: permissions catalog + system admin role + admin assignment (config-driven).
+        services.AddOptions<IdentityAuthOptions>().BindConfiguration(IdentityAuthOptions.SectionName);
+        services.AddHostedService<IdentitySeeder>();
+
         // GDPR: Identity owns the account PII (email/name) — export it and erase it on request.
         services.AddScoped<IExportPersonalData, IdentityPersonalDataExporter>();
         services.AddScoped<IErasePersonalData, IdentityPersonalDataEraser>();
@@ -54,6 +61,8 @@ public sealed class IdentityModule : IModule
         endpoints.MapGetProfile();
         endpoints.MapLogin();
         endpoints.MapRefreshToken();
+        endpoints.MapAssignRole();
+        endpoints.MapRevokeRole();
     }
 
     public void ConfigureMessaging(WolverineOptions options)

@@ -78,7 +78,8 @@ internal sealed class RefreshTokenHandler(
 
         var user = await db.Users.IgnoreQueryFilters().FirstAsync(u => u.Id == token.UserId, ct);
         var tenantId = db.Entry(user).Property<Guid?>("TenantId").CurrentValue;
-        var access = tokenIssuer.IssueAccessToken(user.Id, tenantId, user.Email);
+        var (roles, permissions) = await UserAuthorizationQuery.LoadAsync(db, user.Id, ct);
+        var access = tokenIssuer.IssueAccessToken(user.Id, tenantId, user.Email, roles, permissions);
 
         await db.SaveChangesAsync(ct);
 

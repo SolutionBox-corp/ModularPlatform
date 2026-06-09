@@ -18,6 +18,9 @@ public sealed class PlatformApiFactory : IAsyncLifetime
     private const string RlsRuntimeRole = "app_rls";
     private const string RlsRuntimePassword = "test_app_rls_pwd";
 
+    /// <summary>Email configured as a platform admin — registering + logging in as this user grants the admin role.</summary>
+    public const string AdminEmail = "admin@platform.test";
+
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:16-alpine").Build();
     private WebApplicationFactory<Program> _factory = default!;
 
@@ -36,6 +39,8 @@ public sealed class PlatformApiFactory : IAsyncLifetime
             builder.UseSetting("RunMigrationsAtStartup", "true");
             // RLS is ON by default; pin the runtime-role password so ScalarAsUserAsync can authenticate as it.
             builder.UseSetting("Persistence:Rls:RuntimePassword", RlsRuntimePassword);
+            // Configure the well-known admin email so the authz tests can bootstrap an admin via login.
+            builder.UseSetting("Identity:Auth:AdminEmails:0", AdminEmail);
             builder.UseSetting("Jwt:SigningKey", "integration-test-signing-key-at-least-32b");
             builder.UseSetting("Jwt:Issuer", "test");
             builder.UseSetting("Jwt:Audience", "test");
