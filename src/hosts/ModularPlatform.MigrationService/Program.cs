@@ -4,6 +4,7 @@ using ModularPlatform.Gdpr;
 using ModularPlatform.Identity;
 using ModularPlatform.Messaging;
 using ModularPlatform.Notifications;
+using ModularPlatform.Operations;
 using ModularPlatform.Persistence;
 using ModularPlatform.Persistence.Rls;
 using Wolverine;
@@ -17,7 +18,8 @@ var modules = ModuleLoader.Discover(
     typeof(IdentityModule).Assembly,
     typeof(BillingModule).Assembly,
     typeof(NotificationsModule).Assembly,
-    typeof(GdprModule).Assembly);
+    typeof(GdprModule).Assembly,
+    typeof(OperationsModule).Assembly);
 foreach (var module in modules)
 {
     module.RegisterServices(builder.Services, builder.Configuration);

@@ -24,5 +24,6 @@
     <ProjectReference Include="..\..\modules\Billing\ModularPlatform.Billing\ModularPlatform.Billing.csproj" />
     <ProjectReference Include="..\..\modules\Notifications\ModularPlatform.Notifications\ModularPlatform.Notifications.csproj" />
     <ProjectReference Include="..\..\modules\Gdpr\ModularPlatform.Gdpr\ModularPlatform.Gdpr.csproj" />
+    <ProjectReference Include="..\..\modules\Operations\ModularPlatform.Operations\ModularPlatform.Operations.csproj" />
   </ItemGroup>
 </Project>

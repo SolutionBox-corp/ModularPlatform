@@ -22,7 +22,8 @@ public sealed class ModuleBoundaryTests
             typeof(ModularPlatform.Notifications.NotificationsModule).Assembly,
             typeof(ModularPlatform.Notifications.Contracts.EmailDeliveryRequested).Assembly,
             typeof(ModularPlatform.Gdpr.GdprModule).Assembly,
-            typeof(ModularPlatform.Gdpr.Contracts.UserErasureRequested).Assembly)
+            typeof(ModularPlatform.Gdpr.Contracts.UserErasureRequested).Assembly,
+            typeof(ModularPlatform.Operations.OperationsModule).Assembly)
         .Build();
 
     [Fact]

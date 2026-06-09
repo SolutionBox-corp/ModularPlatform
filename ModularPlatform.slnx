@@ -36,6 +36,10 @@
     <Project Path="src/modules/Notifications/ModularPlatform.Notifications.Tests/ModularPlatform.Notifications.Tests.csproj" />
     <Project Path="src/modules/Notifications/ModularPlatform.Notifications/ModularPlatform.Notifications.csproj" />
   </Folder>
+  <Folder Name="/src/modules/Operations/">
+    <Project Path="src/modules/Operations/ModularPlatform.Operations.Tests/ModularPlatform.Operations.Tests.csproj" />
+    <Project Path="src/modules/Operations/ModularPlatform.Operations/ModularPlatform.Operations.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ModularPlatform.ArchitectureTests/ModularPlatform.ArchitectureTests.csproj" />
     <Project Path="tests/ModularPlatform.IntegrationTesting/ModularPlatform.IntegrationTesting.csproj" />

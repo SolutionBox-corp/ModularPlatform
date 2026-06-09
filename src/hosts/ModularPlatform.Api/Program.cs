@@ -5,6 +5,7 @@ using ModularPlatform.Gdpr;
 using ModularPlatform.Identity;
 using ModularPlatform.Messaging;
 using ModularPlatform.Notifications;
+using ModularPlatform.Operations;
 using ModularPlatform.Persistence.Rls;
 using ModularPlatform.Realtime;
 using ModularPlatform.Telemetry;
@@ -19,7 +20,8 @@ var modules = ModuleLoader.Discover(
     typeof(IdentityModule).Assembly,
     typeof(BillingModule).Assembly,
     typeof(NotificationsModule).Assembly,
-    typeof(GdprModule).Assembly);
+    typeof(GdprModule).Assembly,
+    typeof(OperationsModule).Assembly);
 
 // Platform cross-cutting concerns. Telemetry FIRST so its behavior is outer-most in the CQRS pipeline.
 builder.Services.AddPlatformTelemetry("ModularPlatform.Api");
