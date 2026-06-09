@@ -67,6 +67,9 @@ foreach (var module in modules)
     module.MapEndpoints(app);
 }
 
+// Browser Server-Sent-Events stream (realtime fan-out is the Realtime building block; producers stay agnostic).
+app.MapRealtimeStream();
+
 // Liveness = process is up (no dependency checks); readiness = dependencies (Postgres) are reachable.
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous();
 app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = c => c.Tags.Contains("ready") }).AllowAnonymous();

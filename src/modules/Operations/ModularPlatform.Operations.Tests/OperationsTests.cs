@@ -9,7 +9,8 @@ namespace ModularPlatform.Operations.Tests;
 /// with a Location pointing at the status endpoint; the durable worker drives it to Succeeded; the owner polls
 /// the status; and another user cannot see the operation (RLS-isolated → 404).
 /// </summary>
-public sealed class OperationsTests(PlatformApiFactory fixture) : IClassFixture<PlatformApiFactory>
+[Collection("Integration")]
+public sealed class OperationsTests(PlatformApiFactory fixture)
 {
     [Fact]
     public async Task Demo_operation_is_accepted_runs_on_the_worker_and_is_owner_scoped()
