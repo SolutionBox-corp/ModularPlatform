@@ -14,6 +14,7 @@ using ModularPlatform.Identity.Persistence;
 using ModularPlatform.Identity.Security;
 using ModularPlatform.Messaging;
 using ModularPlatform.Persistence;
+using ModularPlatform.Persistence.Rls;
 using Wolverine;
 
 namespace ModularPlatform.Identity;
@@ -63,8 +64,10 @@ public sealed class IdentityModule : IModule
 
     public async Task ApplyMigrationsAsync(IServiceProvider services, CancellationToken ct)
     {
-        using var scope = services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-        await db.Database.MigrateAsync(ct);
+        // Migrations run on the ADMIN connection — the DI-registered context uses the RLS runtime role,
+        // which cannot run DDL. The RLS bootstrapper (host, post-migration) then provisions role + policies.
+        var adminConnectionString = services.GetRequiredService<IConfiguration>().GetConnectionString("Write")
+            ?? throw new InvalidOperationException("Missing ConnectionStrings:Write");
+        await PlatformMigrator.MigrateAsync<IdentityDbContext>(services, adminConnectionString, Name, ct);
     }
 }

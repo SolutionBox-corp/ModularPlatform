@@ -10,7 +10,8 @@ namespace ModularPlatform.Billing.Tests;
 /// A debit path whose row lock runs in autocommit (released immediately) would let &gt;10 through or thrash with
 /// concurrency 500s — this locks the behaviour down.
 /// </summary>
-public sealed class BillingConcurrencyTests(PlatformApiFactory fixture) : IClassFixture<PlatformApiFactory>
+[Collection("Integration")]
+public sealed class BillingConcurrencyTests(PlatformApiFactory fixture)
 {
     [Fact]
     public async Task Concurrent_reservations_never_exceed_balance()

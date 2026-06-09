@@ -15,6 +15,9 @@ namespace ModularPlatform.IntegrationTesting;
 /// </summary>
 public sealed class PlatformApiFactory : IAsyncLifetime
 {
+    private const string RlsRuntimeRole = "app_rls";
+    private const string RlsRuntimePassword = "test_app_rls_pwd";
+
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:16-alpine").Build();
     private WebApplicationFactory<Program> _factory = default!;
 
@@ -31,6 +34,8 @@ public sealed class PlatformApiFactory : IAsyncLifetime
             builder.UseSetting("ConnectionStrings:Write", _postgres.GetConnectionString());
             builder.UseSetting("ConnectionStrings:Read", _postgres.GetConnectionString());
             builder.UseSetting("RunMigrationsAtStartup", "true");
+            // RLS is ON by default; pin the runtime-role password so ScalarAsUserAsync can authenticate as it.
+            builder.UseSetting("Persistence:Rls:RuntimePassword", RlsRuntimePassword);
             builder.UseSetting("Jwt:SigningKey", "integration-test-signing-key-at-least-32b");
             builder.UseSetting("Jwt:Issuer", "test");
             builder.UseSetting("Jwt:Audience", "test");
@@ -48,11 +53,19 @@ public sealed class PlatformApiFactory : IAsyncLifetime
     public async Task<(Guid UserId, string AccessToken)> RegisterAndLoginAsync(string email, string password)
     {
         var register = await Client.PostAsJsonAsync("/identity/users", new { email, password });
-        register.EnsureSuccessStatusCode();
+        if (!register.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"register failed {(int)register.StatusCode}: {await register.Content.ReadAsStringAsync()}");
+        }
+
         var userId = (await ReadData(register)).GetProperty("userId").GetGuid();
 
         var login = await Client.PostAsJsonAsync("/identity/auth/login", new { email, password });
-        login.EnsureSuccessStatusCode();
+        if (!login.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"login failed {(int)login.StatusCode}: {await login.Content.ReadAsStringAsync()}");
+        }
+
         var accessToken = (await ReadData(login)).GetProperty("accessToken").GetString()!;
 
         return (userId, accessToken);
@@ -99,6 +112,38 @@ public sealed class PlatformApiFactory : IAsyncLifetime
     {
         await using var conn = new NpgsqlConnection(ConnectionString);
         await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(sql, conn);
+        return (T)(await cmd.ExecuteScalarAsync())!;
+    }
+
+    /// <summary>
+    /// Runs a scalar query as the least-privilege RLS runtime role with the given user as the session principal
+    /// (<c>app.is_system=off</c>). Unlike <see cref="ScalarAsync{T}"/> (which connects as the admin/superuser and
+    /// bypasses RLS), this is subject to the row-level-security policies — use it to prove a user cannot see
+    /// another user's rows even with a raw query.
+    /// </summary>
+    public async Task<T> ScalarAsUserAsync<T>(Guid principalUserId, string sql)
+    {
+        var connectionString = new NpgsqlConnectionStringBuilder(ConnectionString)
+        {
+            Username = RlsRuntimeRole,
+            Password = RlsRuntimePassword,
+        }.ConnectionString;
+
+        await using var conn = new NpgsqlConnection(connectionString);
+        await conn.OpenAsync();
+
+        await using (var setGucs = conn.CreateCommand())
+        {
+            setGucs.CommandText =
+                "SELECT set_config('app.is_system', 'off', false), set_config('app.principal_id', @principal, false)";
+            var p = setGucs.CreateParameter();
+            p.ParameterName = "principal";
+            p.Value = principalUserId.ToString();
+            setGucs.Parameters.Add(p);
+            await setGucs.ExecuteNonQueryAsync();
+        }
+
         await using var cmd = new NpgsqlCommand(sql, conn);
         return (T)(await cmd.ExecuteScalarAsync())!;
     }

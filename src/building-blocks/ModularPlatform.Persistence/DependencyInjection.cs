@@ -1,10 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Persistence.Audit;
 using ModularPlatform.Persistence.Behaviors;
+using ModularPlatform.Persistence.Rls;
 
 namespace ModularPlatform.Persistence;
 
@@ -28,9 +30,12 @@ public static class PersistenceServiceCollectionExtensions
 
     public static IServiceCollection AddPlatformPersistence(this IServiceCollection services)
     {
-        // Singleton: reads the current request's tenant/user/ip live from ITenantContext (also singleton,
-        // backed by IHttpContextAccessor), so it is safe to share and resolvable when building DbContexts.
+        // Singletons: they read the current request's tenant/user/ip live from ITenantContext (also singleton,
+        // backed by IHttpContextAccessor), so they are safe to share and resolvable when building DbContexts.
         services.TryAddSingleton<AuditInterceptor>();
+        services.TryAddSingleton<TenantStampingInterceptor>();
+        services.TryAddSingleton<PrincipalSessionConnectionInterceptor>();
+        services.AddOptions<RlsOptions>().BindConfiguration(RlsOptions.SectionName);
         services.AddPipelineBehavior(typeof(ConcurrencyRetryBehavior<,>));
         return services;
     }
@@ -46,7 +51,12 @@ public static class PersistenceServiceCollectionExtensions
         where TContext : PlatformDbContext
     {
         services.AddSingleton<IReadDbContextFactory<TContext>>(sp =>
-            new ReadDbContextFactory<TContext>(readConnectionString, sp.GetRequiredService<ITenantContext>()));
+        {
+            var rls = sp.GetRequiredService<IOptions<RlsOptions>>().Value;
+            var runtimeConnectionString = RlsConnectionString.ForRuntime(readConnectionString, rls);
+            return new ReadDbContextFactory<TContext>(
+                runtimeConnectionString, sp.GetRequiredService<ITenantContext>(), rls.Enabled);
+        });
         return services;
     }
 }

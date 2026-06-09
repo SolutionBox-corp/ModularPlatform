@@ -9,7 +9,8 @@ namespace ModularPlatform.Billing.Tests;
 /// provisions a credit account. If Wolverine handler discovery or the durable relay is broken, no account
 /// ever appears — this locks that down.
 /// </summary>
-public sealed class CrossModuleEventTests(PlatformApiFactory fixture) : IClassFixture<PlatformApiFactory>
+[Collection("Integration")]
+public sealed class CrossModuleEventTests(PlatformApiFactory fixture)
 {
     [Fact]
     public async Task Registering_a_user_provisions_a_credit_account_via_the_event()

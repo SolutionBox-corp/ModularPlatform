@@ -29,7 +29,8 @@ internal sealed class LoginHandler(
     {
         var now = clock.UtcNow;
         var normalizedEmail = command.Email.Trim().ToUpperInvariant();
-        var user = await db.Users.FirstOrDefaultAsync(u => u.NormalizedEmail == normalizedEmail, ct);
+        // Authentication is cross-tenant — look the user up globally (the tenant is unknown until logged in).
+        var user = await db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.NormalizedEmail == normalizedEmail, ct);
 
         // Unknown user: nothing to mutate; respond with the generic credential error (no user enumeration).
         if (user is null)
@@ -66,7 +67,8 @@ internal sealed class LoginHandler(
             user.LockoutEndUtc = null;
         }
 
-        var access = tokenIssuer.IssueAccessToken(user.Id, tenantId: null, user.Email);
+        var tenantId = db.Entry(user).Property<Guid?>("TenantId").CurrentValue;
+        var access = tokenIssuer.IssueAccessToken(user.Id, tenantId, user.Email);
         var refresh = tokenIssuer.CreateRefreshToken();
 
         db.RefreshTokens.Add(new RefreshTokenEntity

@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\hosts\ModularPlatform.Api\ModularPlatform.Api.csproj" />
+    <ProjectReference Include="..\..\..\..\tests\ModularPlatform.IntegrationTesting\ModularPlatform.IntegrationTesting.csproj" />
   </ItemGroup>
 
 </Project>

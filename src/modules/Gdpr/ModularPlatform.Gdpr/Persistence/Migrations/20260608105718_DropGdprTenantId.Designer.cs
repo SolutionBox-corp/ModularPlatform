@@ -2,18 +2,21 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using ModularPlatform.Notifications.Persistence;
+using ModularPlatform.Gdpr.Persistence;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace ModularPlatform.Notifications.Persistence.Migrations
+namespace ModularPlatform.Gdpr.Persistence.Migrations
 {
-    [DbContext(typeof(NotificationsDbContext))]
-    partial class NotificationsDbContextModelSnapshot : ModelSnapshot
+    [DbContext(typeof(GdprDbContext))]
+    [Migration("20260608105718_DropGdprTenantId")]
+    partial class DropGdprTenantId
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -22,45 +25,22 @@ namespace ModularPlatform.Notifications.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("ModularPlatform.Notifications.Entities.Notification", b =>
+            modelBuilder.Entity("ModularPlatform.Gdpr.Entities.ConsentRecord", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("Body")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Channel")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset?>("ReadAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("TemplateKey")
+                    b.Property<string>("ConsentType")
                         .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
 
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
+                    b.Property<bool>("Granted")
+                        .HasColumnType("boolean");
 
-                    b.Property<DateTimeOffset?>("UpdatedAt")
+                    b.Property<DateTimeOffset>("RecordedAt")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uuid");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
@@ -73,35 +53,28 @@ namespace ModularPlatform.Notifications.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("UserId", "ConsentType");
 
-                    b.ToTable("notifications", (string)null);
+                    b.ToTable("consent_records", (string)null);
                 });
 
-            modelBuilder.Entity("ModularPlatform.Notifications.Entities.NotificationTemplate", b =>
+            modelBuilder.Entity("ModularPlatform.Gdpr.Entities.SubjectKey", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("Body")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Key")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Locale")
-                        .IsRequired()
-                        .HasMaxLength(8)
-                        .HasColumnType("character varying(8)");
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
 
-                    b.Property<string>("Subject")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
+                    b.Property<byte[]>("WrappedDek")
+                        .HasColumnType("bytea");
 
                     b.Property<uint>("xmin")
                         .IsConcurrencyToken()
@@ -111,10 +84,10 @@ namespace ModularPlatform.Notifications.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Key", "Locale")
+                    b.HasIndex("UserId")
                         .IsUnique();
 
-                    b.ToTable("notification_templates", (string)null);
+                    b.ToTable("subject_keys", (string)null);
                 });
 
             modelBuilder.Entity("ModularPlatform.Persistence.Audit.AuditEntry", b =>
@@ -167,7 +140,7 @@ namespace ModularPlatform.Notifications.Persistence.Migrations
 
                     b.HasIndex("EntityType", "EntityId");
 
-                    b.ToTable("notifications_audit_entries", (string)null);
+                    b.ToTable("gdpr_audit_entries", (string)null);
                 });
 #pragma warning restore 612, 618
         }

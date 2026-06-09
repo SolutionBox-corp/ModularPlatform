@@ -18,8 +18,13 @@ public sealed class HttpTenantContext(IHttpContextAccessor accessor) : ITenantCo
 
     public Guid? UserId => ParseGuid(User?.FindFirstValue(ClaimTypes.NameIdentifier) ?? User?.FindFirstValue("sub"));
 
-    /// <summary>An HTTP request is never a system principal — even an unauthenticated one must stay tenant-scoped.</summary>
-    public bool IsSystem => false;
+    /// <summary>
+    /// System ONLY when there is no HTTP context at all — i.e. background work running inside the Api process
+    /// (Wolverine outbox/inbox handlers, startup). Such work has no request principal and must bypass the tenant
+    /// query filter + RLS to provision per-user data. A real HTTP request (even unauthenticated) has a context,
+    /// so it is NEVER system and stays tenant/principal-scoped.
+    /// </summary>
+    public bool IsSystem => accessor.HttpContext is null;
 
     public string? IpAddress => accessor.HttpContext?.Connection.RemoteIpAddress?.ToString();
 

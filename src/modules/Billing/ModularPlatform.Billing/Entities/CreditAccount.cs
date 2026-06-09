@@ -9,7 +9,7 @@ namespace ModularPlatform.Billing.Entities;
 /// cached PROJECTION verified against the append-only ledger inside the pessimistic lock — never trusted
 /// alone. The row is the lock target (<c>SELECT … FOR NO KEY UPDATE</c> on the debit path; xmin elsewhere).
 /// </summary>
-internal sealed class CreditAccount : AuditableEntity, ITenantScoped
+internal sealed class CreditAccount : AuditableEntity, IUserOwned
 {
     public Guid UserId { get; set; }
 

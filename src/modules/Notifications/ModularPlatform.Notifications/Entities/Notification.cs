@@ -9,7 +9,7 @@ namespace ModularPlatform.Notifications.Entities;
 /// navigation. Tenant-scoped; audit + xmin concurrency applied by convention. One row is written per
 /// SendNotification regardless of channels; <see cref="Channel"/> records which channel produced it.
 /// </summary>
-internal sealed class Notification : AuditableEntity, ITenantScoped
+internal sealed class Notification : AuditableEntity, IUserOwned
 {
     public Guid UserId { get; set; }
     public string TemplateKey { get; set; } = string.Empty;

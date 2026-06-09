@@ -16,6 +16,7 @@ using ModularPlatform.Billing.Security;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Messaging;
 using ModularPlatform.Persistence;
+using ModularPlatform.Persistence.Rls;
 using Wolverine;
 
 namespace ModularPlatform.Billing;
@@ -68,8 +69,10 @@ public sealed class BillingModule : IModule
 
     public async Task ApplyMigrationsAsync(IServiceProvider services, CancellationToken ct)
     {
-        using var scope = services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<BillingDbContext>();
-        await db.Database.MigrateAsync(ct);
+        // Migrations run on the ADMIN connection — the DI-registered context uses the RLS runtime role,
+        // which cannot run DDL. The RLS bootstrapper (host, post-migration) then provisions role + policies.
+        var adminConnectionString = services.GetRequiredService<IConfiguration>().GetConnectionString("Write")
+            ?? throw new InvalidOperationException("Missing ConnectionStrings:Write");
+        await PlatformMigrator.MigrateAsync<BillingDbContext>(services, adminConnectionString, Name, ct);
     }
 }

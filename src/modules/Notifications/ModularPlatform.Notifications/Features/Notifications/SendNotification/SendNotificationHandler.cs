@@ -47,6 +47,7 @@ internal sealed class SendNotificationHandler(
         };
         db.Notifications.Add(notification);
 
+        var sendInApp = false;
         foreach (var channel in command.Channels.Distinct())
         {
             switch (channel)
@@ -73,16 +74,25 @@ internal sealed class SendNotificationHandler(
                     break;
 
                 case "inapp":
-                    await realtime.PublishToUserAsync(
-                        command.UserId,
-                        "notification",
-                        new { notification.Id, notification.Title, notification.Body, notification.TemplateKey },
-                        ct);
+                    sendInApp = true;
                     break;
             }
         }
 
+        // email/push are transactional (outbox) — delivered ONLY if this commit succeeds. The realtime push is
+        // NOT transactional, so it MUST fire AFTER the commit: otherwise a caller passing someone else's UserId
+        // would still push them an event even though RLS (WITH CHECK on UserId) rejects the row and the commit
+        // fails. Realtime-after-commit => a denied write produces no phantom realtime event.
         await outbox.SaveChangesAndFlushMessagesAsync();
+
+        if (sendInApp)
+        {
+            await realtime.PublishToUserAsync(
+                command.UserId,
+                "notification",
+                new { notification.Id, notification.Title, notification.Body, notification.TemplateKey },
+                ct);
+        }
 
         return Unit.Value;
     }

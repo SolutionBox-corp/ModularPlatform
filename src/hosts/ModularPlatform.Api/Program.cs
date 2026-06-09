@@ -5,6 +5,7 @@ using ModularPlatform.Gdpr;
 using ModularPlatform.Identity;
 using ModularPlatform.Messaging;
 using ModularPlatform.Notifications;
+using ModularPlatform.Persistence.Rls;
 using ModularPlatform.Realtime;
 using ModularPlatform.Telemetry;
 using ModularPlatform.Web;
@@ -43,13 +44,17 @@ builder.UseWolverine(opts => PlatformMessaging.Configure(opts, writeConn, module
 
 var app = builder.Build();
 
-// Dev/test convenience: apply every module's migrations on boot when enabled.
+// Dev/test convenience: apply every module's migrations on boot when enabled, then provision RLS.
 if (builder.Configuration.GetValue<bool>("RunMigrationsAtStartup"))
 {
     foreach (var module in modules)
     {
         await module.ApplyMigrationsAsync(app.Services, CancellationToken.None);
     }
+
+    // After the tables exist: provision the least-privilege runtime role + grants and apply the row-level
+    // security policies on every IUserOwned table. Idempotent; no-op when Persistence:Rls:Enabled=false.
+    await RlsBootstrapper.ApplyAsync(app.Services, writeConn, CancellationToken.None);
 }
 
 app.UsePlatformWeb();

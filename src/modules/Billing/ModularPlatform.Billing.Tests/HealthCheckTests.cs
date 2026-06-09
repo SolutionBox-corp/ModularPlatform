@@ -8,7 +8,8 @@ namespace ModularPlatform.Billing.Tests;
 /// Host-level smoke test (uses the shared full-API fixture): liveness is always up; readiness reports 200 only
 /// when the Postgres dependency is reachable (it is, via the test container).
 /// </summary>
-public sealed class HealthCheckTests(PlatformApiFactory fixture) : IClassFixture<PlatformApiFactory>
+[Collection("Integration")]
+public sealed class HealthCheckTests(PlatformApiFactory fixture)
 {
     [Fact]
     public async Task Liveness_and_readiness_report_healthy_when_dependencies_are_up()

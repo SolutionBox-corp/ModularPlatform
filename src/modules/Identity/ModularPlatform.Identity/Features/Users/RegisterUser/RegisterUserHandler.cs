@@ -25,10 +25,17 @@ internal sealed class RegisterUserHandler(
         var db = outbox.DbContext;
         var normalizedEmail = command.Email.Trim().ToUpperInvariant();
 
-        if (await db.Users.AnyAsync(u => u.NormalizedEmail == normalizedEmail, ct))
+        // Email uniqueness + auth lookups are cross-tenant (the tenant is unknown until authenticated), so they
+        // bypass the tenant query filter.
+        if (await db.Users.IgnoreQueryFilters().AnyAsync(u => u.NormalizedEmail == normalizedEmail, ct))
         {
             throw new ConflictException("user.email_taken", "This email address is already registered.");
         }
+
+        // Registration runs anonymously (no tenant in context), so it provisions a NEW tenant and assigns the
+        // user to it explicitly — the TenantStampingInterceptor only fills tenant-scoped rows created later.
+        var tenant = new Tenant { Name = command.DisplayName?.Trim() ?? command.Email.Trim(), CreatedAt = clock.UtcNow };
+        db.Tenants.Add(tenant);
 
         var user = new User
         {
@@ -40,6 +47,7 @@ internal sealed class RegisterUserHandler(
         };
 
         db.Users.Add(user);
+        db.Entry(user).Property<Guid?>("TenantId").CurrentValue = tenant.Id;
 
         await outbox.PublishAsync(new UserRegisteredIntegrationEvent(
             EventId: Guid.CreateVersion7(),

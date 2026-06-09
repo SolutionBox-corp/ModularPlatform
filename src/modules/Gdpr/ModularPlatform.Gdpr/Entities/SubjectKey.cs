@@ -11,7 +11,7 @@ namespace ModularPlatform.Gdpr.Entities;
 /// (KEK) and its KMS storage are out of scope here — this row models only the envelope lifecycle.
 /// Tenant-scoped; audit + xmin concurrency applied by convention.
 /// </summary>
-internal sealed class SubjectKey : Entity, ITenantScoped
+internal sealed class SubjectKey : Entity, IUserOwned
 {
     public Guid UserId { get; set; }
     public byte[]? WrappedDek { get; set; }

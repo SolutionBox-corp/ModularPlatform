@@ -22,6 +22,14 @@ public abstract class AuditableEntity : Entity
 /// <summary>Marks an entity as tenant-scoped: gets a shadow <c>TenantId</c> + global query filter + RLS.</summary>
 public interface ITenantScoped;
 
+/// <summary>
+/// Marks an entity owned by exactly one user. Defence-in-depth: the RLS bootstrapper gives its table a
+/// Postgres row-level-security policy keyed on the owner column, so a forgotten <c>WHERE UserId == …</c>
+/// in app code still cannot leak another user's rows — the database rejects them. The entity MUST expose
+/// a non-null <c>Guid UserId</c> column (the default owner column the policy filters on).
+/// </summary>
+public interface IUserOwned;
+
 /// <summary>Marks an entity as soft-deletable (kept out of the GDPR-erasure default path).</summary>
 public interface ISoftDeletable
 {

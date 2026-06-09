@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using ModularPlatform.Persistence;
 using ModularPlatform.Persistence.Audit;
+using ModularPlatform.Persistence.Rls;
 using Wolverine.EntityFrameworkCore;
 
 namespace ModularPlatform.Messaging;
@@ -25,12 +27,29 @@ public static class MessagingServiceCollectionExtensions
     {
         services.AddPlatformPersistence();
 
+        // The bootstrapper inspects this context's model for IUserOwned tables to protect with RLS.
+        services.AddSingleton(new RlsManagedContext(typeof(TContext)));
+
         var historyTable = $"__ef_migrations_{moduleName.ToLowerInvariant()}";
 
         services.AddDbContextWithWolverineIntegration<TContext>((sp, options) =>
+        {
+            // Runtime data connection uses the least-privilege role (subject to RLS) when enabled; migrations
+            // run separately on the admin connection via PlatformMigrator. Admin connection when RLS is off.
+            var rls = sp.GetRequiredService<IOptions<RlsOptions>>().Value;
+            var runtimeConnectionString = RlsConnectionString.ForRuntime(writeConnectionString, rls);
+
             options
-                .UseNpgsql(writeConnectionString, npg => npg.MigrationsHistoryTable(historyTable))
-                .AddInterceptors(sp.GetRequiredService<AuditInterceptor>()));
+                .UseNpgsql(runtimeConnectionString, npg => npg.MigrationsHistoryTable(historyTable))
+                .AddInterceptors(
+                    sp.GetRequiredService<TenantStampingInterceptor>(),
+                    sp.GetRequiredService<AuditInterceptor>());
+
+            if (rls.Enabled)
+            {
+                options.AddInterceptors(sp.GetRequiredService<PrincipalSessionConnectionInterceptor>());
+            }
+        });
 
         return services;
     }

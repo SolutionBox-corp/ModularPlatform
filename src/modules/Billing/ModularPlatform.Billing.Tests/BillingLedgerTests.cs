@@ -9,7 +9,8 @@ namespace ModularPlatform.Billing.Tests;
 /// applied twice (same key) credits exactly once. These exercise the outbox handlers running inside the explicit
 /// transaction that holds the row lock.
 /// </summary>
-public sealed class BillingLedgerTests(PlatformApiFactory fixture) : IClassFixture<PlatformApiFactory>
+[Collection("Integration")]
+public sealed class BillingLedgerTests(PlatformApiFactory fixture)
 {
     [Fact]
     public async Task Confirming_a_reservation_is_exactly_once_under_concurrency()

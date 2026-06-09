@@ -13,6 +13,7 @@ using ModularPlatform.Gdpr.Features.Export.ExportUserData;
 using ModularPlatform.Gdpr.Persistence;
 using ModularPlatform.Messaging;
 using ModularPlatform.Persistence;
+using ModularPlatform.Persistence.Rls;
 using Wolverine;
 
 namespace ModularPlatform.Gdpr;
@@ -57,8 +58,10 @@ public sealed class GdprModule : IModule
 
     public async Task ApplyMigrationsAsync(IServiceProvider services, CancellationToken ct)
     {
-        using var scope = services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<GdprDbContext>();
-        await db.Database.MigrateAsync(ct);
+        // Migrations run on the ADMIN connection — the DI-registered context uses the RLS runtime role,
+        // which cannot run DDL. The RLS bootstrapper (host, post-migration) then provisions role + policies.
+        var adminConnectionString = services.GetRequiredService<IConfiguration>().GetConnectionString("Write")
+            ?? throw new InvalidOperationException("Missing ConnectionStrings:Write");
+        await PlatformMigrator.MigrateAsync<GdprDbContext>(services, adminConnectionString, Name, ct);
     }
 }
