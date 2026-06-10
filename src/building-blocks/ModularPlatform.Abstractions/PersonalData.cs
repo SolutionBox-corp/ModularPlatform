@@ -10,6 +10,30 @@ namespace ModularPlatform.Abstractions;
 public sealed class PersonalDataAttribute : Attribute;
 
 /// <summary>
+/// Marks a <b>string</b> <see cref="PersonalDataAttribute"/> property for encryption AT REST in its LIVE column
+/// (not only in the audit trail): the platform's encryption interceptor seals the value under the subject's DEK
+/// before every save, and a model-level converter transparently decrypts on read (write context AND the
+/// interceptor-free read factory). GDPR erasure (shredding the DEK) renders the stored ciphertext permanently
+/// unreadable. The property MUST also be <c>[PersonalData]</c> and its entity <see cref="IDataSubject"/>
+/// (ArchUnitNET-enforced). CAVEAT: <c>ExecuteUpdate</c>/<c>ExecuteDelete</c> bypass the interceptor — constants
+/// written that way are stored as-is (used deliberately for erasure tombstones).
+/// </summary>
+[AttributeUsage(AttributeTargets.Property, AllowMultiple = false, Inherited = true)]
+public sealed class EncryptedAttribute : Attribute;
+
+/// <summary>
+/// Deterministic keyed-hash (blind index) for looking rows up by an encrypted value — e.g. finding a user by
+/// e-mail when <c>users.Email</c> is ciphertext. The key is PLATFORM-WIDE (lookups like login are pre-auth and
+/// cross-subject, so a per-subject key is impossible) and secret: without it the index reveals nothing beyond
+/// equality. Callers hash the NORMALIZED form (<c>value.Trim().ToUpperInvariant()</c> for e-mails).
+/// Implemented by the Gdpr module (HMAC-SHA256 under <c>Gdpr:Encryption:BlindIndexKey</c>).
+/// </summary>
+public interface IBlindIndexHasher
+{
+    string Hash(string normalizedValue);
+}
+
+/// <summary>
 /// An entity carrying <see cref="PersonalDataAttribute"/> fields declares the data subject those fields belong to.
 /// <see cref="SubjectId"/> is the user whose DEK protects this row's PII — e.g. the user's own Id, or an owned
 /// entity's UserId. Implement EXPLICITLY (<c>Guid IDataSubject.SubjectId =&gt; ...</c>) so EF does not map it as a column.

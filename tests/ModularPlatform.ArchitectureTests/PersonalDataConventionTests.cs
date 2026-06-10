@@ -35,6 +35,29 @@ public sealed class PersonalDataConventionTests
             $"Types with a [PersonalData] property must implement IDataSubject. Offenders: {string.Join(", ", offenders)}");
     }
 
+    [Fact]
+    public void Every_Encrypted_property_is_PersonalData_on_an_IDataSubject_string()
+    {
+        // [Encrypted] live-column protection rides the same DEK machinery as audit PII: the property must also
+        // be [PersonalData] (audit never sees plaintext either way), must be a string (the envelope format),
+        // and its entity must expose the subject (IDataSubject) the encryption interceptor seals under.
+        var offenders = ModuleAssemblies
+            .SelectMany(a => a.GetTypes())
+            .SelectMany(t => t
+                .GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                .Where(p => p.GetCustomAttribute<EncryptedAttribute>() is not null)
+                .Select(p => (Type: t, Property: p)))
+            .Where(x => x.Property.PropertyType != typeof(string)
+                || x.Property.GetCustomAttribute<PersonalDataAttribute>() is null
+                || !typeof(IDataSubject).IsAssignableFrom(x.Type))
+            .Select(x => $"{x.Type.FullName}.{x.Property.Name}")
+            .ToList();
+
+        Assert.True(
+            offenders.Count == 0,
+            $"[Encrypted] requires: string property + [PersonalData] + IDataSubject entity. Offenders: {string.Join(", ", offenders)}");
+    }
+
     private static bool HasPersonalDataProperty(Type type) =>
         type.GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
             .Any(p => p.GetCustomAttribute<PersonalDataAttribute>() is not null);

@@ -38,11 +38,10 @@ public sealed class AuthRobustnessTests(PlatformApiFactory fixture)
         var body = await second.Content.ReadAsStringAsync();
         body.ShouldContain("user.email_taken");
 
-        // Exactly one user row for this email. Email is stored case-preserving + a NormalizedEmail (upper);
-        // uniqueness is enforced on NormalizedEmail (RegisterUserHandler.cs:30).
-        var normalized = email.ToUpperInvariant();
+        // Exactly one user row for this email. The address at rest is ciphertext — uniqueness is enforced on
+        // the keyed blind index users.EmailHash (RegisterUserHandler.cs), so the SQL assert hashes the same way.
         var count = await fixture.ScalarAsync<long>(
-            $"SELECT count(*)::bigint FROM users WHERE \"NormalizedEmail\" = '{normalized}'");
+            $"SELECT count(*)::bigint FROM users WHERE \"EmailHash\" = '{PlatformApiFactory.EmailHashOf(email)}'");
         count.ShouldBe(1);
     }
 

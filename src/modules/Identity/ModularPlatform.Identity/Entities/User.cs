@@ -8,16 +8,23 @@ namespace ModularPlatform.Identity.Entities;
 /// <summary>
 /// A platform user. Flat aggregate — no navigation to RefreshTokens; they reference UserId.
 /// Tenant-scoped + soft-deletable. Audit + xmin concurrency are applied by convention.
-/// The user IS its own data subject, so PII captured in the audit trail is crypto-shredded under its own DEK.
+/// The user IS its own data subject: PII is crypto-shredded under its own DEK both in the audit trail
+/// ([PersonalData]) and AT REST in the live columns ([Encrypted] — sealed on save, decrypted on read).
+/// Lookups by e-mail go through <see cref="EmailHash"/>, the keyed blind index over the normalized address
+/// (an HMAC is not reversible, so the hash column itself is not personal data).
 /// </summary>
 internal sealed class User : AuditableEntity, ITenantScoped, ISoftDeletable, IDataSubject
 {
     [PersonalData]
+    [Encrypted]
     public string Email { get; set; } = string.Empty;
-    [PersonalData]
-    public string NormalizedEmail { get; set; } = string.Empty;
+
+    /// <summary>Blind index: HMAC of <c>Email.Trim().ToUpperInvariant()</c>; carries the UNIQUE constraint.</summary>
+    public string EmailHash { get; set; } = string.Empty;
+
     public string PasswordHash { get; set; } = string.Empty;
     [PersonalData]
+    [Encrypted]
     public string? DisplayName { get; set; }
     public string Locale { get; set; } = "en";
 
@@ -38,13 +45,15 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
     {
         builder.ToTable("users");
         builder.HasKey(u => u.Id);
-        builder.Property(u => u.Email).HasMaxLength(256).IsRequired();
-        builder.Property(u => u.NormalizedEmail).HasMaxLength(256).IsRequired();
+        // Encrypted at rest: the column stores a penc:v2 envelope, not the address — size accordingly.
+        builder.Property(u => u.Email).HasMaxLength(1024).IsRequired();
+        builder.Property(u => u.EmailHash).HasMaxLength(64).IsRequired().HasDefaultValue(string.Empty);
         builder.Property(u => u.PasswordHash).HasMaxLength(512).IsRequired();
-        builder.Property(u => u.DisplayName).HasMaxLength(128);
+        builder.Property(u => u.DisplayName).HasMaxLength(1024);
         builder.Property(u => u.Locale).HasMaxLength(8).IsRequired();
         builder.Property(u => u.FailedAccessCount).IsRequired().HasDefaultValue(0);
         builder.Property(u => u.LockoutEndUtc);
-        builder.HasIndex(u => u.NormalizedEmail).IsUnique();
+        // Filtered: pre-backfill legacy rows hold '' until PiiEncryptionBackfill stamps their hash.
+        builder.HasIndex(u => u.EmailHash).IsUnique().HasFilter("\"EmailHash\" <> ''");
     }
 }

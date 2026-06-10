@@ -2,48 +2,20 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Npgsql;
+using ModularPlatform.IntegrationTesting;
 using Shouldly;
-using Testcontainers.PostgreSql;
 
 namespace ModularPlatform.Identity.Tests;
 
-public sealed class ApiFixture : IAsyncLifetime
-{
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:16-alpine")
-        .Build();
-
-    private WebApplicationFactory<Program> _factory = default!;
-
-    public HttpClient Client { get; private set; } = default!;
-    public string ConnectionString => _postgres.GetConnectionString();
-
-    public async Task InitializeAsync()
-    {
-        await _postgres.StartAsync();
-
-        _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
-        {
-            builder.UseSetting("ConnectionStrings:Write", _postgres.GetConnectionString());
-            builder.UseSetting("ConnectionStrings:Read", _postgres.GetConnectionString());
-            builder.UseSetting("RunMigrationsAtStartup", "true");
-            builder.UseSetting("Jwt:SigningKey", "test-signing-key-at-least-32-bytes-long-xx");
-            builder.UseSetting("Jwt:Issuer", "test");
-            builder.UseSetting("Jwt:Audience", "test");
-        });
-
-        Client = _factory.CreateClient();
-    }
-
-    public async Task DisposeAsync()
-    {
-        _factory.Dispose();
-        await _postgres.DisposeAsync();
-    }
-}
-
-public sealed class IdentityE2ETests(ApiFixture fixture) : IClassFixture<ApiFixture>
+/// <summary>
+/// The original end-to-end identity flow (ID-1/ID-5/ID-12 smoke), now on the SHARED harness (Law 9).
+/// The previous private ApiFixture (own Testcontainer + host) was a legacy deviation — and with PII column
+/// encryption it became actively harmful: a second host in the process re-points the process-wide
+/// personal-data protector at a different database, breaking decryption for every other test.
+/// ONE host per test process is now a hard harness invariant.
+/// </summary>
+[Collection("Integration")]
+public sealed class IdentityE2ETests(PlatformApiFactory fixture)
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
@@ -56,6 +28,7 @@ public sealed class IdentityE2ETests(ApiFixture fixture) : IClassFixture<ApiFixt
         var register = await fixture.Client.PostAsJsonAsync("/v1/identity/users",
             new { email, password = "Sup3rSecret!", displayName = "Test User" });
         register.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var userId = (await PlatformApiFactory.ReadData(register)).GetProperty("userId").GetGuid();
 
         // Login
         var login = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/login",
@@ -85,12 +58,10 @@ public sealed class IdentityE2ETests(ApiFixture fixture) : IClassFixture<ApiFixt
             new { refreshToken = tokens.RefreshToken });
         reuse.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
 
-        // Audit: registering the user wrote a Create row with ONLY changed columns (JSONB)
-        await using var conn = new NpgsqlConnection(fixture.ConnectionString);
-        await conn.OpenAsync();
-        await using var cmd = new NpgsqlCommand(
-            "SELECT count(*) FROM identity_audit_entries WHERE \"Action\" = 'Create' AND \"EntityType\" = 'User'", conn);
-        var auditCount = (long)(await cmd.ExecuteScalarAsync())!;
+        // Audit: registering THIS user wrote a Create row (only changed columns, JSONB).
+        var auditCount = await fixture.ScalarAsync<long>(
+            "SELECT count(*)::bigint FROM identity_audit_entries WHERE \"Action\" = 'Create' " +
+            $"AND \"EntityType\" = 'User' AND \"EntityId\" = '{userId}'");
         auditCount.ShouldBeGreaterThanOrEqualTo(1);
     }
 

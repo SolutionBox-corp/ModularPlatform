@@ -17,17 +17,19 @@ namespace ModularPlatform.Identity.Features.Users.RegisterUser;
 internal sealed class RegisterUserHandler(
     IDbContextOutbox<IdentityDbContext> outbox,
     IPasswordHasher passwordHasher,
+    IBlindIndexHasher blindIndex,
     IClock clock)
     : ICommandHandler<RegisterUserCommand, RegisterUserResponse>
 {
     public async Task<RegisterUserResponse> Handle(RegisterUserCommand command, CancellationToken ct)
     {
         var db = outbox.DbContext;
-        var normalizedEmail = command.Email.Trim().ToUpperInvariant();
+        // Email at rest is ciphertext — uniqueness + lookups go through the keyed blind index.
+        var emailHash = blindIndex.Hash(command.Email.Trim().ToUpperInvariant());
 
         // Email uniqueness + auth lookups are cross-tenant (the tenant is unknown until authenticated), so they
         // bypass the tenant query filter.
-        if (await db.Users.IgnoreQueryFilters().AnyAsync(u => u.NormalizedEmail == normalizedEmail, ct))
+        if (await db.Users.IgnoreQueryFilters().AnyAsync(u => u.EmailHash == emailHash, ct))
         {
             throw new ConflictException("user.email_taken", "This email address is already registered.");
         }
@@ -40,7 +42,7 @@ internal sealed class RegisterUserHandler(
         var user = new User
         {
             Email = command.Email.Trim(),
-            NormalizedEmail = normalizedEmail,
+            EmailHash = emailHash,
             PasswordHash = passwordHasher.Hash(command.Password),
             DisplayName = command.DisplayName?.Trim(),
             Locale = "en",
@@ -56,7 +58,16 @@ internal sealed class RegisterUserHandler(
             Email: user.Email,
             DisplayName: user.DisplayName));
 
-        await outbox.SaveChangesAndFlushMessagesAsync();
+        try
+        {
+            await outbox.SaveChangesAndFlushMessagesAsync();
+        }
+        catch (DbUpdateException ex) when (ex is not DbUpdateConcurrencyException)
+        {
+            // Two concurrent registrations raced past the pre-check — the UNIQUE(EmailHash) index is the
+            // final guard (Law 2 idiom). Surface the same conflict the pre-check reports.
+            throw new ConflictException("user.email_taken", "This email address is already registered.");
+        }
 
         return new RegisterUserResponse(user.Id);
     }

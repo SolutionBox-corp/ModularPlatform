@@ -1,11 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Persistence.Audit;
 using ModularPlatform.Persistence.Behaviors;
+using ModularPlatform.Persistence.Encryption;
 using ModularPlatform.Persistence.Rls;
 
 namespace ModularPlatform.Persistence;
@@ -35,6 +37,12 @@ public static class PersistenceServiceCollectionExtensions
         services.TryAddSingleton<AuditInterceptor>();
         services.TryAddSingleton<TenantStampingInterceptor>();
         services.TryAddSingleton<PrincipalSessionConnectionInterceptor>();
+        services.TryAddSingleton<PersonalDataEncryptionInterceptor>();
+        // Publishes the protector to the static accessor the cached-model decrypting converter reads from.
+        // TryAddEnumerable dedups across the per-module AddPlatformPersistence calls; registered EARLY so it
+        // starts before module seeders/backfills that query encrypted columns.
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IHostedService, PersonalDataEncryptionBootstrap>());
         services.AddOptions<RlsOptions>().BindConfiguration(RlsOptions.SectionName);
         services.AddPipelineBehavior(typeof(ConcurrencyRetryBehavior<,>));
         return services;

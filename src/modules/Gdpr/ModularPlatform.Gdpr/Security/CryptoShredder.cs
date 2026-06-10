@@ -31,8 +31,10 @@ internal static class CryptoShredder
     /// <summary>
     /// Encrypts <paramref name="plaintext"/> under the subject's <paramref name="dek"/>.
     /// Returns <c>[nonce][tag][ciphertext]</c>. Deleting the DEK makes this output unrecoverable.
+    /// Optional <paramref name="aad"/> (AES-GCM associated data) binds the ciphertext to a context —
+    /// the platform passes the subject id, so an envelope re-attached to another subject fails authentication.
     /// </summary>
-    public static byte[] Encrypt(byte[] plaintext, byte[] dek)
+    public static byte[] Encrypt(byte[] plaintext, byte[] dek, byte[]? aad = null)
     {
         ArgumentNullException.ThrowIfNull(plaintext);
         ArgumentNullException.ThrowIfNull(dek);
@@ -42,7 +44,7 @@ internal static class CryptoShredder
         var tag = new byte[TagSizeBytes];
 
         using var aes = new AesGcm(dek, TagSizeBytes);
-        aes.Encrypt(nonce, plaintext, ciphertext, tag);
+        aes.Encrypt(nonce, plaintext, ciphertext, tag, aad);
 
         var output = new byte[NonceSizeBytes + TagSizeBytes + ciphertext.Length];
         Buffer.BlockCopy(nonce, 0, output, 0, NonceSizeBytes);
@@ -53,10 +55,11 @@ internal static class CryptoShredder
 
     /// <summary>
     /// Decrypts a <c>[nonce][tag][ciphertext]</c> blob produced by <see cref="Encrypt"/> using the
-    /// subject's <paramref name="dek"/>. Throws <see cref="CryptographicException"/> if the DEK is wrong
-    /// or the blob was tampered with (GCM tag mismatch) — and, after erasure, the DEK no longer exists.
+    /// subject's <paramref name="dek"/>. Throws <see cref="CryptographicException"/> if the DEK is wrong,
+    /// the blob was tampered with, or <paramref name="aad"/> does not match the value sealed at encrypt time
+    /// (GCM tag mismatch) — and, after erasure, the DEK no longer exists.
     /// </summary>
-    public static byte[] Decrypt(byte[] blob, byte[] dek)
+    public static byte[] Decrypt(byte[] blob, byte[] dek, byte[]? aad = null)
     {
         ArgumentNullException.ThrowIfNull(blob);
         ArgumentNullException.ThrowIfNull(dek);
@@ -74,7 +77,7 @@ internal static class CryptoShredder
 
         var plaintext = new byte[ciphertext.Length];
         using var aes = new AesGcm(dek, TagSizeBytes);
-        aes.Decrypt(nonce, ciphertext, tag, plaintext);
+        aes.Decrypt(nonce, ciphertext, tag, plaintext, aad);
         return plaintext;
     }
 }

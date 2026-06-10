@@ -3,6 +3,7 @@ using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Persistence.Audit;
+using ModularPlatform.Persistence.Encryption;
 using ModularPlatform.Persistence.Entities;
 
 namespace ModularPlatform.Persistence;
@@ -62,6 +63,17 @@ public abstract class PlatformDbContext(DbContextOptions options, ITenantContext
             if (typeof(ISoftDeletable).IsAssignableFrom(clr))
             {
                 ApplyFilterMethod("SoftDelete", nameof(BuildSoftDeleteFilter), clr, modelBuilder);
+            }
+
+            // [Encrypted] live-column PII: reads decrypt transparently on EVERY context (the converter is part
+            // of the cached model, so the interceptor-free read factory decrypts too); writes are sealed by
+            // PersonalDataEncryptionInterceptor (a converter cannot know the row's subject).
+            foreach (var property in clr.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .Where(p => p.PropertyType == typeof(string)
+                    && p.GetCustomAttribute<EncryptedAttribute>(inherit: true) is not null))
+            {
+                modelBuilder.Entity(clr).Property<string>(property.Name)
+                    .HasConversion(new PersonalDataDecryptingConverter());
             }
         }
     }

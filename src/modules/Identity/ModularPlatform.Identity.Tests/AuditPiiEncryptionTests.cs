@@ -31,7 +31,7 @@ public sealed class AuditPiiEncryptionTests(PlatformApiFactory fixture)
         var rawNewValues = await fixture.ScalarAsync<string>(
             $"SELECT \"NewValues\"::text FROM identity_audit_entries WHERE \"EntityType\" = 'User' " +
             $"AND \"EntityId\" = '{userId}' AND \"Action\" = 'Create' LIMIT 1");
-        rawNewValues.ShouldContain("penc:v1:");
+        rawNewValues.ShouldContain("penc:v2:");
         rawNewValues.ShouldNotContain(email);                    // plaintext email never hits the audit row
         rawNewValues.ShouldNotContain(email.ToUpperInvariant()); // nor the normalized form
 

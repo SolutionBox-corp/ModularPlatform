@@ -51,6 +51,9 @@ public sealed class IdentityModule : IModule
         services.AddOptions<IdentityAuthOptions>().BindConfiguration(IdentityAuthOptions.SectionName);
         services.AddHostedService<IdentitySeeder>();
 
+        // Seals pre-encryption user rows (EmailHash + [Encrypted] columns) — no-op on fresh databases.
+        services.AddHostedService<PiiEncryptionBackfill>();
+
         // GDPR: Identity owns the account PII (email/name) — export it and erase it on request.
         services.AddScoped<IExportPersonalData, IdentityPersonalDataExporter>();
         services.AddScoped<IErasePersonalData, IdentityPersonalDataEraser>();

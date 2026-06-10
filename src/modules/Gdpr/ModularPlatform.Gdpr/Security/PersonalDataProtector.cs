@@ -23,10 +23,15 @@ namespace ModularPlatform.Gdpr.Security;
 /// </summary>
 internal sealed class PersonalDataProtector(Func<GdprDbContext> contextFactory, IClock clock) : IPersonalDataProtector
 {
-    private const string Prefix = "penc:v1:";
+    // v1: AES-GCM without AAD (legacy audit envelopes stay readable until natural erasure).
+    // v2: AES-GCM with AAD = subjectId bytes — an envelope re-attached to another subject fails authentication.
+    private const string PrefixV1 = "penc:v1:";
+    private const string PrefixV2 = "penc:v2:";
 
     public bool IsProtected(string value) =>
-        value is not null && value.StartsWith(Prefix, StringComparison.Ordinal);
+        value is not null
+        && (value.StartsWith(PrefixV2, StringComparison.Ordinal)
+            || value.StartsWith(PrefixV1, StringComparison.Ordinal));
 
     public string Protect(Guid subjectId, string plaintext)
     {
@@ -37,8 +42,8 @@ internal sealed class PersonalDataProtector(Func<GdprDbContext> contextFactory, 
             return PersonalDataProtection.RedactedMarker;
         }
 
-        var blob = CryptoShredder.Encrypt(Encoding.UTF8.GetBytes(plaintext), dek);
-        return $"{Prefix}{Convert.ToBase64String(subjectId.ToByteArray())}:{Convert.ToBase64String(blob)}";
+        var blob = CryptoShredder.Encrypt(Encoding.UTF8.GetBytes(plaintext), dek, aad: subjectId.ToByteArray());
+        return $"{PrefixV2}{Convert.ToBase64String(subjectId.ToByteArray())}:{Convert.ToBase64String(blob)}";
     }
 
     public bool TryReveal(string value, out string plaintext)
@@ -49,7 +54,8 @@ internal sealed class PersonalDataProtector(Func<GdprDbContext> contextFactory, 
             return false;
         }
 
-        var body = value[Prefix.Length..];
+        var v2 = value.StartsWith(PrefixV2, StringComparison.Ordinal);
+        var body = value[(v2 ? PrefixV2 : PrefixV1).Length..];
         var sep = body.IndexOf(':');
         if (sep <= 0)
         {
@@ -78,7 +84,8 @@ internal sealed class PersonalDataProtector(Func<GdprDbContext> contextFactory, 
 
         try
         {
-            plaintext = Encoding.UTF8.GetString(CryptoShredder.Decrypt(blob, dek));
+            plaintext = Encoding.UTF8.GetString(
+                CryptoShredder.Decrypt(blob, dek, aad: v2 ? subjectId.ToByteArray() : null));
             return true;
         }
         catch (CryptographicException)

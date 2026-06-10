@@ -64,6 +64,14 @@ public sealed class GdprModule : IModule
 
             return new PersonalDataProtector(NewContext, sp.GetRequiredService<IClock>());
         });
+
+        // Blind-index hashing for lookups on encrypted columns (e.g. users.EmailHash). Platform-wide secret
+        // key, fail-fast outside Development — same posture as the JWT signing key.
+        services.AddOptions<GdprEncryptionOptions>()
+            .BindConfiguration(GdprEncryptionOptions.SectionName)
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<GdprEncryptionOptions>, GdprEncryptionOptionsValidator>();
+        services.AddSingleton<IBlindIndexHasher, HmacBlindIndexHasher>();
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)

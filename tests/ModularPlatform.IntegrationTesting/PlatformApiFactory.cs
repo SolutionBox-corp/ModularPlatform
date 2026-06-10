@@ -19,7 +19,24 @@ public sealed class PlatformApiFactory : IAsyncLifetime
     private const string RlsRuntimePassword = "test_app_rls_pwd";
 
     /// <summary>Email configured as a platform admin — registering + logging in as this user grants the admin role.</summary>
+    // HARD INVARIANT: ONE host (and ONE Postgres) per test process. The personal-data decrypting converter
+    // reads a process-wide protector (PersonalDataEncryption.Protector — converters live in EF's cached model
+    // and cannot take DI); a second host pointing at a different database re-targets it and breaks decryption
+    // everywhere. Derived WithWebHostBuilder factories are fine ONLY because they share this fixture's
+    // container. Never create another Testcontainer fixture (Law 9).
     public const string AdminEmail = "admin@platform.test";
+
+    /// <summary>Blind-index HMAC key for the test host — tests hash with it to locate users by e-mail in SQL.</summary>
+    public const string BlindIndexKey = "integration-test-blind-index-key-32ch";
+
+    /// <summary>The users.EmailHash value for an e-mail, exactly as the platform computes it.</summary>
+    public static string EmailHashOf(string email)
+    {
+        using var hmac = new System.Security.Cryptography.HMACSHA256(
+            System.Text.Encoding.UTF8.GetBytes(BlindIndexKey));
+        return Convert.ToBase64String(
+            hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(email.Trim().ToUpperInvariant())));
+    }
 
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:16-alpine").Build();
     private readonly string _storageRoot = Path.Combine(Path.GetTempPath(), $"mp-storage-{Guid.CreateVersion7():N}");
@@ -43,6 +60,9 @@ public sealed class PlatformApiFactory : IAsyncLifetime
             // Configure the well-known admin email so the authz tests can bootstrap an admin via login.
             builder.UseSetting("Identity:Auth:AdminEmails:0", AdminEmail);
             builder.UseSetting("Jwt:SigningKey", "integration-test-signing-key-at-least-32b");
+            // Blind-index key for encrypted-column lookups (users.EmailHash). Const so tests can compute
+            // the same HMAC when they need to find a row by e-mail in raw SQL assertions.
+            builder.UseSetting("Gdpr:Encryption:BlindIndexKey", BlindIndexKey);
             builder.UseSetting("Jwt:Issuer", "test");
             builder.UseSetting("Jwt:Audience", "test");
             // Functional tests share one loopback IP partition; raise the rate limits so they aren't throttled.

@@ -19,6 +19,7 @@ namespace ModularPlatform.Identity.Features.Auth.Login;
 internal sealed class LoginHandler(
     IdentityDbContext db,
     IPasswordHasher passwordHasher,
+    IBlindIndexHasher blindIndex,
     ITokenIssuer tokenIssuer,
     IClock clock,
     IOptions<JwtOptions> jwtOptions,
@@ -31,9 +32,10 @@ internal sealed class LoginHandler(
     public async Task<AuthTokensResponse> Handle(LoginCommand command, CancellationToken ct)
     {
         var now = clock.UtcNow;
-        var normalizedEmail = command.Email.Trim().ToUpperInvariant();
+        // Email at rest is ciphertext — the pre-auth lookup goes through the keyed blind index.
+        var emailHash = blindIndex.Hash(command.Email.Trim().ToUpperInvariant());
         // Authentication is cross-tenant — look the user up globally (the tenant is unknown until logged in).
-        var user = await db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.NormalizedEmail == normalizedEmail, ct);
+        var user = await db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.EmailHash == emailHash, ct);
 
         // Unknown user: nothing to mutate; respond with the generic credential error (no user enumeration).
         if (user is null)
@@ -48,7 +50,8 @@ internal sealed class LoginHandler(
                 "This account is temporarily locked. Try again later.");
         }
 
-        if (!passwordHasher.Verify(user.PasswordHash, command.Password))
+        // An erased account has a blanked PasswordHash — credentials can never verify again.
+        if (string.IsNullOrEmpty(user.PasswordHash) || !passwordHasher.Verify(user.PasswordHash, command.Password))
         {
             // Wrong password: count the failure; lock out once the threshold is crossed.
             user.FailedAccessCount += 1;
@@ -100,9 +103,11 @@ internal sealed class LoginHandler(
     /// </summary>
     private async Task EnsureConfiguredAdminAsync(User user, CancellationToken ct)
     {
+        // user.Email is decrypted in memory (the model-level converter), so the comparison stays plaintext.
+        var userNormalizedEmail = user.Email.Trim().ToUpperInvariant();
         var adminEmails = authOptions.Value.AdminEmails;
         if (adminEmails.Length == 0
-            || !adminEmails.Any(e => e.Trim().ToUpperInvariant() == user.NormalizedEmail))
+            || !adminEmails.Any(e => e.Trim().ToUpperInvariant() == userNormalizedEmail))
         {
             return;
         }

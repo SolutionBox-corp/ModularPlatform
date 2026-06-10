@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using ModularPlatform.IntegrationTesting;
 using Shouldly;
 
 namespace ModularPlatform.Identity.Tests;
@@ -8,7 +9,8 @@ namespace ModularPlatform.Identity.Tests;
 /// A13 — account lockout: after N consecutive wrong-password attempts the account is locked for a window,
 /// and during that window even the CORRECT password is rejected with auth.locked_out.
 /// </summary>
-public sealed class AccountLockoutTests(ApiFixture fixture) : IClassFixture<ApiFixture>
+[Collection("Integration")]
+public sealed class AccountLockoutTests(PlatformApiFactory fixture)
 {
     private const string Password = "Sup3rSecret!";
     private const int Threshold = 5;

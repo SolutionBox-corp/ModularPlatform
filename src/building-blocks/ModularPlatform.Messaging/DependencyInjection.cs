@@ -43,7 +43,10 @@ public static class MessagingServiceCollectionExtensions
                 .UseNpgsql(runtimeConnectionString, npg => npg.MigrationsHistoryTable(historyTable))
                 .AddInterceptors(
                     sp.GetRequiredService<TenantStampingInterceptor>(),
-                    sp.GetRequiredService<AuditInterceptor>());
+                    sp.GetRequiredService<AuditInterceptor>(),
+                    // AFTER audit on purpose: audit captures (and itself protects) the model-side plaintext,
+                    // then this seals the [Encrypted] column value under the subject's DEK.
+                    sp.GetRequiredService<Persistence.Encryption.PersonalDataEncryptionInterceptor>());
 
             if (rls.Enabled)
             {

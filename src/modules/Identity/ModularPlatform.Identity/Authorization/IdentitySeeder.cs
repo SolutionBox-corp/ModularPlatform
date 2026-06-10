@@ -33,9 +33,10 @@ internal sealed class IdentitySeeder(
         {
             using var scope = services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+            var blindIndex = scope.ServiceProvider.GetRequiredService<IBlindIndexHasher>();
 
             await SeedPermissionsAndAdminRoleAsync(db, ct);
-            await AssignAdminsAsync(db, options.Value.AdminEmails, ct);
+            await AssignAdminsAsync(db, blindIndex, options.Value.AdminEmails, ct);
         }
         catch (DbUpdateException ex)
         {
@@ -85,7 +86,8 @@ internal sealed class IdentitySeeder(
         await db.SaveChangesAsync(ct);
     }
 
-    private static async Task AssignAdminsAsync(IdentityDbContext db, string[] adminEmails, CancellationToken ct)
+    private static async Task AssignAdminsAsync(
+        IdentityDbContext db, IBlindIndexHasher blindIndex, string[] adminEmails, CancellationToken ct)
     {
         if (adminEmails.Length == 0)
         {
@@ -93,11 +95,12 @@ internal sealed class IdentitySeeder(
         }
 
         var adminRole = await db.Roles.FirstAsync(r => r.Name == SystemRoles.Admin, ct);
-        var normalized = adminEmails.Select(e => e.Trim().ToUpperInvariant()).ToArray();
+        // Email at rest is ciphertext — match via the keyed blind index over the normalized addresses.
+        var hashes = adminEmails.Select(e => blindIndex.Hash(e.Trim().ToUpperInvariant())).ToArray();
 
         // Users are global authz subjects here — look them up across tenants (this runs as system context).
         var users = await db.Users.IgnoreQueryFilters()
-            .Where(u => normalized.Contains(u.NormalizedEmail))
+            .Where(u => hashes.Contains(u.EmailHash))
             .Select(u => u.Id)
             .ToListAsync(ct);
 
