@@ -2,6 +2,7 @@ using ModularPlatform.Abstractions;
 using ModularPlatform.Billing;
 using ModularPlatform.Gdpr;
 using ModularPlatform.Identity;
+using ModularPlatform.Jobs;
 using ModularPlatform.Messaging;
 using ModularPlatform.Notifications;
 using ModularPlatform.Operations;
@@ -41,6 +42,12 @@ builder.Services.AddQuartz(quartz =>
     {
         module.RegisterJobs(quartz, builder.Configuration);
     }
+
+    // Platform-level messaging health check — not a module concern (reads Wolverine internals via IMessageStore).
+    var healthCron = builder.Configuration["Messaging:HealthCheckCron"] ?? "0 0/5 * * * ?"; // every 5 min
+    var healthKey = new JobKey("platform-messaging-health");
+    quartz.AddJob<MessagingHealthJob>(healthKey);
+    quartz.AddTrigger(trigger => trigger.ForJob(healthKey).WithCronSchedule(healthCron));
 });
 builder.Services.AddQuartzHostedService(options => options.WaitForJobsToComplete = true);
 

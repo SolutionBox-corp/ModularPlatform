@@ -46,6 +46,13 @@ internal sealed class CreditTopUpHandler(IDbContextOutbox<BillingDbContext> outb
             return new CreditTopUpResponse(account.Id, account.Posted, AlreadyApplied: true);
         }
 
+        // Overflow guard (BL-11): a top-up that would wrap the projection is rejected up front; the DB CHECK
+        // constraints are the backstop, but a clean 422 beats an unexpected constraint violation.
+        if (account.Posted > long.MaxValue - command.Amount || account.Available > long.MaxValue - command.Amount)
+        {
+            throw new BusinessRuleException("credit.amount.too_large", "The top-up would overflow the balance.");
+        }
+
         var bucket = new CreditBucket
         {
             AccountId = account.Id,

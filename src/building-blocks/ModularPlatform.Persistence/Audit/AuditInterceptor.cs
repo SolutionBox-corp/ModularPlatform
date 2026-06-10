@@ -170,7 +170,11 @@ public sealed class AuditInterceptor(IClock clock, ITenantContext tenant, IPerso
     private static object? ProviderValue(PropertyEntry property)
     {
         var value = property.CurrentValue;
-        var converter = property.Metadata.GetValueConverter();
+        // GetValueConverter() only sees converters set as INSTANCES; a type-based conversion
+        // (HasConversion<string>()) materializes in the finalized type mapping — read both, or a converted
+        // enum audits as its int (PL-2).
+        var converter = property.Metadata.GetValueConverter()
+            ?? property.Metadata.FindTypeMapping()?.Converter;
         return converter is null || value is null ? value : converter.ConvertToProvider(value);
     }
 }

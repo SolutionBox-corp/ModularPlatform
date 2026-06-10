@@ -49,7 +49,17 @@ public sealed class PlatformApiFactory : IAsyncLifetime
     public async Task InitializeAsync()
     {
         await _postgres.StartAsync();
-        _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        _factory = CreateHost();
+        Client = _factory.CreateClient();
+    }
+
+    /// <summary>
+    /// A DERIVED host sharing this fixture's container/database — for scenarios needing different host
+    /// config (low rate limits, Production environment, broken connection string). Dispose it in the test.
+    /// Same-DB is what keeps the process-wide personal-data protector valid (see the invariant above).
+    /// </summary>
+    public WebApplicationFactory<Program> CreateHost(params (string Key, string Value)[] overrides) =>
+        new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseSetting("Messaging:SoloMode", "true");  // single-node -> Solo durability (drains immediately)
             builder.UseSetting("ConnectionStrings:Write", _postgres.GetConnectionString());
@@ -81,9 +91,12 @@ public sealed class PlatformApiFactory : IAsyncLifetime
             builder.UseSetting("Billing:Subscriptions:Plans:0:PlanKey", "pro");
             builder.UseSetting("Billing:Subscriptions:Plans:0:StripePriceId", "price_test_pro");
             builder.UseSetting("Billing:Subscriptions:Plans:0:CreditsPerPeriod", "100");
+
+            foreach (var (key, value) in overrides)
+            {
+                builder.UseSetting(key, value);
+            }
         });
-        Client = _factory.CreateClient();
-    }
 
     public async Task DisposeAsync()
     {

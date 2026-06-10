@@ -32,7 +32,11 @@ public static class PlatformWebExtensions
         services.AddSingleton<IClock, SystemClock>();
         services.AddSingleton<IHostEnvironmentAccessor, HostEnvironmentAccessor>();
 
-        services.AddLocalization(o => o.ResourcesPath = "Localization");
+        // NO ResourcesPath: SharedResource's namespace already mirrors the Localization/ folder, so the
+        // manifest name is ModularPlatform.Web.Localization.SharedResource. A ResourcesPath would make the
+        // factory probe ...Localization.Localization.SharedResource — never found, every `detail` silently
+        // fell back to the exception message and Accept-Language did nothing (caught by PL-3).
+        services.AddLocalization();
 
         // Outer pipeline behaviors. ORDER MATTERS — registration order == execution order.
         // (Telemetry is registered first by AddPlatformTelemetry in the host.)

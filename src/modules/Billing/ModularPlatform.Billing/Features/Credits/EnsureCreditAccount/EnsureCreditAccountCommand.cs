@@ -16,7 +16,14 @@ internal sealed class EnsureCreditAccountHandler(BillingDbContext db)
         if (!await db.CreditAccounts.AnyAsync(a => a.UserId == command.UserId, ct))
         {
             db.CreditAccounts.Add(new CreditAccount { UserId = command.UserId, Posted = 0, Pending = 0, Available = 0 });
-            await db.SaveChangesAsync(ct);
+            try
+            {
+                await db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException ex) when (ex is not DbUpdateConcurrencyException)
+            {
+                // Lost the UNIQUE(UserId) creation race (EV-5) — exactly one account stands; idempotent no-op.
+            }
         }
 
         return Unit.Value;

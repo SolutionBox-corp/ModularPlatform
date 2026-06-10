@@ -5,6 +5,7 @@
     <ProjectReference Include="..\..\..\building-blocks\ModularPlatform.Abstractions\ModularPlatform.Abstractions.csproj" />
     <ProjectReference Include="..\..\..\building-blocks\ModularPlatform.Persistence\ModularPlatform.Persistence.csproj" />
     <ProjectReference Include="..\..\..\building-blocks\ModularPlatform.Messaging\ModularPlatform.Messaging.csproj" />
+    <ProjectReference Include="..\..\..\building-blocks\ModularPlatform.Telemetry\ModularPlatform.Telemetry.csproj" />
     <ProjectReference Include="..\..\..\building-blocks\ModularPlatform.Web\ModularPlatform.Web.csproj" />
     <ProjectReference Include="..\ModularPlatform.Billing.Contracts\ModularPlatform.Billing.Contracts.csproj" />
     <ProjectReference Include="..\..\Identity\ModularPlatform.Identity.Contracts\ModularPlatform.Identity.Contracts.csproj" />

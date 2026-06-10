@@ -23,6 +23,7 @@ public static class TelemetryServiceCollectionExtensions
                 .AddAspNetCoreInstrumentation()
                 .AddOtlpExporter())
             .WithMetrics(m => m
+                .AddMeter(PlatformMetrics.MeterName)
                 .AddAspNetCoreInstrumentation()
                 .AddRuntimeInstrumentation()
                 .AddOtlpExporter());

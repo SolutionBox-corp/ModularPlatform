@@ -62,7 +62,13 @@ if (builder.Configuration.GetValue<bool>("RunMigrationsAtStartup"))
 }
 
 app.UsePlatformWeb();
-app.MapOpenApi();
+
+// OpenAPI is a DEVELOPMENT convenience — the document enumerates every route and DTO shape, which is
+// recon gold in production (PL-8). Expose it elsewhere only behind auth, deliberately.
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+}
 
 // API versioning (URL strategy): every module/app endpoint is served under a single central `/v1` prefix
 // (e.g. /v1/identity/users, /v1/billing/..., /v1/realtime/stream). Health checks and OpenAPI stay UNVERSIONED

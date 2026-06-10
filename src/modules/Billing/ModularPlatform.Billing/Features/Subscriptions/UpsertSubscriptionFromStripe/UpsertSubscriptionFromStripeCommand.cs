@@ -82,7 +82,8 @@ internal sealed class UpsertSubscriptionFromStripeHandler(
         return Unit.Value;
     }
 
-    private static SubscriptionStatus MapStatus(string stripeStatus) => stripeStatus switch
+    /// <summary>Shared Stripe→local status mapping (the reconcile sweep compares with the same rules).</summary>
+    internal static SubscriptionStatus MapStatus(string stripeStatus) => stripeStatus switch
     {
         "active" or "trialing" => SubscriptionStatus.Active,
         "past_due" or "unpaid" or "paused" => SubscriptionStatus.PastDue,

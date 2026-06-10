@@ -108,10 +108,16 @@ public sealed class BillingModule : IModule
     public void RegisterJobs(IServiceCollectionQuartzConfigurator quartz, IConfiguration configuration)
     {
         // Cron sweep that materializes expired holds/buckets into the ledger (correctness is already live).
-        var cron = configuration["Modules:Billing:Jobs:ExpireCreditsCron"] ?? "0 0 * * * ?"; // hourly
-        var jobKey = new JobKey("billing-expire-credits");
-        quartz.AddJob<Jobs.BillingExpireCreditsJob>(jobKey);
-        quartz.AddTrigger(trigger => trigger.ForJob(jobKey).WithCronSchedule(cron));
+        var expireCron = configuration["Modules:Billing:Jobs:ExpireCreditsCron"] ?? "0 0 * * * ?"; // hourly
+        var expireKey = new JobKey("billing-expire-credits");
+        quartz.AddJob<Jobs.BillingExpireCreditsJob>(expireKey);
+        quartz.AddTrigger(trigger => trigger.ForJob(expireKey).WithCronSchedule(expireCron));
+
+        // Reconcile sweep: re-queues stuck stripe_events and corrects subscription drift (Stripe wins).
+        var reconcileCron = configuration["Modules:Billing:Jobs:ReconcileStripeCron"] ?? "0 0 */6 * * ?";
+        var reconcileKey = new JobKey("billing-stripe-reconcile");
+        quartz.AddJob<Jobs.BillingStripeReconcileJob>(reconcileKey);
+        quartz.AddTrigger(trigger => trigger.ForJob(reconcileKey).WithCronSchedule(reconcileCron));
     }
 
     public async Task ApplyMigrationsAsync(IServiceProvider services, CancellationToken ct)

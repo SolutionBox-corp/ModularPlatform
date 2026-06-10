@@ -64,3 +64,45 @@ public sealed class ExportResilienceTests(PlatformApiFactory fixture)
         }
     }
 }
+
+/// <summary>
+/// GD-4 — the resilience half asserted DIRECTLY: one exporter throws, the document still contains the
+/// healthy module's data plus an <c>{"error":"export_failed"}</c> marker for the broken one. Unit-level on
+/// the internal handler (InternalsVisibleTo) — no host plumbing needed to prove the isolation contract.
+/// </summary>
+public sealed class ExportResilienceUnitTests
+{
+    [Fact]
+    public async Task A_throwing_exporter_yields_an_error_marker_and_does_not_break_the_others()
+    {
+        var handler = new ModularPlatform.Gdpr.Features.Export.ExportUserData.ExportUserDataHandler(
+            [new HealthyExporter(), new BrokenExporter()],
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<
+                ModularPlatform.Gdpr.Features.Export.ExportUserData.ExportUserDataHandler>.Instance);
+
+        var document = await handler.Handle(
+            new ModularPlatform.Gdpr.Features.Export.ExportUserData.ExportUserDataQuery(Guid.CreateVersion7()),
+            CancellationToken.None);
+
+        document["Healthy"].ShouldBeAssignableTo<IReadOnlyDictionary<string, object?>>();
+        var broken = document["Broken"].ShouldBeAssignableTo<Dictionary<string, string>>()!;
+        broken["error"].ShouldBe("export_failed");
+    }
+
+    private sealed class HealthyExporter : ModularPlatform.Abstractions.IExportPersonalData
+    {
+        public string ModuleName => "Healthy";
+
+        public Task<IReadOnlyDictionary<string, object?>> ExportAsync(Guid userId, CancellationToken ct) =>
+            Task.FromResult<IReadOnlyDictionary<string, object?>>(
+                new Dictionary<string, object?> { ["ok"] = true });
+    }
+
+    private sealed class BrokenExporter : ModularPlatform.Abstractions.IExportPersonalData
+    {
+        public string ModuleName => "Broken";
+
+        public Task<IReadOnlyDictionary<string, object?>> ExportAsync(Guid userId, CancellationToken ct) =>
+            throw new InvalidOperationException("boom");
+    }
+}

@@ -11,11 +11,13 @@ using ModularPlatform.Gdpr.Features.Consents.GrantConsent;
 using ModularPlatform.Gdpr.Features.Consents.WithdrawConsent;
 using ModularPlatform.Gdpr.Features.Erasure.RequestErasure;
 using ModularPlatform.Gdpr.Features.Export.ExportUserData;
+using ModularPlatform.Gdpr.Jobs;
 using ModularPlatform.Gdpr.Persistence;
 using ModularPlatform.Gdpr.Security;
 using ModularPlatform.Messaging;
 using ModularPlatform.Persistence;
 using ModularPlatform.Persistence.Rls;
+using Quartz;
 using Wolverine;
 
 namespace ModularPlatform.Gdpr;
@@ -87,6 +89,15 @@ public sealed class GdprModule : IModule
     {
         // Register this module's message handlers explicitly (cross-assembly conventional discovery is unreliable).
         options.Discovery.IncludeType<Messaging.UserErasureRequestedHandler>();
+    }
+
+    public void RegisterJobs(IServiceCollectionQuartzConfigurator quartz, IConfiguration configuration)
+    {
+        // Nightly sweep that purges shredded subject_key tombstones beyond the retention window.
+        var cron = configuration["Modules:Gdpr:Jobs:RetentionSweepCron"] ?? "0 0 3 * * ?"; // 03:00 UTC daily
+        var jobKey = new JobKey("gdpr-retention-sweep");
+        quartz.AddJob<GdprRetentionSweepJob>(jobKey);
+        quartz.AddTrigger(trigger => trigger.ForJob(jobKey).WithCronSchedule(cron));
     }
 
     public async Task ApplyMigrationsAsync(IServiceProvider services, CancellationToken ct)

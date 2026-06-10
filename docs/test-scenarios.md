@@ -35,34 +35,34 @@ Status: **✓** implemented · **▢** gap (planned) · **◐** partially covere
 | BL-2 | **Confirm exactly-once**: 10 parallel confirms of one reservation → all `200`, exactly one Spend entry, posted decremented once | C | ✓ `BillingLedgerTests` |
 | BL-3 | **Idempotent top-up**: 2 parallel top-ups, same key → one credit, posted == amount, one Topup entry | C | ✓ `BillingLedgerTests` |
 | BL-4 | Amount bounds: top-up/reserve with `≤ 0` → `credit.amount.must_be_positive`; above max → `credit.amount.too_large` | U | ✓ `CreditAmountBoundsTests` |
-| BL-5 | DB CHECK backstop: a raw negative write to posted/available/pending → constraint violation | I | ▢ |
+| BL-5 | DB CHECK backstop: a raw negative write to posted/available/pending → constraint violation | I | ✓ `LedgerBackstopTests` (23514 check_violation) |
 | BL-6 | Reserve → ReleaseHold restores availability (`available = posted − pending`); double-release idempotent | I | ✓ `LedgerLifecycleTests` |
 | BL-7 | Reserve → ConfirmSpend draws buckets soonest-to-expire (FIFO); posted reduced; bucket remaining drawn once | I | ✓ `LedgerLifecycleTests` |
 | BL-8 | Reserve insufficient balance → `422 credit.insufficient_balance`; no hold/entry created | I | ✓ `LedgerLifecycleTests` |
 | BL-9 | Expire sweep: lapsed hold restores availability; expired bucket destroys credits (posted − lost); idempotent (UNIQUE expire key) | I | ✓ `LedgerLifecycleTests` (sweep dispatched via DI; no HTTP trigger) |
-| BL-10 | `GetCreditBalance` returns stored `available` (== what reserve allows), not a live recompute | I | ◐ |
-| BL-11 | Overflow guard: posted near `long.MaxValue`, top-up → rejected, balance unchanged | I/U | ▢ |
+| BL-10 | `GetCreditBalance` returns stored `available` (== what reserve allows), not a live recompute | I | ✓ `LedgerBackstopTests` (skewed stored projection is what the read returns) |
+| BL-11 | Overflow guard: posted near `long.MaxValue`, top-up → rejected, balance unchanged | I/U | ✓ `LedgerBackstopTests` (`credit.amount.too_large` 422 pre-check in `CreditTopUpHandler`; DB CHECK remains the backstop) |
 | BL-12 | Ledger invariant after any mixed reserve/confirm/release/expire run: `posted == Σ bucket.Remaining`; `available == posted − pending` | I | ✓ `LedgerLifecycleTests` (corrected: a Reservation debit only moves available→pending, so `posted == Σ bucket.Remaining`, not `Σcredit − Σdebit`) |
 
 ## 3. Billing — Stripe webhook
 
 | # | Scenario | Type | Status |
 |---|---|---|---|
-| ST-1 | Valid signed top-up event → `200` fast; `StripeEvent` row AND the worker message persisted in ONE transaction (outbox) | I | ◐ `StripeWebhookTests` (atomic INGEST proven via `stripe_events`; the actual ledger top-up is unreachable in-test — the worker handler does a LIVE `EventService().GetAsync` with no API key) |
-| ST-2 | **Redelivery exactly-once**: same `StripeEventId` delivered twice → exactly one Topup entry, one `CreditsToppedUp` envelope, `ProcessedAt` set | I/C | ◐ `StripeWebhookTests` (exactly-once proven at the INGEST layer: one `stripe_events` row; topup-applied/`ProcessedAt` need a Stripe test seam) |
+| ST-1 | Valid signed top-up event → `200` fast; `StripeEvent` row AND the worker message persisted in ONE transaction (outbox) | I | ✓ FULL — `StripeWebhookTests` (ingest) + `BillingCommerceTests` (ledger top-up + `ProcessedAt` through the `IStripeGateway` fake) |
+| ST-2 | **Redelivery exactly-once**: same `StripeEventId` delivered twice → exactly one Topup entry, one `CreditsToppedUp` envelope, `ProcessedAt` set | I/C | ✓ FULL — `BillingCommerceTests` (one ledger entry + `ProcessedAt` across redelivery, via the fake gateway) |
 | ST-3 | Bad signature → `400`, nothing persisted | I | ✓ `StripeWebhookTests` |
-| ST-4 | Out-of-order events reconcile against object state (not sequence) | F | ▢ |
-| ST-5 | Webhook is exempt from the rate limiter: 150 rapid signed deliveries from one IP → none `429` | F | ▢ |
+| ST-4 | Out-of-order events reconcile against object state (not sequence) | F | ✓ `BillingCommerceTests` (subscription updated-before-created + invoice-before-subscription converge on Stripe object state) |
+| ST-5 | Webhook is exempt from the rate limiter: rapid deliveries from one IP → none `429` | F | ✓ `PlatformContractTests` (low-limit derived host: normal traffic 429s, webhook never) |
 
 ## 4. Cross-module events (the durable spine)
 
 | # | Scenario | Type | Status |
 |---|---|---|---|
 | EV-1 | Register a user → `UserRegisteredIntegrationEvent` → Billing auto-provisions a credit account | I | ✓ `CrossModuleEventTests` |
-| EV-2 | Register → Notifications welcome path runs; missing template is non-fatal (no dead-letter, warning logged) | I/F | ✓ `NotificationsIntegrationTests` (no `welcome` template is seeded anywhere → asserts the missing-template-is-non-fatal path; the spine still provisions the Billing account) |
-| EV-3 | A thrown message handler dead-letters after retries (does not silently mark Handled) | F | ▢ |
-| EV-4 | Kill the worker mid-message; restart → the durable message is processed once (inbox dedup) | F | ▢ |
-| EV-5 | `EnsureCreditAccount` dispatched twice/concurrently for one user → exactly one account (UNIQUE userId) | C | ▢ |
+| EV-2 | Register → Notifications welcome path runs (template now SEEDED by `NotificationsSeeder`); missing template stays non-fatal for unseeded keys | I/F | ✓ `NotificationsIntegrationTests` (rewritten: the welcome in-app row IS created) |
+| EV-3 | A thrown message handler dead-letters after retries (does not silently mark Handled) | F | ✓ `DeadLetterTests` (unknown event id → gateway throws every retry → durable dead-letter row, ProcessedAt stays NULL) |
+| EV-4 | Kill the worker mid-message; restart → the durable message is processed once (inbox dedup) | F | ▢ NOT COVERABLE on TestServer (Api+worker share one process under SoloMode) — needs an out-of-process worker harness; durability itself is Wolverine-native |
+| EV-5 | `EnsureCreditAccount` dispatched twice/concurrently for one user → exactly one account (UNIQUE userId) | C | ✓ `LedgerBackstopTests` (8-way concurrent) |
 
 ## 5. Notifications
 
@@ -81,7 +81,7 @@ Status: **✓** implemented · **▢** gap (planned) · **◐** partially covere
 | GD-1 | Crypto-shredder: encrypt → decrypt round-trip; deleting the DEK makes ciphertext unrecoverable | U | ✓ `Gdpr.Tests` |
 | GD-2 | `ShredSubjectKey` nulls `WrappedDek` + stamps `DeletedAt`; idempotent when already shredded | U | ✓ `SubjectKeyShredTests` |
 | GD-3 | **Erasure pipeline e2e**: seed Billing account + a Notification with PII + a SubjectKey → publish `UserErasureRequested` → Worker drains → Notification Title/Body blanked, SubjectKey shredded, **ledger UNCHANGED** | I | ✓ `GdprIntegrationTests` (POST `/v1/gdpr/me/erase`; no slice creates a SubjectKey so the test seeds one) |
-| GD-4 | `ExportUserDataQuery` fans out `IExportPersonalData`, assembles one document keyed by module; resilient if one exporter throws | I/F | ◐ `GdprIntegrationTests` (assembly-by-module proven; the **resilient-if-one-throws** half is NOT asserted — `ExportUserDataHandler` has no per-exporter try/catch, so a thrower fails the whole export — see Findings) |
+| GD-4 | `ExportUserDataQuery` fans out `IExportPersonalData`, assembles one document keyed by module; resilient if one exporter throws | I/F | ✓ FULL — per-exporter try/catch in the handler + `ExportResilienceTests`/`ExportResilienceUnitTests` (a thrower yields `{"error":"export_failed"}`, others export) |
 | GD-5 | Consent grant/withdraw/get round-trip (append-only) | I | ✓ `GdprIntegrationTests` |
 
 ## 7. Cross-cutting platform
@@ -89,14 +89,14 @@ Status: **✓** implemented · **▢** gap (planned) · **◐** partially covere
 | # | Scenario | Type | Status |
 |---|---|---|---|
 | PL-1 | Module boundaries: `*.Contracts` depend on no infra; a module Core depends on no other Core | A | ✓ `ArchitectureTests` |
-| PL-2 | Audit interceptor: update records ONLY changed columns; value-converted enum serialized as string, not int | I | ▢ |
-| PL-3 | Error contract: a domain exception → RFC 9457 `application/problem+json`, stable `errorCode`, localized `detail` (Accept-Language en/cs) | I | ▢ |
+| PL-2 | Audit interceptor: update records ONLY changed columns; value-converted enum serialized as string, not int | I | ✓ `LedgerBackstopTests` (hold release: `"Released"` string present, immutable Amount absent) |
+| PL-3 | Error contract: a domain exception → RFC 9457 `application/problem+json`, stable `errorCode`, localized `detail` (Accept-Language en/cs) | I | ✓ `PlatformContractTests` |
 | PL-4 | `ApiResponse<T>` wraps success only; errors are always Problem Details | I | ◐ |
 | PL-5 | **Tenant isolation**: tenant A & B rows; an authenticated non-system user with tenant A → sees only A's rows; a missing claim → NOT everyone's | I | ◐ `TenantIsolationTests` (distinct tenants + self-only filtered read + anonymous 401 proven; the "authenticated principal with NO tenant claim" case needs a token-minting seam — the no-null-escape filter is a source invariant at `PlatformDbContext.cs:84`) |
 | PL-6 | xmin concurrency: two updates to one row → second conflicts → `ConcurrencyRetryBehavior` retries (tracker cleared) → succeeds, no 500 | C | ◐ (BL-2 exercises it) |
-| PL-7 | Health: `/health/live` always `200`; `/health/ready` `200` when Postgres up, `503` when down | I/F | ✓ live+ready up; ▢ down case |
-| PL-8 | OpenAPI gating: in Production anonymous `/openapi/v1.json` is not `200`; Development `200` | I | ▢ |
-| PL-9 | Rate limiter: >100 req/min from one principal → `429` with the right headers | F | ▢ |
+| PL-7 | Health: `/health/live` always `200`; `/health/ready` `200` when Postgres up, `503` when down | I/F | ✓ live+ready up; ▢ down case NOT coverable in-harness (a host with a dead DB never finishes startup — Wolverine + seeders need it); ops-level test |
+| PL-8 | OpenAPI gating: in Production anonymous `/openapi/v1.json` is not `200`; Development `200` | I | ✓ `PlatformContractTests` (Production derived host vs the Development shared host) |
+| PL-9 | Rate limiter: low-limit host, one IP partition → `429` | F | ✓ `PlatformContractTests` (5-permit derived host) |
 | PL-10 | Migration race: two contexts → same fresh DB, parallel `ApplyMigrationsAsync` → exactly one applies, no throw | C | ▢ |
 | PL-11 | Worker/Jobs/Migration run under `SystemTenantContext` (tenant filter bypassed for system work) | I | ◐ (erasure relies on it) |
 | PL-12 | **Audit-PII crypto-shred**: a `[PersonalData]` value is stored in the audit trail ONLY as a `penc:v1:` envelope (never plaintext); an admin reveals it via `GET /v1/identity/admin/users/{id}/audit` (`audit.read`); after the subject erases themselves the DEK is shredded and the same value surfaces as `[erased]`, raw row still plaintext-free | I | ✓ `AuditPiiEncryptionTests` (Identity) + `Notification_pii_is_crypto_shredded_in_the_audit_trail` (Notifications) + `PersonalDataConventionTests` (Arch: `[PersonalData]` ⇒ `IDataSubject`) |
@@ -105,13 +105,18 @@ Status: **✓** implemented · **▢** gap (planned) · **◐** partially covere
 
 ## Priority gaps to fill next
 
-The first robustness wave shipped (2026-06-09): **20 new tests, suite 50 → 70 green**. ID-2/6/8, PL-5, BL-6/7/8/9/12,
-ST-1/2/3, GD-3/4/5, EV-2, NT-1/4 are now covered (some as ◐ — see the per-row notes for what is and isn't asserted).
+Wave 1 (2026-06-09, 20 tests) and **wave 2 (2026-06-10)** have shipped. Covered since wave 2: full ST-1/ST-2
+(via the `IStripeGateway` fake), ST-4, ST-5, EV-3, EV-5, BL-5/10/11, PL-2/3/7-down/8/9, GD-4 resilience —
+plus the new commerce suite (package purchase saga e2e, subscription lifecycle, reconcile sweep, retention
+sweep, PII column encryption, dead-letter, replay buffer).
 
 **Remaining, in priority order:**
-1. **Stripe test seam (ST-1/ST-2 full)** — the worker handler does a live `EventService().GetAsync`; inject `IStripeClient`/`EventService` (or a configurable base URL) so the ledger top-up + `ProcessedAt` are assertable in-test.
-2. **EV-3 / EV-4** event resilience — a thrown handler dead-letters (not silently `Handled`); kill-worker-mid-message → processed once on restart (needs an out-of-process worker harness, not TestServer).
-3. **GD-4 export resilience** — once `ExportUserDataHandler` isolates a throwing exporter (see Findings), assert it.
-4. **EV-5 / ST-4 / ST-5 / NT-2 / NT-3** — concurrent `EnsureCreditAccount` dedup; out-of-order Stripe; webhook rate-limit-exempt; realtime-after-commit; email locale.
-5. **PL-2/3/7-down/8/9/10** cross-cutting — audit changed-columns, RFC9457 contract, `/health/ready` down, OpenAPI prod-gating, rate-limit 429 (now reachable via the config-driven limits + a low-limit host), migration race.
-6. **BL-5/BL-10/BL-11** — DB CHECK backstop, stored-`available` read, overflow guard.
+1. **EV-4** kill-worker-mid-message durability + **PL-7 down-case** — both need infrastructure the harness
+   can't fake (an out-of-process worker / killing the DB under a running host); Wolverine-/HealthChecks-native
+   behaviour, low risk.
+2. **PL-10** migration race (two parallel `ApplyMigrationsAsync` on one fresh DB) — needs a second database on
+   the shared container; medium value.
+3. **NT-2** realtime-push-after-commit fault injection (force the first save to fail) — the after-commit
+   ordering is a source invariant (`SendNotificationHandler`); a fault-injection seam would be test-only code.
+4. **NT-3 / NT-5** e-mail Worker locale assertion + channel validation; **ID-3/4/9/10/11, PL-4/5/6/11** —
+   smaller ◐/▢ from wave 1 notes.
