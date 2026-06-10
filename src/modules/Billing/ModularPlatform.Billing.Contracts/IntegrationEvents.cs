@@ -27,3 +27,15 @@ public sealed record CreditsSpentIntegrationEvent(
     Guid ReservationId,
     long Amount,
     long NewPosted) : IIntegrationEvent;
+
+/// <summary>
+/// Published after a Stripe payment is ingested and the corresponding top-up is durably applied to the
+/// credit ledger. Consumers (e.g. Notifications) can send a purchase-confirmation message. The
+/// <see cref="CreditAmount"/> is the number of credits topped up (smallest unit, long).
+/// </summary>
+public sealed record CreditPurchaseCompletedIntegrationEvent(
+    Guid EventId,
+    DateTimeOffset OccurredAt,
+    Guid UserId,
+    long CreditAmount,
+    string IdempotencyKey) : IIntegrationEvent;
