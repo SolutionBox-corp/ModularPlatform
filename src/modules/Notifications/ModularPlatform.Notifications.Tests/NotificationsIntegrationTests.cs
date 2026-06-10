@@ -233,8 +233,9 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
             EventId: Guid.CreateVersion7(),
             OccurredAt: DateTimeOffset.UtcNow,
             UserId: userId,
-            CreditAmount: 500,
-            IdempotencyKey: Guid.CreateVersion7().ToString()));
+            PurchaseId: Guid.CreateVersion7(),
+            PackageId: Guid.CreateVersion7(),
+            CreditAmount: 500));
 
         // The handler dispatches SendNotificationCommand → a "purchase_completed" in-app row is created.
         await fixture.WaitForCountAsync(
