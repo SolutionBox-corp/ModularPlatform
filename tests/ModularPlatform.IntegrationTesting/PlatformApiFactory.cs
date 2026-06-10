@@ -52,6 +52,15 @@ public sealed class PlatformApiFactory : IAsyncLifetime
             // Files module: use the local-disk storage provider with an isolated per-run temp root.
             builder.UseSetting("Storage:Provider", "local");
             builder.UseSetting("Storage:Local:RootPath", _storageRoot);
+            // Billing: in-memory Stripe gateway (the seam) — tests seed events/subscriptions through
+            // FakeStripeGateway resolved from Services, so the FULL worker path is assertable offline.
+            builder.UseSetting("Billing:Stripe:UseFakeGateway", "true");
+            builder.UseSetting("Billing:Stripe:SuccessUrl", "https://app.test/billing/success");
+            builder.UseSetting("Billing:Stripe:CancelUrl", "https://app.test/billing/cancel");
+            // One config-driven subscription plan so the lifecycle + per-period grant paths are testable.
+            builder.UseSetting("Billing:Subscriptions:Plans:0:PlanKey", "pro");
+            builder.UseSetting("Billing:Subscriptions:Plans:0:StripePriceId", "price_test_pro");
+            builder.UseSetting("Billing:Subscriptions:Plans:0:CreditsPerPeriod", "100");
         });
         Client = _factory.CreateClient();
     }

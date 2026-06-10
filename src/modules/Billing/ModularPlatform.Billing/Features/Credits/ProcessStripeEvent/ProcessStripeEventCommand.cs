@@ -2,40 +2,111 @@ using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Billing.Features.Credits.CreditTopUp;
+using ModularPlatform.Billing.Features.Subscriptions.GrantSubscriptionCredits;
+using ModularPlatform.Billing.Features.Subscriptions.UpsertSubscriptionFromStripe;
 using ModularPlatform.Billing.Persistence;
+using ModularPlatform.Billing.Sagas;
+using ModularPlatform.Billing.Stripe;
 using ModularPlatform.Cqrs;
 using Stripe;
+using Wolverine.EntityFrameworkCore;
 
 namespace ModularPlatform.Billing.Features.Credits.ProcessStripeEvent;
 
 /// <summary>
-/// IDEMPOTENT ledger top-up from a Stripe event: refetch the event, read user + amount from object metadata
-/// (reconcile against state, never assume webhook order), dispatch the idempotent <see cref="CreditTopUpCommand"/>
-/// (idempotency key = Stripe event id), stamp the StripeEvent processed. Inbox + ledger idempotency = exactly-once.
+/// IDEMPOTENT Stripe event ROUTER (runs in the Worker, inbox-deduped). Refetches the event through
+/// <see cref="IStripeGateway"/> (reconcile against CURRENT state, never webhook payload order) and routes:
+/// <list type="bullet">
+/// <item><c>checkout.session.completed</c> with <c>purchase_type=package</c> → <see cref="CreditPurchaseConfirmed"/>
+/// for the purchase saga (published via the outbox, atomically with the ProcessedAt stamp).</item>
+/// <item><c>customer.subscription.*</c> → upsert the local mirror from Stripe OBJECT state (out-of-order safe).</item>
+/// <item><c>invoice.paid</c> → per-period credit grant (idempotency key <c>sub-invoice:{invoiceId}</c>).</item>
+/// <item>any event carrying <c>user_id</c>/<c>credit_amount</c> metadata → direct idempotent top-up
+/// (idempotency key = Stripe event id).</item>
+/// </list>
 /// </summary>
 internal sealed record ProcessStripeEventCommand(string StripeEventId) : ICommand;
 
-internal sealed class ProcessStripeEventHandler(BillingDbContext db, IDispatcher dispatcher, IClock clock)
+internal sealed class ProcessStripeEventHandler(
+    IDbContextOutbox<BillingDbContext> outbox,
+    IStripeGateway gateway,
+    IDispatcher dispatcher,
+    IClock clock)
     : ICommandHandler<ProcessStripeEventCommand, Unit>
 {
     public async Task<Unit> Handle(ProcessStripeEventCommand command, CancellationToken ct)
     {
+        var db = outbox.DbContext;
+
         var record = await db.StripeEvents.FirstOrDefaultAsync(e => e.StripeEventId == command.StripeEventId, ct);
         if (record is null || record.ProcessedAt is not null)
         {
             return Unit.Value;
         }
 
-        var stripeEvent = await new EventService().GetAsync(command.StripeEventId, cancellationToken: ct);
+        var stripeEvent = await gateway.GetEventAsync(command.StripeEventId, ct);
 
-        if (TryExtractTopUp(stripeEvent, out var userId, out var amount, out var bucketExpiryDays))
+        switch (stripeEvent.Type)
         {
-            await dispatcher.Send(new CreditTopUpCommand(userId, amount, bucketExpiryDays, command.StripeEventId), ct);
+            case "checkout.session.completed"
+                when stripeEvent.Data?.Object is global::Stripe.Checkout.Session session
+                     && session.Metadata is not null
+                     && session.Metadata.TryGetValue("purchase_type", out var purchaseType)
+                     && purchaseType == "package":
+                await PublishPurchaseConfirmed(session, command.StripeEventId, ct);
+                break;
+
+            case "customer.subscription.created" or "customer.subscription.updated" or "customer.subscription.deleted"
+                when stripeEvent.Data?.Object is Subscription subscription:
+                await dispatcher.Send(new UpsertSubscriptionFromStripeCommand(subscription.Id), ct);
+                break;
+
+            case "invoice.paid"
+                when stripeEvent.Data?.Object is Invoice invoice
+                     && invoice.Parent?.SubscriptionDetails?.SubscriptionId is { Length: > 0 } subscriptionId:
+                await dispatcher.Send(new GrantSubscriptionCreditsCommand(subscriptionId, invoice.Id), ct);
+                break;
+
+            default:
+                if (TryExtractTopUp(stripeEvent, out var userId, out var amount, out var bucketExpiryDays))
+                {
+                    await dispatcher.Send(
+                        new CreditTopUpCommand(userId, amount, bucketExpiryDays, command.StripeEventId), ct);
+                }
+
+                break;
         }
 
         record.ProcessedAt = clock.UtcNow;
-        await db.SaveChangesAsync(ct);
+        // Commits the ProcessedAt stamp AND any queued saga message in ONE transaction.
+        await outbox.SaveChangesAndFlushMessagesAsync();
         return Unit.Value;
+    }
+
+    private async Task PublishPurchaseConfirmed(
+        global::Stripe.Checkout.Session session, string stripeEventId, CancellationToken ct)
+    {
+        var metadata = session.Metadata;
+        if (!metadata.TryGetValue("purchase_id", out var rawPurchaseId)
+            || !Guid.TryParse(rawPurchaseId, out var purchaseId)
+            || !metadata.TryGetValue("user_id", out var rawUserId)
+            || !Guid.TryParse(rawUserId, out var userId)
+            || !metadata.TryGetValue("credit_amount", out var rawAmount)
+            || !long.TryParse(rawAmount, NumberStyles.Integer, CultureInfo.InvariantCulture, out var amount)
+            || amount <= 0)
+        {
+            return; // Malformed metadata — not ours to grant; the reconciliation job surfaces unprocessed drift.
+        }
+
+        int? expiryDays = null;
+        if (metadata.TryGetValue("bucket_expiry_days", out var rawExpiry)
+            && int.TryParse(rawExpiry, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            && parsed > 0)
+        {
+            expiryDays = parsed;
+        }
+
+        await outbox.PublishAsync(new CreditPurchaseConfirmed(purchaseId, userId, amount, expiryDays, stripeEventId));
     }
 
     private static bool TryExtractTopUp(Event stripeEvent, out Guid userId, out long amount, out int? bucketExpiryDays)

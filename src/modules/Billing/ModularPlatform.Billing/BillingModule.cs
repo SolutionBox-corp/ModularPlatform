@@ -4,15 +4,27 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ModularPlatform.Abstractions;
+using ModularPlatform.Billing.Features.Coupons.ValidatePromoCode;
 using ModularPlatform.Billing.Features.Credits.ConfirmSpend;
 using ModularPlatform.Billing.Features.Credits.CreditTopUp;
 using ModularPlatform.Billing.Features.Credits.GetCreditBalance;
 using ModularPlatform.Billing.Features.Credits.ReleaseHold;
 using ModularPlatform.Billing.Features.Credits.ReserveCredits;
+using ModularPlatform.Billing.Features.Packages.CreateCreditPackage;
+using ModularPlatform.Billing.Features.Packages.ListCreditPackages;
+using ModularPlatform.Billing.Features.Packages.PurchaseCreditPackage;
+using ModularPlatform.Billing.Features.Packages.UpdateCreditPackage;
+using ModularPlatform.Billing.Features.Purchases.GetCreditPurchase;
 using ModularPlatform.Billing.Features.Stripe.StripeWebhook;
+using ModularPlatform.Billing.Features.Subscriptions.CancelSubscription;
+using ModularPlatform.Billing.Features.Subscriptions.CreateSubscriptionCheckout;
+using ModularPlatform.Billing.Features.Subscriptions.GetMySubscription;
+using ModularPlatform.Billing.Features.Subscriptions.GetSubscriptionPlans;
 using ModularPlatform.Billing.Gdpr;
 using ModularPlatform.Billing.Persistence;
+using ModularPlatform.Billing.Sagas;
 using ModularPlatform.Billing.Security;
+using ModularPlatform.Billing.Stripe;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Messaging;
 using ModularPlatform.Persistence;
@@ -45,6 +57,19 @@ public sealed class BillingModule : IModule
         services.AddModuleReadDbContext<BillingDbContext>(read);
 
         services.Configure<StripeOptions>(configuration.GetSection(StripeOptions.SectionName));
+        services.Configure<SubscriptionOptions>(configuration.GetSection(SubscriptionOptions.SectionName));
+
+        // The ONE Stripe seam. The in-memory fake (test harness only) makes the full worker path —
+        // ledger top-up, ProcessedAt, saga transitions — assertable without the network.
+        if (configuration.GetValue<bool>($"{StripeOptions.SectionName}:UseFakeGateway"))
+        {
+            services.AddSingleton<FakeStripeGateway>();
+            services.AddSingleton<IStripeGateway>(sp => sp.GetRequiredService<FakeStripeGateway>());
+        }
+        else
+        {
+            services.AddSingleton<IStripeGateway, StripeGateway>();
+        }
 
         services.AddScoped<IExportPersonalData, BillingPersonalDataExporter>();
         services.AddScoped<IErasePersonalData, BillingPersonalDataEraser>();
@@ -58,6 +83,16 @@ public sealed class BillingModule : IModule
         endpoints.MapConfirmSpend();
         endpoints.MapReleaseHold();
         endpoints.MapStripeWebhook();
+        endpoints.MapListCreditPackages();
+        endpoints.MapPurchaseCreditPackage();
+        endpoints.MapGetCreditPurchase();
+        endpoints.MapCreateCreditPackage();
+        endpoints.MapUpdateCreditPackage();
+        endpoints.MapGetSubscriptionPlans();
+        endpoints.MapCreateSubscriptionCheckout();
+        endpoints.MapGetMySubscription();
+        endpoints.MapCancelSubscription();
+        endpoints.MapValidatePromoCode();
     }
 
     public void ConfigureMessaging(WolverineOptions options)
@@ -66,6 +101,8 @@ public sealed class BillingModule : IModule
         // reliable for module assemblies). Billing publishes CreditsToppedUp / CreditsSpent via the outbox.
         options.Discovery.IncludeType<Messaging.ProvisionCreditAccountHandler>();
         options.Discovery.IncludeType<Messaging.ProcessStripeEventHandler>();
+        // The canonical platform saga (EF-persisted in this module's DbContext, runs in the Worker).
+        options.Discovery.IncludeType<CreditPurchaseSaga>();
     }
 
     public void RegisterJobs(IServiceCollectionQuartzConfigurator quartz, IConfiguration configuration)

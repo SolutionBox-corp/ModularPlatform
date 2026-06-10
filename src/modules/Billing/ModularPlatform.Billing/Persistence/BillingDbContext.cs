@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Billing.Entities;
+using ModularPlatform.Billing.Sagas;
 using ModularPlatform.Persistence;
 
 namespace ModularPlatform.Billing.Persistence;
@@ -9,16 +10,23 @@ namespace ModularPlatform.Billing.Persistence;
 /// Billing module's DbContext. Entity configs are discovered from this assembly; xmin concurrency,
 /// tenant filter and the per-module audit table are applied by the base. The ledger tables are
 /// append-only at the application level (entries/holds are never UPDATE/DELETEd except hold status).
+/// The TYPE is public ONLY because Wolverine's generated saga handlers (external codegen assembly) must
+/// resolve it for EF saga persistence — same precedent as public handler shells. The DbSets stay internal:
+/// no other module can touch Billing data (entities are internal; ArchUnitNET enforces no Core references).
 /// </summary>
-internal sealed class BillingDbContext(DbContextOptions<BillingDbContext> options, ITenantContext tenant)
+public sealed class BillingDbContext(DbContextOptions<BillingDbContext> options, ITenantContext tenant)
     : PlatformDbContext(options, tenant)
 {
     public override string ModuleName => "billing";
 
-    public DbSet<CreditAccount> CreditAccounts => Set<CreditAccount>();
-    public DbSet<CreditEntry> CreditEntries => Set<CreditEntry>();
-    public DbSet<CreditBucket> CreditBuckets => Set<CreditBucket>();
-    public DbSet<CreditHold> CreditHolds => Set<CreditHold>();
-    public DbSet<StripeEvent> StripeEvents => Set<StripeEvent>();
-    public DbSet<CreditPackage> CreditPackages => Set<CreditPackage>();
+    internal DbSet<CreditAccount> CreditAccounts => Set<CreditAccount>();
+    internal DbSet<CreditEntry> CreditEntries => Set<CreditEntry>();
+    internal DbSet<CreditBucket> CreditBuckets => Set<CreditBucket>();
+    internal DbSet<CreditHold> CreditHolds => Set<CreditHold>();
+    internal DbSet<StripeEvent> StripeEvents => Set<StripeEvent>();
+    internal DbSet<CreditPackage> CreditPackages => Set<CreditPackage>();
+    internal DbSet<Subscription> Subscriptions => Set<Subscription>();
+
+    /// <summary>Wolverine saga state — doubles as the user-facing purchase record (never MarkCompleted).</summary>
+    internal DbSet<CreditPurchaseSaga> CreditPurchaseSagas => Set<CreditPurchaseSaga>();
 }

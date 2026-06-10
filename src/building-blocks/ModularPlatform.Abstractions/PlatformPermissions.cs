@@ -22,6 +22,9 @@ public static class PlatformPermissions
     /// <summary>Read a user's audit trail with personal-data values decrypted (admin forensics, until erasure).</summary>
     public const string AuditRead = "audit.read";
 
+    /// <summary>Manage the Billing catalogue (credit packages) — admin commerce operations.</summary>
+    public const string BillingManage = "billing.manage";
+
     /// <summary>Every declared permission, discovered by reflection over the public string consts above.</summary>
     public static IReadOnlyList<string> All { get; } = typeof(PlatformPermissions)
         .GetFields(BindingFlags.Public | BindingFlags.Static)

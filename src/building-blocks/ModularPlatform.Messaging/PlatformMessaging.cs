@@ -1,6 +1,7 @@
 using JasperFx.CodeGeneration.Model;
 using ModularPlatform.Abstractions;
 using Wolverine;
+using Wolverine.EntityFrameworkCore;
 using Wolverine.ErrorHandling;
 using Wolverine.Postgresql;
 
@@ -30,6 +31,11 @@ public static class PlatformMessaging
         // Durable transactional inbox/outbox on Postgres — no extra broker infra to start.
         // Swap to RabbitMQ here (one line) when a module is extracted to its own service.
         options.PersistMessagesWithPostgresql(postgresConnectionString);
+
+        // EF Core saga persistence + transactional middleware: a Saga type mapped in a module DbContext
+        // (registered via AddModuleDbContext → AddDbContextWithWolverineIntegration) is stored through EF.
+        // Canonical saga: Billing's CreditPurchaseSaga.
+        options.UseEntityFrameworkCoreTransactions();
 
         // Our message handlers intentionally resolve a scoped service (IDispatcher) to dispatch internal commands.
         // Wolverine 6 makes ServiceLocationPolicy.NotAllowed the default, which SILENTLY skips generating such a

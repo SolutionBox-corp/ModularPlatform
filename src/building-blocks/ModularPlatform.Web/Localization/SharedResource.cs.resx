@@ -69,4 +69,23 @@
   <data name="file.content_type.not_allowed" xml:space="preserve"><value>Tento typ souboru není povolen.</value></data>
   <data name="file.name.required" xml:space="preserve"><value>Název souboru je povinný.</value></data>
   <data name="file.name.too_long" xml:space="preserve"><value>Název souboru je příliš dlouhý.</value></data>
+
+  <!-- Billing commerce (packages, subscriptions, coupons, Stripe) -->
+  <data name="billing.stripe.not_configured" xml:space="preserve"><value>Stripe není nakonfigurován.</value></data>
+  <data name="billing.package_not_found" xml:space="preserve"><value>Kreditový balíček nenalezen.</value></data>
+  <data name="billing.package_inactive" xml:space="preserve"><value>Kreditový balíček není v prodeji.</value></data>
+  <data name="billing.package.price_not_configured" xml:space="preserve"><value>Balíček nemá nastavenou Stripe cenu.</value></data>
+  <data name="billing.package.name.required" xml:space="preserve"><value>Název balíčku je povinný.</value></data>
+  <data name="billing.package.name.too_long" xml:space="preserve"><value>Název balíčku je příliš dlouhý.</value></data>
+  <data name="billing.package.credit_amount.must_be_positive" xml:space="preserve"><value>Počet kreditů musí být kladný.</value></data>
+  <data name="billing.package.price.must_not_be_negative" xml:space="preserve"><value>Cena nesmí být záporná.</value></data>
+  <data name="billing.package.bucket_expiry.must_be_positive" xml:space="preserve"><value>Expirace kreditů musí být kladná.</value></data>
+  <data name="billing.package.stripe_price.too_long" xml:space="preserve"><value>Stripe price id je příliš dlouhé.</value></data>
+  <data name="billing.purchase_not_found" xml:space="preserve"><value>Nákup nenalezen.</value></data>
+  <data name="billing.coupon.invalid" xml:space="preserve"><value>Neznámý nebo neaktivní slevový kód.</value></data>
+  <data name="billing.subscription.plan_not_found" xml:space="preserve"><value>Neznámý předplatitelský plán.</value></data>
+  <data name="billing.subscription.already_active" xml:space="preserve"><value>Uživatel už má aktivní předplatné.</value></data>
+  <data name="billing.subscription.not_found" xml:space="preserve"><value>Žádné aktivní předplatné.</value></data>
+  <data name="billing.subscription.plan_key.required" xml:space="preserve"><value>Klíč plánu je povinný.</value></data>
+  <data name="billing.subscription.plan_key.too_long" xml:space="preserve"><value>Klíč plánu je příliš dlouhý.</value></data>
 </root>

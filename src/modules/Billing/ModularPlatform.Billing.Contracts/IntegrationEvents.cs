@@ -27,3 +27,30 @@ public sealed record CreditsSpentIntegrationEvent(
     Guid ReservationId,
     long Amount,
     long NewPosted) : IIntegrationEvent;
+
+/// <summary>
+/// Published when a credit-package purchase completes end-to-end (Stripe Checkout confirmed, credits granted
+/// by the purchase saga). Consumers: Notifications (purchase receipt), analytics.
+/// </summary>
+public sealed record CreditPurchaseCompletedIntegrationEvent(
+    Guid EventId,
+    DateTimeOffset OccurredAt,
+    Guid UserId,
+    Guid PurchaseId,
+    Guid PackageId,
+    long CreditAmount) : IIntegrationEvent;
+
+/// <summary>Published when a Stripe subscription reaches Active locally (first activation or recovery).</summary>
+public sealed record SubscriptionActivatedIntegrationEvent(
+    Guid EventId,
+    DateTimeOffset OccurredAt,
+    Guid UserId,
+    string PlanKey,
+    DateTimeOffset? CurrentPeriodEnd) : IIntegrationEvent;
+
+/// <summary>Published when a Stripe subscription ends (canceled in Stripe, mirrored locally).</summary>
+public sealed record SubscriptionCanceledIntegrationEvent(
+    Guid EventId,
+    DateTimeOffset OccurredAt,
+    Guid UserId,
+    string PlanKey) : IIntegrationEvent;
