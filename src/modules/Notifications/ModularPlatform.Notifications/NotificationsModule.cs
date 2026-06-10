@@ -11,6 +11,7 @@ using ModularPlatform.Notifications.Features.Notifications.MarkNotificationRead;
 using ModularPlatform.Notifications.Features.Notifications.SendNotification;
 using ModularPlatform.Notifications.Gdpr;
 using ModularPlatform.Notifications.Persistence;
+using ModularPlatform.Notifications.Seeding;
 using ModularPlatform.Messaging;
 using ModularPlatform.Persistence;
 using ModularPlatform.Persistence.Rls;
@@ -45,6 +46,8 @@ public sealed class NotificationsModule : IModule
 
         services.AddScoped<IExportPersonalData, NotificationsPersonalDataExporter>();
         services.AddScoped<IErasePersonalData, NotificationsPersonalDataEraser>();
+
+        services.AddHostedService<NotificationsSeeder>();
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
@@ -58,6 +61,7 @@ public sealed class NotificationsModule : IModule
     {
         // Register this module's message handlers explicitly (cross-assembly conventional discovery is unreliable).
         options.Discovery.IncludeType<Messaging.SendWelcomeHandler>();
+        options.Discovery.IncludeType<Messaging.SendPurchaseCompletedHandler>();
         options.Discovery.IncludeType<Messaging.EmailDeliveryHandler>();
         options.Discovery.IncludeType<Messaging.PushDeliveryHandler>();
     }

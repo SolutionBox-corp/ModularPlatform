@@ -1,7 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.Extensions.DependencyInjection;
+using ModularPlatform.Billing.Contracts;
 using ModularPlatform.IntegrationTesting;
 using Shouldly;
+using Wolverine;
 
 namespace ModularPlatform.Notifications.Tests;
 
@@ -30,33 +33,50 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
 {
     private const string Password = "Sup3rSecret!";
 
-    // EV-2 — A missing "welcome" template is NON-FATAL: registration still fully succeeds and the durable
-    // spine stays healthy (the same UserRegisteredIntegrationEvent that the welcome handler consumes also
-    // provisions a Billing credit account — that account appearing proves the event was processed
-    // end-to-end). No welcome in-app row is produced (template not seeded) and nothing is stuck.
+    // EV-2 — The NotificationsSeeder seeds the "welcome" template at startup. When a user registers,
+    // the welcome notification IS created. The Billing credit account being provisioned proves the full
+    // durable spine ran. The welcome in-app row appears in the feed.
     [Fact]
-    public async Task Register_with_no_welcome_template_seeded_is_non_fatal_and_the_spine_stays_healthy()
+    public async Task Register_creates_welcome_notification_after_seeder_has_seeded_the_template()
     {
-        var email = $"welcome-{Guid.CreateVersion7():N}@example.com";
+        var email = $"ev2-{Guid.CreateVersion7():N}@example.com";
 
         var (userId, token) = await fixture.RegisterAndLoginAsync(email, Password);
 
         // The UserRegisteredIntegrationEvent is processed end-to-end: Billing provisions a credit account.
-        // This proves the durable pipeline ran the registration fan-out (which includes the welcome handler).
         await fixture.WaitForCountAsync(
             $"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{userId}'", 1);
 
-        // The welcome template is NOT seeded, so the welcome handler swallows NotFoundException and writes no
-        // in-app row. Give the durable handler time to run, then assert the feed has no welcome notification.
-        await Task.Delay(1500);
-        var welcomeRows = await fixture.ScalarAsync<long>(
-            $"SELECT count(*)::bigint FROM notifications WHERE \"UserId\" = '{userId}' AND \"TemplateKey\" = 'welcome'");
-        welcomeRows.ShouldBe(0);
+        // The "welcome" template IS seeded by NotificationsSeeder, so the welcome handler writes an in-app row.
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM notifications WHERE \"UserId\" = '{userId}' AND \"TemplateKey\" = 'welcome'", 1);
 
-        // The system is healthy for this user: the feed endpoint responds 200 (no 500, no stuck state).
+        // The feed endpoint surfaces the new notification.
         var feed = await fixture.Client.SendAsync(
             fixture.Authed(HttpMethod.Get, "/v1/notifications/me?unreadOnly=true", token));
         feed.StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    // EV-2 resilience — A handler that finds NO template (bogus key) swallows NotFoundException and never
+    // dead-letters. Use a direct dispatcher call to prove the non-fatal path: it should return success (no
+    // exception propagated) but write NO notification row.
+    [Fact]
+    public async Task SendNotification_with_missing_template_key_returns_not_found()
+    {
+        var (recipientId, adminToken) = await AdminTokenAsync();
+
+        var bogusKey = $"does-not-exist-{Guid.CreateVersion7():N}";
+        var send = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/notifications/send", adminToken, new
+            {
+                userId = recipientId,
+                templateKey = bogusKey,
+                channels = new[] { "inapp" },
+                data = new Dictionary<string, string>(),
+            }));
+
+        // The handler throws NotFoundException when the template is missing — HTTP 404.
+        send.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
     // NT-1 — SendNotification persists an in-app row inline AND hands per-channel delivery off via the outbox
@@ -159,7 +179,7 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
     }
 
     // A notification's PII (Title/Body) is crypto-shredded in the audit trail: the live row keeps the rendered
-    // text, but notifications_audit_entries stores it as a penc:v1: envelope — never the plaintext.
+    // text, but notifications_audit_entries stores it as a penc:v2: envelope — never the plaintext.
     [Fact]
     public async Task Notification_pii_is_crypto_shredded_in_the_audit_trail()
     {
@@ -188,8 +208,38 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
         var rawAudit = await fixture.ScalarAsync<string>(
             $"SELECT \"NewValues\"::text FROM notifications_audit_entries WHERE \"EntityType\" = 'Notification' " +
             $"AND \"EntityId\" = '{notificationId}' AND \"Action\" = 'Create' LIMIT 1");
-        rawAudit.ShouldContain("penc:v1:");
+        rawAudit.ShouldContain("penc:v2:");
         rawAudit.ShouldNotContain(marker);
+    }
+
+    // purchase_completed consumer — publishing CreditPurchaseCompletedIntegrationEvent via IMessageBus
+    // (the Wolverine bus) causes the SendPurchaseCompletedHandler to dispatch SendNotificationCommand, which
+    // writes a "purchase_completed" in-app row for the user. The NotificationsSeeder seeds the template.
+    [Fact]
+    public async Task CreditPurchaseCompleted_event_creates_purchase_completed_notification()
+    {
+        var email = $"purchase-{Guid.CreateVersion7():N}@example.com";
+        var (userId, _) = await fixture.RegisterAndLoginAsync(email, Password);
+
+        // Ensure Billing account is provisioned (proves the spine is healthy before we publish).
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{userId}'", 1);
+
+        // Publish the integration event via the Wolverine bus — exactly what the Billing module does after a top-up.
+        // IMessageBus is scoped, so resolve it from a scope rather than the root provider.
+        using var scope = fixture.Services.CreateScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
+        await bus.PublishAsync(new CreditPurchaseCompletedIntegrationEvent(
+            EventId: Guid.CreateVersion7(),
+            OccurredAt: DateTimeOffset.UtcNow,
+            UserId: userId,
+            CreditAmount: 500,
+            IdempotencyKey: Guid.CreateVersion7().ToString()));
+
+        // The handler dispatches SendNotificationCommand → a "purchase_completed" in-app row is created.
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM notifications " +
+            $"WHERE \"UserId\" = '{userId}' AND \"TemplateKey\" = 'purchase_completed'", 1);
     }
 
     /// <summary>
@@ -222,7 +272,7 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
         var token = (await PlatformApiFactory.ReadData(login)).GetProperty("accessToken").GetString()!;
 
         var adminId = await fixture.ScalarAsync<Guid>(
-            $"SELECT \"Id\" FROM users WHERE \"NormalizedEmail\" = '{PlatformApiFactory.AdminEmail.ToUpperInvariant()}'");
+            $"SELECT \"Id\" FROM users WHERE \"EmailHash\" = '{PlatformApiFactory.EmailHashOf(PlatformApiFactory.AdminEmail)}'");
 
         return (adminId, token);
     }

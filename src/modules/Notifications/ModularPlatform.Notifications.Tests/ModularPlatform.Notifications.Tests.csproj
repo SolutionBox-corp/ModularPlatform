@@ -23,7 +23,12 @@
   <ItemGroup>
     <ProjectReference Include="..\ModularPlatform.Notifications\ModularPlatform.Notifications.csproj" />
     <ProjectReference Include="..\ModularPlatform.Notifications.Contracts\ModularPlatform.Notifications.Contracts.csproj" />
+    <ProjectReference Include="..\..\Billing\ModularPlatform.Billing.Contracts\ModularPlatform.Billing.Contracts.csproj" />
     <ProjectReference Include="..\..\..\..\tests\ModularPlatform.IntegrationTesting\ModularPlatform.IntegrationTesting.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WolverineFx" />
   </ItemGroup>
 
 </Project>
