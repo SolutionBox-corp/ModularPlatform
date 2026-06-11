@@ -17,6 +17,19 @@ Last-Event-ID) — **NOT SignalR/WebSocket**, 429 + `Retry-After`.
 3. **The 4 cross-cutting seams** (§1-4) — BEFORE any feature.
 4. Feature pages via the **frontend-feature-slice** skill, data through the seams only.
 
+## §0 Multi-tenancy (subdomain-per-tenant) — ONE app, host-based routing
+Full design: `docs/multitenancy-and-infra.md`. Tenant = a CUSTOMER at `{tenant}.nasedomena.cz`; `admin.` = the
+platform-admin app (provisions tenants, toggles each tenant's modules); apex = landing. **ONE Next.js app** (not three).
+- **`proxy.ts`** (Next 16 rename of `middleware.ts`): resolve `host` → rewrite to a route group `(marketing)` / `(admin)`
+  / `(tenant)`; inject a **server-trusted `x-tenant`** header (strip any inbound client `x-tenant` first). Tenant identity
+  is SOLELY the subdomain, never path/body (IDOR parity with backend Law 10).
+- **Host-only session cookie** (httpOnly Secure SameSite=Lax, **NO `Domain` attribute** → bound to the exact subdomain;
+  NEVER `Domain=.nasedomena.cz` = cross-tenant bleed). Runtime per-subdomain domain ⇒ not NextAuth.
+- **Entitlement-driven nav (single source):** fetch `GET /v1/tenant/me/entitlements` once → TanStack key
+  `['entitlements', tenant]` → drives ALL nav + route guards. The FE never hardcodes the module list (modules are
+  per-tenant DATA, toggled by the platform-admin); a disabled module's route 404s/redirects (the backend guard enforces).
+- Reserved slugs (`admin`/`www`/`api`) are not tenants. Dev hosts: `*.lvh.me` / `*.localhost`, `ROOT_DOMAIN=lvh.me:3000`.
+
 ## Stack (frozen)
 Next 15 (RSC default) · @tanstack/react-query v5 (≥5.40) · one typed `apiFetch` (no axios) · `iron-session` BFF +
 httpOnly refresh cookie · zod + react-hook-form · **shadcn/ui (owned, copy-in) + Radix + Tailwind v4** · realtime via

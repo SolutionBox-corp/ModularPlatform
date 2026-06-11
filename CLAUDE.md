@@ -332,14 +332,12 @@ dispatches an internal command. Proven end-to-end by `CrossModuleEventTests`.
 
 ## 10. NOT YET SOLVED — there is NO pattern; ASK before inventing
 
-The full intended scope from the architecture plan is now BUILT (see `docs/ROADMAP.md`): the everyday slice,
-Stripe commerce (packages/subscriptions/coupons/Tax), the canonical saga, reconciliation + messaging-health +
-retention jobs, PII-at-rest column encryption with blind-index lookups, and the realtime replay buffer are all
-SOLVED with canonical examples (§4). The concerns below still have **no canonical example** — if a task needs
-one, **stop and ask the user for the decision** (Law 11):
+The full planned scope is BUILT (`docs/ROADMAP.md`; §4 has the canonical examples). The concerns below have
+**no canonical example** — if a task needs one, **stop and ask the user for the decision** (Law 11):
 
 | Concern | State | Decision needed |
 |---|---|---|
+| **B2B subdomain multi-tenancy + per-tenant module entitlements + provisioning** | **DESIGNED, not built** — see `docs/multitenancy-and-infra.md` (subdomain tenant + `admin.` platform-admin; `tenant_entitlements`+`ModuleEntitlementGuard`→404; Caddy wildcard DNS-01; pool→silo via placement-driven connection; Pulumi for separation). Today = per-user RLS + per-tenant filter (intra-tenant) | follow the doc; don't invent a parallel flow |
 | **Search**, **feature flags**, **bulk ops** | none | per need |
 | **KEK/KMS envelope-wrapping of DEKs** | dev stores raw DEK in `subject_keys` | KMS choice before GA |
 | **LemonSqueezy (second payment provider)** | `IStripeGateway` is the shape a provider port would mirror | only if a deployment needs it |
