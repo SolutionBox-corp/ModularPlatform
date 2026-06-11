@@ -1,28 +1,28 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Configuration;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Billing.Persistence;
 using ModularPlatform.Billing.Sagas;
-using ModularPlatform.Billing.Security;
-using ModularPlatform.Billing.Stripe;
 using ModularPlatform.Cqrs;
+using ModularPlatform.Payments;
 using Wolverine.EntityFrameworkCore;
 
 namespace ModularPlatform.Billing.Features.Packages.PurchaseCreditPackage;
 
 /// <summary>
-/// Accept step of the package purchase: creates the Stripe Checkout session and outboxes
-/// <see cref="CreditPurchaseStarted"/> — the Worker materializes the <see cref="CreditPurchaseSaga"/>, which
-/// owns the rest (confirm → grant → completion event, or abandon timeout). Credits are granted ONLY by the
-/// saga through the idempotent top-up; this handler never touches the ledger. Metadata on the session is the
-/// single source the webhook router needs (<c>purchase_type=package</c> + the full grant payload).
+/// Accept step of the package purchase: creates a checkout on the TENANT's OWN gateway (resolved per tenant via
+/// <see cref="IPaymentGatewayResolver"/>) and outboxes <see cref="CreditPurchaseStarted"/> — the Worker materializes
+/// the <see cref="CreditPurchaseSaga"/>, which owns the rest (confirm → grant → completion, or abandon timeout).
+/// Credits are granted ONLY by the saga through the idempotent top-up; this handler never touches the ledger. The
+/// checkout metadata (<c>purchase_type=package</c> + the full grant payload + <c>tenant_id</c>) is the single source
+/// the per-tenant webhook needs to confirm and to resolve the SYSTEM-context tenant at grant time.
 /// </summary>
 internal sealed class PurchaseCreditPackageHandler(
     IDbContextOutbox<BillingDbContext> outbox,
-    IStripeGateway gateway,
+    IPaymentGatewayResolver gatewayResolver,
     ITenantContext tenant,
-    IOptions<StripeOptions> stripeOptions)
+    IConfiguration configuration)
     : ICommandHandler<PurchaseCreditPackageCommand, PurchaseCreditPackageResponse>
 {
     public async Task<PurchaseCreditPackageResponse> Handle(
@@ -30,9 +30,11 @@ internal sealed class PurchaseCreditPackageHandler(
     {
         var db = outbox.DbContext;
 
+        var callerTenantId = tenant.TenantId
+            ?? throw new UnauthorizedException("auth.required", "Authentication required.");
+
         // A buyer may only purchase a package in its OWN tenant's catalogue (or a platform-global one) — another
         // tenant's package is a 404 (no existence leak), the per-tenant catalogue boundary.
-        var callerTenantId = tenant.TenantId;
         var package = await db.CreditPackages.AsNoTracking()
             .FirstOrDefaultAsync(p => p.Id == command.PackageId && (p.TenantId == callerTenantId || p.TenantId == null), ct)
             ?? throw new NotFoundException("billing.package_not_found", "Credit package not found.");
@@ -42,14 +44,7 @@ internal sealed class PurchaseCreditPackageHandler(
             throw new BusinessRuleException("billing.package_inactive", "The credit package is not for sale.");
         }
 
-        if (string.IsNullOrWhiteSpace(package.StripePriceId))
-        {
-            throw new BusinessRuleException(
-                "billing.package.price_not_configured", "The package has no Stripe price configured.");
-        }
-
         var purchaseId = Guid.CreateVersion7();
-        var stripe = stripeOptions.Value;
 
         var metadata = new Dictionary<string, string>
         {
@@ -58,38 +53,44 @@ internal sealed class PurchaseCreditPackageHandler(
             ["user_id"] = command.UserId.ToString(),
             ["package_id"] = package.Id.ToString(),
             ["credit_amount"] = package.CreditAmount.ToString(CultureInfo.InvariantCulture),
+            ["tenant_id"] = callerTenantId.ToString(),
         };
-        // Stamp the caller's tenant so the SYSTEM Worker can resolve it from the session metadata at grant time.
-        if (tenant.TenantId is { } tenantId)
-        {
-            metadata["tenant_id"] = tenantId.ToString();
-        }
         if (package.BucketExpiryDays is { } expiry)
         {
             metadata["bucket_expiry_days"] = expiry.ToString(CultureInfo.InvariantCulture);
         }
 
-        var session = await gateway.CreateCheckoutSessionAsync(new CheckoutSessionSpec(
-            Mode: "payment",
-            PriceId: package.StripePriceId,
-            ClientReferenceId: purchaseId.ToString(),
+        IPaymentGateway gateway;
+        try
+        {
+            gateway = await gatewayResolver.ResolveAsync(callerTenantId, PaymentPlane.Tenant, ct);
+        }
+        catch (PaymentGatewayUnavailableException ex)
+        {
+            throw new BusinessRuleException(ex.ErrorCode, ex.Message);
+        }
+
+        var checkout = await gateway.CreateCheckoutAsync(new CheckoutRequest(
+            ReferenceId: purchaseId.ToString(),
+            AmountMinorUnits: (long)Math.Round(package.Price * 100m, MidpointRounding.AwayFromZero),
+            Currency: package.Currency,
+            Mode: CheckoutMode.Payment,
+            Description: package.Name,
             Metadata: metadata,
-            AutomaticTax: stripe.AutomaticTax,
-            AllowPromotionCodes: stripe.AllowPromotionCodes,
-            SuccessUrl: stripe.SuccessUrl,
-            CancelUrl: stripe.CancelUrl), ct);
+            SuccessUrl: configuration["Billing:Payments:SuccessUrl"] ?? "https://app/billing/success",
+            CancelUrl: configuration["Billing:Payments:CancelUrl"] ?? "https://app/billing/cancel"), ct);
 
         await outbox.PublishAsync(new CreditPurchaseStarted(
             Id: purchaseId,
             UserId: command.UserId,
             PackageId: package.Id,
-            CheckoutSessionId: session.SessionId,
+            CheckoutSessionId: checkout.ProviderPaymentId,
             CreditAmount: package.CreditAmount,
             BucketExpiryDays: package.BucketExpiryDays,
-            TimeoutMinutes: stripe.CheckoutTimeoutMinutes));
+            TimeoutMinutes: configuration.GetValue("Billing:Payments:CheckoutTimeoutMinutes", 120)));
 
         await outbox.SaveChangesAndFlushMessagesAsync();
 
-        return new PurchaseCreditPackageResponse(purchaseId, session.SessionId, session.Url);
+        return new PurchaseCreditPackageResponse(purchaseId, checkout.ProviderPaymentId, checkout.RedirectUrl);
     }
 }

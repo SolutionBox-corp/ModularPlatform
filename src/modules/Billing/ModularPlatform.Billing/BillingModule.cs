@@ -22,6 +22,7 @@ using ModularPlatform.Billing.Features.Packages.PurchaseCreditPackage;
 using ModularPlatform.Billing.Features.Packages.UpdateCreditPackage;
 using ModularPlatform.Billing.Features.Purchases.GetCreditPurchase;
 using ModularPlatform.Billing.Features.Stripe.StripeWebhook;
+using ModularPlatform.Billing.Features.Stripe.TenantWebhook;
 using ModularPlatform.Billing.Features.Subscriptions.CancelSubscription;
 using ModularPlatform.Billing.Features.Subscriptions.CreateSubscriptionCheckout;
 using ModularPlatform.Billing.Features.Subscriptions.GetMySubscription;
@@ -106,6 +107,7 @@ public sealed class BillingModule : IModule
         endpoints.MapConfirmSpend();
         endpoints.MapReleaseHold();
         endpoints.MapStripeWebhook();
+        endpoints.MapTenantWebhook();
         endpoints.MapListCreditPackages();
         endpoints.MapPurchaseCreditPackage();
         endpoints.MapGetCreditPurchase();

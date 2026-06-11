@@ -5,6 +5,7 @@ using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 using ModularPlatform.Billing.Stripe;
 using ModularPlatform.IntegrationTesting;
+using ModularPlatform.Payments;
 using Shouldly;
 using Stripe;
 using Wolverine;
@@ -35,6 +36,22 @@ public sealed class BillingCommerceTests(PlatformApiFactory fixture)
 
     private FakeStripeGateway Fake => (FakeStripeGateway)fixture.Services.GetRequiredService<IStripeGateway>();
 
+    // The shared per-tenant fake gateway (the resolver hands this singleton out for a tenant whose provider is "fake").
+    private FakePaymentGateway FakePay => fixture.Services.GetRequiredService<FakePaymentGateway>();
+
+    /// <summary>Configures the admin's OWN tenant gateway to the in-memory fake (so its members' checkouts resolve it).</summary>
+    private async Task ConfigureAdminFakeGatewayAsync(string adminToken) =>
+        (await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Put, "/v1/billing/payment-gateway", adminToken,
+            new { provider = "fake", currency = "EUR", sandbox = false }))).EnsureSuccessStatusCode();
+
+    /// <summary>Marks the fake payment PAID and drives the per-tenant webhook (re-fetch model) that confirms the purchase.</summary>
+    private async Task<HttpResponseMessage> ConfirmPaidViaTenantWebhookAsync(Guid tenantId, string providerPaymentId)
+    {
+        FakePay.SetState(providerPaymentId, PaymentState.Paid);
+        return await fixture.Client.PostAsync($"/v1/billing/webhooks/fake/{tenantId}?id={providerPaymentId}", content: null);
+    }
+
     // ---------------------------------------------------------------------------------------------------
     // Package purchase e2e (the canonical saga happy path)
     // ---------------------------------------------------------------------------------------------------
@@ -43,54 +60,38 @@ public sealed class BillingCommerceTests(PlatformApiFactory fixture)
     public async Task Package_purchase_completes_end_to_end_via_checkout_webhook_and_saga()
     {
         var adminToken = await EnsureAdminAsync();
+        await ConfigureAdminFakeGatewayAsync(adminToken);
+        var tenantId = TenantOf(adminToken);
 
-        // Admin creates the catalogue entry (billing.manage).
+        // Admin creates the catalogue entry (billing.manage) in its OWN tenant.
         var create = await fixture.Client.SendAsync(fixture.Authed(
             HttpMethod.Post, "/v1/billing/admin/packages", adminToken,
             new { name = $"Starter {Guid.CreateVersion7():N}", creditAmount = 500, price = 9.99, active = true, stripePriceId = "price_test_starter" }));
         create.StatusCode.ShouldBe(HttpStatusCode.OK);
         var packageId = (await PlatformApiFactory.ReadData(create)).GetProperty("id").GetGuid();
 
-        // The buyer sees it in the catalogue.
+        // A member of the tenant sees it in the catalogue.
         var (_, userToken) = await RegisterBuyerInAdminTenantAsync(adminToken);
         var list = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Get, "/v1/billing/packages", userToken));
         list.StatusCode.ShouldBe(HttpStatusCode.OK);
         (await PlatformApiFactory.ReadData(list)).EnumerateArray()
             .Any(p => p.GetProperty("id").GetGuid() == packageId).ShouldBeTrue();
 
-        // Checkout: creates the Stripe session (fake) and outboxes CreditPurchaseStarted.
+        // Checkout on the TENANT's OWN gateway (resolved per tenant); outboxes CreditPurchaseStarted.
         var checkout = await fixture.Client.SendAsync(fixture.Authed(
             HttpMethod.Post, $"/v1/billing/packages/{packageId}/checkout", userToken));
         checkout.StatusCode.ShouldBe(HttpStatusCode.OK);
         var checkoutData = await PlatformApiFactory.ReadData(checkout);
         var purchaseId = checkoutData.GetProperty("purchaseId").GetGuid();
-        var sessionId = checkoutData.GetProperty("checkoutSessionId").GetString()!;
+        var providerPaymentId = checkoutData.GetProperty("checkoutSessionId").GetString()!;
         checkoutData.GetProperty("checkoutUrl").GetString().ShouldNotBeNullOrEmpty();
 
         // The Worker materializes the saga (Pending) from the outboxed start message.
         await fixture.WaitForCountAsync(
             $"SELECT count(*)::bigint FROM credit_purchase_sagas WHERE \"Id\" = '{purchaseId}'", 1);
 
-        // Stripe confirms the checkout: webhook (signed ingest) + the refetched event (the fake).
-        var spec = Fake.CreatedSessions.Single(s => s.Metadata.TryGetValue("purchase_id", out var id)
-            && id == purchaseId.ToString());
-        var eventId = $"evt_{Guid.CreateVersion7():N}";
-        Fake.SeedEvent(new Event
-        {
-            Id = eventId,
-            Type = "checkout.session.completed",
-            Data = new EventData
-            {
-                Object = new global::Stripe.Checkout.Session
-                {
-                    Id = sessionId,
-                    PaymentStatus = "paid",
-                    Metadata = spec.Metadata.ToDictionary(kv => kv.Key, kv => kv.Value),
-                },
-            },
-        });
-        (await PostSignedWebhookAsync(eventId, "checkout.session.completed")).StatusCode
-            .ShouldBe(HttpStatusCode.OK);
+        // The tenant's gateway reports PAID; the per-tenant webhook re-fetches the authoritative state and confirms.
+        (await ConfirmPaidViaTenantWebhookAsync(tenantId, providerPaymentId)).StatusCode.ShouldBe(HttpStatusCode.OK);
 
         // The saga granted through the ledger (idempotency key purchase:{id}) and completed.
         await fixture.WaitForCountAsync(
@@ -111,17 +112,13 @@ public sealed class BillingCommerceTests(PlatformApiFactory fixture)
     [Fact]
     public async Task Unpaid_checkout_session_does_not_grant_credits()
     {
-        var (purchaseId, sessionId, spec) = await StartPackageCheckoutAsync(400, "price_test_unpaid");
+        var (purchaseId, providerPaymentId, tenantId) = await StartPackageCheckoutAsync(400, "price_test_unpaid");
 
-        // Stripe fires checkout.session.completed for a DELAYED payment method (SEPA/bank transfer) while
-        // payment_status is still "unpaid" — funds are NOT captured yet. Credits must not be granted.
-        var eventId = await SeedCheckoutSessionEventAsync("checkout.session.completed", sessionId, "unpaid", spec);
-        (await PostSignedWebhookAsync(eventId, "checkout.session.completed")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        // A delayed payment method has not settled — the gateway still reports the payment as NOT paid. Drive the
+        // per-tenant webhook WITHOUT marking it paid: the re-fetch returns a non-paid state, so nothing is granted.
+        (await fixture.Client.PostAsync($"/v1/billing/webhooks/fake/{tenantId}?id={providerPaymentId}", content: null))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
 
-        // The event is processed (ProcessedAt stamped) ...
-        await fixture.WaitForCountAsync(
-            $"SELECT count(*)::bigint FROM stripe_events WHERE \"StripeEventId\" = '{eventId}' AND \"ProcessedAt\" IS NOT NULL", 1);
-        // ... but nothing is granted and the saga is NOT completed (it waits for the paid signal / abandons).
         await Task.Delay(750); // negative settle: a regression that grants on "unpaid" would land within this window
         (await fixture.ScalarAsync<long>(
             $"SELECT count(*)::bigint FROM credit_entries WHERE \"IdempotencyKey\" = 'purchase:{purchaseId}'")).ShouldBe(0);
@@ -132,11 +129,10 @@ public sealed class BillingCommerceTests(PlatformApiFactory fixture)
     [Fact]
     public async Task Async_payment_succeeded_grants_credits_on_settlement()
     {
-        var (purchaseId, sessionId, spec) = await StartPackageCheckoutAsync(350, "price_test_async");
+        var (purchaseId, providerPaymentId, tenantId) = await StartPackageCheckoutAsync(350, "price_test_async");
 
-        // Delayed payment method settles later: the authoritative paid signal is async_payment_succeeded.
-        var eventId = await SeedCheckoutSessionEventAsync("checkout.session.async_payment_succeeded", sessionId, "paid", spec);
-        (await PostSignedWebhookAsync(eventId, "checkout.session.async_payment_succeeded")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        // The delayed payment settles: the gateway now reports PAID and the per-tenant webhook confirms the grant.
+        (await ConfirmPaidViaTenantWebhookAsync(tenantId, providerPaymentId)).StatusCode.ShouldBe(HttpStatusCode.OK);
 
         await fixture.WaitForCountAsync(
             $"SELECT count(*)::bigint FROM credit_entries WHERE \"IdempotencyKey\" = 'purchase:{purchaseId}'", 1);
@@ -148,6 +144,7 @@ public sealed class BillingCommerceTests(PlatformApiFactory fixture)
     public async Task Saga_timeout_abandons_pending_purchase_and_late_confirmation_still_grants()
     {
         var adminToken = await EnsureAdminAsync();
+        await ConfigureAdminFakeGatewayAsync(adminToken);
         var create = await fixture.Client.SendAsync(fixture.Authed(
             HttpMethod.Post, "/v1/billing/admin/packages", adminToken,
             new { name = $"Slowpoke {Guid.CreateVersion7():N}", creditAmount = 250, price = 4.99, active = true, stripePriceId = "price_test_slow" }));
@@ -365,10 +362,13 @@ public sealed class BillingCommerceTests(PlatformApiFactory fixture)
 
     /// <summary>Admin creates a package, a fresh user checks out → returns the saga id, session id and the
     /// checkout session spec (carrying the purchase metadata) so a test can seed the confirming Stripe event.</summary>
-    private async Task<(Guid PurchaseId, string SessionId, CheckoutSessionSpec Spec)> StartPackageCheckoutAsync(
+    private async Task<(Guid PurchaseId, string ProviderPaymentId, Guid TenantId)> StartPackageCheckoutAsync(
         long creditAmount, string stripePriceId)
     {
         var adminToken = await EnsureAdminAsync();
+        await ConfigureAdminFakeGatewayAsync(adminToken);
+        var tenantId = TenantOf(adminToken);
+
         var create = await fixture.Client.SendAsync(fixture.Authed(
             HttpMethod.Post, "/v1/billing/admin/packages", adminToken,
             new { name = $"Pkg {Guid.CreateVersion7():N}", creditAmount, price = 9.99, active = true, stripePriceId }));
@@ -379,14 +379,12 @@ public sealed class BillingCommerceTests(PlatformApiFactory fixture)
             HttpMethod.Post, $"/v1/billing/packages/{packageId}/checkout", userToken));
         var checkoutData = await PlatformApiFactory.ReadData(checkout);
         var purchaseId = checkoutData.GetProperty("purchaseId").GetGuid();
-        var sessionId = checkoutData.GetProperty("checkoutSessionId").GetString()!;
+        var providerPaymentId = checkoutData.GetProperty("checkoutSessionId").GetString()!;
 
         await fixture.WaitForCountAsync(
             $"SELECT count(*)::bigint FROM credit_purchase_sagas WHERE \"Id\" = '{purchaseId}'", 1);
 
-        var spec = Fake.CreatedSessions.Single(s => s.Metadata.TryGetValue("purchase_id", out var id)
-            && id == purchaseId.ToString());
-        return (purchaseId, sessionId, spec);
+        return (purchaseId, providerPaymentId, tenantId);
     }
 
     private async Task<string> SeedCheckoutSessionEventAsync(

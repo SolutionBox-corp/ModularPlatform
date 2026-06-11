@@ -20,6 +20,10 @@ internal sealed class CreditPackage : AuditableEntity
     public string Name { get; set; } = string.Empty;
     public long CreditAmount { get; set; }
     public decimal Price { get; set; }
+
+    /// <summary>ISO-4217 currency the <see cref="Price"/> is charged in (the package is sold on the tenant's gateway).</summary>
+    public string Currency { get; set; } = "EUR";
+
     public int? BucketExpiryDays { get; set; }
     public bool Active { get; set; }
     public string? StripePriceId { get; set; }
@@ -34,6 +38,7 @@ internal sealed class CreditPackageConfiguration : IEntityTypeConfiguration<Cred
         builder.Property(p => p.Name).HasMaxLength(128).IsRequired();
         builder.Property(p => p.CreditAmount).IsRequired();
         builder.Property(p => p.Price).HasPrecision(18, 2).IsRequired();
+        builder.Property(p => p.Currency).HasMaxLength(3).IsRequired();
         builder.Property(p => p.BucketExpiryDays);
         builder.Property(p => p.Active).IsRequired();
         builder.Property(p => p.StripePriceId).HasMaxLength(256);
