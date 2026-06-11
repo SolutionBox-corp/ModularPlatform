@@ -12,6 +12,7 @@ using ModularPlatform.Tenancy.Features.Admin.GetPlatformBillingStatus;
 using ModularPlatform.Tenancy.Features.Admin.ProvisionTenant;
 using ModularPlatform.Tenancy.Features.Admin.SetEntitlement;
 using ModularPlatform.Tenancy.Features.Entitlements.GetMyEntitlements;
+using ModularPlatform.Tenancy.Features.PlatformBilling.CreatePlatformCheckout;
 using ModularPlatform.Tenancy.Persistence;
 using ModularPlatform.Tenancy.Services;
 using FluentValidation;
@@ -59,6 +60,7 @@ public sealed class TenancyModule : IModule
         endpoints.MapProvisionTenant();
         endpoints.MapSetEntitlement();
         endpoints.MapGetPlatformBillingStatus();
+        endpoints.MapCreatePlatformCheckout();
     }
 
     public void ConfigureMessaging(WolverineOptions options)
