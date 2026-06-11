@@ -36,14 +36,13 @@ internal sealed class RegisterUserHandler(
             throw new ConflictException("user.email_taken", "This email address is already registered.");
         }
 
-        // Registration runs anonymously (no tenant in context). The tenant REGISTRY is owned by the Tenancy module,
-        // so we provision through its port (a separate commit) and assign the user to the returned tenant explicitly
-        // — the TenantStampingInterceptor only fills tenant-scoped rows when a tenant is already in context.
-        // INTERIM: auto-provision one tenant per registration (preserving today's behavior). The B2B flow —
-        // register JOINS the existing tenant resolved from the subdomain — replaces this once the tenant-resolution
-        // middleware is wired. The tenant name is a neutral, non-PII identifier (email/display name are encrypted PII
-        // and must NOT leak into tenants.Name, which is plaintext at rest and outside the erasure flow).
-        var tenantId = await tenantProvisioning.CreateAsync($"tenant-{Guid.CreateVersion7():N}", subdomain: null, ct);
+        // Registration runs anonymously (no tenant in context). The tenant REGISTRY is owned by the Tenancy module.
+        // B2B: on a tenant subdomain the user JOINS that existing tenant (resolved server-side, passed as JoinTenantId).
+        // No subdomain (apex / localhost) ⇒ the self-serve "create workspace" flow provisions a NEW tenant via the port.
+        // Either way the user is assigned to the tenant EXPLICITLY (the interceptor only fills rows when a tenant is in
+        // context). A provisioned tenant's name is a neutral, non-PII identifier (email/display name are encrypted PII).
+        var tenantId = command.JoinTenantId
+            ?? await tenantProvisioning.CreateAsync($"tenant-{Guid.CreateVersion7():N}", subdomain: null, ct);
 
         var user = new User
         {

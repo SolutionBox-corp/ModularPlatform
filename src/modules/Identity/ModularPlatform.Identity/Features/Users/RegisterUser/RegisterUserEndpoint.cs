@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Web;
 
@@ -17,11 +18,15 @@ internal static class RegisterUserEndpoint
     {
         app.MapPost("/identity/users", async (
                 RegisterUserRequest request,
+                HttpContext http,
                 IDispatcher dispatcher,
                 CancellationToken ct) =>
             {
+                // B2B: on a tenant subdomain the user JOINS the server-resolved tenant (set by the tenant-resolution
+                // middleware). No subdomain (apex/localhost) ⇒ JoinTenantId null ⇒ the self-serve flow provisions one.
+                var joinTenantId = (http.Items["tenant"] as TenantInfo)?.Id;
                 var result = await dispatcher.Send(
-                    new RegisterUserCommand(request.Email, request.Password, request.DisplayName), ct);
+                    new RegisterUserCommand(request.Email, request.Password, request.DisplayName, joinTenantId), ct);
                 // 201 with NO Location: there is no GET /identity/users/{id} (a user reads their own profile via
                 // /me, never by id), so we must not fabricate a Location to a route that does not exist.
                 return Results.Created((string?)null, ApiResponse<RegisterUserResponse>.Ok(result));
