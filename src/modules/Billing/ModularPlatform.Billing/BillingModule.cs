@@ -84,6 +84,12 @@ public sealed class BillingModule : IModule
         // config store reads this module's payment_configurations + reveals tenant_secrets via ISecretProtector.
         services.AddPlatformSecrets(configuration);
         services.AddPlatformPayments();
+        if (configuration.GetValue<bool>($"{StripeOptions.SectionName}:UseFakeGateway"))
+        {
+            // A SHARED fake gateway (test harness) so a checkout created on one request is re-fetchable by the
+            // webhook on another — the resolver hands this singleton out for a tenant whose provider is "fake".
+            services.AddSingleton<ModularPlatform.Payments.FakePaymentGateway>();
+        }
         services.AddScoped<IPaymentConfigStore, BillingPaymentConfigStore>();
 
         services.AddScoped<IExportPersonalData, BillingPersonalDataExporter>();

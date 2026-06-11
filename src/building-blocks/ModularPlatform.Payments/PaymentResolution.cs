@@ -58,7 +58,8 @@ public interface IPaymentGatewayResolver
     Task<IPaymentGateway> ResolveAsync(Guid tenantId, PaymentPlane plane, CancellationToken ct = default);
 }
 
-internal sealed class PaymentGatewayResolver(IEnumerable<IPaymentConfigStore> stores, HttpClient http, IClock clock)
+internal sealed class PaymentGatewayResolver(
+    IEnumerable<IPaymentConfigStore> stores, HttpClient http, IClock clock, FakePaymentGateway? sharedFake = null)
     : IPaymentGatewayResolver
 {
     public async Task<IPaymentGateway> ResolveAsync(Guid tenantId, PaymentPlane plane, CancellationToken ct = default)
@@ -84,7 +85,9 @@ internal sealed class PaymentGatewayResolver(IEnumerable<IPaymentConfigStore> st
                 config.Stripe?.ApiKey ?? throw MissingCredentials(), config.Stripe.WebhookSecret),
             PaymentProvider.GoPay => new GoPayPaymentGateway(
                 http, config.GoPay ?? throw MissingCredentials(), clock),
-            PaymentProvider.Fake => new FakePaymentGateway(),
+            // A DI-registered shared fake (test harness) lets a checkout created on one request be re-fetched by the
+            // webhook on another; without one, a throwaway per-resolve instance is used.
+            PaymentProvider.Fake => sharedFake ?? new FakePaymentGateway(),
             _ => throw new PaymentGatewayUnavailableException("payment.gateway_not_configured", "Unknown payment provider."),
         };
 
