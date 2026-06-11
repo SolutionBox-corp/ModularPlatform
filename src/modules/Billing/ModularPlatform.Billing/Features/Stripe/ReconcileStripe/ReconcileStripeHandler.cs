@@ -4,6 +4,7 @@ using ModularPlatform.Abstractions;
 using ModularPlatform.Billing.Features.Subscriptions.UpsertSubscriptionFromStripe;
 using ModularPlatform.Billing.Messaging;
 using ModularPlatform.Billing.Persistence;
+using ModularPlatform.Billing.Sagas;
 using ModularPlatform.Billing.Stripe;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Telemetry;
@@ -37,6 +38,7 @@ internal sealed class ReconcileStripeHandler(
 {
     private const int StuckEventCap = 200;
     private const int SubscriptionCap = 500;
+    private const int StuckPurchaseCap = 200;
     private static readonly System.Diagnostics.Metrics.Counter<long> DriftCounter =
         PlatformMetrics.Meter.CreateCounter<long>(
             "platform.billing.stripe_drift",
@@ -89,33 +91,94 @@ internal sealed class ReconcileStripeHandler(
         var driftCount = 0;
         foreach (var local in localSubscriptions)
         {
-            var live = await stripeGateway.GetSubscriptionAsync(local.StripeSubscriptionId, ct);
-            if (live is null)
+            // Per-item isolation: a non-404 Stripe error (429/500/timeout) on ONE subscription must not abort the
+            // whole sweep — log it and move on; the next run retries this item.
+            try
             {
-                continue; // Unknown in Stripe (or API hiccup) — skip; the next run retries.
+                var live = await stripeGateway.GetSubscriptionAsync(local.StripeSubscriptionId, ct);
+                if (live is null)
+                {
+                    continue; // Unknown in Stripe (or a 404 hiccup) — skip; the next run retries.
+                }
+
+                var hasDrift = local.Status != UpsertSubscriptionFromStripeHandler.MapStatus(live.Status)
+                               || local.CurrentPeriodEnd != live.CurrentPeriodEnd
+                               || local.CancelAtPeriodEnd != live.CancelAtPeriodEnd;
+
+                if (!hasDrift)
+                {
+                    continue;
+                }
+
+                logger.LogWarning(
+                    "Stripe subscription drift detected for {SubscriptionId} (user {UserId}): " +
+                    "local status={LocalStatus}, live status={LiveStatus}",
+                    local.StripeSubscriptionId, local.UserId, local.Status, live.Status);
+
+                DriftCounter.Add(1);
+                driftCount++;
+
+                // Stripe wins: the upsert mirrors live OBJECT state (same path the webhooks use).
+                await dispatcher.Send(new UpsertSubscriptionFromStripeCommand(local.StripeSubscriptionId), ct);
             }
-
-            var hasDrift = local.Status != UpsertSubscriptionFromStripeHandler.MapStatus(live.Status)
-                           || local.CurrentPeriodEnd != live.CurrentPeriodEnd
-                           || local.CancelAtPeriodEnd != live.CancelAtPeriodEnd;
-
-            if (!hasDrift)
+            catch (Exception ex)
             {
-                continue;
+                logger.LogWarning(ex,
+                    "Stripe reconcile: skipping subscription {SubscriptionId} after an error; will retry next run",
+                    local.StripeSubscriptionId);
             }
-
-            logger.LogWarning(
-                "Stripe subscription drift detected for {SubscriptionId} (user {UserId}): " +
-                "local status={LocalStatus}, live status={LiveStatus}",
-                local.StripeSubscriptionId, local.UserId, local.Status, live.Status);
-
-            DriftCounter.Add(1);
-            driftCount++;
-
-            // Stripe wins: the upsert mirrors live OBJECT state (same path the webhooks use).
-            await dispatcher.Send(new UpsertSubscriptionFromStripeCommand(local.StripeSubscriptionId), ct);
         }
 
-        return new ReconcileStripeResponse(stuckEvents.Count, driftCount);
+        // --- Pass 3: Stuck PAID purchases (dead-lettered confirmations) ---
+        // A purchase whose CreditPurchaseConfirmed dead-lettered leaves the saga stuck Pending/Abandoned with the
+        // money paid but no credits granted. Re-publish the confirmation ONLY when Stripe confirms the session was
+        // actually paid — never grant an unpaid/abandoned purchase. The grant is idempotent (purchase:{id}), so a
+        // race with a late real confirmation cannot double-credit.
+        var stuckPurchases = await db.CreditPurchaseSagas
+            .Where(s => (s.Status == "Pending" || s.Status == "Abandoned") && s.StartedAt < staleThreshold)
+            .OrderBy(s => s.StartedAt)
+            .Take(StuckPurchaseCap)
+            .ToListAsync(ct);
+
+        if (stuckPurchases.Count == StuckPurchaseCap)
+        {
+            logger.LogWarning(
+                "Stripe reconcile: stuck-purchase cap ({Cap}) reached — there may be more unresolved purchases",
+                StuckPurchaseCap);
+        }
+
+        var regranted = 0;
+        foreach (var saga in stuckPurchases)
+        {
+            // Per-item isolation: one saga's Stripe lookup failure must not abort the whole re-grant pass.
+            try
+            {
+                var paymentStatus = await stripeGateway.GetCheckoutSessionPaymentStatusAsync(saga.CheckoutSessionId, ct);
+                if (paymentStatus is not ("paid" or "no_payment_required"))
+                {
+                    continue; // Not (yet) paid — leave it; a never-paid purchase stays Abandoned.
+                }
+
+                logger.LogWarning(
+                    "Stripe reconcile: re-granting PAID purchase {PurchaseId} (user {UserId}) whose confirmation was lost",
+                    saga.Id, saga.UserId);
+
+                await outbox.PublishAsync(new CreditPurchaseConfirmed(
+                    saga.Id, saga.UserId, saga.CreditAmount, saga.BucketExpiryDays, StripeEventId: $"reconcile:{saga.Id}"));
+                regranted++;
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex,
+                    "Stripe reconcile: skipping stuck purchase {PurchaseId} after an error; will retry next run", saga.Id);
+            }
+        }
+
+        if (regranted > 0)
+        {
+            await outbox.SaveChangesAndFlushMessagesAsync();
+        }
+
+        return new ReconcileStripeResponse(stuckEvents.Count, driftCount, regranted);
     }
 }

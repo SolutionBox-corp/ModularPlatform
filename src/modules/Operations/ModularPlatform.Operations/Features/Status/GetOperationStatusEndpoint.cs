@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Web;
 
@@ -13,10 +14,13 @@ internal static class GetOperationStatusEndpoint
     {
         app.MapGet("/operations/{operationId:guid}", async (
                 Guid operationId,
+                ITenantContext tenant,
                 IDispatcher dispatcher,
                 CancellationToken ct) =>
             {
-                var result = await dispatcher.Query(new GetOperationStatusQuery(operationId), ct);
+                var userId = tenant.UserId
+                    ?? throw new UnauthorizedException("auth.required", "Authentication required.");
+                var result = await dispatcher.Query(new GetOperationStatusQuery(operationId, userId), ct);
                 return Results.Ok(ApiResponse<OperationStatusResponse>.Ok(result));
             })
             .RequireAuthorization()

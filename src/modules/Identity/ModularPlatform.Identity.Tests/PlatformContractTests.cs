@@ -47,7 +47,14 @@ public sealed class PlatformContractTests(PlatformApiFactory fixture)
     [Fact]
     public async Task PL8_openapi_is_not_served_anonymously_outside_development()
     {
-        using var production = fixture.CreateHost(("environment", "Production"));
+        // A realistic Production host does NOT ship the test-only fake Stripe gateway (StripeOptionsValidator now
+        // fails that combination at startup) and DOES declare the proxy trust list it sits behind (the
+        // ForwardedHeaders validator now fails an empty trust list outside Development); this test only exercises
+        // OpenAPI gating, so satisfy both startup guards here.
+        using var production = fixture.CreateHost(
+            ("environment", "Production"),
+            ("Billing:Stripe:UseFakeGateway", "false"),
+            ("ForwardedHeaders:KnownProxies:0", "10.0.0.5"));
         using var client = production.CreateClient();
 
         (await client.GetAsync("/openapi/v1.json")).StatusCode.ShouldNotBe(HttpStatusCode.OK);
@@ -86,5 +93,70 @@ public sealed class PlatformContractTests(PlatformApiFactory fixture)
             var response = await client.SendAsync(webhook);
             response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         }
+    }
+
+    // PL-10: every response carries the baseline security headers (SecurityHeadersMiddleware).
+    [Fact]
+    public async Task PL10_security_headers_present_on_every_response()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync($"sec-{Guid.CreateVersion7():N}@t.io", "Sup3r-Secret-Pw!");
+
+        var response = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Get, "/v1/billing/packages", token));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        response.Headers.GetValues("X-Content-Type-Options").ShouldBe(["nosniff"]);
+        response.Headers.GetValues("X-Frame-Options").ShouldBe(["DENY"]);
+        response.Headers.GetValues("Referrer-Policy").ShouldBe(["no-referrer"]);
+        response.Headers.GetValues("Content-Security-Policy").ShouldBe(["default-src 'none'; frame-ancestors 'none'"]);
+    }
+
+    // PL-11: the global limiter buckets PER USER (NameIdentifier claim), not one shared bucket — guards the bug where
+    // a null Identity.Name collapsed every authenticated caller into the same bucket.
+    [Fact]
+    public async Task PL11_rate_limit_bucket_is_per_user_not_shared()
+    {
+        var (_, tokenA) = await fixture.RegisterAndLoginAsync($"rl-a-{Guid.CreateVersion7():N}@t.io", "Sup3r-Secret-Pw!");
+        var (_, tokenB) = await fixture.RegisterAndLoginAsync($"rl-b-{Guid.CreateVersion7():N}@t.io", "Sup3r-Secret-Pw!");
+
+        using var lowLimit = fixture.CreateHost(("RateLimiting:GlobalPermitsPerMinute", "3"));
+        using var client = lowLimit.CreateClient();
+
+        var aStatuses = new List<HttpStatusCode>();
+        for (var i = 0; i < 4; i++)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, "/v1/billing/packages");
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", tokenA);
+            aStatuses.Add((await client.SendAsync(request)).StatusCode);
+        }
+
+        aStatuses[0].ShouldBe(HttpStatusCode.OK);
+        aStatuses[^1].ShouldBe(HttpStatusCode.TooManyRequests);
+
+        // User B's FIRST authenticated request still succeeds — a separate per-user bucket.
+        var bRequest = new HttpRequestMessage(HttpMethod.Get, "/v1/billing/packages");
+        bRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", tokenB);
+        (await client.SendAsync(bRequest)).StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    // PL-12: a 429 carries a Retry-After header (OnRejected emits it from the limiter's lease metadata).
+    [Fact]
+    public async Task PL12_throttled_response_carries_retry_after()
+    {
+        using var lowLimit = fixture.CreateHost(("RateLimiting:GlobalPermitsPerMinute", "2"));
+        using var client = lowLimit.CreateClient();
+
+        HttpResponseMessage? throttled = null;
+        for (var i = 0; i < 10; i++)
+        {
+            var response = await client.GetAsync("/v1/billing/packages");
+            if (response.StatusCode == HttpStatusCode.TooManyRequests)
+            {
+                throttled = response;
+                break;
+            }
+        }
+
+        throttled.ShouldNotBeNull();
+        throttled.Headers.RetryAfter.ShouldNotBeNull();
     }
 }

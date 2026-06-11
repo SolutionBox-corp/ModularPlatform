@@ -62,6 +62,18 @@ internal sealed class RefreshTokenHandler(
             throw new UnauthorizedException("auth.refresh_token_invalid", "The refresh token has expired or was revoked.");
         }
 
+        // The user is loaded with IgnoreQueryFilters (cross-tenant, includes soft-deleted) — so an account that
+        // has been GDPR-erased / offboarded (DeletedAt stamped) MUST be rejected here, otherwise its outstanding
+        // refresh token would keep minting fresh access tokens forever. Erasure also revokes the tokens, but this
+        // is the defence-in-depth guard for any token that outlives a soft-delete.
+        var user = await db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == token.UserId, ct);
+        // FirstOrDefault (not First): there is no FK between refresh_tokens and users, so a token that outlives a
+        // hard-deleted/missing user must yield a clean 401, not an unhandled 500.
+        if (user is null || user.DeletedAt is not null)
+        {
+            throw new UnauthorizedException("auth.refresh_token_invalid", "The account is no longer active.");
+        }
+
         var newRefresh = tokenIssuer.CreateRefreshToken();
         var replacement = new TokenEntity
         {
@@ -76,7 +88,6 @@ internal sealed class RefreshTokenHandler(
         token.ConsumedAt = now;
         token.ReplacedByTokenId = replacement.Id;
 
-        var user = await db.Users.IgnoreQueryFilters().FirstAsync(u => u.Id == token.UserId, ct);
         var tenantId = db.Entry(user).Property<Guid?>("TenantId").CurrentValue;
         var (roles, permissions) = await UserAuthorizationQuery.LoadAsync(db, user.Id, ct);
         var access = tokenIssuer.IssueAccessToken(user.Id, tenantId, user.Email, roles, permissions);

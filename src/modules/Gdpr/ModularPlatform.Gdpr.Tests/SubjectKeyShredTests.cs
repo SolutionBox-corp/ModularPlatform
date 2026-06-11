@@ -1,62 +1,58 @@
-using ModularPlatform.Gdpr.Entities;
+using Microsoft.Extensions.DependencyInjection;
+using ModularPlatform.Cqrs;
+using ModularPlatform.Gdpr.Features.Erasure.ShredSubjectKey;
+using ModularPlatform.IntegrationTesting;
+using Shouldly;
 
 namespace ModularPlatform.Gdpr.Tests;
 
 /// <summary>
-/// Asserts the crypto-shred field semantics applied by <c>ShredSubjectKeyHandler</c> on erasure:
-/// the subject's DEK is dropped (<c>WrappedDek == null</c>) and <c>DeletedAt</c> is stamped, and the
-/// operation is idempotent once a key is already shredded. The handler itself is exercised end-to-end by
-/// the integration test described in the orchestrator report (it needs a real Postgres + the Worker
-/// pipeline); these unit cases lock the entity-level contract without a DbContext.
+/// Crypto-shred semantics, exercised against the REAL <see cref="ShredSubjectKeyHandler"/> (dispatched in-process,
+/// like the erasure flow does) — NOT a private re-implementation that could silently drift from the handler.
+/// Registration mints the subject's DEK (it encrypts the email); shredding drops <c>WrappedDek</c> + stamps
+/// <c>DeletedAt</c>, and a replay must not re-stamp the first erasure timestamp.
 /// </summary>
-public sealed class SubjectKeyShredTests
+[Collection("Integration")]
+public sealed class SubjectKeyShredTests(PlatformApiFactory fixture)
 {
-    private static readonly DateTimeOffset ShredAt =
-        new(2026, 6, 8, 12, 0, 0, TimeSpan.Zero);
+    private const string Password = "Sup3rSecret!";
 
-    // Mirrors the handler's guarded mutation: only shred a key that has not already been shredded.
-    private static void ApplyShred(SubjectKey key, DateTimeOffset now)
+    [Fact]
+    public async Task Shred_drops_the_dek_and_stamps_deleted_at()
     {
-        if (key is { DeletedAt: null })
-        {
-            key.WrappedDek = null;
-            key.DeletedAt = now;
-        }
+        var (userId, _) = await fixture.RegisterAndLoginAsync($"shred-{Guid.CreateVersion7():N}@x.com", Password);
+        await fixture.WaitForCountAsync(
+            $"""SELECT count(*)::bigint FROM subject_keys WHERE "UserId" = '{userId}' AND "WrappedDek" IS NOT NULL""", 1);
+
+        await DispatchShredAsync(userId);
+
+        (await fixture.ScalarAsync<long>(
+            $"""SELECT count(*)::bigint FROM subject_keys WHERE "UserId" = '{userId}' """
+            + """AND "WrappedDek" IS NULL AND "DeletedAt" IS NOT NULL""")).ShouldBe(1);
     }
 
     [Fact]
-    public void Shred_drops_the_dek_and_stamps_deleted_at()
+    public async Task Shred_is_idempotent_and_preserves_the_first_erasure_timestamp()
     {
-        var key = new SubjectKey
-        {
-            UserId = Guid.CreateVersion7(),
-            WrappedDek = [1, 2, 3, 4],
-            CreatedAt = ShredAt.AddDays(-30),
-            DeletedAt = null,
-        };
+        var (userId, _) = await fixture.RegisterAndLoginAsync($"shred2-{Guid.CreateVersion7():N}@x.com", Password);
+        await fixture.WaitForCountAsync(
+            $"""SELECT count(*)::bigint FROM subject_keys WHERE "UserId" = '{userId}'""", 1);
 
-        ApplyShred(key, ShredAt);
+        await DispatchShredAsync(userId);
+        var firstDeletedAt = await fixture.ScalarAsync<string>(
+            $"""SELECT "DeletedAt"::text FROM subject_keys WHERE "UserId" = '{userId}'""");
 
-        Assert.Null(key.WrappedDek);
-        Assert.Equal(ShredAt, key.DeletedAt);
+        await DispatchShredAsync(userId); // replay — the guard must leave the already-shredded key untouched
+        var secondDeletedAt = await fixture.ScalarAsync<string>(
+            $"""SELECT "DeletedAt"::text FROM subject_keys WHERE "UserId" = '{userId}'""");
+
+        secondDeletedAt.ShouldBe(firstDeletedAt, "a replayed shred must not re-stamp the erasure timestamp");
     }
 
-    [Fact]
-    public void Shred_is_idempotent_when_already_shredded()
+    private async Task DispatchShredAsync(Guid userId)
     {
-        var alreadyShreddedAt = ShredAt.AddDays(-1);
-        var key = new SubjectKey
-        {
-            UserId = Guid.CreateVersion7(),
-            WrappedDek = null,
-            CreatedAt = ShredAt.AddDays(-30),
-            DeletedAt = alreadyShreddedAt,
-        };
-
-        ApplyShred(key, ShredAt);
-
-        // The original erasure timestamp is preserved — a replayed event must not re-stamp it.
-        Assert.Null(key.WrappedDek);
-        Assert.Equal(alreadyShreddedAt, key.DeletedAt);
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var dispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
+        await dispatcher.Send(new ShredSubjectKeyCommand(userId));
     }
 }

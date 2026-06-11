@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Billing.Features.Coupons.ValidatePromoCode;
 using ModularPlatform.Billing.Features.Credits.ConfirmSpend;
@@ -56,7 +57,10 @@ public sealed class BillingModule : IModule
         services.AddModuleDbContext<BillingDbContext>(Name, write);
         services.AddModuleReadDbContext<BillingDbContext>(read);
 
-        services.Configure<StripeOptions>(configuration.GetSection(StripeOptions.SectionName));
+        services.AddOptions<StripeOptions>()
+            .Bind(configuration.GetSection(StripeOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<StripeOptions>, StripeOptionsValidator>();
         services.Configure<SubscriptionOptions>(configuration.GetSection(SubscriptionOptions.SectionName));
 
         // The ONE Stripe seam. The in-memory fake (test harness only) makes the full worker path —
@@ -111,13 +115,16 @@ public sealed class BillingModule : IModule
         var expireCron = configuration["Modules:Billing:Jobs:ExpireCreditsCron"] ?? "0 0 * * * ?"; // hourly
         var expireKey = new JobKey("billing-expire-credits");
         quartz.AddJob<Jobs.BillingExpireCreditsJob>(expireKey);
-        quartz.AddTrigger(trigger => trigger.ForJob(expireKey).WithCronSchedule(expireCron));
+        // Cron is interpreted in UTC (Law #7) — Quartz otherwise defaults to the host's local timezone.
+        quartz.AddTrigger(trigger => trigger.ForJob(expireKey)
+            .WithCronSchedule(expireCron, x => x.InTimeZone(TimeZoneInfo.Utc)));
 
         // Reconcile sweep: re-queues stuck stripe_events and corrects subscription drift (Stripe wins).
         var reconcileCron = configuration["Modules:Billing:Jobs:ReconcileStripeCron"] ?? "0 0 */6 * * ?";
         var reconcileKey = new JobKey("billing-stripe-reconcile");
         quartz.AddJob<Jobs.BillingStripeReconcileJob>(reconcileKey);
-        quartz.AddTrigger(trigger => trigger.ForJob(reconcileKey).WithCronSchedule(reconcileCron));
+        quartz.AddTrigger(trigger => trigger.ForJob(reconcileKey)
+            .WithCronSchedule(reconcileCron, x => x.InTimeZone(TimeZoneInfo.Utc)));
     }
 
     public async Task ApplyMigrationsAsync(IServiceProvider services, CancellationToken ct)

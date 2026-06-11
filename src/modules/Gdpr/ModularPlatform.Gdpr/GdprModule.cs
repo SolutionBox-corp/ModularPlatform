@@ -50,7 +50,11 @@ public sealed class GdprModule : IModule
         services.AddSingleton<IPersonalDataProtector>(sp =>
         {
             var rls = sp.GetRequiredService<IOptions<RlsOptions>>().Value;
-            var runtimeConnectionString = RlsConnectionString.ForRuntime(read, rls);
+            // MUST be the WRITE primary: GetOrCreateDek INSERTs subject_keys (the first PII write for a new
+            // subject), which fails on a read replica; and the "live DEK read" guarantee (a just-shredded key must
+            // read back as shredded) would be violated by replica lag. The protector context is low-traffic
+            // single-row PK lookups, so it gains nothing from the replica anyway.
+            var runtimeConnectionString = RlsConnectionString.ForRuntime(write, rls);
             var system = new SystemTenantContext();
 
             GdprDbContext NewContext()
@@ -74,6 +78,11 @@ public sealed class GdprModule : IModule
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<GdprEncryptionOptions>, GdprEncryptionOptionsValidator>();
         services.AddSingleton<IBlindIndexHasher, HmacBlindIndexHasher>();
+
+        // The Gdpr module owns the consent log — it must participate in its OWN export/erasure fan-out, or a subject's
+        // consent history (their personal data) would be missing from the export and survive erasure.
+        services.AddScoped<IExportPersonalData, Features.Consents.ConsentPersonalDataExporter>();
+        services.AddScoped<IErasePersonalData, Features.Consents.ConsentPersonalDataEraser>();
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
@@ -93,11 +102,16 @@ public sealed class GdprModule : IModule
 
     public void RegisterJobs(IServiceCollectionQuartzConfigurator quartz, IConfiguration configuration)
     {
-        // Nightly sweep that purges shredded subject_key tombstones beyond the retention window.
+        // Nightly retention sweep. NOTE: shredded subject_key tombstones are retained PERMANENTLY as the DEK re-mint
+        // guard, so this sweep currently purges nothing (see RetentionSweepCommand) — it's the seam for future
+        // module-owned purgeable retention data.
         var cron = configuration["Modules:Gdpr:Jobs:RetentionSweepCron"] ?? "0 0 3 * * ?"; // 03:00 UTC daily
         var jobKey = new JobKey("gdpr-retention-sweep");
         quartz.AddJob<GdprRetentionSweepJob>(jobKey);
-        quartz.AddTrigger(trigger => trigger.ForJob(jobKey).WithCronSchedule(cron));
+        // Cron is interpreted in UTC (Law #7) — Quartz otherwise defaults to the host's local timezone, firing the
+        // "03:00 UTC" sweep at the wrong wall-clock time on any host not pinned to UTC.
+        quartz.AddTrigger(trigger => trigger.ForJob(jobKey)
+            .WithCronSchedule(cron, x => x.InTimeZone(TimeZoneInfo.Utc)));
     }
 
     public async Task ApplyMigrationsAsync(IServiceProvider services, CancellationToken ct)

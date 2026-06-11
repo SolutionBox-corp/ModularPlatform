@@ -38,10 +38,14 @@ internal sealed class IdentitySeeder(
             await SeedPermissionsAndAdminRoleAsync(db, ct);
             await AssignAdminsAsync(db, blindIndex, options.Value.AdminEmails, ct);
         }
-        catch (DbUpdateException ex)
+        catch (Exception ex)
         {
-            // Another host seeded concurrently and won a unique-index race — the data is there, so this is benign.
-            logger.LogInformation(ex, "Identity authorization seeding skipped a concurrent duplicate.");
+            // Non-fatal by design (mirrors PiiEncryptionBackfill): seeding is idempotent and re-runs on the next
+            // boot. The first statement is a READ, so a host that legitimately starts BEFORE migrations finish (the
+            // Worker/Api-before-MigrationService race) would hit a missing-table error here — which is NOT a
+            // DbUpdateException, so a narrow catch would crash the host. A concurrent unique-index race is equally
+            // benign. WARNING (not Information) so a genuine, persistent failure stays visible across boots.
+            logger.LogWarning(ex, "Identity authorization seeding did not complete; it will retry on the next boot.");
         }
     }
 
@@ -98,9 +102,11 @@ internal sealed class IdentitySeeder(
         // Email at rest is ciphertext — match via the keyed blind index over the normalized addresses.
         var hashes = adminEmails.Select(e => blindIndex.Hash(e.Trim().ToUpperInvariant())).ToArray();
 
-        // Users are global authz subjects here — look them up across tenants (this runs as system context).
+        // Users are global authz subjects here — look them up across tenants (this runs as system context). Exclude
+        // soft-deleted accounts: a deactivated (but not yet GDPR-erased) admin retains its original EmailHash, so
+        // without this filter a restart would silently RE-GRANT admin to a deactivated account.
         var users = await db.Users.IgnoreQueryFilters()
-            .Where(u => hashes.Contains(u.EmailHash))
+            .Where(u => hashes.Contains(u.EmailHash) && u.DeletedAt == null)
             .Select(u => u.Id)
             .ToListAsync(ct);
 

@@ -52,7 +52,10 @@ internal sealed class CreditEntryConfiguration : IEntityTypeConfiguration<Credit
         builder.Property(e => e.BucketId);
         builder.Property(e => e.IdempotencyKey).HasMaxLength(256).IsRequired();
         builder.Property(e => e.CreatedAt).IsRequired();
-        builder.HasIndex(e => e.IdempotencyKey).IsUnique();
+        // Idempotency is scoped PER ACCOUNT: the same key on two different accounts is two distinct operations.
+        // A single GLOBAL unique key let a key one account already used silently no-op another account's grant
+        // (caller told "already applied", credited nothing) and let a client key collide with system keys.
+        builder.HasIndex(e => new { e.AccountId, e.IdempotencyKey }).IsUnique();
         builder.HasIndex(e => e.AccountId);
         builder.HasIndex(e => e.TransactionId);
     }

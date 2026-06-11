@@ -1,63 +1,32 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
-using ModularPlatform.Gdpr.Persistence;
-using ModularPlatform.Telemetry;
 
 namespace ModularPlatform.Gdpr.Features.Retention.RetentionSweep;
 
 /// <summary>
-/// Hard-deletes shredded <c>subject_keys</c> tombstones beyond the retention window.
+/// GDPR retention sweep. Shredded <c>subject_keys</c> tombstones (a row whose <c>WrappedDek = null</c> and
+/// <c>DeletedAt</c> is set) are RETAINED PERMANENTLY and are NOT purged.
 /// <para>
-/// A tombstone is a <see cref="Entities.SubjectKey"/> row whose <c>WrappedDek = null</c> and
-/// <c>DeletedAt</c> is set (crypto-shredded by the erasure flow). Keeping tombstones for a grace period
-/// (default 30 days) lets audit queries confirm erasure. After that window they have no further value and
-/// are purged to keep the table tidy.
+/// The tombstone is the only record that stops <c>PersonalDataProtector.GetOrCreateDek</c> from minting a fresh,
+/// readable DEK for an already-erased subject (a later PII write for the dead UserId — e.g. a stray notification or
+/// audit write). The previous behaviour hard-deleted tombstones after a 30-day window, which silently reopened the
+/// crypto-shred: "an erased key cannot be re-created" held only inside that window. A tombstone is non-PII (a
+/// subject GUID + an erasure timestamp), so retaining it indefinitely is GDPR-fine — it is an erasure-proof record,
+/// like the audit trail.
 /// </para>
 /// <para>
-/// <c>ExecuteDelete</c> is used intentionally: these are tombstone rows whose deletion does not need to be
-/// audited (the audit trail from the shred is already written; the final purge is operational hygiene).
-/// Per CLAUDE.md §4, <c>ExecuteDelete</c> bypasses the audit interceptor — acceptable here.
+/// The sweep therefore deletes nothing today; the command / Quartz job / metric remain as the hook for any future
+/// module-owned retention work, but the subject-key tombstones must never be among it.
 /// </para>
 /// </summary>
-internal sealed class RetentionSweepHandler(
-    GdprDbContext db,
-    IConfiguration configuration,
-    IClock clock,
-    ILogger<RetentionSweepHandler> logger)
+internal sealed class RetentionSweepHandler(ILogger<RetentionSweepHandler> logger)
     : ICommandHandler<RetentionSweepCommand, RetentionSweepResponse>
 {
-    private static readonly System.Diagnostics.Metrics.Counter<long> SweptCounter =
-        PlatformMetrics.Meter.CreateCounter<long>(
-            "platform.gdpr.retention_swept",
-            description: "Number of shredded subject_key tombstones purged by the retention sweep.");
-
-    public async Task<RetentionSweepResponse> Handle(RetentionSweepCommand command, CancellationToken ct)
+    public Task<RetentionSweepResponse> Handle(RetentionSweepCommand command, CancellationToken ct)
     {
-        var retentionDays = configuration.GetValue<int>("Gdpr:Retention:ShreddedKeyRetentionDays", 30);
-        var cutoff = clock.UtcNow.AddDays(-retentionDays);
+        logger.LogInformation(
+            "GDPR retention sweep: shredded subject_key tombstones are retained permanently (DEK re-mint guard); nothing purged");
 
-        // Hard-delete tombstones whose DeletedAt is beyond the retention window.
-        // ExecuteDelete is correct here — see XML doc; no audit interception needed for final purge.
-        var purged = await db.SubjectKeys
-            .Where(k => k.DeletedAt != null && k.DeletedAt < cutoff)
-            .ExecuteDeleteAsync(ct);
-
-        if (purged > 0)
-        {
-            SweptCounter.Add(purged);
-            logger.LogInformation(
-                "GDPR retention sweep: purged {Count} shredded subject_key tombstone(s) older than {Days} days",
-                purged, retentionDays);
-        }
-        else
-        {
-            logger.LogInformation(
-                "GDPR retention sweep: no subject_key tombstones older than {Days} days found", retentionDays);
-        }
-
-        return new RetentionSweepResponse(purged);
+        return Task.FromResult(new RetentionSweepResponse(0));
     }
 }

@@ -11,4 +11,5 @@ public sealed record ReconcileStripeCommand : ICommand<ReconcileStripeResponse>;
 /// <summary>Counts of items repaired by a single reconcile run.</summary>
 public sealed record ReconcileStripeResponse(
     int StuckEventsRequeued,
-    int SubscriptionDriftsFixed);
+    int SubscriptionDriftsFixed,
+    int StuckPurchasesRegranted = 0);

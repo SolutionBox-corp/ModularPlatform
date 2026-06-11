@@ -12,11 +12,24 @@ public sealed class RunDemoOperationHandler
 {
     public async Task Handle(RunDemoOperation message, IOperationStore operations, CancellationToken ct)
     {
-        await operations.MarkRunningAsync(message.OperationId, ct);
+        try
+        {
+            // MarkRunning is INSIDE the try: a failure on the Pending → Running transition must also drive the
+            // operation to a terminal state, otherwise a caller would poll a stuck Pending operation forever.
+            await operations.MarkRunningAsync(message.OperationId, ct);
 
-        // The "work" — trivial here; a real operation would do the slow thing (export, bulk job, external call).
-        var result = new { message = "demo complete", completedFor = message.OperationId };
+            // The "work" — trivial here; a real operation would do the slow thing (export, bulk job, external call).
+            var result = new { message = "demo complete", completedFor = message.OperationId };
 
-        await operations.CompleteAsync(message.OperationId, result, ct);
+            await operations.CompleteAsync(message.OperationId, result, ct);
+        }
+        catch (Exception ex)
+        {
+            // Drive the operation to a TERMINAL state on ANY failure — never leave it stuck Pending/Running with the
+            // caller polling forever. The failure IS the user-facing record (the operation row). If FailAsync itself
+            // cannot write (e.g. the DB is down), the exception propagates and Wolverine retries the whole handler;
+            // a deterministic error terminalizes. Transient infra faults remain the messaging layer's job.
+            await operations.FailAsync(message.OperationId, "operation.failed", ex.Message, ct);
+        }
     }
 }

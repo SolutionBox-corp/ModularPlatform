@@ -33,6 +33,15 @@
   <data name="auth.refresh_token_reused" xml:space="preserve"><value>Tato relace byla z bezpečnostních důvodů odvolána. Přihlaste se prosím znovu.</value></data>
   <data name="user.not_found" xml:space="preserve"><value>Uživatel nenalezen.</value></data>
   <data name="user.email_taken" xml:space="preserve"><value>Tento e-mail je již zaregistrován.</value></data>
+  <data name="user.email.required" xml:space="preserve"><value>E-mail je povinný.</value></data>
+  <data name="user.email.invalid" xml:space="preserve"><value>E-mail není platná adresa.</value></data>
+  <data name="user.email.too_long" xml:space="preserve"><value>E-mail je příliš dlouhý.</value></data>
+  <data name="user.password.required" xml:space="preserve"><value>Heslo je povinné.</value></data>
+  <data name="user.password.too_short" xml:space="preserve"><value>Heslo je příliš krátké.</value></data>
+  <data name="user.password.too_long" xml:space="preserve"><value>Heslo je příliš dlouhé.</value></data>
+  <data name="user.display_name.too_long" xml:space="preserve"><value>Zobrazované jméno je příliš dlouhé.</value></data>
+  <data name="role.not_found" xml:space="preserve"><value>Role nebyla nalezena.</value></data>
+  <data name="operation.not_found" xml:space="preserve"><value>Operace nebyla nalezena.</value></data>
   <data name="auth.required" xml:space="preserve"><value>Vyžadováno přihlášení.</value></data>
 
   <data name="credit.insufficient_balance" xml:space="preserve"><value>Nedostatečný zůstatek kreditů.</value></data>

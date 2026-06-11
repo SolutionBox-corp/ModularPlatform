@@ -48,12 +48,25 @@ internal sealed class ProcessStripeEventHandler(
 
         switch (stripeEvent.Type)
         {
-            case "checkout.session.completed"
+            case "checkout.session.completed" or "checkout.session.async_payment_succeeded"
                 when stripeEvent.Data?.Object is global::Stripe.Checkout.Session session
                      && session.Metadata is not null
                      && session.Metadata.TryGetValue("purchase_type", out var purchaseType)
                      && purchaseType == "package":
-                await PublishPurchaseConfirmed(session, command.StripeEventId, ct);
+                // Grant ONLY once funds are actually captured. checkout.session.completed fires for delayed
+                // payment methods (SEPA, bank transfer) while PaymentStatus is "unpaid"; the authoritative paid
+                // signal then arrives as async_payment_succeeded. Never grant on an unpaid/abandoned session —
+                // the saga timeout abandons it (a late paid signal still grants via the saga's NotFound path).
+                if (IsPaid(session))
+                {
+                    await PublishPurchaseConfirmed(session, command.StripeEventId, ct);
+                }
+
+                break;
+
+            // Any other checkout-session event (unpaid "completed", async_payment_failed, expired, non-package)
+            // is NOT a credit grant — never let its user_id/credit_amount metadata reach the generic top-up below.
+            case var checkoutType when checkoutType.StartsWith("checkout.session.", StringComparison.Ordinal):
                 break;
 
             case "customer.subscription.created" or "customer.subscription.updated" or "customer.subscription.deleted"
@@ -82,6 +95,10 @@ internal sealed class ProcessStripeEventHandler(
         await outbox.SaveChangesAndFlushMessagesAsync();
         return Unit.Value;
     }
+
+    // Stripe payment_status: "paid" | "unpaid" | "no_payment_required" (zero-amount / fully-discounted).
+    private static bool IsPaid(global::Stripe.Checkout.Session session) =>
+        session.PaymentStatus is "paid" or "no_payment_required";
 
     private async Task PublishPurchaseConfirmed(
         global::Stripe.Checkout.Session session, string stripeEventId, CancellationToken ct)

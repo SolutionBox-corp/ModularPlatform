@@ -11,6 +11,7 @@ using ModularPlatform.Identity.Features.Admin.AssignRole;
 using ModularPlatform.Identity.Features.Admin.RevokeRole;
 using ModularPlatform.Identity.Features.Audit.GetUserAuditTrail;
 using ModularPlatform.Identity.Features.Auth.Login;
+using ModularPlatform.Identity.Features.Auth.Logout;
 using ModularPlatform.Identity.Features.Auth.RefreshToken;
 using ModularPlatform.Identity.Features.Users.GetProfile;
 using ModularPlatform.Identity.Features.Users.RegisterUser;
@@ -65,6 +66,7 @@ public sealed class IdentityModule : IModule
         endpoints.MapGetProfile();
         endpoints.MapLogin();
         endpoints.MapRefreshToken();
+        endpoints.MapLogout();
         endpoints.MapAssignRole();
         endpoints.MapRevokeRole();
         endpoints.MapGetUserAuditTrail();

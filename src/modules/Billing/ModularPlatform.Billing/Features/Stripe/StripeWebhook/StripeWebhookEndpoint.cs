@@ -9,6 +9,7 @@ using ModularPlatform.Billing.Entities;
 using ModularPlatform.Billing.Messaging;
 using ModularPlatform.Billing.Persistence;
 using ModularPlatform.Billing.Security;
+using Npgsql;
 using Stripe;
 using Wolverine.EntityFrameworkCore;
 
@@ -74,10 +75,16 @@ internal static class StripeWebhookEndpoint
                     // commit (row + enqueued work) or neither — no orphaned row, no lost message.
                     await outbox.SaveChangesAndFlushMessagesAsync();
                 }
-                catch (DbUpdateException)
+                catch (DbUpdateException ex) when (ex.InnerException is PostgresException
+                {
+                    SqlState: PostgresErrorCodes.UniqueViolation
+                })
                 {
                     // Concurrent delivery of the same event id lost the UNIQUE race — already persisted and
                     // enqueued by the winner; idempotent, the queued message here is rolled back with the row.
+                    // ONLY the unique-violation race is idempotent: any OTHER DbUpdateException (transient DB
+                    // failure, unexpected constraint) propagates → the middleware returns 500 → Stripe redelivers.
+                    // ACKing it with a 200 would silently lose the event (Stripe does not retry a 2xx).
                     return Results.Ok();
                 }
 

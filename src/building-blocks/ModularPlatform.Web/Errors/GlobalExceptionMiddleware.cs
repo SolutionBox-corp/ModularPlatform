@@ -69,6 +69,14 @@ public sealed class GlobalExceptionMiddleware(
             problem.Extensions["exception"] = ex.ToString();
         }
 
+        // If the response already began streaming (e.g. an exception thrown mid-SSE after headers flushed), we can no
+        // longer write a problem body — overwriting the status would throw. Log and bail rather than mask the original.
+        if (context.Response.HasStarted)
+        {
+            logger.LogWarning(ex, "Cannot write a problem response for {ErrorCode}: the response already started.", errorCode);
+            return;
+        }
+
         context.Response.StatusCode = status;
         await context.Response.WriteAsJsonAsync(problem, options: null, contentType: "application/problem+json");
     }

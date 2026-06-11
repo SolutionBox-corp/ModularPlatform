@@ -20,10 +20,12 @@
     <ProjectReference Include="..\..\building-blocks\ModularPlatform.Messaging\ModularPlatform.Messaging.csproj" />
     <ProjectReference Include="..\..\building-blocks\ModularPlatform.Persistence\ModularPlatform.Persistence.csproj" />
     <ProjectReference Include="..\..\building-blocks\ModularPlatform.Telemetry\ModularPlatform.Telemetry.csproj" />
+    <ProjectReference Include="..\..\building-blocks\ModularPlatform.Realtime\ModularPlatform.Realtime.csproj" />
     <ProjectReference Include="..\..\modules\Identity\ModularPlatform.Identity\ModularPlatform.Identity.csproj" />
     <ProjectReference Include="..\..\modules\Billing\ModularPlatform.Billing\ModularPlatform.Billing.csproj" />
     <ProjectReference Include="..\..\modules\Notifications\ModularPlatform.Notifications\ModularPlatform.Notifications.csproj" />
     <ProjectReference Include="..\..\modules\Gdpr\ModularPlatform.Gdpr\ModularPlatform.Gdpr.csproj" />
     <ProjectReference Include="..\..\modules\Operations\ModularPlatform.Operations\ModularPlatform.Operations.csproj" />
+    <ProjectReference Include="..\..\modules\Files\ModularPlatform.Files\ModularPlatform.Files.csproj" />
   </ItemGroup>
 </Project>

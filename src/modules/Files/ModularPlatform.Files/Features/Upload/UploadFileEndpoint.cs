@@ -27,6 +27,8 @@ internal static class UploadFileEndpoint
                 IFormFile file,
                 ITenantContext tenant,
                 IDispatcher dispatcher,
+                LinkGenerator links,
+                HttpContext http,
                 CancellationToken ct) =>
             {
                 var userId = tenant.UserId
@@ -36,7 +38,11 @@ internal static class UploadFileEndpoint
                 var command = new UploadFileCommand(
                     userId, content, file.FileName, file.ContentType ?? string.Empty, file.Length);
                 var result = await dispatcher.Send(command, ct);
-                return Results.Created($"/files/{result.Id}", ApiResponse<UploadFileResponse>.Ok(result));
+                // Build the Location from the named download route so it stays correct under the host's /v1 group
+                // instead of a hardcoded path that misses the prefix and 404s.
+                var location = links.GetPathByName(http, "DownloadFile", new { fileId = result.Id })
+                    ?? $"/files/{result.Id}";
+                return Results.Created(location, ApiResponse<UploadFileResponse>.Ok(result));
             })
             .RequireAuthorization()
             .DisableAntiforgery()

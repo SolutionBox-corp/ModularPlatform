@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using ModularPlatform.IntegrationTesting;
@@ -13,6 +14,33 @@ namespace ModularPlatform.Identity.Tests;
 [Collection("Integration")]
 public sealed class TenancyTests(PlatformApiFactory fixture)
 {
+    [Fact]
+    public async Task Registration_does_not_emit_a_dangling_location_header()
+    {
+        // There is no GET /identity/users/{id} (you read your own profile via /me, never by id), so a 201 must NOT
+        // fabricate a Location pointing at a non-existent route.
+        var register = await fixture.Client.PostAsJsonAsync(
+            "/v1/identity/users", new { email = $"loc-{Guid.CreateVersion7():N}@x.com", password = "Sup3rSecret!" });
+
+        register.StatusCode.ShouldBe(System.Net.HttpStatusCode.Created);
+        register.Headers.Location.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Registration_does_not_store_the_plaintext_email_in_the_tenant_name()
+    {
+        var email = $"pii-{Guid.CreateVersion7():N}@x.com";
+        var (userId, _) = await fixture.RegisterAndLoginAsync(email, "Sup3rSecret!");
+
+        // tenants.Name is plaintext at rest (no [Encrypted]) and is never erased — it must not carry the
+        // registrant's email/display name, which are PII protected everywhere else (users.Email is encrypted).
+        var tenantName = await fixture.ScalarAsync<string>(
+            $"SELECT t.\"Name\" FROM tenants t JOIN users u ON u.\"TenantId\" = t.\"Id\" WHERE u.\"Id\" = '{userId}'");
+
+        tenantName.ShouldNotContain(email, Case.Insensitive,
+            "the tenant name must not leak the registrant's email as plaintext at rest");
+    }
+
     [Fact]
     public async Task Registration_provisions_a_tenant_and_the_token_carries_it()
     {

@@ -17,11 +17,14 @@ internal static class DownloadFileEndpoint
     {
         app.MapGet("/files/{fileId:guid}", async (
                 Guid fileId,
+                ITenantContext tenant,
                 IDispatcher dispatcher,
                 IFileStorage storage,
                 CancellationToken ct) =>
             {
-                var descriptor = await dispatcher.Query(new GetFileQuery(fileId), ct);
+                var userId = tenant.UserId
+                    ?? throw new UnauthorizedException("auth.required", "Authentication required.");
+                var descriptor = await dispatcher.Query(new GetFileQuery(fileId, userId), ct);
                 var stream = await storage.GetAsync(descriptor.StorageKey, ct);
                 return Results.Stream(stream, descriptor.ContentType, descriptor.FileName);
             })

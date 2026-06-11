@@ -56,7 +56,8 @@ internal sealed class ReleaseHoldHandler(BillingDbContext db, IClock clock)
         catch (DbUpdateException ex) when (ex is not DbUpdateConcurrencyException)
         {
             // A concurrent release already ran (UNIQUE release:{holdId}). Idempotent: report current state.
-            if (await db.CreditEntries.AsNoTracking().AnyAsync(e => e.IdempotencyKey == $"release:{hold.Id}", ct))
+            if (await db.CreditEntries.AsNoTracking().AnyAsync(
+                    e => e.AccountId == account.Id && e.IdempotencyKey == $"release:{hold.Id}", ct))
             {
                 var available = await db.CreditAccounts.AsNoTracking()
                     .Where(a => a.Id == account.Id).Select(a => a.Available).FirstAsync(ct);

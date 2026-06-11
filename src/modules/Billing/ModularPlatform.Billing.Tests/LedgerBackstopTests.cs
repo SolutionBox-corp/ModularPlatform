@@ -23,8 +23,8 @@ public sealed class LedgerBackstopTests(PlatformApiFactory fixture)
     [Fact]
     public async Task BL5_raw_negative_projection_write_is_rejected_by_the_db_check()
     {
-        var (userId, token) = await fixture.RegisterAndLoginAsync($"bl5-{Guid.CreateVersion7():N}@test.io", Password);
-        await TopUpAsync(token, 100);
+        var (userId, _) = await fixture.RegisterAndLoginAsync($"bl5-{Guid.CreateVersion7():N}@test.io", Password);
+        await TopUpAsync(userId, 100);
 
         var act = () => fixture.ExecuteSqlAsync(
             $"UPDATE credit_accounts SET \"Available\" = -1 WHERE \"UserId\" = '{userId}'");
@@ -37,7 +37,7 @@ public sealed class LedgerBackstopTests(PlatformApiFactory fixture)
     public async Task BL10_balance_read_returns_the_stored_projection_not_a_recompute()
     {
         var (userId, token) = await fixture.RegisterAndLoginAsync($"bl10-{Guid.CreateVersion7():N}@test.io", Password);
-        await TopUpAsync(token, 100);
+        await TopUpAsync(userId, 100);
 
         // Skew the STORED projection away from what a ledger recompute would say (admin write, audit-free).
         await fixture.ExecuteSqlAsync(
@@ -51,19 +51,16 @@ public sealed class LedgerBackstopTests(PlatformApiFactory fixture)
     [Fact]
     public async Task BL11_topup_that_would_overflow_is_rejected_and_balance_unchanged()
     {
-        var (userId, token) = await fixture.RegisterAndLoginAsync($"bl11-{Guid.CreateVersion7():N}@test.io", Password);
-        await TopUpAsync(token, 100);
+        var (userId, _) = await fixture.RegisterAndLoginAsync($"bl11-{Guid.CreateVersion7():N}@test.io", Password);
+        await TopUpAsync(userId, 100);
 
         var nearMax = long.MaxValue - 10;
         await fixture.ExecuteSqlAsync(
             $"UPDATE credit_accounts SET \"Posted\" = {nearMax}, \"Available\" = {nearMax} WHERE \"UserId\" = '{userId}'");
 
-        var topup = await fixture.Client.SendAsync(fixture.Authed(
-            HttpMethod.Post, "/v1/billing/credits/topup", token,
-            new { amount = 100, idempotencyKey = $"bl11-{Guid.CreateVersion7():N}" }));
-
-        topup.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
-        (await topup.Content.ReadAsStringAsync()).ShouldContain("credit.amount.too_large");
+        var overflow = await Should.ThrowAsync<BusinessRuleException>(
+            () => fixture.GrantCreditsAsync(userId, 100));
+        overflow.ErrorCode.ShouldBe("credit.amount.too_large");
 
         (await fixture.ScalarAsync<long>(
             $"SELECT \"Posted\" FROM credit_accounts WHERE \"UserId\" = '{userId}'")).ShouldBe(nearMax);
@@ -89,7 +86,7 @@ public sealed class LedgerBackstopTests(PlatformApiFactory fixture)
     public async Task PL2_audit_update_rows_record_only_changed_columns_and_enums_as_strings()
     {
         var (userId, token) = await fixture.RegisterAndLoginAsync($"pl2-{Guid.CreateVersion7():N}@test.io", Password);
-        await TopUpAsync(token, 100);
+        await TopUpAsync(userId, 100);
 
         // Reserve + release: the hold flips Active -> Released (a converted enum) via tracked saves.
         var reserve = await fixture.Client.SendAsync(fixture.Authed(
@@ -109,11 +106,5 @@ public sealed class LedgerBackstopTests(PlatformApiFactory fixture)
         newValues.ShouldNotContain("\"Amount\"");
     }
 
-    private async Task TopUpAsync(string token, long amount)
-    {
-        var topup = await fixture.Client.SendAsync(fixture.Authed(
-            HttpMethod.Post, "/v1/billing/credits/topup", token,
-            new { amount, idempotencyKey = $"seed-{Guid.CreateVersion7():N}" }));
-        topup.StatusCode.ShouldBe(HttpStatusCode.OK);
-    }
+    private Task TopUpAsync(Guid userId, long amount) => fixture.GrantCreditsAsync(userId, amount);
 }

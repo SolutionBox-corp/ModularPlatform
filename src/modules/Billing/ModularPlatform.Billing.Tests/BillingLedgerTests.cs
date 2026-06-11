@@ -51,20 +51,17 @@ public sealed class BillingLedgerTests(PlatformApiFactory fixture)
     [Fact]
     public async Task Top_up_with_the_same_idempotency_key_credits_exactly_once()
     {
-        var (userId, token) = await fixture.RegisterAndLoginAsync(
+        var (userId, _) = await fixture.RegisterAndLoginAsync(
             $"topup-{Guid.CreateVersion7():N}@example.com", "Sup3rSecret!");
 
         var key = $"key-{Guid.CreateVersion7():N}";
 
-        // Two simultaneous top-ups with the SAME idempotency key against a brand-new user.
-        var attempts = await Task.WhenAll(Enumerable.Range(0, 2).Select(async _ =>
-        {
-            var request = fixture.Authed(HttpMethod.Post, "/v1/billing/credits/topup", token,
-                new { amount = 500L, bucketExpiryDays = (int?)null, idempotencyKey = key });
-            return (await fixture.Client.SendAsync(request)).StatusCode;
-        }));
+        // Two simultaneous top-ups with the SAME idempotency key against a brand-new user (the internal
+        // grant primitive, as a real payment would dispatch it).
+        var attempts = await Task.WhenAll(Enumerable.Range(0, 2).Select(_ =>
+            fixture.GrantCreditsAsync(userId, 500L, idempotencyKey: key)));
 
-        attempts.ShouldAllBe(s => s == HttpStatusCode.OK);
+        attempts.ShouldAllBe(r => r.AccountId != Guid.Empty);
 
         // Exactly ONE credit: one account, one Topup entry for the key, posted == 500 (not 1000).
         var accounts = await fixture.ScalarAsync<long>(
@@ -78,5 +75,21 @@ public sealed class BillingLedgerTests(PlatformApiFactory fixture)
         var posted = await fixture.ScalarAsync<long>(
             $"SELECT \"Posted\" FROM credit_accounts WHERE \"UserId\" = '{userId}'");
         posted.ShouldBe(500);
+    }
+
+    [Fact]
+    public async Task Idempotency_keys_are_scoped_per_account_not_globally()
+    {
+        var (userA, _) = await fixture.RegisterAndLoginAsync($"acctA-{Guid.CreateVersion7():N}@example.com", "Sup3rSecret!");
+        var (userB, _) = await fixture.RegisterAndLoginAsync($"acctB-{Guid.CreateVersion7():N}@example.com", "Sup3rSecret!");
+        var sharedKey = $"order-{Guid.CreateVersion7():N}";
+
+        var a = await fixture.GrantCreditsAsync(userA, 500, idempotencyKey: sharedKey);
+        var b = await fixture.GrantCreditsAsync(userB, 700, idempotencyKey: sharedKey);
+
+        // B re-using a key account A already used must STILL be credited — idempotency is per account, not global.
+        a.AlreadyApplied.ShouldBeFalse();
+        b.AlreadyApplied.ShouldBeFalse("a key used by another account must not silently no-op this account's grant");
+        b.Posted.ShouldBe(700);
     }
 }

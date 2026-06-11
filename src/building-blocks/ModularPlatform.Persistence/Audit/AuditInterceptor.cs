@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Options;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Persistence.Entities;
 
@@ -20,9 +21,15 @@ namespace ModularPlatform.Persistence.Audit;
 /// REDACTED — it is never written in clear.
 /// </para>
 /// </summary>
-public sealed class AuditInterceptor(IClock clock, ITenantContext tenant, IPersonalDataProtector? protector = null)
+public sealed class AuditInterceptor(
+    IClock clock,
+    ITenantContext tenant,
+    IPersonalDataProtector? protector = null,
+    IOptions<AuditOptions>? auditOptions = null)
     : SaveChangesInterceptor
 {
+    private readonly AuditIpStorageMode _ipStorage = auditOptions?.Value.IpStorage ?? AuditIpStorageMode.Full;
+
     public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
         DbContextEventData eventData, InterceptionResult<int> result, CancellationToken ct = default)
     {
@@ -50,7 +57,8 @@ public sealed class AuditInterceptor(IClock clock, ITenantContext tenant, IPerso
         var now = clock.UtcNow;
         var userId = tenant.UserId;
         var tenantId = tenant.TenantId;
-        var ip = tenant.IpAddress;
+        // The audit IP is personal data — apply the deployment's data-minimization policy at the write point.
+        var ip = AuditIpMasking.Apply(tenant.IpAddress, _ipStorage);
 
         // Snapshot the audited entries BEFORE we add audit rows (so we don't audit the audit).
         var entries = context.ChangeTracker.Entries()

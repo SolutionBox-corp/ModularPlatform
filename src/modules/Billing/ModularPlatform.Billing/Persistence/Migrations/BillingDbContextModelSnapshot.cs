@@ -155,10 +155,10 @@ namespace ModularPlatform.Billing.Persistence.Migrations
 
                     b.HasIndex("AccountId");
 
-                    b.HasIndex("IdempotencyKey")
-                        .IsUnique();
-
                     b.HasIndex("TransactionId");
+
+                    b.HasIndex("AccountId", "IdempotencyKey")
+                        .IsUnique();
 
                     b.ToTable("credit_entries", (string)null);
                 });

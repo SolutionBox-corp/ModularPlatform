@@ -31,8 +31,11 @@ internal static class CryptoShredder
     /// <summary>
     /// Encrypts <paramref name="plaintext"/> under the subject's <paramref name="dek"/>.
     /// Returns <c>[nonce][tag][ciphertext]</c>. Deleting the DEK makes this output unrecoverable.
-    /// Optional <paramref name="aad"/> (AES-GCM associated data) binds the ciphertext to a context —
-    /// the platform passes the subject id, so an envelope re-attached to another subject fails authentication.
+    /// Optional <paramref name="aad"/> (AES-GCM associated data) binds the ciphertext to a context — the platform
+    /// passes the subject id, so swapping the ciphertext under a DIFFERENT subject's key fails authentication.
+    /// (Caveat: the read path takes the subject id from the envelope itself, so copying a WHOLE envelope verbatim
+    /// into another subject's row still authenticates against its own AAD — that is a DB-tampering, defence-in-depth
+    /// concern outside the application threat model, not a confidentiality break of the at-rest ciphertext.)
     /// </summary>
     public static byte[] Encrypt(byte[] plaintext, byte[] dek, byte[]? aad = null)
     {

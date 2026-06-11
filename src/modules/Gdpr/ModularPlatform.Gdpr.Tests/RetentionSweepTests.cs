@@ -8,15 +8,15 @@ namespace ModularPlatform.Gdpr.Tests;
 
 /// <summary>
 /// Integration test for the GDPR retention sweep (<see cref="RetentionSweepCommand"/>).
-/// Verifies that shredded <c>subject_keys</c> tombstones (rows with <c>DeletedAt</c> older than the retention
-/// window) are hard-deleted, while rows within the retention window or not yet shredded are left untouched.
+/// Verifies that shredded <c>subject_keys</c> tombstones are RETAINED PERMANENTLY — they are the DEK re-mint guard,
+/// so the sweep deletes nothing (deleting one would let a post-erasure PII write resurrect a readable key).
 /// Uses the shared <see cref="PlatformApiFactory"/> harness against a real Testcontainers Postgres.
 /// </summary>
 [Collection("Integration")]
 public sealed class RetentionSweepTests(PlatformApiFactory fixture)
 {
     [Fact]
-    public async Task Shredded_subject_key_beyond_retention_window_is_deleted()
+    public async Task Shredded_tombstone_is_retained_permanently_so_the_dek_cannot_be_re_minted()
     {
         var userId = Guid.CreateVersion7();
 
@@ -29,22 +29,18 @@ public sealed class RetentionSweepTests(PlatformApiFactory fixture)
              VALUES ('{keyId}', '{userId}', NULL, '{DateTimeOffset.UtcNow.AddDays(-40):O}', '{oldDeletedAt:O}')
              """);
 
-        // Confirm the row is present before the sweep.
-        var before = await fixture.ScalarAsync<long>(
-            $"SELECT count(*)::bigint FROM subject_keys WHERE \"Id\" = '{keyId}'");
-        before.ShouldBe(1);
-
         // Dispatch the retention sweep command through the real DI/dispatcher.
         await using var scope = fixture.Services.CreateAsyncScope();
         var dispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
-        var result = await dispatcher.Send(new RetentionSweepCommand());
+        await dispatcher.Send(new RetentionSweepCommand());
 
-        // The old tombstone should have been deleted.
-        result.PurgedCount.ShouldBeGreaterThanOrEqualTo(1);
-
+        // The tombstone MUST survive even beyond the old window: it is the permanent record that blocks
+        // PersonalDataProtector from minting a fresh, readable DEK for an erased subject (a later PII write for the
+        // dead UserId). Purging it reopened the crypto-shred — "an erased key cannot be re-created" only holds while
+        // the tombstone exists.
         var after = await fixture.ScalarAsync<long>(
             $"SELECT count(*)::bigint FROM subject_keys WHERE \"Id\" = '{keyId}'");
-        after.ShouldBe(0);
+        after.ShouldBe(1);
     }
 
     [Fact]

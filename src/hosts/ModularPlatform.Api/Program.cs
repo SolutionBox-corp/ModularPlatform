@@ -44,7 +44,8 @@ foreach (var module in modules)
 // Solo durability when the Api is the only node (tests, single-instance deploy) so the durable-queue agent
 // drains immediately. With a dedicated Worker scaled out, set Messaging:SoloMode=false on both for Balanced.
 var soloMode = builder.Configuration.GetValue("Messaging:SoloMode", builder.Environment.IsEnvironment("Testing"));
-builder.UseWolverine(opts => PlatformMessaging.Configure(opts, writeConn, modules, soloMode));
+// A single-node Api (Solo / tests) must consume its own published events; a Balanced Api offloads to the Worker.
+builder.UseWolverine(opts => PlatformMessaging.Configure(opts, writeConn, modules, soloMode, listen: soloMode));
 
 var app = builder.Build();
 

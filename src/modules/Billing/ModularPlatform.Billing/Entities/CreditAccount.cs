@@ -5,9 +5,11 @@ using ModularPlatform.Persistence.Entities;
 namespace ModularPlatform.Billing.Entities;
 
 /// <summary>
-/// One wallet per user/tenant. <see cref="Posted"/>/<see cref="Pending"/>/<see cref="Available"/> are a
-/// cached PROJECTION verified against the append-only ledger inside the pessimistic lock — never trusted
-/// alone. The row is the lock target (<c>SELECT … FOR NO KEY UPDATE</c> on the debit path; xmin elsewhere).
+/// One wallet per user/tenant. <see cref="Posted"/>/<see cref="Pending"/>/<see cref="Available"/> are an
+/// authoritative PROJECTION maintained transactionally (invariant <c>Available = Posted − Pending</c>). The DEBIT
+/// path is an atomic conditional <c>ExecuteUpdate</c> guard (<c>WHERE Available &gt;= amount</c>) — the EF-native
+/// pessimistic equivalent that locks the row and evaluates the guard in one statement, so concurrent reservations
+/// serialize at the DB with no double-spend; every other mutation uses xmin + the retry behavior.
 /// </summary>
 internal sealed class CreditAccount : AuditableEntity, IUserOwned
 {

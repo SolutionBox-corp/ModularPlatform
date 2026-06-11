@@ -22,6 +22,13 @@ internal interface IStripeGateway
 
     /// <summary>Active promotion code lookup by customer-facing code, or null when unknown/inactive.</summary>
     Task<PromotionCodeState?> FindActivePromotionCodeAsync(string code, CancellationToken ct);
+
+    /// <summary>
+    /// The live <c>payment_status</c> of a Checkout session ("paid" | "unpaid" | "no_payment_required"), or null
+    /// when the session is unknown. Used by the reconcile sweep to safely re-grant a purchase whose confirmation
+    /// dead-lettered — only when Stripe confirms the funds were actually captured.
+    /// </summary>
+    Task<string?> GetCheckoutSessionPaymentStatusAsync(string sessionId, CancellationToken ct);
 }
 
 /// <summary>What a checkout session needs — one shape for one-time package payments and subscriptions.</summary>

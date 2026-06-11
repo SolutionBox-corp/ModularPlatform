@@ -50,8 +50,16 @@ public static class RealtimeStreamEndpoint
         string? lastEventId,
         [EnumeratorCancellation] CancellationToken ct)
     {
-        // Subscribe first so no live events are lost while we emit the replay.
-        var channel = Channel.CreateUnbounded<RealtimeMessage>();
+        // Subscribe first so no live events are lost while we emit the replay. BOUNDED with DropOldest: a stalled or
+        // disconnected SSE consumer must NOT grow this buffer without limit (an unbounded channel leaks memory per
+        // dead connection). Realtime is best-effort UX smoothing — dropping the oldest unread event under back-pressure
+        // is acceptable, and durable facts live in the modules. TryWrite then never blocks and never fails.
+        var channel = Channel.CreateBounded<RealtimeMessage>(new BoundedChannelOptions(256)
+        {
+            FullMode = BoundedChannelFullMode.DropOldest,
+            SingleReader = true,
+            SingleWriter = false,
+        });
         using var subscription = registry.Subscribe(userId, message =>
         {
             channel.Writer.TryWrite(message);

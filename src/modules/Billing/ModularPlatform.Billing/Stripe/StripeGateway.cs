@@ -74,6 +74,19 @@ internal sealed class StripeGateway(IOptions<StripeOptions> options) : IStripeGa
         return ToState(subscription);
     }
 
+    public async Task<string?> GetCheckoutSessionPaymentStatusAsync(string sessionId, CancellationToken ct)
+    {
+        try
+        {
+            var session = await new SessionService(_client.Value).GetAsync(sessionId, cancellationToken: ct);
+            return session.PaymentStatus;
+        }
+        catch (StripeException ex) when (ex.HttpStatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+    }
+
     public async Task CancelSubscriptionAsync(string subscriptionId, bool atPeriodEnd, CancellationToken ct)
     {
         var service = new SubscriptionService(_client.Value);

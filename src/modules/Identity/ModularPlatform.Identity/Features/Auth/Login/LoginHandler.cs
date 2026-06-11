@@ -29,6 +29,12 @@ internal sealed class LoginHandler(
     private const int MaxFailedAccessAttempts = 5;
     private static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
 
+    // A valid Argon2 hash (platform parameters), computed once on first use, so an unknown-email login spends the
+    // same verification time as a real one. The plaintext is irrelevant — only the verification cost matters.
+    private static string? _dummyPasswordHash;
+    private string DummyPasswordHash() =>
+        _dummyPasswordHash ??= passwordHasher.Hash("d6f1c0a2-login-timing-equalization-seed");
+
     public async Task<AuthTokensResponse> Handle(LoginCommand command, CancellationToken ct)
     {
         var now = clock.UtcNow;
@@ -36,6 +42,15 @@ internal sealed class LoginHandler(
         var emailHash = blindIndex.Hash(command.Email.Trim().ToUpperInvariant());
         // Authentication is cross-tenant — look the user up globally (the tenant is unknown until logged in).
         var user = await db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.EmailHash == emailHash, ct);
+
+        // No user enumeration: ALWAYS run a password verification — against the real hash, or a fixed dummy hash for
+        // an unknown/erased account — so the response time is identical whether or not the email exists. Argon2 is
+        // deliberately slow; skipping it for an unknown email would leak account existence via response latency.
+        // An account with no real hash (unknown OR GDPR-erased -> blanked PasswordHash) can NEVER authenticate, even
+        // if the password happens to match the dummy hash, because passwordValid is gated on hasRealHash.
+        var hasRealHash = user?.PasswordHash is { Length: > 0 };
+        var storedHash = hasRealHash ? user!.PasswordHash : DummyPasswordHash();
+        var passwordValid = passwordHasher.Verify(storedHash, command.Password) && hasRealHash;
 
         // Unknown user: nothing to mutate; respond with the generic credential error (no user enumeration).
         if (user is null)
@@ -50,8 +65,7 @@ internal sealed class LoginHandler(
                 "This account is temporarily locked. Try again later.");
         }
 
-        // An erased account has a blanked PasswordHash — credentials can never verify again.
-        if (string.IsNullOrEmpty(user.PasswordHash) || !passwordHasher.Verify(user.PasswordHash, command.Password))
+        if (!passwordValid)
         {
             // Wrong password: count the failure; lock out once the threshold is crossed.
             user.FailedAccessCount += 1;
@@ -63,6 +77,14 @@ internal sealed class LoginHandler(
 
             await db.SaveChangesAsync(ct);
 
+            throw new UnauthorizedException("auth.invalid_credentials", "Invalid email or password.");
+        }
+
+        // Correct credentials, but a deactivated / GDPR-erased account (DeletedAt stamped) must NOT authenticate —
+        // mirrors the refresh-token guard. Same generic error (no enumeration). This also stops a soft-deleted admin
+        // email from being re-granted admin by EnsureConfiguredAdminAsync below.
+        if (user.DeletedAt is not null)
+        {
             throw new UnauthorizedException("auth.invalid_credentials", "Invalid email or password.");
         }
 

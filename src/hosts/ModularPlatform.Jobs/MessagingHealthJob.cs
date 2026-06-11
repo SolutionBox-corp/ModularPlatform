@@ -50,38 +50,24 @@ internal sealed class MessagingHealthJob(
     public async Task Execute(IJobExecutionContext context)
     {
         // FetchCountsAsync returns Wolverine.Logging.PersistedCounts with properties:
-        // Incoming, Scheduled (outgoing pending), Outgoing, Handled, DeadLetter.
+        // Incoming, Scheduled (future-dated, e.g. saga timeouts), Outgoing (outbox backlog), Handled, DeadLetter.
         var counts = await messageStore.Admin.FetchCountsAsync();
         var stuckThreshold = configuration.GetValue<int>("Messaging:StuckThreshold", 100);
 
+        var evaluation = MessagingHealthEvaluation.Evaluate(counts, stuckThreshold);
+
         // Refresh backing fields so the next OTel collect picks up fresh values.
-        Interlocked.Exchange(ref _latestDeadLetters, counts.DeadLetter);
-        Interlocked.Exchange(ref _latestIncomingPending, counts.Incoming);
-        Interlocked.Exchange(ref _latestOutgoingPending, counts.Scheduled);
+        Interlocked.Exchange(ref _latestDeadLetters, evaluation.DeadLetters);
+        Interlocked.Exchange(ref _latestIncomingPending, evaluation.IncomingPending);
+        Interlocked.Exchange(ref _latestOutgoingPending, evaluation.OutgoingPending);
 
-        if (counts.DeadLetter > 0)
+        foreach (var warning in evaluation.Warnings)
         {
-            logger.LogWarning(
-                "Messaging health: {DeadLetters} dead-letter(s) found in the Wolverine DLQ — inspect and replay",
-                counts.DeadLetter);
-        }
-
-        if (counts.Incoming > stuckThreshold)
-        {
-            logger.LogWarning(
-                "Messaging health: {IncomingPending} incoming-pending messages exceed stuck threshold {Threshold}",
-                counts.Incoming, stuckThreshold);
-        }
-
-        if (counts.Scheduled > stuckThreshold)
-        {
-            logger.LogWarning(
-                "Messaging health: {OutgoingPending} outgoing/scheduled messages exceed stuck threshold {Threshold}",
-                counts.Scheduled, stuckThreshold);
+            logger.LogWarning("{MessagingHealthWarning}", warning);
         }
 
         logger.LogInformation(
-            "Messaging health check — dead_letters={DeadLetters} incoming_pending={Incoming} outgoing_pending={Scheduled}",
-            counts.DeadLetter, counts.Incoming, counts.Scheduled);
+            "Messaging health check — dead_letters={DeadLetters} incoming_pending={Incoming} outgoing_pending={Outgoing}",
+            evaluation.DeadLetters, evaluation.IncomingPending, evaluation.OutgoingPending);
     }
 }

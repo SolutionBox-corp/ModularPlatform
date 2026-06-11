@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Net;
+using System.Security.Claims;
 using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -47,23 +50,70 @@ public static class PlatformWebExtensions
             .Bind(configuration.GetSection(JwtOptions.SectionName))
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<JwtOptions>, JwtOptionsValidator>();
+        AddForwardedHeaders(services, configuration);
         AddJwt(services, configuration);
         AddRateLimiter(services, configuration);
 
         return services;
     }
 
+    private static void AddForwardedHeaders(IServiceCollection services, IConfiguration configuration)
+    {
+        // The forwarded client IP feeds audit + the auth rate-limiter, so a missing trust list behind a proxy is a
+        // spoofing hole — the validator fail-fasts on it in Production. The framework ForwardedHeadersOptions is
+        // built from the same settings (KnownProxies/KnownNetworks parsed once) and consumed by UseForwardedHeaders.
+        var settings = configuration.GetSection(ForwardedHeadersSettings.SectionName).Get<ForwardedHeadersSettings>()
+            ?? new ForwardedHeadersSettings();
+
+        services.AddOptions<ForwardedHeadersSettings>()
+            .Bind(configuration.GetSection(ForwardedHeadersSettings.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<ForwardedHeadersSettings>, ForwardedHeadersSettingsValidator>();
+
+        services.Configure<ForwardedHeadersOptions>(o =>
+        {
+            o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+            o.ForwardLimit = settings.ForwardLimit;
+
+            if (!settings.HasTrustList)
+            {
+                // No explicit trust list: keep ASP.NET's loopback defaults (safe for local/dev; Production is
+                // blocked from reaching here with Enabled=true by the validator).
+                return;
+            }
+
+            // Replace the loopback defaults with the configured trust list.
+            o.KnownProxies.Clear();
+            o.KnownIPNetworks.Clear();
+            foreach (var proxy in settings.KnownProxies)
+            {
+                o.KnownProxies.Add(IPAddress.Parse(proxy));
+            }
+
+            foreach (var cidr in settings.KnownNetworks)
+            {
+                o.KnownIPNetworks.Add(System.Net.IPNetwork.Parse(cidr));
+            }
+        });
+    }
+
     /// <summary>
     /// The request pipeline, in order: security headers -> request localization -> global exception
-    /// (RFC 9457) -> rate limiter -> auth -> authorization. Call before mapping module endpoints.
+    /// (RFC 9457) -> authentication -> rate limiter -> authorization. Call before mapping module endpoints.
+    /// The rate limiter runs AFTER authentication so the global limiter can partition by the authenticated
+    /// user (its claims must already be populated); the per-IP "auth" policy on anonymous endpoints is unaffected.
     /// </summary>
     public static WebApplication UsePlatformWeb(this WebApplication app)
     {
-        // Resolve the real client IP behind a proxy for rate limiting + audit. Production must set KnownProxies.
-        app.UseForwardedHeaders(new ForwardedHeadersOptions
+        // Resolve the real client IP behind a proxy for rate limiting + audit. Options (incl. the KnownProxies/
+        // KnownNetworks trust list) are bound + validated in AddForwardedHeaders; the validator fail-fasts a
+        // Production host that left the trust list empty (which would trust spoofed X-Forwarded-For from anyone).
+        // Enabled=false (a host with no reverse proxy) genuinely skips the middleware — it is the validator's
+        // advertised escape hatch, so it must actually turn the middleware off.
+        if (app.Services.GetRequiredService<IOptions<ForwardedHeadersSettings>>().Value.Enabled)
         {
-            ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
-        });
+            app.UseForwardedHeaders();
+        }
 
         app.UseMiddleware<SecurityHeadersMiddleware>();
 
@@ -75,8 +125,11 @@ public static class PlatformWebExtensions
         });
 
         app.UseMiddleware<GlobalExceptionMiddleware>();
-        app.UseRateLimiter();
+        // Authentication BEFORE the rate limiter: the global limiter partitions by the authenticated user's claim,
+        // which only exists after auth has run. (A pre-auth limiter saw no claims and collapsed every authenticated
+        // caller into the shared IP bucket — caught by PL11.)
         app.UseAuthentication();
+        app.UseRateLimiter();
         app.UseAuthorization();
 
         return app;
@@ -122,12 +175,27 @@ public static class PlatformWebExtensions
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
-            // Partition by authenticated user, else by remote IP. Redis-backed distributed limiter
-            // is swapped in for multi-instance; the partition key is the stable seam.
+            // Emit Retry-After on a 429 when the limiter knows when the next permit frees up (token-bucket
+            // replenishment / fixed-window reset) — clients back off intelligently instead of hammering.
+            options.OnRejected = (rejected, _) =>
+            {
+                if (rejected.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+                {
+                    rejected.HttpContext.Response.Headers.RetryAfter =
+                        ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString(CultureInfo.InvariantCulture);
+                }
+
+                return ValueTask.CompletedTask;
+            };
+
+            // Partition by authenticated user (the token's subject id), else by remote IP. The user id comes from the
+            // NameIdentifier claim (TokenIssuer emits it) — NOT Identity.Name, which is null because no name claim is
+            // issued, and which would collapse EVERY authenticated caller into one shared bucket. Redis-backed
+            // distributed limiter is swapped in for multi-instance; the partition key is the stable seam.
             options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
             {
                 var key = context.User.Identity?.IsAuthenticated == true
-                    ? context.User.Identity!.Name ?? "user"
+                    ? context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "user"
                     : context.Connection.RemoteIpAddress?.ToString() ?? "anon";
 
                 return RateLimitPartition.GetTokenBucketLimiter(key, _ => new TokenBucketRateLimiterOptions

@@ -1,3 +1,4 @@
+using System.Linq;
 using ArchUnitNET.Domain;
 using ArchUnitNET.Loader;
 using ArchUnitNET.xUnit;
@@ -38,16 +39,27 @@ public sealed class ModuleBoundaryTests
             .Check(Architecture);
     }
 
+    private static readonly string[] Modules =
+        ["Identity", "Billing", "Notifications", "Gdpr", "Operations", "Files"];
+
     [Fact]
-    public void Identity_core_must_not_depend_on_other_module_cores()
+    public void No_module_core_depends_on_another_modules_core()
     {
-        // A module's Core is internal; other modules talk to it ONLY via its Contracts. This guards the seam
-        // that lets a module be extracted into its own service later.
-        Types().That()
-            .ResideInNamespaceMatching(@"ModularPlatform\.Identity")
-            .And().DoNotResideInNamespaceMatching(@"ModularPlatform\.Identity\.Contracts")
-            .Should().NotDependOnAny(Types().That()
-                .ResideInNamespaceMatching(@"ModularPlatform\.(Billing|Notifications|Audit|Gdpr)$"))
-            .Check(Architecture);
+        // A module's Core is internal; other modules talk to it ONLY via its Contracts (reference by Id, never a
+        // cross-module JOIN or Core type). This guards the seam that lets a module be extracted into its own service.
+        // Covers EVERY module (not just Identity) and matches NESTED namespaces (…\.Features\.X), not only the root.
+        foreach (var module in Modules)
+        {
+            var others = Modules.Where(m => m != module);
+            var otherCores = Types().That()
+                .ResideInNamespaceMatching($@"^ModularPlatform\.({string.Join("|", others)})(\..*)?$")
+                .And().DoNotResideInNamespaceMatching(@"^ModularPlatform\.\w+\.Contracts(\..*)?$");
+
+            Types().That()
+                .ResideInNamespaceMatching($@"^ModularPlatform\.{module}(\..*)?$")
+                .And().DoNotResideInNamespaceMatching($@"^ModularPlatform\.{module}\.Contracts(\..*)?$")
+                .Should().NotDependOnAny(otherCores)
+                .Check(Architecture);
+        }
     }
 }

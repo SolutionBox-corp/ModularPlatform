@@ -46,6 +46,14 @@ internal sealed class OperationStore(OperationsDbContext db, IClock clock) : IOp
     {
         var operation = await db.Operations.FirstOrDefaultAsync(o => o.Id == operationId, ct)
             ?? throw new NotFoundException("operation.not_found", "Operation not found.");
+
+        // Terminal states are FINAL: a redelivered/duplicate worker message must not resurrect a Succeeded/Failed
+        // operation back to Running, nor flip one terminal state to the other. Idempotent no-op.
+        if (operation.Status is OperationStatus.Succeeded or OperationStatus.Failed)
+        {
+            return;
+        }
+
         mutate(operation);
         await db.SaveChangesAsync(ct);
     }

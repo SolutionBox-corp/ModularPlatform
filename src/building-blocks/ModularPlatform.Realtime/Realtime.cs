@@ -26,7 +26,13 @@ public interface IRealtimeReplay
         Guid userId, string? lastEventId, CancellationToken ct = default);
 }
 
-/// <summary>Configuration for the realtime replay buffer.</summary>
+/// <summary>
+/// Configuration for the realtime replay buffer. Replayed payloads (notification title/body) can be personal
+/// data, so the buffer is deliberately SHORT-LIVED and small — it is best-effort UX smoothing on reconnect, not a
+/// durable store. Both bounds cap how long that PII lingers in Redis (no crypto-shred there): a stream key is
+/// trimmed to <see cref="MaxEvents"/> and expires after <see cref="TtlMinutes"/>. The durable system-of-record
+/// (the Notifications DB rows) is where erasure actually applies.
+/// </summary>
 public sealed class RealtimeReplayOptions
 {
     public const string SectionName = "Realtime:Replay";
@@ -34,10 +40,10 @@ public sealed class RealtimeReplayOptions
     /// <summary>Whether the replay buffer is enabled. Default <c>true</c>.</summary>
     public bool Enabled { get; set; } = true;
 
-    /// <summary>Maximum number of events retained per user (stream MAXLEN). Default 100.</summary>
+    /// <summary>Maximum number of events retained per user (stream MAXLEN). Default 100. Also a PII-minimization bound.</summary>
     public int MaxEvents { get; set; } = 100;
 
-    /// <summary>TTL (minutes) of the per-user stream key. Default 60.</summary>
+    /// <summary>TTL (minutes) of the per-user stream key. Default 60. Bounds how long replayed PII lives in Redis.</summary>
     public int TtlMinutes { get; set; } = 60;
 }
 
@@ -69,7 +75,16 @@ public sealed class RealtimeConnectionRegistry
         {
             foreach (var handler in conns.Values)
             {
-                await handler(message);
+                try
+                {
+                    await handler(message);
+                }
+                catch
+                {
+                    // Best-effort fan-out: one connection's delivery failure must not starve the user's OTHER
+                    // connections (tabs/devices). The wired SSE handler only does a non-throwing bounded TryWrite;
+                    // this guards any future subscriber that throws.
+                }
             }
         }
     }

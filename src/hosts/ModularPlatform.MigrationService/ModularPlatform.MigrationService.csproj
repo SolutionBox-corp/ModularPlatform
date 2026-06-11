@@ -18,6 +18,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\building-blocks\ModularPlatform.Messaging\ModularPlatform.Messaging.csproj" />
     <ProjectReference Include="..\..\building-blocks\ModularPlatform.Persistence\ModularPlatform.Persistence.csproj" />
+    <ProjectReference Include="..\..\building-blocks\ModularPlatform.Realtime\ModularPlatform.Realtime.csproj" />
     <ProjectReference Include="..\..\modules\Identity\ModularPlatform.Identity\ModularPlatform.Identity.csproj" />
     <ProjectReference Include="..\..\modules\Billing\ModularPlatform.Billing\ModularPlatform.Billing.csproj" />
     <ProjectReference Include="..\..\modules\Notifications\ModularPlatform.Notifications\ModularPlatform.Notifications.csproj" />

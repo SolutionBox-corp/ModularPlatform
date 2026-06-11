@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Gdpr.Contracts;
@@ -33,13 +34,36 @@ public sealed class UserErasureRequestedHandler
         UserErasureRequested message,
         IEnumerable<IErasePersonalData> erasers,
         IDispatcher dispatcher,
+        ILogger<UserErasureRequestedHandler> logger,
         CancellationToken ct)
     {
+        // Per-eraser isolation (mirrors the export fan-out): one module's eraser failure must NOT block the others
+        // nor — critically — the authoritative crypto-shred below. Failures are logged and counted, then the message
+        // is retried so the failed module's anonymization eventually completes (every eraser + the shred is idempotent).
+        var failures = 0;
         foreach (var eraser in erasers)
         {
-            await eraser.EraseAsync(message.UserId, ct);
+            try
+            {
+                await eraser.EraseAsync(message.UserId, ct);
+            }
+            catch (Exception ex)
+            {
+                failures++;
+                logger.LogError(ex,
+                    "Erasure failed for module {Module}, user {UserId}; the crypto-shred still runs and the message retries.",
+                    eraser.ModuleName, message.UserId);
+            }
         }
 
+        // The authoritative erasure act — destroying the subject's DEK renders every ciphertext under it
+        // permanently unrecoverable. Runs even if a per-module anonymizer failed above.
         await dispatcher.Send(new ShredSubjectKeyCommand(message.UserId), ct);
+
+        if (failures > 0)
+        {
+            throw new InvalidOperationException(
+                $"{failures} module eraser(s) failed for subject {message.UserId}; retrying for full anonymization.");
+        }
     }
 }

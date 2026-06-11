@@ -26,56 +26,81 @@ internal sealed class ExpireCreditsHandler(BillingDbContext db, IClock clock)
 
         foreach (var accountId in accountIds)
         {
-            var account = await db.CreditAccounts.FirstAsync(a => a.Id == accountId, ct);
-
-            var lapsedHolds = await db.CreditHolds
-                .Where(h => h.AccountId == accountId && h.Status == HoldStatus.Active && h.ExpiresAt <= now)
-                .ToListAsync(ct);
-            foreach (var hold in lapsedHolds)
+            try
             {
-                hold.Status = HoldStatus.Expired;
-                hold.ResolvedAt = now;
-                db.CreditEntries.Add(new CreditEntry
-                {
-                    AccountId = accountId,
-                    Direction = CreditDirection.Credit,
-                    Amount = hold.Amount,
-                    TransactionId = hold.Id,
-                    Type = CreditEntryType.Release,
-                    BucketId = null,
-                    IdempotencyKey = $"expire-hold:{hold.Id}",
-                    CreatedAt = now,
-                });
-                account.Available += hold.Amount;
-                account.Pending -= hold.Amount;
-                expiredHoldCount++;
-            }
+                var account = await db.CreditAccounts.FirstAsync(a => a.Id == accountId, ct);
 
-            var expiredBuckets = await db.CreditBuckets
-                .Where(b => b.AccountId == accountId && b.Remaining > 0 && b.ExpiresAt != null && b.ExpiresAt <= now)
-                .ToListAsync(ct);
-            foreach (var bucket in expiredBuckets)
+                var lapsedHolds = await db.CreditHolds
+                    .Where(h => h.AccountId == accountId && h.Status == HoldStatus.Active && h.ExpiresAt <= now)
+                    .ToListAsync(ct);
+                foreach (var hold in lapsedHolds)
+                {
+                    hold.Status = HoldStatus.Expired;
+                    hold.ResolvedAt = now;
+                    db.CreditEntries.Add(new CreditEntry
+                    {
+                        AccountId = accountId,
+                        Direction = CreditDirection.Credit,
+                        Amount = hold.Amount,
+                        TransactionId = hold.Id,
+                        Type = CreditEntryType.Release,
+                        BucketId = null,
+                        IdempotencyKey = $"expire-hold:{hold.Id}",
+                        CreatedAt = now,
+                    });
+                    account.Available += hold.Amount;
+                    account.Pending -= hold.Amount;
+                    expiredHoldCount++;
+                }
+
+                var expiredBuckets = await db.CreditBuckets
+                    .Where(b => b.AccountId == accountId && b.Remaining > 0 && b.ExpiresAt != null && b.ExpiresAt <= now)
+                    .OrderBy(b => b.ExpiresAt)
+                    .ToListAsync(ct);
+                foreach (var bucket in expiredBuckets)
+                {
+                    // Only destroy credits that are actually FREE. A reservation decrements Available/raises Pending
+                    // but does NOT draw its backing bucket, so bucket.Remaining can still count credits committed to
+                    // an active hold. account.Available IS the free balance (= Posted - Pending); a bucket whose
+                    // Remaining exceeds it is (partly) reserved — skip it FULLY this sweep (keeps the
+                    // expire-bucket:{id} idempotency key unique) and expire it on a later sweep once the hold
+                    // resolves. Destroying the held portion would drive Available negative (CHECK violation) and
+                    // break the eventual confirm.
+                    if (bucket.Remaining > account.Available)
+                    {
+                        continue;
+                    }
+
+                    var lost = bucket.Remaining;
+                    db.CreditEntries.Add(new CreditEntry
+                    {
+                        AccountId = accountId,
+                        Direction = CreditDirection.Debit,
+                        Amount = lost,
+                        TransactionId = bucket.Id,
+                        Type = CreditEntryType.Expiry,
+                        BucketId = bucket.Id,
+                        IdempotencyKey = $"expire-bucket:{bucket.Id}",
+                        CreatedAt = now,
+                    });
+                    bucket.Remaining = 0;
+                    account.Posted -= lost;
+                    account.Available -= lost;
+                    expiredCredits += lost;
+                    expiredBucketCount++;
+                }
+
+                await db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException ex) when (ex is not DbUpdateConcurrencyException)
             {
-                var lost = bucket.Remaining;
-                db.CreditEntries.Add(new CreditEntry
-                {
-                    AccountId = accountId,
-                    Direction = CreditDirection.Debit,
-                    Amount = lost,
-                    TransactionId = bucket.Id,
-                    Type = CreditEntryType.Expiry,
-                    BucketId = bucket.Id,
-                    IdempotencyKey = $"expire-bucket:{bucket.Id}",
-                    CreatedAt = now,
-                });
-                bucket.Remaining = 0;
-                account.Posted -= lost;
-                account.Available -= lost;
-                expiredCredits += lost;
-                expiredBucketCount++;
+                // Per-account isolation: one account's unexpected persistence failure must NOT abort the
+                // platform-wide sweep (the old code let a single bad account skip every account ordered after it).
+                // Discard its tracked changes and continue — the next sweep retries it. Concurrency conflicts are
+                // deliberately NOT caught here: they bubble to ConcurrencyRetryBehavior, which retries the whole
+                // sweep (idempotent — the expire-*:{id} keys dedup already-applied accounts).
+                db.ChangeTracker.Clear();
             }
-
-            await db.SaveChangesAsync(ct);
         }
 
         return new ExpireCreditsResponse(expiredHoldCount, expiredBucketCount, expiredCredits);

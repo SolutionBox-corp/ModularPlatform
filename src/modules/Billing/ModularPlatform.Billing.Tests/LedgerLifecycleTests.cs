@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using ModularPlatform.Billing.Features.Credits.ExpireCredits;
+using ModularPlatform.Billing.Features.Credits.ReserveCredits;
 using ModularPlatform.Cqrs;
 using ModularPlatform.IntegrationTesting;
 using Shouldly;
@@ -115,14 +116,8 @@ public sealed class LedgerLifecycleTests(PlatformApiFactory fixture)
             $"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{userId}'", 1);
 
         // Two buckets via top-up: the EARLIER-expiring one (30 days) should be drained first, then the later (60).
-        var earlyTopup = await fixture.Client.SendAsync(fixture.Authed(
-            HttpMethod.Post, "/v1/billing/credits/topup", token,
-            new { amount = 100L, bucketExpiryDays = (int?)30, idempotencyKey = $"early-{Guid.CreateVersion7():N}" }));
-        earlyTopup.EnsureSuccessStatusCode();
-        var lateTopup = await fixture.Client.SendAsync(fixture.Authed(
-            HttpMethod.Post, "/v1/billing/credits/topup", token,
-            new { amount = 100L, bucketExpiryDays = (int?)60, idempotencyKey = $"late-{Guid.CreateVersion7():N}" }));
-        lateTopup.EnsureSuccessStatusCode();
+        await fixture.GrantCreditsAsync(userId, 100L, bucketExpiryDays: 30, idempotencyKey: $"early-{Guid.CreateVersion7():N}");
+        await fixture.GrantCreditsAsync(userId, 100L, bucketExpiryDays: 60, idempotencyKey: $"late-{Guid.CreateVersion7():N}");
 
         var accountId = await AccountIdAsync(userId);
         var earlyBucketId = await fixture.ScalarAsync<Guid>(
@@ -202,15 +197,9 @@ public sealed class LedgerLifecycleTests(PlatformApiFactory fixture)
             $"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{userId}'", 1);
 
         // Two expiring buckets totalling 200 posted.
-        var keepTopup = await fixture.Client.SendAsync(fixture.Authed(
-            HttpMethod.Post, "/v1/billing/credits/topup", token,
-            new { amount = 100L, bucketExpiryDays = (int?)10, idempotencyKey = $"keep-{Guid.CreateVersion7():N}" }));
-        keepTopup.EnsureSuccessStatusCode();
+        await fixture.GrantCreditsAsync(userId, 100L, bucketExpiryDays: 10, idempotencyKey: $"keep-{Guid.CreateVersion7():N}");
         var doomedKey = $"doom-{Guid.CreateVersion7():N}";
-        var doomedTopup = await fixture.Client.SendAsync(fixture.Authed(
-            HttpMethod.Post, "/v1/billing/credits/topup", token,
-            new { amount = 100L, bucketExpiryDays = (int?)10, idempotencyKey = doomedKey }));
-        doomedTopup.EnsureSuccessStatusCode();
+        await fixture.GrantCreditsAsync(userId, 100L, bucketExpiryDays: 10, idempotencyKey: doomedKey);
 
         var accountId = await AccountIdAsync(userId);
 
@@ -289,10 +278,7 @@ public sealed class LedgerLifecycleTests(PlatformApiFactory fixture)
             $"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{userId}'", 1);
 
         // Top up 1000 (Credit entry + a bucket of 1000). posted=1000, available=1000.
-        var topup = await fixture.Client.SendAsync(fixture.Authed(
-            HttpMethod.Post, "/v1/billing/credits/topup", token,
-            new { amount = 1000L, bucketExpiryDays = (int?)null, idempotencyKey = $"mix-{Guid.CreateVersion7():N}" }));
-        topup.EnsureSuccessStatusCode();
+        await fixture.GrantCreditsAsync(userId, 1000L, idempotencyKey: $"mix-{Guid.CreateVersion7():N}");
 
         // Reserve 400 and confirm it (Reservation debit + Spend debit; posted -= 400, bucket drawn -= 400).
         var confirmedReservation = await ReserveAsync(token, 400);
@@ -325,6 +311,33 @@ public sealed class LedgerLifecycleTests(PlatformApiFactory fixture)
         projection.Posted.ShouldBe(600);
         projection.Pending.ShouldBe(100);
         projection.Available.ShouldBe(500);
+    }
+
+    [Fact]
+    public async Task Expiring_a_bucket_that_backs_an_active_reservation_does_not_crash_or_go_negative()
+    {
+        var (userId, _) = await fixture.RegisterAndLoginAsync(Email("expire-reserved"), Password);
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{userId}'", 1);
+
+        // 100 credits in a bucket that will be expired; reserve ALL 100 with a long hold so it is still ACTIVE when
+        // the bucket expires. Reservations do NOT draw the bucket, so bucket.Remaining still counts the held 100.
+        await fixture.GrantCreditsAsync(userId, 100, bucketExpiryDays: 1);
+        await fixture.DispatchAsync(new ReserveCreditsCommand(userId, 100, HoldMinutes: 60 * 24 * 30));
+
+        var accountId = await AccountIdAsync(userId);
+        // Backdate the bucket so the sweep sees it expired while the hold is still active.
+        await fixture.ExecuteSqlAsync(
+            $"UPDATE credit_buckets SET \"ExpiresAt\" = now() - interval '1 day' WHERE \"AccountId\" = '{accountId}'");
+
+        // The sweep must NOT crash and must NOT drive the projection negative — the reserved credits survive until
+        // the hold resolves (the bucket is skipped this sweep, expired on a later one once the credits are free).
+        await DispatchExpireSweepAsync();
+
+        var projection = await ProjectionAsync(userId);
+        projection.Posted.ShouldBe(100);
+        projection.Available.ShouldBe(0);
+        projection.Pending.ShouldBe(100);
     }
 
     /// <summary>

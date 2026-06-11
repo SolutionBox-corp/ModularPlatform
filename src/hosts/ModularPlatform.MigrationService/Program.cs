@@ -1,36 +1,10 @@
-using ModularPlatform.Abstractions;
-using ModularPlatform.Billing;
-using ModularPlatform.Files;
-using ModularPlatform.Gdpr;
-using ModularPlatform.Identity;
-using ModularPlatform.Messaging;
-using ModularPlatform.Notifications;
-using ModularPlatform.Operations;
-using ModularPlatform.Persistence;
+using ModularPlatform.MigrationService;
 using ModularPlatform.Persistence.Rls;
-using Wolverine;
 
-var builder = Host.CreateApplicationBuilder(args);
-
-builder.Services.AddPlatformCore();
-
-var modules = ModuleLoader.Discover(
-    builder.Configuration,
-    typeof(IdentityModule).Assembly,
-    typeof(BillingModule).Assembly,
-    typeof(NotificationsModule).Assembly,
-    typeof(GdprModule).Assembly,
-    typeof(OperationsModule).Assembly,
-    typeof(FilesModule).Assembly);
-foreach (var module in modules)
-{
-    module.RegisterServices(builder.Services, builder.Configuration);
-}
+var builder = MigrationHostBuilder.Create(args, out var modules);
 
 var conn = builder.Configuration.GetConnectionString("Write")
     ?? throw new InvalidOperationException("Missing ConnectionStrings:Write");
-// Solo mode: we only need the module DbContexts wired; no message listeners.
-builder.UseWolverine(opts => PlatformMessaging.Configure(opts, conn, modules));
 
 var host = builder.Build();
 

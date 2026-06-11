@@ -41,7 +41,8 @@ internal sealed class CreditTopUpHandler(IDbContextOutbox<BillingDbContext> outb
             }
         }
 
-        if (await db.CreditEntries.AnyAsync(e => e.IdempotencyKey == command.IdempotencyKey, ct))
+        if (await db.CreditEntries.AnyAsync(
+                e => e.AccountId == account.Id && e.IdempotencyKey == command.IdempotencyKey, ct))
         {
             return new CreditTopUpResponse(account.Id, account.Posted, AlreadyApplied: true);
         }
@@ -99,7 +100,7 @@ internal sealed class CreditTopUpHandler(IDbContextOutbox<BillingDbContext> outb
                 .Select(a => (long?)a.Posted)
                 .FirstOrDefaultAsync(ct);
             var keyApplied = await db.CreditEntries.AsNoTracking()
-                .AnyAsync(e => e.IdempotencyKey == command.IdempotencyKey, ct);
+                .AnyAsync(e => e.AccountId == account.Id && e.IdempotencyKey == command.IdempotencyKey, ct);
             if (keyApplied && posted is not null)
             {
                 return new CreditTopUpResponse(account.Id, posted.Value, AlreadyApplied: true);

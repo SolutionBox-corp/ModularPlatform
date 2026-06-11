@@ -25,10 +25,20 @@ internal sealed class AssignRoleHandler(IdentityDbContext db) : ICommandHandler<
 
         var alreadyAssigned = await db.UserRoles
             .AnyAsync(ur => ur.UserId == command.UserId && ur.RoleId == role.Id, ct);
-        if (!alreadyAssigned)
+        if (alreadyAssigned)
         {
-            db.UserRoles.Add(new UserRole { UserId = command.UserId, RoleId = role.Id });
+            return Unit.Value;
+        }
+
+        db.UserRoles.Add(new UserRole { UserId = command.UserId, RoleId = role.Id });
+        try
+        {
             await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException)
+        {
+            // A concurrent identical assign won the race past the pre-check — the UNIQUE(UserId, RoleId) index is
+            // the final guard. The role IS assigned, so this is the same idempotent success, not a 500 (Law 2 idiom).
         }
 
         return Unit.Value;

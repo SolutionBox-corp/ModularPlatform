@@ -30,7 +30,7 @@ public sealed class AuthzTests(PlatformApiFactory fixture)
         forbidden.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
 
         // The configured admin email gets the admin role on login; its token carries the manage-roles permission.
-        var (_, adminToken) = await fixture.RegisterAndLoginAsync(PlatformApiFactory.AdminEmail, Password);
+        var adminToken = await EnsureAdminTokenAsync();
         ClaimValues(adminToken, "permission").ShouldContain("identity.manage_roles");
         ClaimValues(adminToken, "role").ShouldContain("admin");
 
@@ -48,11 +48,39 @@ public sealed class AuthzTests(PlatformApiFactory fixture)
         nowAllowed.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
+    [Fact]
+    public async Task Concurrent_identical_role_grants_are_idempotent_not_a_500()
+    {
+        var email = $"user-{Guid.CreateVersion7():N}@x.com";
+        var (userId, _) = await fixture.RegisterAndLoginAsync(email, Password);
+        var adminToken = await EnsureAdminTokenAsync();
+
+        // Two identical grants in flight at once: the read-then-insert pre-check cannot prevent the race, so the
+        // handler must absorb the UNIQUE(UserId, RoleId) violation as an idempotent success, never a 500.
+        var grants = await Task.WhenAll(Enumerable.Range(0, 2).Select(_ =>
+            fixture.Client.SendAsync(fixture.Authed(
+                HttpMethod.Post, $"/v1/identity/admin/users/{userId}/roles", adminToken, new { role = "admin" }))));
+
+        grants.ShouldAllBe(r => r.StatusCode == HttpStatusCode.OK);
+    }
+
     private async Task<string> LoginAsync(string email, string password)
     {
         var login = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/login", new { email, password });
         login.EnsureSuccessStatusCode();
         return (await PlatformApiFactory.ReadData(login)).GetProperty("accessToken").GetString()!;
+    }
+
+    /// <summary>
+    /// Returns a token for the configured admin. The admin email is a SHARED identity across the collection's DB, so
+    /// it is registered only if absent (a 409 from another test that already created it is fine), then logged in
+    /// (login bootstraps the admin role from <c>Identity:Auth:AdminEmails</c>). Robust to test execution order.
+    /// </summary>
+    private async Task<string> EnsureAdminTokenAsync()
+    {
+        await fixture.Client.PostAsJsonAsync(
+            "/v1/identity/users", new { email = PlatformApiFactory.AdminEmail, password = Password });
+        return await LoginAsync(PlatformApiFactory.AdminEmail, Password);
     }
 
     /// <summary>All values of a (possibly multi-valued) JWT claim — JsonWebTokenHandler emits one value as a scalar, many as an array.</summary>

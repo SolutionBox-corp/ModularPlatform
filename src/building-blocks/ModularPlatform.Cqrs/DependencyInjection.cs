@@ -37,7 +37,11 @@ public static class CqrsServiceCollectionExtensions
                 nameof(openGenericBehavior));
         }
 
-        services.AddTransient(typeof(IPipelineBehavior<,>), openGenericBehavior);
+        // TryAddEnumerable dedups by (serviceType, implementationType): a behavior pulled in by EACH module's
+        // AddPlatformPersistence (e.g. ConcurrencyRetryBehavior) is registered ONCE, not once per module — six
+        // nested retry layers would multiply into 5^6 retries on a sustained conflict. Distinct behaviors are all
+        // kept; the first occurrence's position (= execution order) is preserved.
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), openGenericBehavior));
         return services;
     }
 

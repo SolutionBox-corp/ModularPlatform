@@ -15,10 +15,6 @@ namespace ModularPlatform.Persistence;
 public static class PersistenceServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers the platform persistence pipeline once per host: the singleton
-    /// <see cref="AuditInterceptor"/> and the command-only <see cref="ConcurrencyRetryBehavior{TRequest,TResponse}"/>.
-    /// </summary>
-    /// <summary>
     /// Registers the minimal platform services a NON-web host (Worker/Jobs/Migration) needs before
     /// wiring modules: a system <see cref="ITenantContext"/> (no tenant/user) and the system clock.
     /// Web hosts use AddPlatformWeb instead, which registers the HTTP-backed tenant context.
@@ -30,6 +26,13 @@ public static class PersistenceServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Registers the platform persistence pipeline: the audit/tenant/RLS/encryption interceptors and the command-only
+    /// <see cref="ConcurrencyRetryBehavior{TRequest,TResponse}"/>. Invoked once PER MODULE (every module's
+    /// RegisterServices calls it via AddModuleDbContext), so every registration here is idempotent — singletons via
+    /// <c>TryAddSingleton</c>, the behavior via <c>TryAddEnumerable</c>/<c>TryAdd</c> — collapsing the per-module calls
+    /// to a single set (NOT N nested retry layers).
+    /// </summary>
     public static IServiceCollection AddPlatformPersistence(this IServiceCollection services)
     {
         // Singletons: they read the current request's tenant/user/ip live from ITenantContext (also singleton,
@@ -44,6 +47,7 @@ public static class PersistenceServiceCollectionExtensions
         services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IHostedService, PersonalDataEncryptionBootstrap>());
         services.AddOptions<RlsOptions>().BindConfiguration(RlsOptions.SectionName);
+        services.AddOptions<AuditOptions>().BindConfiguration(AuditOptions.SectionName);
         services.AddPipelineBehavior(typeof(ConcurrencyRetryBehavior<,>));
         return services;
     }

@@ -109,17 +109,69 @@ public sealed class AuthRobustnessTests(PlatformApiFactory fixture)
         statuses.Count(s => s == HttpStatusCode.OK).ShouldBe(1);
         statuses.Count(s => s == HttpStatusCode.Unauthorized).ShouldBe(1);
 
-        // The family ends revoked: the loser's reuse detection compromises the family, so once both calls have
-        // resolved (one 200 + one 401-reuse) every token for this user is revoked. Poll for the async SaveChanges.
-        await fixture.WaitForCountAsync(
-            $"SELECT count(*)::bigint FROM refresh_tokens WHERE \"UserId\" = '{userId}' AND \"RevokedAt\" IS NULL",
-            0);
+        // The family ends FULLY revoked: the winner consumes the old token and creates its replacement in ONE
+        // atomic commit, so when the loser detects reuse it revokes the whole family INCLUDING that replacement.
+        // Both commits are done once the responses have resolved, so this is a deterministic assertion — NOT a poll.
+        // (The previous WaitForCountAsync(..., 0) was vacuous: count >= 0 is always true, so it verified nothing.)
+        var activeTokens = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM refresh_tokens WHERE \"UserId\" = '{userId}' AND \"RevokedAt\" IS NULL");
+        activeTokens.ShouldBe(0, "reuse detection must revoke the whole family, including the winner's replacement");
     }
 
     /// <summary>
     /// Registers + logs in directly via the HTTP client (not the harness helper) so we capture the raw REFRESH
     /// token from the login envelope. Returns (userId, refreshToken).
     /// </summary>
+    // No user enumeration: an UNKNOWN email and a KNOWN email with a WRONG password must be INDISTINGUISHABLE —
+    // identical HTTP status (401) and identical errorCode. LoginHandler throws the same auth.invalid_credentials on
+    // both paths, and the verify is timing-equalized so even latency doesn't leak account existence.
+    [Fact]
+    public async Task Unknown_email_and_wrong_password_return_identical_401_invalid_credentials()
+    {
+        var email = $"noenum-{Guid.CreateVersion7():N}@example.com";
+        var register = await fixture.Client.PostAsJsonAsync("/v1/identity/users",
+            new { email, password = Password, displayName = "No Enum User" });
+        register.StatusCode.ShouldBe(HttpStatusCode.Created);
+
+        var wrongPassword = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/login",
+            new { email, password = "definitely-not-the-password" });
+        var unknownEmail = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/login",
+            new { email = $"ghost-{Guid.CreateVersion7():N}@example.com", password = Password });
+
+        wrongPassword.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        unknownEmail.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        unknownEmail.StatusCode.ShouldBe(wrongPassword.StatusCode);
+
+        var wrongCode = await ErrorCodeOf(wrongPassword);
+        var unknownCode = await ErrorCodeOf(unknownEmail);
+        wrongCode.ShouldBe("auth.invalid_credentials");
+        unknownCode.ShouldBe(wrongCode);
+    }
+
+    // Expired (NOT consumed, NOT revoked) refresh token -> 401 auth.refresh_token_invalid (the !IsActive branch, not reuse).
+    [Fact]
+    public async Task Expired_refresh_token_is_rejected_as_invalid()
+    {
+        var email = $"expired-{Guid.CreateVersion7():N}@example.com";
+        var (userId, refresh) = await RegisterAndLoginForRefreshAsync(email);
+
+        await fixture.ExecuteSqlAsync(
+            $"UPDATE refresh_tokens SET \"ExpiresAt\" = now() - interval '1 day' WHERE \"UserId\" = '{userId}'");
+
+        var refreshResponse = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/refresh",
+            new { refreshToken = refresh });
+
+        refreshResponse.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        (await ErrorCodeOf(refreshResponse)).ShouldBe("auth.refresh_token_invalid");
+    }
+
+    /// <summary>Reads the RFC9457 problem+json "errorCode" field from an error response.</summary>
+    private static async Task<string> ErrorCodeOf(HttpResponseMessage response)
+    {
+        using var doc = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return doc.RootElement.GetProperty("errorCode").GetString()!;
+    }
+
     private async Task<(Guid UserId, string RefreshToken)> RegisterAndLoginForRefreshAsync(string email)
     {
         var register = await fixture.Client.PostAsJsonAsync("/v1/identity/users",

@@ -7,6 +7,7 @@ using ModularPlatform.Cqrs;
 using ModularPlatform.Files.Features.Download;
 using ModularPlatform.Files.Features.List;
 using ModularPlatform.Files.Features.Upload;
+using ModularPlatform.Files.Gdpr;
 using ModularPlatform.Files.Persistence;
 using ModularPlatform.Messaging;
 using ModularPlatform.Persistence;
@@ -39,6 +40,11 @@ public sealed class FilesModule : IModule
 
         // Blob storage (local | s3), selected by Storage:Provider. Idempotent if another module also registers it.
         services.AddPlatformStorage(configuration);
+
+        // GDPR ports: a user's files (bytes + original filename) are personal data. Without these the erasure
+        // fan-out (purely DI-driven) would leave the files immortal and the export would omit them.
+        services.AddScoped<IExportPersonalData, FilesPersonalDataExporter>();
+        services.AddScoped<IErasePersonalData, FilesPersonalDataEraser>();
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)

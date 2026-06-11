@@ -15,10 +15,14 @@ internal sealed class FakeStripeGateway : IStripeGateway
     private readonly ConcurrentDictionary<string, Event> _events = new();
     private readonly ConcurrentDictionary<string, StripeSubscriptionState> _subscriptions = new();
     private readonly ConcurrentDictionary<string, PromotionCodeState> _promotionCodes = new();
+    private readonly ConcurrentDictionary<string, string> _sessionPaymentStatus = new();
     private readonly ConcurrentQueue<CheckoutSessionSpec> _createdSessions = new();
     private int _sessionCounter;
 
     public void SeedEvent(Event stripeEvent) => _events[stripeEvent.Id] = stripeEvent;
+
+    public void SeedCheckoutSessionStatus(string sessionId, string paymentStatus) =>
+        _sessionPaymentStatus[sessionId] = paymentStatus;
 
     public void SeedSubscription(StripeSubscriptionState state) => _subscriptions[state.SubscriptionId] = state;
 
@@ -61,4 +65,7 @@ internal sealed class FakeStripeGateway : IStripeGateway
 
     public Task<PromotionCodeState?> FindActivePromotionCodeAsync(string code, CancellationToken ct) =>
         Task.FromResult(_promotionCodes.TryGetValue(code, out var state) ? state : null);
+
+    public Task<string?> GetCheckoutSessionPaymentStatusAsync(string sessionId, CancellationToken ct) =>
+        Task.FromResult(_sessionPaymentStatus.TryGetValue(sessionId, out var status) ? status : null);
 }

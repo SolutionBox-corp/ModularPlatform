@@ -98,7 +98,8 @@ internal sealed class ConfirmSpendHandler(IDbContextOutbox<BillingDbContext> out
         {
             // A concurrent confirm of the same reservation already posted the spend (UNIQUE spend:{holdId}).
             // Idempotent: report the now-committed state.
-            if (await db.CreditEntries.AsNoTracking().AnyAsync(e => e.IdempotencyKey == $"spend:{hold.Id}", ct))
+            if (await db.CreditEntries.AsNoTracking().AnyAsync(
+                    e => e.AccountId == account.Id && e.IdempotencyKey == $"spend:{hold.Id}", ct))
             {
                 var current = await db.CreditAccounts.AsNoTracking()
                     .Where(a => a.Id == account.Id)

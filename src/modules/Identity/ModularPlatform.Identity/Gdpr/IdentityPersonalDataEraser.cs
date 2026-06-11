@@ -34,5 +34,11 @@ internal sealed class IdentityPersonalDataEraser(IdentityDbContext db, IBlindInd
                     .SetProperty(u => u.PasswordHash, string.Empty)
                     .SetProperty(u => u.DeletedAt, DateTimeOffset.UtcNow),
                 ct);
+
+        // Terminate the subject's sessions: revoke every outstanding refresh token so an erased account cannot
+        // keep minting access tokens via rotation. refresh_tokens carry no PII, so a set-based update is correct.
+        await db.RefreshTokens
+            .Where(t => t.UserId == userId && t.RevokedAt == null)
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, DateTimeOffset.UtcNow), ct);
     }
 }

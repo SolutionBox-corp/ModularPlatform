@@ -129,7 +129,7 @@ public sealed class GdprIntegrationTests(PlatformApiFactory fixture)
     // GET /v1/gdpr/me/export (ExportUserDataEndpoint.cs:16) → ExportUserDataHandler (ExportUserDataHandler.cs:14)
     // assembles ONE document keyed by IExportPersonalData.ModuleName. Implementations:
     //   Identity (IdentityPersonalDataExporter.cs:15), Billing (BillingPersonalDataExporter.cs:15),
-    //   Notifications (NotificationsPersonalDataExporter.cs:15). Gdpr does NOT implement the export port.
+    //   Notifications (NotificationsPersonalDataExporter.cs:15), Gdpr consents (ConsentPersonalDataExporter.cs:15).
     // ---------------------------------------------------------------------------------------------------------
     [Fact]
     public async Task Export_assembles_one_document_keyed_by_module_with_each_modules_section()
@@ -224,5 +224,37 @@ public sealed class GdprIntegrationTests(PlatformApiFactory fixture)
              WHERE "UserId" = '{userId}' AND "ConsentType" = '{consentType}'
              """);
         historyRows.ShouldBe(2);
+    }
+
+    // GD-6 — the consent log participates in its OWN export + erasure (was a gap: consent history survived erasure
+    // with the real UserId and was absent from the Art. 15 export). Export now includes a "Gdpr.Consents" section;
+    // erasure DELETES the subject's consent rows (no AML/tax retention obligation, unlike the credit ledger).
+    [Fact]
+    public async Task Consent_history_is_exported_and_deleted_on_erasure()
+    {
+        var email = $"consent-gdpr-{Guid.CreateVersion7():N}@example.com";
+        var (userId, accessToken) = await fixture.RegisterAndLoginAsync(email, Password);
+        var consentType = $"analytics-{Guid.CreateVersion7():N}";
+
+        await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Post, "/v1/gdpr/consents/grant", accessToken,
+            new { userId, consentType }));
+
+        // Export now carries the Gdpr consent section.
+        var export = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/gdpr/me/export", accessToken));
+        export.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var doc = await PlatformApiFactory.ReadData(export);
+        doc.TryGetProperty("Gdpr.Consents", out var gdpr).ShouldBeTrue();
+        gdpr.GetProperty("consents").EnumerateArray()
+            .Select(c => c.GetProperty("consentType").GetString())
+            .ShouldContain(consentType);
+
+        // Erasure deletes the subject's consent rows (processed asynchronously by the Worker fan-out).
+        var erase = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Post, "/v1/gdpr/me/erase", accessToken));
+        erase.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM consent_records WHERE \"UserId\" = '{userId}'", 0);
     }
 }

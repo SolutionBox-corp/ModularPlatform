@@ -5,6 +5,7 @@ using ModularPlatform.Identity.Contracts;
 using ModularPlatform.Identity.Entities;
 using ModularPlatform.Identity.Persistence;
 using ModularPlatform.Identity.Security;
+using Npgsql;
 using Wolverine.EntityFrameworkCore;
 
 namespace ModularPlatform.Identity.Features.Users.RegisterUser;
@@ -36,7 +37,10 @@ internal sealed class RegisterUserHandler(
 
         // Registration runs anonymously (no tenant in context), so it provisions a NEW tenant and assigns the
         // user to it explicitly — the TenantStampingInterceptor only fills tenant-scoped rows created later.
-        var tenant = new Tenant { Name = command.DisplayName?.Trim() ?? command.Email.Trim(), CreatedAt = clock.UtcNow };
+        // The tenant name is a neutral, non-PII identifier: email/display name are PII (encrypted on the user,
+        // erasable) and must NOT leak into tenants.Name, which is plaintext at rest and outside the erasure flow.
+        var tenant = new Tenant { CreatedAt = clock.UtcNow };
+        tenant.Name = $"tenant-{tenant.Id:N}";
         db.Tenants.Add(tenant);
 
         var user = new User
@@ -62,10 +66,11 @@ internal sealed class RegisterUserHandler(
         {
             await outbox.SaveChangesAndFlushMessagesAsync();
         }
-        catch (DbUpdateException ex) when (ex is not DbUpdateConcurrencyException)
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
-            // Two concurrent registrations raced past the pre-check — the UNIQUE(EmailHash) index is the
-            // final guard (Law 2 idiom). Surface the same conflict the pre-check reports.
+            // Two concurrent registrations raced past the pre-check — the UNIQUE(EmailHash) index is the final guard
+            // (Law 2 idiom). Narrowed to the unique-violation (23505) so an UNRELATED persistence failure (a future
+            // NOT NULL / length / transient fault) is NOT mislabelled as "email already registered" — it surfaces.
             throw new ConflictException("user.email_taken", "This email address is already registered.");
         }
 

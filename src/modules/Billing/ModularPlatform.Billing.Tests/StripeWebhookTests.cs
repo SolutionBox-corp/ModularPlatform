@@ -84,14 +84,34 @@ public sealed class StripeWebhookTests(PlatformApiFactory fixture)
         var second = await PostSignedAsync(json, SignNow(json));
         second.StatusCode.ShouldBe(HttpStatusCode.OK);
 
-        // Give any (incorrect) duplicate ingest a chance to appear, then assert exactly-once at the ingest layer:
-        // still exactly ONE stripe_events row (the second POST hits the UNIQUE pre-check / DbUpdateException race
-        // guard and is a 200 no-op).
-        await Task.Delay(1000);
-
+        // Exactly-once at the ingest layer is DETERMINISTIC, not timing-dependent: the second POST returns only
+        // after its synchronous UNIQUE pre-check (and the DB UNIQUE constraint as a backstop) has already rejected
+        // the duplicate insert, so no fixed Task.Delay is needed to "wait for a duplicate that can never appear".
         var rows = await fixture.ScalarAsync<long>(
             $"SELECT count(*)::bigint FROM stripe_events WHERE \"StripeEventId\" = '{eventId}'");
         rows.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task A_non_unique_persist_failure_is_not_acked_so_stripe_will_retry()
+    {
+        var eventId = $"evt_{Guid.CreateVersion7():N}";
+        // A Type far longer than the stripe_events.Type column (varchar(128)) makes the INSERT fail with a
+        // string-truncation error — a DbUpdateException that is NOT the UNIQUE race. The endpoint must NOT ACK it
+        // (a 200 would tell Stripe "received" and the event would be lost forever); it must surface an error so
+        // Stripe redelivers.
+        var overLongType = "checkout.session." + new string('x', 200);
+        var json = BuildEventJson(eventId, type: overLongType);
+
+        var response = await PostSignedAsync(json, SignNow(json));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.InternalServerError,
+            "a transient/unexpected persist failure must not be ACKed — Stripe must redeliver");
+
+        // Nothing was persisted (the failed SaveChanges rolled the transaction back BEFORE the 500 was returned),
+        // so the redelivery can still succeed. Deterministic — no settle needed.
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM stripe_events WHERE \"StripeEventId\" = '{eventId}'")).ShouldBe(0);
     }
 
     [Fact]
@@ -109,8 +129,8 @@ public sealed class StripeWebhookTests(PlatformApiFactory fixture)
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
 
-        // Nothing persisted: no stripe_events row (the endpoint rejects before db.StripeEvents.Add).
-        await Task.Delay(500);
+        // Nothing persisted, DETERMINISTICALLY: the signature check rejects with 400 BEFORE db.StripeEvents.Add and
+        // publishes no message, so there is no async path to wait out — assert immediately once the 400 is received.
         var rows = await fixture.ScalarAsync<long>(
             $"SELECT count(*)::bigint FROM stripe_events WHERE \"StripeEventId\" = '{eventId}'");
         rows.ShouldBe(0);

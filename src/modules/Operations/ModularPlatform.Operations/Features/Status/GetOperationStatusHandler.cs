@@ -7,8 +7,9 @@ using ModularPlatform.Web;
 namespace ModularPlatform.Operations.Features.Status;
 
 /// <summary>
-/// Reads an operation's status. Ownership is enforced by RLS — the read connection only ever returns the caller's
-/// own operations, so another user's id simply isn't found (404), with no explicit owner check to forget.
+/// Reads an operation's status for the caller who OWNS it. Ownership is enforced BOTH at the app layer (the explicit
+/// <c>UserId</c> predicate, from the token) AND by RLS — defence in depth. A foreign id is a 404 even in a deployment
+/// that runs with <c>Persistence:Rls:Enabled=false</c>.
 /// </summary>
 internal sealed class GetOperationStatusHandler(IReadDbContextFactory<OperationsDbContext> readDb)
     : IQueryHandler<GetOperationStatusQuery, OperationStatusResponse>
@@ -18,7 +19,7 @@ internal sealed class GetOperationStatusHandler(IReadDbContextFactory<Operations
         await using var db = readDb.Create();
 
         var operation = await db.Operations
-            .Where(o => o.Id == query.OperationId)
+            .Where(o => o.Id == query.OperationId && o.UserId == query.UserId)
             .FirstOrDefaultAsync(ct)
             ?? throw new NotFoundException("operation.not_found", "Operation not found.");
 
