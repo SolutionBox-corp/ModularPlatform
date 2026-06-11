@@ -6,6 +6,12 @@
 > session-local plan file. `CLAUDE.md` is the law (how things are built); this is the map (what's done vs left).
 >
 > **Status:** ✅ done & tested · ◐ partial / data-model-only / different shape · ❌ not started
+>
+> **⚠️ UPDATE 2026-06-11:** this table maps the original BACKEND scope as of 2026-06-10. A stabilization pass since then
+> took the suite **108 → 181 tests** (build 0/0) and added the `BuildingBlocks.Tests` + `Hosts.Tests` projects — for the
+> **authoritative current coverage see `feature-coverage.md`**, fix log in `stability-audit-2026-06-10.md`. The next big
+> scope (**B2B subdomain multi-tenancy + per-tenant module entitlements + infra**) is DESIGNED, not built — see
+> `multitenancy-and-infra.md`. This ROADMAP otherwise stays the durable backend map.
 
 **Vision:** a production-grade .NET 10 modular-monolith SaaS **base** — the cross-cutting plumbing every SaaS needs
 (users, pay-per-credit + subscriptions + coupons + packages, audit, GDPR, i18n, security, notifications) — onto

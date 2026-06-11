@@ -8,6 +8,11 @@ Status: **✓** implemented · **▢** gap (planned) · **◐** partially covere
 > Reuse the shared harness (`tests/ModularPlatform.IntegrationTesting`). One behaviour per test. Assert through
 > HTTP/queries, never private state. See the `writing-modularplatform-tests` skill.
 
+> **⚠️ 2026-06-11:** this is the original Given/When/Then PLAN (as of ~108 tests). The suite is now **181/181** and many
+> rows once marked `▢ gap` are implemented (no-enumeration parity, expired-token, paging, security-headers, per-user
+> rate-limit, GDPR consent export/erase, host-boot DI, …). **Authoritative CURRENT coverage = `feature-coverage.md`.**
+> Use this doc for the scenario intent; trust `feature-coverage.md` for what's actually covered today.
+
 ---
 
 ## 1. Identity & Auth

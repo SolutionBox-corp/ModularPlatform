@@ -2,6 +2,13 @@
 
 > For the next agent/developer who will `/clear` and start fresh. Read **`CLAUDE.md`** first — it is the
 > single source of truth for every law, pattern and convention. This doc is the map; `CLAUDE.md` is the law.
+>
+> **Status 2026-06-11:** backend **181/181 tests, build 0/0**, pushed to `main`. Start at **`docs/README.md`** (docs
+> index). Current per-feature coverage = **`feature-coverage.md`**; stabilization log = `stability-audit-2026-06-10.md`.
+> **Next scope (designed, not built):** B2B subdomain multi-tenancy + per-tenant module entitlements + infra —
+> `multitenancy-and-infra.md` (tenant=customer on `{tenant}.nasedomena.cz`, `admin.`=platform-admin; per-user RLS stays
+> intra-tenant). **Frontend:** `~/Desktop/ModularPlatform-Frontend-Handoff.md` + skills `modularplatform-frontend` /
+> `frontend-feature-slice`.
 
 ---
 
