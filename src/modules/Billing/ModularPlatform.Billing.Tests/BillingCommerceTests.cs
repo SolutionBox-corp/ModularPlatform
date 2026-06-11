@@ -52,7 +52,7 @@ public sealed class BillingCommerceTests(PlatformApiFactory fixture)
         var packageId = (await PlatformApiFactory.ReadData(create)).GetProperty("id").GetGuid();
 
         // The buyer sees it in the catalogue.
-        var (_, userToken) = await fixture.RegisterAndLoginAsync($"buyer-{Guid.CreateVersion7():N}@test.io", Password);
+        var (_, userToken) = await RegisterBuyerInAdminTenantAsync(adminToken);
         var list = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Get, "/v1/billing/packages", userToken));
         list.StatusCode.ShouldBe(HttpStatusCode.OK);
         (await PlatformApiFactory.ReadData(list)).EnumerateArray()
@@ -153,7 +153,7 @@ public sealed class BillingCommerceTests(PlatformApiFactory fixture)
             new { name = $"Slowpoke {Guid.CreateVersion7():N}", creditAmount = 250, price = 4.99, active = true, stripePriceId = "price_test_slow" }));
         var packageId = (await PlatformApiFactory.ReadData(create)).GetProperty("id").GetGuid();
 
-        var (userId, userToken) = await fixture.RegisterAndLoginAsync($"late-{Guid.CreateVersion7():N}@test.io", Password);
+        var (userId, userToken) = await RegisterBuyerInAdminTenantAsync(adminToken);
         var checkout = await fixture.Client.SendAsync(fixture.Authed(
             HttpMethod.Post, $"/v1/billing/packages/{packageId}/checkout", userToken));
         var purchaseId = (await PlatformApiFactory.ReadData(checkout)).GetProperty("purchaseId").GetGuid();
@@ -332,6 +332,37 @@ public sealed class BillingCommerceTests(PlatformApiFactory fixture)
         return (await PlatformApiFactory.ReadData(login)).GetProperty("accessToken").GetString()!;
     }
 
+    /// <summary>Registers + logs in a buyer that JOINS the admin's tenant (signup on the admin tenant's subdomain),
+    /// so it can purchase the admin's per-tenant catalogue package (packages are tenant-scoped, bought by members).</summary>
+    private async Task<(Guid UserId, string AccessToken)> RegisterBuyerInAdminTenantAsync(string adminToken)
+    {
+        var subdomain = await fixture.ScalarAsync<string>(
+            $"SELECT \"Subdomain\" FROM tenants WHERE \"Id\" = '{TenantOf(adminToken)}'");
+        var email = $"buyer-{Guid.CreateVersion7():N}@test.io";
+
+        var register = new HttpRequestMessage(HttpMethod.Post, "/v1/identity/users")
+        {
+            Content = JsonContent.Create(new { email, password = Password }),
+        };
+        register.Headers.Host = $"{subdomain}.lvh.me"; // signup on the gym's subdomain => joins that tenant
+        var registered = await fixture.Client.SendAsync(register);
+        registered.EnsureSuccessStatusCode();
+        var userId = (await PlatformApiFactory.ReadData(registered)).GetProperty("userId").GetGuid();
+
+        var login = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/login", new { email, password = Password });
+        login.IsSuccessStatusCode.ShouldBeTrue();
+        return (userId, (await PlatformApiFactory.ReadData(login)).GetProperty("accessToken").GetString()!);
+    }
+
+    private static Guid TenantOf(string jwt)
+    {
+        var payload = jwt.Split('.')[1];
+        var padded = payload.PadRight(payload.Length + (4 - payload.Length % 4) % 4, '=').Replace('-', '+').Replace('_', '/');
+        var claims = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(
+            Encoding.UTF8.GetString(Convert.FromBase64String(padded)));
+        return Guid.Parse(claims.GetProperty("tenant_id").GetString()!);
+    }
+
     /// <summary>Admin creates a package, a fresh user checks out → returns the saga id, session id and the
     /// checkout session spec (carrying the purchase metadata) so a test can seed the confirming Stripe event.</summary>
     private async Task<(Guid PurchaseId, string SessionId, CheckoutSessionSpec Spec)> StartPackageCheckoutAsync(
@@ -343,7 +374,7 @@ public sealed class BillingCommerceTests(PlatformApiFactory fixture)
             new { name = $"Pkg {Guid.CreateVersion7():N}", creditAmount, price = 9.99, active = true, stripePriceId }));
         var packageId = (await PlatformApiFactory.ReadData(create)).GetProperty("id").GetGuid();
 
-        var (_, userToken) = await fixture.RegisterAndLoginAsync($"buyer-{Guid.CreateVersion7():N}@test.io", Password);
+        var (_, userToken) = await RegisterBuyerInAdminTenantAsync(adminToken);
         var checkout = await fixture.Client.SendAsync(fixture.Authed(
             HttpMethod.Post, $"/v1/billing/packages/{packageId}/checkout", userToken));
         var checkoutData = await PlatformApiFactory.ReadData(checkout);

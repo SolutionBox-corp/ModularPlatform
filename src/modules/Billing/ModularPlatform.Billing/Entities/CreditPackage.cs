@@ -10,6 +10,13 @@ namespace ModularPlatform.Billing.Entities;
 /// </summary>
 internal sealed class CreditPackage : AuditableEntity
 {
+    /// <summary>
+    /// The tenant whose catalogue this package belongs to (B2B: a tenant offers its OWN packages, bought by its OWN
+    /// members). Null = a platform-global package available to every tenant. Explicit (not <c>ITenantScoped</c>) so the
+    /// list/purchase filter can include BOTH the caller's tenant AND global packages (the EF filter would hide null).
+    /// </summary>
+    public Guid? TenantId { get; set; }
+
     public string Name { get; set; } = string.Empty;
     public long CreditAmount { get; set; }
     public decimal Price { get; set; }
@@ -31,5 +38,6 @@ internal sealed class CreditPackageConfiguration : IEntityTypeConfiguration<Cred
         builder.Property(p => p.Active).IsRequired();
         builder.Property(p => p.StripePriceId).HasMaxLength(256);
         builder.HasIndex(p => p.StripePriceId);
+        builder.HasIndex(p => p.TenantId);
     }
 }

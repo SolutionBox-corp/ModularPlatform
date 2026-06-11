@@ -30,8 +30,11 @@ internal sealed class PurchaseCreditPackageHandler(
     {
         var db = outbox.DbContext;
 
+        // A buyer may only purchase a package in its OWN tenant's catalogue (or a platform-global one) — another
+        // tenant's package is a 404 (no existence leak), the per-tenant catalogue boundary.
+        var callerTenantId = tenant.TenantId;
         var package = await db.CreditPackages.AsNoTracking()
-            .FirstOrDefaultAsync(p => p.Id == command.PackageId, ct)
+            .FirstOrDefaultAsync(p => p.Id == command.PackageId && (p.TenantId == callerTenantId || p.TenantId == null), ct)
             ?? throw new NotFoundException("billing.package_not_found", "Credit package not found.");
 
         if (!package.Active)
