@@ -50,6 +50,17 @@ public sealed class UnauthorizedException(string errorCode, string message)
     public override int StatusCode => StatusCodes.Unauthorized;
 }
 
+/// <summary>
+/// The tenant is not entitled to the module behind this endpoint. Maps to <b>404</b> (route-not-found shape), NOT
+/// 403 — a disabled module must not leak its existence. Raised by the <c>ModuleEntitlementGuard</c> / <c>.RequireModule</c>.
+/// </summary>
+public sealed class NotEntitledException(string errorCode, string message)
+    : ModularPlatformException(message)
+{
+    public override string ErrorCode { get; } = errorCode;
+    public override int StatusCode => StatusCodes.NotFound;
+}
+
 /// <summary>Generic 422-style business-rule violation (e.g. coupon expired).</summary>
 public sealed class BusinessRuleException(string errorCode, string message)
     : ModularPlatformException(message)

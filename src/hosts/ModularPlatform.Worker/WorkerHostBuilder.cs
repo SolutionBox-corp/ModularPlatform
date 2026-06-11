@@ -11,6 +11,7 @@ using ModularPlatform.Operations;
 using ModularPlatform.Persistence;
 using ModularPlatform.Realtime;
 using ModularPlatform.Telemetry;
+using ModularPlatform.Tenancy;
 using Wolverine;
 
 namespace ModularPlatform.Worker;
@@ -43,7 +44,8 @@ public static class WorkerHostBuilder
             typeof(NotificationsModule).Assembly,
             typeof(GdprModule).Assembly,
             typeof(OperationsModule).Assembly,
-            typeof(FilesModule).Assembly);
+            typeof(FilesModule).Assembly,
+            typeof(TenancyModule).Assembly);
         foreach (var module in modules)
         {
             module.RegisterServices(builder.Services, builder.Configuration);

@@ -7,6 +7,8 @@
     <ProjectReference Include="..\..\..\building-blocks\ModularPlatform.Messaging\ModularPlatform.Messaging.csproj" />
     <ProjectReference Include="..\..\..\building-blocks\ModularPlatform.Telemetry\ModularPlatform.Telemetry.csproj" />
     <ProjectReference Include="..\..\..\building-blocks\ModularPlatform.Web\ModularPlatform.Web.csproj" />
+    <ProjectReference Include="..\..\..\building-blocks\ModularPlatform.Payments\ModularPlatform.Payments.csproj" />
+    <ProjectReference Include="..\..\..\building-blocks\ModularPlatform.Secrets\ModularPlatform.Secrets.csproj" />
     <ProjectReference Include="..\ModularPlatform.Billing.Contracts\ModularPlatform.Billing.Contracts.csproj" />
     <ProjectReference Include="..\..\Identity\ModularPlatform.Identity.Contracts\ModularPlatform.Identity.Contracts.csproj" />
   </ItemGroup>

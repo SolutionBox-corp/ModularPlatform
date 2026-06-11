@@ -46,6 +46,14 @@ internal sealed class ProcessStripeEventHandler(
 
         var stripeEvent = await gateway.GetEventAsync(command.StripeEventId, ct);
 
+        // Provider is fixed for this path; backfill the tenant from the LIVE object metadata if the ingest payload
+        // didn't carry it (the row's tenant is a routing hint only — it never gates the grant below).
+        record.Provider = "stripe";
+        if (record.TenantId is null && TryExtractTenantId(stripeEvent, out var resolvedTenantId))
+        {
+            record.TenantId = resolvedTenantId;
+        }
+
         switch (stripeEvent.Type)
         {
             case "checkout.session.completed" or "checkout.session.async_payment_succeeded"
@@ -124,6 +132,15 @@ internal sealed class ProcessStripeEventHandler(
         }
 
         await outbox.PublishAsync(new CreditPurchaseConfirmed(purchaseId, userId, amount, expiryDays, stripeEventId));
+    }
+
+    private static bool TryExtractTenantId(Event stripeEvent, out Guid tenantId)
+    {
+        tenantId = Guid.Empty;
+        var metadata = (stripeEvent.Data?.Object as IHasMetadata)?.Metadata;
+        return metadata is not null
+            && metadata.TryGetValue("tenant_id", out var rawTenantId)
+            && Guid.TryParse(rawTenantId, out tenantId);
     }
 
     private static bool TryExtractTopUp(Event stripeEvent, out Guid userId, out long amount, out int? bucketExpiryDays)

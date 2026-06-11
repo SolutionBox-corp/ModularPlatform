@@ -73,6 +73,9 @@ public sealed class PlatformApiFactory : IAsyncLifetime
             // Blind-index key for encrypted-column lookups (users.EmailHash). Const so tests can compute
             // the same HMAC when they need to find a row by e-mail in raw SQL assertions.
             builder.UseSetting("Gdpr:Encryption:BlindIndexKey", BlindIndexKey);
+            // A real 32-byte secrets master key so the tenant-secret protector validates even on a non-Development
+            // derived host (the validator fail-fasts on a missing or dev-only key outside Development, like JWT/RLS).
+            builder.UseSetting("Secrets:MasterKeys:1", "aW50ZWdyYXRpb24tdGVzdC1zZWNyZXRzLWtleS0wMzI=");
             builder.UseSetting("Jwt:Issuer", "test");
             builder.UseSetting("Jwt:Audience", "test");
             // Functional tests share one loopback IP partition; raise the rate limits so they aren't throttled.

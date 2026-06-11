@@ -9,6 +9,13 @@ description: Scaffold a CQRS vertical slice (command or query) in a ModularPlatf
 `Features/{Feature}/{Action}/` — never a "service". **Reuse-first: if a building-block or canonical slice already
 does it, call it — do not re-implement.**
 
+## Decide: which module owns this? (reuse-first)
+Put the slice in the module that OWNS the responsibility (Billing = end-user money; Identity = auth/users; Tenancy =
+tenant lifecycle + entitlements + platform billing; Notifications; Gdpr; Operations; Files). A shared mechanism ≥2
+modules need (payments, secrets, storage) is a **building-block + port**, not a slice copied into each module. Only a
+genuinely new product domain justifies a **new** module (see `adding-a-module` skill §0) — never duplicate a solved
+concern.
+
 ## Decide: command or query?
 - **Mutates state** → `ICommand<T>` (validation → idempotency → transaction+outbox → concurrency-retry).
 - **Reads only** → `IQuery<T>` (no transaction, no publish, no mutation).
@@ -42,6 +49,12 @@ does it, call it — do not re-implement.**
 A `public` shell class `Handle({TheirEvent} e, IDispatcher d, CancellationToken ct)` that dispatches an internal
 command. Register it in your module's `ConfigureMessaging` via `options.Discovery.IncludeType<TheHandler>()`.
 (Handlers MUST be public; every type in the signature public — see CLAUDE.md §9b Wolverine rules.)
+
+**Idempotent + order-independent (non-negotiable).** The Worker runs handlers in parallel, with NO global ordering,
+and may retry/redeliver. Write every handler so running it twice or out of order yields the same result — refetch live
+state, guard with a UNIQUE idempotency key (catch `DbUpdateException`), never trust event arrival order. Multiple
+handlers for one event currently run sequentially in one transaction (Wolverine default `combined`;
+`MultipleHandlerBehavior.Separated` is the parked alternative — CLAUDE.md §9b + backlog §7).
 
 ## Wire it
 - Add the endpoint to the module's `IModule.MapEndpoints`; the event handler to `ConfigureMessaging`.

@@ -1,5 +1,11 @@
-# Multi-tenancy (subdomain-per-tenant) + Infrastructure — Design
+# Multi-tenancy (subdomain-per-tenant) + Infrastructure — Design + Status
 
+> **Stav k 2026-06-11:** část backendu už **POSTAVENA** (Tenancy modul, entitlements guard `.RequireModule`,
+> tenant-resolution middleware, platform-admin plane, Payments building-block, per-tenant payment config +
+> `ISecretProtector`). Detailní stav položek viz **§8** (tabulka POSTAVENO/SEAM/NEPOSTAVENO + soubory). Infra
+> (§6 Caddy/Pulumi) a registrace-join (§5) zůstávají **design**. Plateby viz `payments-multitenant.md`, secrets
+> `tenant-secrets.md`.
+>
 > **Evoluce:** z „B2C per-user" na **B2B subdoména-per-tenant SaaS**. Tenant = **zákazník** (org s více uživateli) na
 > `{tenant}.nasedomena.cz`; **platform-admin** (super-admin) na `admin.nasedomena.cz` provisionuje tenanty a zapíná jim
 > jednotlivé moduly; `nasedomena.cz` = landing. **Per-user RLS zůstává UVNITŘ tenanta** (uživatelé jednoho zákazníka).
@@ -114,20 +120,30 @@ custom_domains?:   (Phase 3) TenantId · Domain · Verified   ← pro vanity dom
 
 ---
 
-## 8. Co se mění na BACKENDU (design, ne teď implementovat)
-1. **Tenancy/Provisioning capability** (platform catalog): `tenants` + `tenant_entitlements` + placement; platform-admin
-   commands (provision/entitle/suspend/separate) v SYSTEM kontextu, gated `platform.*` permission.
-2. **Placement-driven connection resolution** (building-block): DbContext connection z resolved tenant `Placement`, ne
-   globální konstanta. ← seam co dělá pool→silo datovým přepnutím.
-3. **`ModuleEntitlementGuard`** + `.RequireModule(key)` endpoint filter + `NotEntitledException`→404 + `GET
-   /v1/tenant/me/entitlements`.
-4. **Tenant-resolution middleware** (Host→tenant, cross-check JWT `tenant_id`).
-5. **Registrace** → join existujícího tenanta subdomény (ne create-new); self-serve „create workspace" na apex.
-6. **Platform-admin plane** (cross-tenant SYSTEM, `platform.*` permission, jen `admin.`).
-7. **(Phase 2)** Provisioning worker + reconciler + Pulumi Automation API seam; `/internal/tls-allowed` pro Phase 3.
+## 8. Co se mění na BACKENDU — STAV (částečně POSTAVENO 2026-06-11)
 
-> Pořadí: §8.1–8.5 (subdomain SaaS + entitlements, shared) → frontend 3-host → Phase-2 provisioning až bude první
-> dedikovaný tenant. Per-user RLS + tenant filter + ITenantContext = **už hotové**, jen se nad ně vrství tenant-as-customer.
+> **Status k 2026-06-11:** §8.1 (Tenancy modul + entitlements), §8.3 (guard + `.RequireModule`), §8.4 (tenant-resolution
+> middleware), §8.6 (platform-admin plane) jsou **POSTAVENÉ a otestované**. K nim přibyl **provider-agnostic Payments
+> building-block** + per-tenant payment config + `ISecretProtector` (nebyly v původním §8 designu, viz
+> `payments-multitenant.md` + `tenant-secrets.md`). §8.2 (placement-driven connection) je **seam připravený, dnes no-op
+> shared**; §8.5 (registrace→join) a §8.7 (Phase-2 provisioning) **zatím NEpostaveno**. Billing→multi-tenant
+> (webhook/saga/reconcile per tenant) je **rozpracované** (FÁZE 2D-ii-b).
+
+| # | Položka | Stav | Soubor(y) |
+|---|---|---|---|
+| 1 | **Tenancy/Provisioning capability** — `tenants` + `tenant_entitlements`, platform-admin commands (provision/entitle), SYSTEM, `platform.*` | ✅ **POSTAVENO** (Suspend/Separate odloženo) | `src/modules/Tenancy/…/Entities/{Tenant,TenantEntitlement}.cs`, `…/Services/{TenantDirectory,EntitlementResolver,TenantProvisioning}.cs`, `…/Features/Admin/{ProvisionTenant,SetEntitlement}/`, migrace `20260611083522_InitialTenancy` |
+| 2 | **Placement-driven connection resolution** (pool→silo seam) | 🟡 **SEAM, dnes no-op shared** (`ITenantPlacementResolver` odložen k 1. dedikovanému tenantovi) | connection wiring `Messaging/DependencyInjection.cs` + `Persistence/ReadDbContextFactory.cs` |
+| 3 | **`ModuleEntitlementGuard`** + `.RequireModule(key)` + `NotEntitledException`→404 + `GET /v1/tenant/me/entitlements` | ✅ **POSTAVENO** | `src/building-blocks/ModularPlatform.Web/Authorization/EndpointAuthorization.cs` (`RequireModule` = `IEndpointFilter`, live `IEntitlementResolver` lookup), `Cqrs/Errors.cs` (`NotEntitledException`), `…/Tenancy/…/Features/Entitlements/GetMyEntitlements/` |
+| 4 | **Tenant-resolution middleware** (Host→tenant, cross-check JWT `tenant_id`) | ✅ **POSTAVENO** | `src/building-blocks/ModularPlatform.Web/TenantResolutionMiddleware.cs` (PO `UseAuthentication`, PŘED `UseRateLimiter`; mismatch→401 `auth.tenant_mismatch`, unknown/suspended→404) |
+| 5 | **Registrace → join existujícího tenanta** (ne create-new) | ⏳ **NEPOSTAVENO** (registrace dnes pořád provisionuje tenant per user) | — |
+| 6 | **Platform-admin plane** (cross-tenant SYSTEM, `platform.*`, jen `admin.`) | ✅ **POSTAVENO** | `PlatformPermissions.PlatformTenantsManage = "platform.tenants.manage"`, slices `ProvisionTenant`/`SetEntitlement` gated `.RequirePermission(platform.tenants.manage)` |
+| 7 | **(Phase 2)** Provisioning worker + reconciler + Pulumi seam; `/internal/tls-allowed` | ⏳ **NEPOSTAVENO** (až 1. dedikovaný tenant) | — |
+| + | **Payments building-block** (`IPaymentGateway` + Stripe + GoPay + Fake + `IPaymentGatewayResolver(tenant,plane)`) — NOVÉ proti orig. §8 | ✅ **POSTAVENO** | `src/building-blocks/ModularPlatform.Payments/{IPaymentGateway,PaymentResolution,StripePaymentGateway,GoPayPaymentGateway,FakePaymentGateway}.cs` — viz `payments-multitenant.md` |
+| + | **Per-tenant payment config + `ISecretProtector`** (`PaymentConfiguration`+`tenant_secrets`, self-service `ConfigureGateway`) — NOVÉ | ✅ **POSTAVENO** (Billing webhook/saga/reconcile→resolver rozpracováno) | `src/building-blocks/ModularPlatform.Secrets/`, `src/modules/Billing/…/Entities/PaymentGatewayEntities.cs`, `…/Payments/BillingPaymentConfigStore.cs`, `…/Features/PaymentGateway/ConfigureGateway/` — viz `tenant-secrets.md` |
+
+> Pořadí: §8.1/§8.3/§8.4/§8.6 + Payments/Secrets (shared) **hotovo** → Billing→multi-tenant webhook/saga/reconcile per
+> tenant (rozpracováno) → registrace-join + frontend 3-host → Phase-2 provisioning až bude první dedikovaný tenant.
+> Per-user RLS + tenant filter + ITenantContext = **už hotové**, tenant-as-customer se nad ně vrství.
 
 ---
 

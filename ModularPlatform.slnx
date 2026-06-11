@@ -4,8 +4,10 @@
     <Project Path="src/building-blocks/ModularPlatform.Abstractions/ModularPlatform.Abstractions.csproj" />
     <Project Path="src/building-blocks/ModularPlatform.Cqrs/ModularPlatform.Cqrs.csproj" />
     <Project Path="src/building-blocks/ModularPlatform.Messaging/ModularPlatform.Messaging.csproj" />
+    <Project Path="src/building-blocks/ModularPlatform.Payments/ModularPlatform.Payments.csproj" />
     <Project Path="src/building-blocks/ModularPlatform.Persistence/ModularPlatform.Persistence.csproj" />
     <Project Path="src/building-blocks/ModularPlatform.Realtime/ModularPlatform.Realtime.csproj" />
+    <Project Path="src/building-blocks/ModularPlatform.Secrets/ModularPlatform.Secrets.csproj" />
     <Project Path="src/building-blocks/ModularPlatform.Storage/ModularPlatform.Storage.csproj" />
     <Project Path="src/building-blocks/ModularPlatform.Telemetry/ModularPlatform.Telemetry.csproj" />
     <Project Path="src/building-blocks/ModularPlatform.Web/ModularPlatform.Web.csproj" />
@@ -44,6 +46,11 @@
   <Folder Name="/src/modules/Operations/">
     <Project Path="src/modules/Operations/ModularPlatform.Operations.Tests/ModularPlatform.Operations.Tests.csproj" />
     <Project Path="src/modules/Operations/ModularPlatform.Operations/ModularPlatform.Operations.csproj" />
+  </Folder>
+  <Folder Name="/src/modules/Tenancy/">
+    <Project Path="src/modules/Tenancy/ModularPlatform.Tenancy.Contracts/ModularPlatform.Tenancy.Contracts.csproj" />
+    <Project Path="src/modules/Tenancy/ModularPlatform.Tenancy.Tests/ModularPlatform.Tenancy.Tests.csproj" />
+    <Project Path="src/modules/Tenancy/ModularPlatform.Tenancy/ModularPlatform.Tenancy.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ModularPlatform.ArchitectureTests/ModularPlatform.ArchitectureTests.csproj" />

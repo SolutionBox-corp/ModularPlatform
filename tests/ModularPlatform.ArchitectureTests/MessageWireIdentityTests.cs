@@ -31,6 +31,7 @@ public sealed class MessageWireIdentityTests
         "ModularPlatform.Identity.Contracts.UserRegisteredIntegrationEvent",
         "ModularPlatform.Notifications.Contracts.EmailDeliveryRequested",
         "ModularPlatform.Notifications.Contracts.PushDeliveryRequested",
+        "ModularPlatform.Tenancy.Contracts.TenantProvisionedIntegrationEvent",
     ];
 
     // Anchor types whose assemblies hold the integration-event contracts.
@@ -40,6 +41,7 @@ public sealed class MessageWireIdentityTests
         typeof(ModularPlatform.Billing.Contracts.CreditsToppedUpIntegrationEvent).Assembly,
         typeof(ModularPlatform.Notifications.Contracts.EmailDeliveryRequested).Assembly,
         typeof(ModularPlatform.Gdpr.Contracts.UserErasureRequested).Assembly,
+        typeof(ModularPlatform.Tenancy.Contracts.TenantProvisionedIntegrationEvent).Assembly,
     ];
 
     [Fact]

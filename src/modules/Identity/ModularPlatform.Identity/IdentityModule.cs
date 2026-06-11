@@ -8,6 +8,7 @@ using ModularPlatform.Cqrs;
 using ModularPlatform.Identity.Authorization;
 using ModularPlatform.Identity.Gdpr;
 using ModularPlatform.Identity.Features.Admin.AssignRole;
+using ModularPlatform.Identity.Features.Admin.IssueMachineToken;
 using ModularPlatform.Identity.Features.Admin.RevokeRole;
 using ModularPlatform.Identity.Features.Audit.GetUserAuditTrail;
 using ModularPlatform.Identity.Features.Auth.Login;
@@ -69,6 +70,7 @@ public sealed class IdentityModule : IModule
         endpoints.MapLogout();
         endpoints.MapAssignRole();
         endpoints.MapRevokeRole();
+        endpoints.MapIssueMachineToken();
         endpoints.MapGetUserAuditTrail();
     }
 

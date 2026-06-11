@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using ModularPlatform.Abstractions;
 using ModularPlatform.Billing.Persistence;
 using ModularPlatform.Billing.Sagas;
 using ModularPlatform.Billing.Security;
@@ -20,6 +21,7 @@ namespace ModularPlatform.Billing.Features.Packages.PurchaseCreditPackage;
 internal sealed class PurchaseCreditPackageHandler(
     IDbContextOutbox<BillingDbContext> outbox,
     IStripeGateway gateway,
+    ITenantContext tenant,
     IOptions<StripeOptions> stripeOptions)
     : ICommandHandler<PurchaseCreditPackageCommand, PurchaseCreditPackageResponse>
 {
@@ -54,6 +56,11 @@ internal sealed class PurchaseCreditPackageHandler(
             ["package_id"] = package.Id.ToString(),
             ["credit_amount"] = package.CreditAmount.ToString(CultureInfo.InvariantCulture),
         };
+        // Stamp the caller's tenant so the SYSTEM Worker can resolve it from the session metadata at grant time.
+        if (tenant.TenantId is { } tenantId)
+        {
+            metadata["tenant_id"] = tenantId.ToString();
+        }
         if (package.BucketExpiryDays is { } expiry)
         {
             metadata["bucket_expiry_days"] = expiry.ToString(CultureInfo.InvariantCulture);

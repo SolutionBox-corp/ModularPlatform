@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using ModularPlatform.Abstractions;
 using ModularPlatform.Billing.Entities;
 using ModularPlatform.Billing.Persistence;
 using ModularPlatform.Billing.Security;
@@ -17,6 +18,7 @@ namespace ModularPlatform.Billing.Features.Subscriptions.CreateSubscriptionCheck
 internal sealed class CreateSubscriptionCheckoutHandler(
     BillingDbContext db,
     IStripeGateway gateway,
+    ITenantContext tenant,
     IOptions<SubscriptionOptions> subscriptionOptions,
     IOptions<StripeOptions> stripeOptions)
     : ICommandHandler<CreateSubscriptionCheckoutCommand, CreateSubscriptionCheckoutResponse>
@@ -36,15 +38,22 @@ internal sealed class CreateSubscriptionCheckoutHandler(
         }
 
         var stripe = stripeOptions.Value;
+        var metadata = new Dictionary<string, string>
+        {
+            ["user_id"] = command.UserId.ToString(),
+            ["plan_key"] = plan.PlanKey,
+        };
+        // Stamp the caller's tenant so the SYSTEM Worker can resolve it from the session metadata at grant time.
+        if (tenant.TenantId is { } tenantId)
+        {
+            metadata["tenant_id"] = tenantId.ToString();
+        }
+
         var session = await gateway.CreateCheckoutSessionAsync(new CheckoutSessionSpec(
             Mode: "subscription",
             PriceId: plan.StripePriceId,
             ClientReferenceId: command.UserId.ToString(),
-            Metadata: new Dictionary<string, string>
-            {
-                ["user_id"] = command.UserId.ToString(),
-                ["plan_key"] = plan.PlanKey,
-            },
+            Metadata: metadata,
             AutomaticTax: stripe.AutomaticTax,
             AllowPromotionCodes: stripe.AllowPromotionCodes,
             SuccessUrl: stripe.SuccessUrl,

@@ -26,3 +26,4 @@ appsettings.*.Local.json
 .claude/scheduled_tasks.lock
 .claude/settings.local.json
 .orchestrator/
+graphify-out/

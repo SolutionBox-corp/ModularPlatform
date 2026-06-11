@@ -1,4 +1,8 @@
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using ModularPlatform.Abstractions;
+using ModularPlatform.Cqrs;
 
 namespace ModularPlatform.Web;
 
@@ -31,4 +35,30 @@ public static class EndpointAuthorizationExtensions
         builder.RequireAuthorization(policy => policy
             .RequireAuthenticatedUser()
             .RequireRole(roles));
+
+    /// <summary>
+    /// Gates an endpoint on the current tenant having <paramref name="moduleKey"/> entitled. Unlike permissions
+    /// (claim-based), entitlements are looked up LIVE per request via <see cref="IEntitlementResolver"/> — a
+    /// platform-admin toggle takes effect on the next request, never via a stale JWT claim. Not entitled (or no
+    /// tenant) ⇒ <see cref="NotEntitledException"/> → <b>404</b> (route-not-found shape — a disabled module must not
+    /// leak its existence). Combine with <c>.RequirePermission</c>/<c>.RequireRole</c> for who-can-do-what within the module.
+    /// </summary>
+    public static TBuilder RequireModule<TBuilder>(this TBuilder builder, string moduleKey)
+        where TBuilder : IEndpointConventionBuilder =>
+        builder.AddEndpointFilter(async (context, next) =>
+        {
+            var services = context.HttpContext.RequestServices;
+            var tenant = services.GetRequiredService<ITenantContext>();
+            var resolver = services.GetRequiredService<IEntitlementResolver>();
+            var ct = context.HttpContext.RequestAborted;
+
+            if (tenant.TenantId is not { } tenantId
+                || !await resolver.IsModuleEnabledAsync(tenantId, moduleKey, ct))
+            {
+                throw new NotEntitledException(
+                    "tenant.module_not_entitled", "This feature is not available for your workspace.");
+            }
+
+            return await next(context);
+        });
 }

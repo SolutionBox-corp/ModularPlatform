@@ -33,6 +33,24 @@
   <data name="auth.refresh_token_reused" xml:space="preserve"><value>This session has been revoked for security reasons. Please sign in again.</value></data>
   <data name="user.not_found" xml:space="preserve"><value>User not found.</value></data>
   <data name="user.email_taken" xml:space="preserve"><value>This email address is already registered.</value></data>
+  <data name="tenant.subdomain_taken" xml:space="preserve"><value>This subdomain is already taken.</value></data>
+  <data name="tenant.module_not_entitled" xml:space="preserve"><value>This feature is not available for your workspace.</value></data>
+  <data name="tenant.not_found" xml:space="preserve"><value>Workspace not found.</value></data>
+  <data name="auth.tenant_mismatch" xml:space="preserve"><value>This session does not belong to this workspace.</value></data>
+  <data name="tenant.name.required" xml:space="preserve"><value>Workspace name is required.</value></data>
+  <data name="tenant.name.too_long" xml:space="preserve"><value>Workspace name is too long.</value></data>
+  <data name="tenant.subdomain.required" xml:space="preserve"><value>Subdomain is required.</value></data>
+  <data name="tenant.subdomain.invalid" xml:space="preserve"><value>Subdomain may use only lowercase letters, digits and hyphens.</value></data>
+  <data name="tenant.subdomain.reserved" xml:space="preserve"><value>This subdomain is reserved.</value></data>
+  <data name="billing.gateway.unknown_provider" xml:space="preserve"><value>Unknown payment provider.</value></data>
+  <data name="billing.gateway.stripe_key_required" xml:space="preserve"><value>A Stripe API key is required.</value></data>
+  <data name="billing.gateway.gopay_goid_required" xml:space="preserve"><value>A GoPay merchant id (goid) is required.</value></data>
+  <data name="billing.gateway.gopay_client_required" xml:space="preserve"><value>GoPay client credentials are required.</value></data>
+  <data name="payment.gateway_not_configured" xml:space="preserve"><value>No payment gateway is configured for this workspace.</value></data>
+  <data name="payment.gateway_inactive" xml:space="preserve"><value>The payment gateway for this workspace is not active.</value></data>
+  <data name="machine_token.tenant_required" xml:space="preserve"><value>A tenant is required to issue a machine token.</value></data>
+  <data name="machine_token.name_required" xml:space="preserve"><value>A machine token name is required.</value></data>
+  <data name="machine_token.name_too_long" xml:space="preserve"><value>The machine token name is too long.</value></data>
   <data name="user.email.required" xml:space="preserve"><value>Email is required.</value></data>
   <data name="user.email.invalid" xml:space="preserve"><value>Email is not a valid address.</value></data>
   <data name="user.email.too_long" xml:space="preserve"><value>Email is too long.</value></data>

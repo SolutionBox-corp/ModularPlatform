@@ -11,6 +11,11 @@ using ModularPlatform.Billing.Features.Credits.CreditTopUp;
 using ModularPlatform.Billing.Features.Credits.GetCreditBalance;
 using ModularPlatform.Billing.Features.Credits.ReleaseHold;
 using ModularPlatform.Billing.Features.Credits.ReserveCredits;
+using ModularPlatform.Billing.Features.PaymentGateway.ConfigureGateway;
+using ModularPlatform.Billing.Features.PaymentGateway.CreateTenantCheckout;
+using ModularPlatform.Billing.Payments;
+using ModularPlatform.Payments;
+using ModularPlatform.Secrets;
 using ModularPlatform.Billing.Features.Packages.CreateCreditPackage;
 using ModularPlatform.Billing.Features.Packages.ListCreditPackages;
 using ModularPlatform.Billing.Features.Packages.PurchaseCreditPackage;
@@ -75,12 +80,20 @@ public sealed class BillingModule : IModule
             services.AddSingleton<IStripeGateway, StripeGateway>();
         }
 
+        // Provider-agnostic per-tenant payments (tenant-plane): the resolver picks Stripe/GoPay per tenant; the
+        // config store reads this module's payment_configurations + reveals tenant_secrets via ISecretProtector.
+        services.AddPlatformSecrets(configuration);
+        services.AddPlatformPayments();
+        services.AddScoped<IPaymentConfigStore, BillingPaymentConfigStore>();
+
         services.AddScoped<IExportPersonalData, BillingPersonalDataExporter>();
         services.AddScoped<IErasePersonalData, BillingPersonalDataEraser>();
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapConfigureGateway();
+        endpoints.MapCreateTenantCheckout();
         endpoints.MapGetCreditBalance();
         endpoints.MapCreditTopUp();
         endpoints.MapReserveCredits();

@@ -129,6 +129,9 @@ public static class PlatformWebExtensions
         // which only exists after auth has run. (A pre-auth limiter saw no claims and collapsed every authenticated
         // caller into the shared IP bucket — caught by PL11.)
         app.UseAuthentication();
+        // Resolve the subdomain→tenant AFTER auth (token tenant_id exists) and BEFORE the rate limiter, so a host /
+        // token mismatch is rejected early. No-op for apex/localhost and when the Tenancy module is disabled.
+        app.UseMiddleware<TenantResolutionMiddleware>();
         app.UseRateLimiter();
         app.UseAuthorization();
 

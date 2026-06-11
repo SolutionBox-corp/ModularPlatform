@@ -19,6 +19,7 @@ internal sealed class RegisterUserHandler(
     IDbContextOutbox<IdentityDbContext> outbox,
     IPasswordHasher passwordHasher,
     IBlindIndexHasher blindIndex,
+    ITenantProvisioning tenantProvisioning,
     IClock clock)
     : ICommandHandler<RegisterUserCommand, RegisterUserResponse>
 {
@@ -35,13 +36,14 @@ internal sealed class RegisterUserHandler(
             throw new ConflictException("user.email_taken", "This email address is already registered.");
         }
 
-        // Registration runs anonymously (no tenant in context), so it provisions a NEW tenant and assigns the
-        // user to it explicitly — the TenantStampingInterceptor only fills tenant-scoped rows created later.
-        // The tenant name is a neutral, non-PII identifier: email/display name are PII (encrypted on the user,
-        // erasable) and must NOT leak into tenants.Name, which is plaintext at rest and outside the erasure flow.
-        var tenant = new Tenant { CreatedAt = clock.UtcNow };
-        tenant.Name = $"tenant-{tenant.Id:N}";
-        db.Tenants.Add(tenant);
+        // Registration runs anonymously (no tenant in context). The tenant REGISTRY is owned by the Tenancy module,
+        // so we provision through its port (a separate commit) and assign the user to the returned tenant explicitly
+        // — the TenantStampingInterceptor only fills tenant-scoped rows when a tenant is already in context.
+        // INTERIM: auto-provision one tenant per registration (preserving today's behavior). The B2B flow —
+        // register JOINS the existing tenant resolved from the subdomain — replaces this once the tenant-resolution
+        // middleware is wired. The tenant name is a neutral, non-PII identifier (email/display name are encrypted PII
+        // and must NOT leak into tenants.Name, which is plaintext at rest and outside the erasure flow).
+        var tenantId = await tenantProvisioning.CreateAsync($"tenant-{Guid.CreateVersion7():N}", subdomain: null, ct);
 
         var user = new User
         {
@@ -53,12 +55,13 @@ internal sealed class RegisterUserHandler(
         };
 
         db.Users.Add(user);
-        db.Entry(user).Property<Guid?>("TenantId").CurrentValue = tenant.Id;
+        db.Entry(user).Property<Guid?>("TenantId").CurrentValue = tenantId;
 
         await outbox.PublishAsync(new UserRegisteredIntegrationEvent(
             EventId: Guid.CreateVersion7(),
             OccurredAt: clock.UtcNow,
             UserId: user.Id,
+            TenantId: tenantId,
             Email: user.Email,
             DisplayName: user.DisplayName));
 

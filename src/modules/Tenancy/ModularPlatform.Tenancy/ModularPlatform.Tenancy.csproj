@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\building-blocks\ModularPlatform.Cqrs\ModularPlatform.Cqrs.csproj" />
+    <ProjectReference Include="..\..\..\building-blocks\ModularPlatform.Abstractions\ModularPlatform.Abstractions.csproj" />
+    <ProjectReference Include="..\..\..\building-blocks\ModularPlatform.Persistence\ModularPlatform.Persistence.csproj" />
+    <ProjectReference Include="..\..\..\building-blocks\ModularPlatform.Messaging\ModularPlatform.Messaging.csproj" />
+    <ProjectReference Include="..\..\..\building-blocks\ModularPlatform.Web\ModularPlatform.Web.csproj" />
+    <ProjectReference Include="..\..\..\building-blocks\ModularPlatform.Payments\ModularPlatform.Payments.csproj" />
+    <ProjectReference Include="..\..\..\building-blocks\ModularPlatform.Secrets\ModularPlatform.Secrets.csproj" />
+    <ProjectReference Include="..\ModularPlatform.Tenancy.Contracts\ModularPlatform.Tenancy.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

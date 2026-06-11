@@ -105,6 +105,13 @@ middleware handle validation, transactions, concurrency, and error translation.
 
 ## 3. How to ADD A MODULE (the only correct way)
 
+**FIRST decide whether it IS a module (reuse-first — a new module is the last resort):** (1) fits an existing
+module's responsibility → vertical slice there; (2) a shared mechanism ≥2 modules need (payments, secrets, storage,
+realtime) → a **building-block + port** (`IFileStorage`/`IPaymentGateway`/`ISecretProtector` shape), NOT a module;
+(3) a genuinely new product domain that can't reuse one → a new trio. **NEVER** a new module for a variant of an
+already-solved concern (a 2nd payment provider, "platform vs tenant billing" — reuse the building-block). See the
+`adding-a-module` skill §0.
+
 1. Create the trio:
    `src/modules/{Name}/ModularPlatform.{Name}` (classlib), `…/.{Name}.Contracts` (classlib), `…/.{Name}.Tests` (xunit).
    - `.{Name}` references: Cqrs, Abstractions, Persistence, Messaging, Web (+ `Microsoft.EntityFrameworkCore.Design`), `.{Name}.Contracts`.
@@ -300,6 +307,23 @@ work via Wolverine's durable outbox/inbox. Three things are REQUIRED — all are
 
 A cross-module event handler is a thin public shell: `Handle(TEvent e, IDispatcher d, CancellationToken ct)` that
 dispatches an internal command. Proven end-to-end by `CrossModuleEventTests`.
+
+### Multiple subscribers, ordering & concurrency (durable handlers)
+- **Multiple handlers for ONE event:** `MultipleHandlerBehavior` is NOT set → Wolverine **default = combined**: every
+  handler for that event runs **sequentially in ONE transaction / one envelope** (e.g. `UserRegisteredIntegrationEvent`
+  → Billing `ProvisionCreditAccount` + Notifications `SendWelcome` both run in one execution, NOT in parallel). A throw
+  retries the WHOLE envelope (all handlers re-run) — safe ONLY because each handler is idempotent. For true per-module
+  isolation (own retry/DLQ, independent, possibly parallel) the modular-monolith-correct setting is
+  `options.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated` (sticky per-handler queue) — a **deliberate
+  decision parked in `docs/backlog-cross-cutting-features.md` §7**, not yet flipped.
+- **NO global ordering across different messages.** The Postgres transport uses competing consumers; messages process in
+  parallel (multi-instance Worker in `Balanced`). NEVER assume event B arrives after event A. **Handlers MUST be
+  idempotent AND order-independent** — refetch live state, never trust payload order (canonical: Stripe
+  `UpsertSubscriptionFromStripe` is out-of-order safe).
+- **Races CAN occur (parallel + unordered) and are defended in layers:** xmin + `ConcurrencyRetryBehavior` (same entity);
+  atomic `ExecuteUpdate` guard `WHERE available >= amount` (money); inbox dedup UNIQUE `MessageId` (double delivery);
+  idempotency UNIQUE key + catch `DbUpdateException` (double apply). If a stream genuinely needs FIFO: a sticky
+  sequential local queue OR partition-by-key — but prefer commutative/idempotent handlers over relying on order.
 
 ### Money correctness (Billing) — EF-native, NEVER raw SQL
 - **No raw SQL anywhere** (no `ExecuteSqlRaw/Interpolated`, no `FromSql`) — it's unmaintainable (silent breakage on

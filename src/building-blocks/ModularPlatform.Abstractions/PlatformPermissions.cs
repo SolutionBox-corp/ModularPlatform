@@ -25,6 +25,12 @@ public static class PlatformPermissions
     /// <summary>Manage the Billing catalogue (credit packages) — admin commerce operations.</summary>
     public const string BillingManage = "billing.manage";
 
+    /// <summary>Platform-admin: provision tenants, toggle their module entitlements, suspend them (cross-tenant control plane).</summary>
+    public const string PlatformTenantsManage = "platform.tenants.manage";
+
+    /// <summary>Platform-admin: mint a tenant-scoped MACHINE principal (a non-user service token for edge agents / device gateways).</summary>
+    public const string MachineTokensIssue = "platform.machine_tokens";
+
     /// <summary>Every declared permission, discovered by reflection over the public string consts above.</summary>
     public static IReadOnlyList<string> All { get; } = typeof(PlatformPermissions)
         .GetFields(BindingFlags.Public | BindingFlags.Static)

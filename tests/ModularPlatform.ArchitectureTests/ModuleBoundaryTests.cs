@@ -25,7 +25,9 @@ public sealed class ModuleBoundaryTests
             typeof(ModularPlatform.Gdpr.GdprModule).Assembly,
             typeof(ModularPlatform.Gdpr.Contracts.UserErasureRequested).Assembly,
             typeof(ModularPlatform.Operations.OperationsModule).Assembly,
-            typeof(ModularPlatform.Files.FilesModule).Assembly)
+            typeof(ModularPlatform.Files.FilesModule).Assembly,
+            typeof(ModularPlatform.Tenancy.TenancyModule).Assembly,
+            typeof(ModularPlatform.Tenancy.Contracts.TenantProvisionedIntegrationEvent).Assembly)
         .Build();
 
     [Fact]
@@ -40,7 +42,7 @@ public sealed class ModuleBoundaryTests
     }
 
     private static readonly string[] Modules =
-        ["Identity", "Billing", "Notifications", "Gdpr", "Operations", "Files"];
+        ["Identity", "Billing", "Notifications", "Gdpr", "Operations", "Files", "Tenancy"];
 
     [Fact]
     public void No_module_core_depends_on_another_modules_core()

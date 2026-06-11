@@ -26,5 +26,6 @@
     <ProjectReference Include="..\..\modules\Gdpr\ModularPlatform.Gdpr\ModularPlatform.Gdpr.csproj" />
     <ProjectReference Include="..\..\modules\Operations\ModularPlatform.Operations\ModularPlatform.Operations.csproj" />
     <ProjectReference Include="..\..\modules\Files\ModularPlatform.Files\ModularPlatform.Files.csproj" />
+    <ProjectReference Include="..\..\modules\Tenancy\ModularPlatform.Tenancy\ModularPlatform.Tenancy.csproj" />
   </ItemGroup>
 </Project>

@@ -30,5 +30,12 @@ public sealed class CrossModuleEventTests(PlatformApiFactory fixture)
         }
 
         accounts.ShouldBe(1);
+
+        // The account carries the user's tenant — stamped EXPLICITLY by the provisioning handler from the event,
+        // because the Worker runs in the SYSTEM context where the tenant-stamping interceptor does not fire.
+        var userTenant = await fixture.ScalarAsync<Guid>($"SELECT \"TenantId\" FROM users WHERE \"Id\" = '{userId}'");
+        var accountTenant = await fixture.ScalarAsync<Guid>(
+            $"SELECT \"TenantId\" FROM credit_accounts WHERE \"UserId\" = '{userId}'");
+        accountTenant.ShouldBe(userTenant);
     }
 }

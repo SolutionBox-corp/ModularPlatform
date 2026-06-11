@@ -27,6 +27,10 @@ public sealed class BillingDbContext(DbContextOptions<BillingDbContext> options,
     internal DbSet<CreditPackage> CreditPackages => Set<CreditPackage>();
     internal DbSet<Subscription> Subscriptions => Set<Subscription>();
 
+    // Per-tenant payment gateway config + encrypted credentials (tenant-plane: end-users paying the tenant).
+    internal DbSet<PaymentConfiguration> PaymentConfigurations => Set<PaymentConfiguration>();
+    internal DbSet<TenantSecret> TenantSecrets => Set<TenantSecret>();
+
     /// <summary>Wolverine saga state — doubles as the user-facing purchase record (never MarkCompleted).</summary>
     internal DbSet<CreditPurchaseSaga> CreditPurchaseSagas => Set<CreditPurchaseSaga>();
 }

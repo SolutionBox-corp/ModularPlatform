@@ -8,6 +8,18 @@ description: Scaffold a new ModularPlatform module (Core + Contracts + Tests tri
 **Read `CLAUDE.md` §1, §3, §5 first.** A module = a trio; its Core is `internal`; it talks to other modules ONLY
 via `*.Contracts` integration events. **Copy the Identity module verbatim as the template — don't invent layout.**
 
+## 0. WHERE does this code belong? (reuse-first — decide BEFORE scaffolding)
+A new module is the LAST resort, not the default. Decide in this order:
+1. **Existing module by responsibility?** Match the concern to a module's ownership (Billing = end-user money;
+   Identity = auth/users; Tenancy = tenant lifecycle + entitlements + platform billing; Notifications; Gdpr;
+   Operations; Files) → put it there as a vertical slice. Reuse-first (CLAUDE.md Law 4).
+2. **Shared mechanism needed by ≥2 modules?** (payments, secrets, storage, realtime) → a **building-block + port**,
+   NOT a module. Mirror `IFileStorage` (local|s3), `IPaymentGateway`, `ISecretProtector`. Modules consume the port.
+3. **Genuinely new product domain?** (e.g. devices/IoT) → a new module trio — but only if it can't reuse an existing
+   one AND it respects the boundary law (Core never references another Core; cross-talk via `*.Contracts`/ports).
+4. **NEVER** create a new module for a variant of an already-solved concern (e.g. a second payment provider, or
+   "platform billing" vs "tenant billing" — those reuse the `Payments` building-block, they are not new modules).
+
 ## 1. Create the trio
 ```bash
 dotnet new classlib -n ModularPlatform.{Name} -o src/modules/{Name}/ModularPlatform.{Name}

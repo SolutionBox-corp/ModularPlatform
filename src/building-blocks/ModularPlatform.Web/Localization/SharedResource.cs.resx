@@ -33,6 +33,24 @@
   <data name="auth.refresh_token_reused" xml:space="preserve"><value>Tato relace byla z bezpečnostních důvodů odvolána. Přihlaste se prosím znovu.</value></data>
   <data name="user.not_found" xml:space="preserve"><value>Uživatel nenalezen.</value></data>
   <data name="user.email_taken" xml:space="preserve"><value>Tento e-mail je již zaregistrován.</value></data>
+  <data name="tenant.subdomain_taken" xml:space="preserve"><value>Tato subdoména je již obsazena.</value></data>
+  <data name="tenant.module_not_entitled" xml:space="preserve"><value>Tato funkce není pro vaši organizaci dostupná.</value></data>
+  <data name="tenant.not_found" xml:space="preserve"><value>Organizace nebyla nalezena.</value></data>
+  <data name="auth.tenant_mismatch" xml:space="preserve"><value>Tato relace nepatří k této organizaci.</value></data>
+  <data name="tenant.name.required" xml:space="preserve"><value>Název organizace je povinný.</value></data>
+  <data name="tenant.name.too_long" xml:space="preserve"><value>Název organizace je příliš dlouhý.</value></data>
+  <data name="tenant.subdomain.required" xml:space="preserve"><value>Subdoména je povinná.</value></data>
+  <data name="tenant.subdomain.invalid" xml:space="preserve"><value>Subdoména může obsahovat jen malá písmena, číslice a pomlčky.</value></data>
+  <data name="tenant.subdomain.reserved" xml:space="preserve"><value>Tato subdoména je rezervovaná.</value></data>
+  <data name="billing.gateway.unknown_provider" xml:space="preserve"><value>Neznámý poskytovatel plateb.</value></data>
+  <data name="billing.gateway.stripe_key_required" xml:space="preserve"><value>Je vyžadován Stripe API klíč.</value></data>
+  <data name="billing.gateway.gopay_goid_required" xml:space="preserve"><value>Je vyžadováno GoPay obchodní id (goid).</value></data>
+  <data name="billing.gateway.gopay_client_required" xml:space="preserve"><value>Jsou vyžadovány GoPay klientské údaje.</value></data>
+  <data name="payment.gateway_not_configured" xml:space="preserve"><value>Pro tuto organizaci není nakonfigurována platební brána.</value></data>
+  <data name="payment.gateway_inactive" xml:space="preserve"><value>Platební brána této organizace není aktivní.</value></data>
+  <data name="machine_token.tenant_required" xml:space="preserve"><value>K vydání strojového tokenu je vyžadována organizace.</value></data>
+  <data name="machine_token.name_required" xml:space="preserve"><value>Název strojového tokenu je povinný.</value></data>
+  <data name="machine_token.name_too_long" xml:space="preserve"><value>Název strojového tokenu je příliš dlouhý.</value></data>
   <data name="user.email.required" xml:space="preserve"><value>E-mail je povinný.</value></data>
   <data name="user.email.invalid" xml:space="preserve"><value>E-mail není platná adresa.</value></data>
   <data name="user.email.too_long" xml:space="preserve"><value>E-mail je příliš dlouhý.</value></data>

@@ -63,6 +63,8 @@ internal static class StripeWebhookEndpoint
                 {
                     StripeEventId = stripeEvent.Id,
                     Type = stripeEvent.Type,
+                    Provider = "stripe",
+                    TenantId = ExtractTenantId(stripeEvent),
                     ReceivedAt = clock.UtcNow,
                     ProcessedAt = null,
                 });
@@ -94,5 +96,23 @@ internal static class StripeWebhookEndpoint
             .DisableRateLimiting() // Stripe delivers from many IPs and bursts on retry — never 429 a webhook.
             .WithTags("Billing")
             .WithName("StripeWebhook");
+    }
+
+    /// <summary>
+    /// Best-effort tenant resolution from the event's data object <c>tenant_id</c> metadata (stamped at checkout
+    /// creation). Absent/unparseable → <c>null</c> (legacy/global path). Does NOT change grant logic — the row's
+    /// tenant is purely a routing hint for the SYSTEM Worker.
+    /// </summary>
+    private static Guid? ExtractTenantId(Event stripeEvent)
+    {
+        var metadata = (stripeEvent.Data?.Object as IHasMetadata)?.Metadata;
+        if (metadata is not null
+            && metadata.TryGetValue("tenant_id", out var rawTenantId)
+            && Guid.TryParse(rawTenantId, out var tenantId))
+        {
+            return tenantId;
+        }
+
+        return null;
     }
 }

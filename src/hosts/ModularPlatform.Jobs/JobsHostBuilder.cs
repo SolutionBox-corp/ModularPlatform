@@ -11,6 +11,7 @@ using ModularPlatform.Operations;
 using ModularPlatform.Persistence;
 using ModularPlatform.Realtime;
 using ModularPlatform.Telemetry;
+using ModularPlatform.Tenancy;
 using Quartz;
 using Wolverine;
 
@@ -48,7 +49,8 @@ public static class JobsHostBuilder
             typeof(OperationsModule).Assembly,
             // Files has no cron jobs today, but the Jobs host loads the full module set (like every other host) so the
             // DI graph stays uniform and the host-boot test validates it — no special-case omission to drift on.
-            typeof(FilesModule).Assembly);
+            typeof(FilesModule).Assembly,
+            typeof(TenancyModule).Assembly);
         foreach (var module in modules)
         {
             module.RegisterServices(builder.Services, builder.Configuration);

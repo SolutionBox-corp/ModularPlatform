@@ -2,7 +2,9 @@
 
 > Mapa dokumentace. **`CLAUDE.md` (root) je zákon** (jak se staví). Tady je rozcestník: co je co, k jakému datu, a
 > **co je autoritativní pro aktuální stav.** Stav k **2026-06-11**: backend **181/181 testů, build 0/0**, pushnuto na
-> `main`. Multi-tenancy + frontend jsou **navržené, ne postavené**.
+> `main`. Multi-tenancy backend je **částečně postaven** (Tenancy modul, entitlements, tenant-resolution,
+> platform-admin, Payments+Secrets building-blocks — viz `multitenancy-and-infra.md` §8); infra + frontend zůstávají
+> **navržené, ne postavené**.
 
 ## Aktuální / autoritativní
 | Dokument | Co to je | Stav |
@@ -10,7 +12,9 @@
 | **`../CLAUDE.md`** | Zákon — všechny patterny, zákony, konvence, §4 „už vyřešeno", §10 „ještě ne / ASK" | ✅ aktuální |
 | **`feature-coverage.md`** | **Autoritativní per-feature USE/Edge/Test coverage** (78 features, verdikty, gapy, deferred-with-rationale) | ✅ aktuální (181 testů) |
 | **`stability-audit-2026-06-10.md`** | Stabilizační audit + fix-wave log (108→181, /fullreview + coverage + edge-case waves; rate-limiter ordering bug atd.) | ✅ aktuální |
-| **`multitenancy-and-infra.md`** | **NAVRŽENO, ne postaveno** — B2B subdoména-per-tenant, platform-admin, per-tenant module entitlements, Caddy wildcard DNS-01, pool→silo, Pulumi separace | 🟡 design |
+| **`multitenancy-and-infra.md`** | B2B subdoména-per-tenant — **§8 ČÁSTEČNĚ POSTAVENO** (Tenancy modul, entitlements guard, tenant-resolution middleware, platform-admin plane); infra (Caddy wildcard DNS-01, pool→silo, Pulumi) + registrace-join zůstávají design | 🟢 part-built |
+| **`payments-multitenant.md`** | Provider-agnostic platby — dva plane (platform/tenant), `IPaymentGateway` + Stripe/GoPay/Fake + resolver, per-tenant config, GoPay re-fetch model, Worker-SYSTEM explicit-stamp landmine | 🟢 built (webhook/saga per-tenant rozpracováno) |
+| **`tenant-secrets.md`** | `ISecretProtector` (local\|kms) + `tenant_secrets` — AES-256-GCM, AAD=tenantId‖purpose, NE `IUserOwned`, audit/outbox/log bany | ✅ built |
 
 ## Frontend (mimo repo)
 | Dokument | Co | Stav |

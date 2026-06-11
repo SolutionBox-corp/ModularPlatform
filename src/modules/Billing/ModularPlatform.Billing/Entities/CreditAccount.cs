@@ -15,6 +15,13 @@ internal sealed class CreditAccount : AuditableEntity, IUserOwned
 {
     public Guid UserId { get; set; }
 
+    /// <summary>
+    /// The tenant the wallet belongs to (two-plane model + per-tenant reporting). Stamped EXPLICITLY by the
+    /// provisioning handler from the registration event — the Worker runs in the SYSTEM context, so the
+    /// tenant-stamping interceptor does NOT fill it. Nullable for accounts provisioned before this column existed.
+    /// </summary>
+    public Guid? TenantId { get; set; }
+
     /// <summary>Net posted balance = credits minus confirmed debits.</summary>
     public long Posted { get; set; }
 

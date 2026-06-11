@@ -23,6 +23,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\building-blocks\ModularPlatform.Web\ModularPlatform.Web.csproj" />
     <ProjectReference Include="..\..\src\building-blocks\ModularPlatform.Persistence\ModularPlatform.Persistence.csproj" />
+    <ProjectReference Include="..\..\src\building-blocks\ModularPlatform.Secrets\ModularPlatform.Secrets.csproj" />
+    <ProjectReference Include="..\..\src\building-blocks\ModularPlatform.Payments\ModularPlatform.Payments.csproj" />
   </ItemGroup>
 
 </Project>

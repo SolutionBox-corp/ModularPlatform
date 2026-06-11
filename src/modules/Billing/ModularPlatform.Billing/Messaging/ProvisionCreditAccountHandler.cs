@@ -13,5 +13,5 @@ namespace ModularPlatform.Billing.Messaging;
 public sealed class ProvisionCreditAccountHandler
 {
     public Task Handle(UserRegisteredIntegrationEvent message, IDispatcher dispatcher, CancellationToken ct) =>
-        dispatcher.Send(new EnsureCreditAccountCommand(message.UserId), ct);
+        dispatcher.Send(new EnsureCreditAccountCommand(message.UserId, message.TenantId), ct);
 }

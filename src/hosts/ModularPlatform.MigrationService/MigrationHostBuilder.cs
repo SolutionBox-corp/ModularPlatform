@@ -8,6 +8,7 @@ using ModularPlatform.Notifications;
 using ModularPlatform.Operations;
 using ModularPlatform.Persistence;
 using ModularPlatform.Realtime;
+using ModularPlatform.Tenancy;
 using Wolverine;
 
 namespace ModularPlatform.MigrationService;
@@ -36,7 +37,8 @@ public static class MigrationHostBuilder
             typeof(NotificationsModule).Assembly,
             typeof(GdprModule).Assembly,
             typeof(OperationsModule).Assembly,
-            typeof(FilesModule).Assembly);
+            typeof(FilesModule).Assembly,
+            typeof(TenancyModule).Assembly);
         foreach (var module in discovered)
         {
             module.RegisterServices(builder.Services, builder.Configuration);

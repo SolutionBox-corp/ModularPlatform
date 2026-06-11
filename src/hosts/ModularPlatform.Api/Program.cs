@@ -10,6 +10,7 @@ using ModularPlatform.Operations;
 using ModularPlatform.Persistence.Rls;
 using ModularPlatform.Realtime;
 using ModularPlatform.Telemetry;
+using ModularPlatform.Tenancy;
 using ModularPlatform.Web;
 using Wolverine;
 
@@ -23,7 +24,10 @@ var modules = ModuleLoader.Discover(
     typeof(NotificationsModule).Assembly,
     typeof(GdprModule).Assembly,
     typeof(OperationsModule).Assembly,
-    typeof(FilesModule).Assembly);
+    typeof(FilesModule).Assembly,
+    // Tenancy LAST: it creates the `tenants` table that Identity's drop migration removes — discovery order is
+    // migration-application order, so Identity (first) must drop before Tenancy (last) re-creates as its owner.
+    typeof(TenancyModule).Assembly);
 
 // Platform cross-cutting concerns. Telemetry FIRST so its behavior is outer-most in the CQRS pipeline.
 builder.Services.AddPlatformTelemetry("ModularPlatform.Api");
