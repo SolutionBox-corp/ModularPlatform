@@ -19,22 +19,29 @@ uses `IClassFixture<PlatformApiFactory>`.
 `BillingLedgerTests` (confirm exactly-once, idempotent top-up), `CrossModuleEventTests` (event → handler →
 side-effect, with `WaitForCountAsync`), `Identity.Tests/IdentityE2ETests`, `Gdpr.Tests/SubjectKeyShredTests` (pure unit).
 
-## Three layers
+## Four layers
 1. **Architecture (ArchUnitNET)** — `tests/ModularPlatform.ArchitectureTests`. Add new module assemblies to
-   `LoadAssemblies(...)`; the rules (Contracts pure, no cross-module Core) then auto-cover them. Must stay green.
+   `LoadAssemblies(...)`; the rules (Contracts pure, no cross-module Core) auto-cover them. New integration events →
+   add to `MessageWireIdentityTests.FrozenWireNames` (freezes durable wire identity). Must stay green.
 2. **Integration** — via `PlatformApiFactory`. Drive real HTTP endpoints (or seed DB state via `ExecuteSqlAsync`
    for preconditions that have no command). For event-driven setup, `WaitForCountAsync` until the handler ran.
-   Assert on the response AND the DB state.
-3. **Validation / pure unit** — `AbstractValidator` returns the right `errorCode`; pure helpers (e.g. crypto-shred)
-   without a host. xUnit + `Shouldly`.
+   Assert on the response AND the DB state. A derived host with overrides (low rate limit, Production env) = `fixture.CreateHost((k,v)…)`.
+3. **Host boot (DI graph)** — `tests/ModularPlatform.Hosts.Tests` builds the Worker/Jobs/Migration hosts in Development
+   (ValidateOnBuild + ValidateScopes) WITHOUT starting them, so an unfulfillable/captive DI graph fails as a test, not
+   in prod. Add `--Modules:{Name}:Enabled=true` to `BootArgs()` when you add a module. (Separate process — never boots the Api,
+   so the one-host-per-process PII-protector invariant holds.)
+4. **Pure unit (no host)** — `tests/ModularPlatform.BuildingBlocks.Tests` (building-block logic: option validators, IP
+   masking, paging clamps) + per-module pure helpers (validators' `errorCode`, crypto-shred). xUnit + `Shouldly`, no DB.
 
 ## Must-cover scenarios (the ones that bite)
 - **No double-spend**: N concurrent reservations on a fixed balance → exactly the affordable count succeed, rest 422, available never negative.
 - **Idempotency**: same key / same Stripe event / redelivered message applied → exactly ONE effect.
 - **Cross-module event**: register a user → the consuming module's side-effect appears (`WaitForCountAsync`).
 - **Audit**: after an update, the audit row holds ONLY changed fields (value-converted, e.g. enum → string).
-- **Auth**: refresh-token reuse revokes the family (401) + writes an audit row; lockout after N failures.
-- **GDPR**: erasure blanks PII + shreds the subject key; the ledger is retained.
+- **Auth**: refresh-token reuse revokes the family (401) + writes an audit row; lockout after N failures; reused/expired/erased token → 401; login is timing-equalized (unknown email ≡ wrong password, same code).
+- **GDPR**: erasure blanks/deletes PII per module + shreds the subject key; the ledger is retained; consent is exported + deleted.
+- **Authz/IDOR**: a foreign user's resource (file/operation) → 404 even with RLS off (app-level `UserId` filter); identity comes from the token, never a body/route id.
+- **Edge/abuse**: rate limit partitions per-user (not one shared bucket) + per-IP on auth/register; a startup misconfig (weak JWT key, empty forwarded-headers trust list, fake Stripe in Production) fail-fasts via its `IValidateOptions`.
 
 ## Conventions
 - One behavior per test. Arrange via real commands/HTTP where one exists, not by poking the DB.

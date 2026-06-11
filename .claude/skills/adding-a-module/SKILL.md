@@ -36,14 +36,22 @@ Everything in `.{Name}` is `internal` EXCEPT the `IModule` impl AND any Wolverin
 - `ApplyMigrationsAsync`: migrate the context via a scope (copy Identity).
 
 ## 5. Register the module everywhere it must be known
-- `ModuleLoader.Discover(...)` in **Api, Worker, MigrationService** `Program.cs`.
-- `LoadAssemblies(...)` in `ArchitectureTests`.
+- `ModuleLoader.Discover(...)` in **ALL FOUR host composers**: `Api/Program.cs`, `Worker/WorkerHostBuilder.cs`,
+  `Jobs/JobsHostBuilder.cs`, `MigrationService/MigrationHostBuilder.cs` (the host composition is extracted into
+  `*HostBuilder` classes so the boot test can validate the exact DI graph — add the assembly + the csproj ProjectReference to each).
+- `LoadAssemblies(...)` in `ArchitectureTests` (boundary rules then auto-cover it).
+- `BootArgs()` in `tests/ModularPlatform.Hosts.Tests/HostBootTests.cs` (add `--Modules:{Name}:Enabled=true`) — the
+  boot test then ValidateOnBuild-checks the Worker/Jobs/Migration DI graph INCLUDING your module (this is what catches
+  an unfulfillable graph, e.g. a handler needing a service the non-HTTP host didn't register).
 - `"Modules": { "{Name}": { "Enabled": true } }` in each host's appsettings.
 
 ## 6. Migration + tests (reuse the shared harness)
 `dotnet ef migrations add Initial{Name} --project … --context {Name}DbContext --output-dir Persistence/Migrations`.
 Tests: reference `tests/ModularPlatform.IntegrationTesting` (the shared `PlatformApiFactory`) — **do NOT write a new
 Testcontainers fixture.** See the **writing-modularplatform-tests** skill. Add the module to the ArchUnit assemblies.
+**New integration events:** add each event's full type name to `MessageWireIdentityTests.FrozenWireNames`
+(`tests/ModularPlatform.ArchitectureTests`) — it freezes the durable WIRE identity (Wolverine uses the .NET full type
+name; renaming/moving an event later orphans in-flight envelopes), so the build fails until you lock the new name.
 
 ## NEVER
 Reference another module's Core · cross-module JOIN · two modules in one DbContext · skip the design-time factory ·
