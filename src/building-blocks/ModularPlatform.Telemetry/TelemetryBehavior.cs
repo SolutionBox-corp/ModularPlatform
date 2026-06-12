@@ -19,6 +19,12 @@ public sealed class TelemetryBehavior<TRequest, TResponse> : IPipelineBehavior<T
             activity?.SetStatus(ActivityStatusCode.Ok);
             return response;
         }
+        catch (OperationCanceledException)
+        {
+            // Client disconnect / shutdown cancellation is not a server error — don't inflate error-rate SLOs.
+            activity?.SetStatus(ActivityStatusCode.Ok);
+            throw;
+        }
         catch (ModularPlatformException ex)
         {
             activity?.SetTag("cqrs.error_code", ex.ErrorCode);

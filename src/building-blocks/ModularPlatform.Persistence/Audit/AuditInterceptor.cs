@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.Options;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Persistence.Entities;
@@ -133,16 +134,20 @@ public sealed class AuditInterceptor(
         return string.Join(",", values);
     }
 
+    // The PK identifies the row (stored separately) and the xmin concurrency token is internal EF/Postgres
+    // plumbing — neither is a meaningful audited "column" (xmin would surface as a raw uint / 0 on insert).
+    private static bool IsAuditable(IProperty p) => !p.IsPrimaryKey() && !p.IsConcurrencyToken;
+
     private static List<string> AllColumns(EntityEntry entry) =>
-        entry.Properties.Where(p => !p.Metadata.IsPrimaryKey()).Select(p => p.Metadata.Name).ToList();
+        entry.Properties.Where(p => IsAuditable(p.Metadata)).Select(p => p.Metadata.Name).ToList();
 
     private static List<string> ChangedColumns(EntityEntry entry) =>
-        entry.Properties.Where(p => p.IsModified && !p.Metadata.IsPrimaryKey())
+        entry.Properties.Where(p => p.IsModified && IsAuditable(p.Metadata))
             .Select(p => p.Metadata.Name).ToList();
 
     private Dictionary<string, object?> ValueMap(EntityEntry entry, bool changedOnly, Guid? subjectId) =>
         entry.Properties
-            .Where(p => !p.Metadata.IsPrimaryKey() && (!changedOnly || p.IsModified))
+            .Where(p => IsAuditable(p.Metadata) && (!changedOnly || p.IsModified))
             .ToDictionary(p => p.Metadata.Name, p => AuditValue(p, subjectId));
 
     /// <summary>

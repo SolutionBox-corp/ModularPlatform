@@ -44,12 +44,16 @@ public sealed class GlobalExceptionMiddleware(
         HttpContext context, int status, string errorCode, Exception ex, IReadOnlyList<ValidationError>? errors)
     {
         var detail = localizer[errorCode];
+        // NEVER fall back to ex.Message — a developer string can carry internal detail (DB text, hostnames, ids). An
+        // errorCode with no resx entry (a forgotten translation) degrades to a safe generic, not a leak. (The resx
+        // parity test should keep this branch unreachable in practice; this is the defence if one slips through.)
+        var safeDetail = detail.ResourceNotFound ? localizer["error.unexpected"].Value : detail.Value;
         var problem = new ProblemDetails
         {
             Status = status,
             Title = errorCode,
             Type = $"https://errors.modularplatform.dev/{errorCode}",
-            Detail = detail.ResourceNotFound ? ex.Message : detail.Value,
+            Detail = safeDetail,
         };
         problem.Extensions["errorCode"] = errorCode;
         problem.Extensions["traceId"] = context.TraceIdentifier;

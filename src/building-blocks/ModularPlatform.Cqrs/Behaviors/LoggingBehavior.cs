@@ -21,6 +21,13 @@ public sealed class LoggingBehavior<TRequest, TResponse>(ILogger<LoggingBehavior
                 requestName, Stopwatch.GetElapsedTime(start).TotalMilliseconds);
             return response;
         }
+        catch (OperationCanceledException)
+        {
+            // A client disconnect / shutdown cancellation is NOT a failure — don't pollute error dashboards.
+            logger.LogDebug("{Request} canceled after {Elapsed}ms",
+                requestName, Stopwatch.GetElapsedTime(start).TotalMilliseconds);
+            throw;
+        }
         catch (ModularPlatformException ex)
         {
             // Expected business errors -> warning, no stack noise.

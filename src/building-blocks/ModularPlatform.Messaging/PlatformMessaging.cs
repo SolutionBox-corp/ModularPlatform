@@ -81,6 +81,14 @@ public static class PlatformMessaging
         // the message to its durable dead-letter store (inspectable + replayable) instead of losing it. Combined
         // with the inbox UNIQUE(MessageId) this stays effectively exactly-once. Per-external-system drift is
         // handled by a module-specific reconciliation job (Jobs host) — there is no generic reconciler.
+        // A cancellation (graceful shutdown / pod restart / client disconnect) INTERRUPTED the handler — it did not
+        // FAIL. Wolverine has no special-case for it: an unmatched exception (cancellation included) is dead-lettered,
+        // and the DLQ expires after 7 days → an in-flight UserRegistered/credit grant during a rolling deploy would be
+        // silently lost. A more-derived rule (matched first by Wolverine) requeues it so it survives the restart.
+        options.Policies.OnException<OperationCanceledException>()
+            .RetryWithCooldown(TimeSpan.FromMilliseconds(100), TimeSpan.FromMilliseconds(500), TimeSpan.FromSeconds(3))
+            .Then.Requeue();
+
         options.Policies.OnException<Exception>()
             .RetryWithCooldown(TimeSpan.FromMilliseconds(100), TimeSpan.FromMilliseconds(500), TimeSpan.FromSeconds(3))
             .Then.MoveToErrorQueue();

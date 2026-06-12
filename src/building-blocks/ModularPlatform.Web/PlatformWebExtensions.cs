@@ -180,7 +180,7 @@ public static class PlatformWebExtensions
 
             // Emit Retry-After on a 429 when the limiter knows when the next permit frees up (token-bucket
             // replenishment / fixed-window reset) — clients back off intelligently instead of hammering.
-            options.OnRejected = (rejected, _) =>
+            options.OnRejected = async (rejected, ct) =>
             {
                 if (rejected.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
                 {
@@ -188,7 +188,23 @@ public static class PlatformWebExtensions
                         ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString(CultureInfo.InvariantCulture);
                 }
 
-                return ValueTask.CompletedTask;
+                // Keep the 429 on the same RFC 9457 contract as every other error — an empty body reads like a network
+                // failure and invites aggressive retries (which is exactly what the limiter is defending against).
+                if (!rejected.HttpContext.Response.HasStarted)
+                {
+                    rejected.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+                    rejected.HttpContext.Response.ContentType = "application/problem+json";
+                    await rejected.HttpContext.Response.WriteAsJsonAsync(
+                        new
+                        {
+                            type = "https://errors.modularplatform.dev/error.rate_limited",
+                            title = "error.rate_limited",
+                            status = StatusCodes.Status429TooManyRequests,
+                            detail = "Too many requests.",
+                            errorCode = "error.rate_limited",
+                        },
+                        ct);
+                }
             };
 
             // Partition by authenticated user (the token's subject id), else by remote IP. The user id comes from the
