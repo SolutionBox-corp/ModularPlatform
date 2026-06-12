@@ -155,7 +155,8 @@ internal sealed class RedisRealtimePublisher(IConnectionMultiplexer redis, IOpti
 
         // XRANGE exclusive lower bound: increment the last-seen id by 1 in the sequence number part.
         var exclusiveStart = IncrementStreamId(lastEventId);
-        var entries = await db.StreamRangeAsync(streamKey, exclusiveStart, "+");
+        // Bound the replay to the buffer size (the stream is already MAXLEN-trimmed to MaxEvents — this is belt-and-braces).
+        var entries = await db.StreamRangeAsync(streamKey, exclusiveStart, "+", count: opts.MaxEvents);
         if (entries.Length == 0)
         {
             return [];
@@ -192,7 +193,11 @@ internal sealed class RedisRealtimePublisher(IConnectionMultiplexer redis, IOpti
         var seqPart = id[(dashIndex + 1)..];
         if (ulong.TryParse(seqPart, out var seq))
         {
-            return $"{ms}-{seq + 1}";
+            // Overflow guard (seq == ulong.MaxValue is impossible in practice — 2^64 events in one ms — but never wrap
+            // to {ms}-0, which would RE-replay that millisecond): roll into the next ms instead.
+            return seq == ulong.MaxValue && ulong.TryParse(ms, out var msVal)
+                ? $"{msVal + 1}-0"
+                : $"{ms}-{seq + 1}";
         }
 
         return id;
