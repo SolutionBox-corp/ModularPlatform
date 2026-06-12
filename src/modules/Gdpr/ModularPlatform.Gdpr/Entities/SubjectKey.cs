@@ -14,7 +14,14 @@ namespace ModularPlatform.Gdpr.Entities;
 internal sealed class SubjectKey : Entity, IUserOwned
 {
     public Guid UserId { get; set; }
+
+    /// <summary>The DEK ENCRYPTED under the application master key (penc envelope from <c>ISecretProtector</c>), bound
+    /// by AAD to this subject. A DB dump alone cannot read it without the master key. Null once shredded.</summary>
     public byte[]? WrappedDek { get; set; }
+
+    /// <summary>The master-key version that wrapped <see cref="WrappedDek"/> (for key rotation / unwrap).</summary>
+    public int DekKeyVersion { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? DeletedAt { get; set; }
 }

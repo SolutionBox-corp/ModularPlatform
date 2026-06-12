@@ -17,6 +17,7 @@ using ModularPlatform.Gdpr.Security;
 using ModularPlatform.Messaging;
 using ModularPlatform.Persistence;
 using ModularPlatform.Persistence.Rls;
+using ModularPlatform.Secrets;
 using Quartz;
 using Wolverine;
 
@@ -44,6 +45,10 @@ public sealed class GdprModule : IModule
         services.AddModuleDbContext<GdprDbContext>(Name, write);
         services.AddModuleReadDbContext<GdprDbContext>(read);
 
+        // The per-subject DEK is WRAPPED by the application master key before it touches subject_keys, so a DB dump
+        // alone (without the master key in env/KeyVault) cannot decrypt any PII. TryAdd-safe across modules.
+        services.AddPlatformSecrets(configuration);
+
         // The audit interceptor (a platform singleton) crypto-shreds PII through this port. The protector runs on
         // its OWN system-context GdprDbContext (no audit interceptor -> no reentrancy) so it can manage subject_keys
         // for any subject. Registered as a singleton to match the singleton interceptor.
@@ -68,7 +73,8 @@ public sealed class GdprModule : IModule
                 return new GdprDbContext(builder.Options, system);
             }
 
-            return new PersonalDataProtector(NewContext, sp.GetRequiredService<IClock>());
+            return new PersonalDataProtector(
+                NewContext, sp.GetRequiredService<IClock>(), sp.GetRequiredService<ISecretProtector>());
         });
 
         // Blind-index hashing for lookups on encrypted columns (e.g. users.EmailHash). Platform-wide secret

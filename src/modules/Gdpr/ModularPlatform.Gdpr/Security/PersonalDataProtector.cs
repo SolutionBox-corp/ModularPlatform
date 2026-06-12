@@ -21,12 +21,17 @@ namespace ModularPlatform.Gdpr.Security;
 /// single call, and a post-erasure encrypt cleanly redacts instead of re-using a destroyed key — the crypto-shred
 /// guarantee holds even across processes (Api caches nothing the Worker's shred can't immediately defeat).
 /// </summary>
-internal sealed class PersonalDataProtector(Func<GdprDbContext> contextFactory, IClock clock) : IPersonalDataProtector
+internal sealed class PersonalDataProtector(
+    Func<GdprDbContext> contextFactory, IClock clock, ISecretProtector secretProtector) : IPersonalDataProtector
 {
     // v1: AES-GCM without AAD (legacy audit envelopes stay readable until natural erasure).
     // v2: AES-GCM with AAD = subjectId bytes — an envelope re-attached to another subject fails authentication.
     private const string PrefixV1 = "penc:v1:";
     private const string PrefixV2 = "penc:v2:";
+
+    // The DEK is WRAPPED under the application master key (via ISecretProtector) before it is persisted, so
+    // subject_keys never holds a usable key — a DB dump alone can't decrypt PII. AAD binds the wrap to the subject.
+    private const string DekPurpose = "gdpr.subject_dek";
 
     public bool IsProtected(string value) =>
         value is not null
@@ -104,11 +109,19 @@ internal sealed class PersonalDataProtector(Func<GdprDbContext> contextFactory, 
         if (existing is not null)
         {
             // A shredded/erased key cannot (and must not) be used or re-created.
-            return existing is { WrappedDek: not null, DeletedAt: null } ? existing.WrappedDek : null;
+            return Unwrap(subjectId, existing);
         }
 
         var dek = CryptoShredder.GenerateDek();
-        db.SubjectKeys.Add(new SubjectKey { UserId = subjectId, WrappedDek = dek, CreatedAt = clock.UtcNow });
+        var sealedDek = secretProtector.ProtectAsync(subjectId, DekPurpose, Convert.ToBase64String(dek))
+            .GetAwaiter().GetResult();
+        db.SubjectKeys.Add(new SubjectKey
+        {
+            UserId = subjectId,
+            WrappedDek = sealedDek.Ciphertext,
+            DekKeyVersion = sealedDek.KeyVersion,
+            CreatedAt = clock.UtcNow,
+        });
         try
         {
             db.SaveChanges();
@@ -125,7 +138,7 @@ internal sealed class PersonalDataProtector(Func<GdprDbContext> contextFactory, 
                 throw;
             }
 
-            return raced is { WrappedDek: not null, DeletedAt: null } ? raced.WrappedDek : null;
+            return Unwrap(subjectId, raced);
         }
     }
 
@@ -133,6 +146,20 @@ internal sealed class PersonalDataProtector(Func<GdprDbContext> contextFactory, 
     {
         using var db = contextFactory();
         var key = db.SubjectKeys.AsNoTracking().FirstOrDefault(k => k.UserId == subjectId);
-        return key is { WrappedDek: not null, DeletedAt: null } ? key.WrappedDek : null;
+        return Unwrap(subjectId, key);
+    }
+
+    /// <summary>Unwraps the persisted (master-key-encrypted) DEK; null for a missing/shredded key.</summary>
+    private byte[]? Unwrap(Guid subjectId, SubjectKey? key)
+    {
+        if (key is not { WrappedDek: { } wrapped, DeletedAt: null })
+        {
+            return null;
+        }
+
+        var dekBase64 = secretProtector
+            .RevealAsync(subjectId, DekPurpose, new ProtectedSecret(key.DekKeyVersion, wrapped))
+            .GetAwaiter().GetResult();
+        return Convert.FromBase64String(dekBase64);
     }
 }
