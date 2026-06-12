@@ -7,9 +7,13 @@ namespace ModularPlatform.Billing.Entities;
 
 /// <summary>
 /// A tenant's payment-gateway configuration for one plane (tenant-plane = end-users paying the tenant). Carries an
-/// EXPLICIT <see cref="TenantId"/> (not <c>ITenantScoped</c>) because the resolver must read it from the SYSTEM Worker
-/// context (webhook processing) for an ARBITRARY tenant — an automatic per-tenant filter would hide it there. The
-/// actual credentials live encrypted in <see cref="TenantSecret"/> (referenced by purpose); only metadata is here.
+/// EXPLICIT non-nullable <see cref="TenantId"/> and is deliberately NOT <c>ITenantScoped</c>: that convention manages a
+/// SHADOW <c>Guid?</c> TenantId + an ambient query filter, but the resolver runs in the SYSTEM Worker context
+/// (processing an inbound webhook for an ARBITRARY tenant) where the ambient filter is bypassed — an automatic filter
+/// would hide the very row the webhook must find, and a shadow nullable key can't carry the required non-null id. So
+/// the config store filters by the EXPLICIT tenant id with <c>IgnoreQueryFilters()</c>, never the ambient tenant.
+/// (Defence-in-depth here is the explicit-WHERE in every path + the credentials being encrypted in
+/// <see cref="TenantSecret"/>.) Only metadata is here.
 /// </summary>
 internal sealed class PaymentConfiguration : Entity
 {
@@ -41,9 +45,10 @@ internal enum PaymentConfigStatus
 
 /// <summary>
 /// A tenant- (or platform-) scoped secret at rest: a gateway API key / webhook secret sealed by
-/// <c>ISecretProtector</c>. Stores ONLY ciphertext (+ key version / wrapped DEK) — never plaintext. Explicit
-/// <see cref="TenantId"/> for the same SYSTEM-resolve reason as <see cref="PaymentConfiguration"/>; NOT
-/// <c>IUserOwned</c> (a tenant secret must survive a user's GDPR erasure, unlike a per-subject DEK).
+/// <c>ISecretProtector</c>. Stores ONLY ciphertext (+ key version / wrapped DEK) — never plaintext.
+/// Explicit non-nullable <see cref="TenantId"/> (NOT <c>ITenantScoped</c>) for the same SYSTEM-resolve reason as
+/// <see cref="PaymentConfiguration"/>; NOT <c>IUserOwned</c> (a tenant secret must survive a user's GDPR erasure,
+/// unlike a per-subject DEK).
 /// </summary>
 internal sealed class TenantSecret : Entity
 {

@@ -29,7 +29,8 @@ Task<string>          RevealAsync (Guid? tenantId, string purpose, ProtectedSecr
   **Never** persist or log the plaintext.
 
 Registration: `AddPlatformSecrets(config)` — `src/building-blocks/ModularPlatform.Secrets/PlatformSecrets.cs`
-(mirrors `AddPlatformStorage`: `Secrets:Provider = local | kms`, default `local`).
+(`Secrets:Provider = local`, default `local`). An **unrecognised** provider **fail-fasts at startup** — it never
+silently falls back to `local` (that would be a confidentiality downgrade for a deployment that asked for KMS).
 
 ---
 
@@ -42,11 +43,16 @@ Registration: `AddPlatformSecrets(config)` — `src/building-blocks/ModularPlatf
 - Blob layout `[12-byte nonce][16-byte tag][ciphertext]` — the same shape as the platform's crypto-shred
   primitive, so a KMS provider can replace this later with the **same** `ProtectedSecret` shape (it additionally
   populates `WrappedDek`).
-- **AAD = `tenantId|purpose`** (`{tenantId:N}` or the literal `platform`). A blob swapped between rows fails the
-  GCM authentication tag — ciphertext is bound to its `(tenant, purpose)` row context.
+- **AAD = length-prefixed `{len}:{tenantId}|{len}:{purpose}`** (`{tenantId:N}` or the literal `platform`). The
+  length prefix makes the parts unambiguous — a `purpose` containing the `|` separator can never alias a different
+  `(tenant, purpose)` pair (confused-deputy). A blob swapped between rows fails the GCM authentication tag —
+  ciphertext is bound to its `(tenant, purpose)` row context.
+- **Plaintext hygiene:** the intermediate plaintext `byte[]` buffers are zeroed (`CryptographicOperations.ZeroMemory`)
+  immediately after encrypt/decrypt (the immutable input/result `string` itself can't be zeroed — a CLR limitation).
 - **Fail-fast outside Development:** `SecretsOptionsValidator` refuses the well-known dev placeholder master key in
-  non-Dev environments (mirrors `RlsBootstrapper` / `JwtOptionsValidator`). Set `Secrets:MasterKeys:{n}` from a
-  real 32-byte base64 secret in prod. (The non-Dev test harness seeds `Secrets:MasterKeys:1`.)
+  non-Dev environments — in **any** key slot, not just the active one (a retained "legacy decrypt" placeholder is
+  still usable). Mirrors `RlsBootstrapper` / `JwtOptionsValidator`. Set `Secrets:MasterKeys:{n}` from a real 32-byte
+  base64 secret in prod. (The non-Dev test harness seeds `Secrets:MasterKeys:1`.)
 
 KMS / Key Vault / Vault providers (envelope-wrapping the DEK) are the planned later swap behind this same port —
 chosen before GA (CLAUDE.md §10 "KEK/KMS").

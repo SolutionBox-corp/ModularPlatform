@@ -1,12 +1,13 @@
 # Payments — provider-agnostic, per-tenant, two planes
 
-> **Status (2026-06-11):** the `ModularPlatform.Payments` building-block is **BUILT** (port + Stripe + GoPay +
+> **Status (2026-06-12):** the `ModularPlatform.Payments` building-block is **BUILT** (port + Stripe + GoPay +
 > Fake + resolver + config-store port), and the Billing module owns per-tenant gateway config + secret storage
-> (`PaymentConfiguration` + `TenantSecret`) with the self-service `ConfigureGateway` slice. The remaining
-> money-sensitive wiring — migrating Billing's webhook/saga/reconcile handlers from the legacy `IStripeGateway`
-> onto `IPaymentGatewayResolver`, the `payment_events` table, and the per-tenant webhook **endpoint**
-> `/billing/webhooks/{provider}/{tenantId}` — is **in progress** (program FÁZE 2D-ii-b). Where a thing is not
-> yet wired end-to-end, this doc says so explicitly.
+> (`PaymentConfiguration` + `TenantSecret`) with the self-service `ConfigureGateway` slice. The per-tenant **package
+> purchase** now resolves the tenant's gateway via `IPaymentGatewayResolver`, and the per-tenant webhook **endpoint**
+> `POST /billing/webhooks/{provider}/{tenantId}/{token?}` (`TenantWebhookEndpoint`) is **wired** — it re-fetches
+> authoritative state and outboxes `CreditPurchaseConfirmed` into the existing idempotent saga grant. Subscription
+> checkout + the `payment_events` table generalisation remain the next step. Where a thing is not yet wired
+> end-to-end, this doc says so explicitly.
 >
 > This doc is the single map of how money moves. `CLAUDE.md` (root) stays the law; when they disagree, the law wins.
 
@@ -28,6 +29,12 @@ Canonical enum: `src/building-blocks/ModularPlatform.Payments/PaymentResolution.
 This is the application of the module-placement rule (CLAUDE.md §3 / program §0): platform-plane billing is the
 **Tenancy** module's responsibility (it owns tenant lifecycle), reusing the shared `Payments` building-block —
 there is deliberately **no** separate `PlatformBilling` module. Tenant-plane commerce stays in **Billing**.
+
+**Platform-plane checkout is price-server-authoritative.** `POST /v1/tenant/me/platform-checkout`
+(`CreatePlatformCheckout`, denies machine principals) takes a **plan KEY**, never a free-form amount — the
+amount/currency/description come from `Platform:Payments:Plans:{key}` config (an unknown key → `tenancy.platform_plan_unknown`).
+A client-supplied amount would let a tenant pay €0.01 for a plan. The platform gateway itself is read from
+`Platform:Payments:*` by `TenancyPlatformPaymentConfigStore` (the platform's own account, not a tenant's).
 
 ---
 
@@ -54,7 +61,7 @@ All providers sit behind a single neutral port so no business code references St
 | Webhook trust | signed HMAC — `NotificationContext.RawBody` + signature header (`EventUtility.ConstructEvent`) | **no signature** — `NotificationContext.Query` carries only the payment id |
 | Authoritative state | re-fetch the object after the event (never trust payload order) | **always re-fetch** `GET /payments/payment/{id}` — the notification is a *hint* only |
 | Idempotency | app-side UNIQUE key | app-side UNIQUE key (GoPay has no idempotency header) |
-| Auth | API key | OAuth2 `client_credentials` (Basic → `/oauth2/token`), token cached inside the adapter (60 s safety margin) |
+| Auth | API key | OAuth2 `client_credentials` (Basic → `/oauth2/token`), bearer cached in a process-wide singleton `GoPayTokenCache` keyed by client id (the resolver builds a throwaway gateway per request, so a per-instance cache would re-auth every call; 60 s safety margin) |
 | Payee | account on the key | `target.goid` per create |
 
 ### The GoPay re-fetch model (critical)
@@ -62,8 +69,9 @@ All providers sit behind a single neutral port so no business code references St
 GoPay does **not** sign its notifications. The inbound `GET` to the notification URL is only a wake-up. The
 adapter's `VerifyNotification` reads the payment id from the query and **re-fetches the payment object from GoPay**
 to get the authoritative state. **Never** treat the GoPay notification body as authoritative; **never** branch on
-it without a re-fetch. The notification URL itself carries a high-entropy unguessable token (`WebhookToken`) so a
-forged hit can't even name a valid route — but trust still comes only from the re-fetch.
+it without a re-fetch. The notification URL itself carries a high-entropy unguessable token (`WebhookToken`); the
+`ProcessTenantWebhook` handler **validates** it against the stored token for the GoPay (unsigned) path and
+acknowledges-and-ignores a mismatch — but authoritative trust still comes only from the re-fetch.
 
 ---
 
@@ -120,22 +128,25 @@ GoPay notifications and the future per-tenant Stripe webhooks are addressed **pe
 knows which tenant's config to resolve (it can't derive a tenant from an HTTP context it doesn't have):
 
 ```
-/v1/billing/webhooks/{provider}/{tenantId}/{webhookToken}
+POST /v1/billing/webhooks/{provider}/{tenantId:guid}/{token?}
 ```
 
+- **Endpoint:** `…/Features/Stripe/TenantWebhook/TenantWebhookEndpoint.cs` — anonymous, rate-limit-disabled
+  (providers retry on non-200), returns 200 immediately and dispatches `ProcessTenantWebhookCommand`.
 - The notification URL is constructed in `BillingPaymentConfigStore.BuildNotificationUrl` from
-  `Billing:Payments:PublicBaseUrl` + the tenant id + the per-tenant `WebhookToken`.
+  `Billing:Payments:PublicBaseUrl` + the tenant id + the per-tenant `WebhookToken`. The `{token?}` segment is
+  optional so a signed-Stripe callback (no token) and an unsigned-GoPay callback (token) both match the one route.
 - The `tenantId` segment routes the inbound notification to the right `(tenant, plane)` config.
-- The `webhookToken` segment is the unguessable guard for providers with **no** signed payload (GoPay).
+- The `token` segment is the unguessable guard for providers with **no** signed payload (GoPay); the handler
+  validates it against the stored `WebhookToken` for the GoPay path and ignores a mismatch (Stripe ignores it — its
+  HMAC signature is the binding).
 - The handler resolves the gateway via `IPaymentGatewayResolver.ResolveAsync(tenantId, plane)`, calls
-  `VerifyNotification` (which **re-fetches** the authoritative state), and stamps `TenantId` explicitly on every
-  row it writes.
+  `VerifyNotification` (which **re-fetches** the authoritative state), and on a PAID package checkout outboxes
+  `CreditPurchaseConfirmed` — the existing saga grants exactly once via the `purchase:{id}` idempotency key.
 
-> **In progress (FÁZE 2D-ii-b):** the live HTTP endpoint today is still the single legacy Stripe webhook
-> (`…/Features/Stripe/StripeWebhook/StripeWebhookEndpoint.cs`); the `tenant_id`-in-metadata + `payment_events`
-> table (`StripeEvent` → `payment_events` with `Provider` + `TenantId`, UNIQUE `(Provider, TenantId, EventId)`) +
-> the `/billing/webhooks/{provider}/{tenantId}` route are the next money-sensitive step. The config store already
-> emits the per-tenant GoPay notification URL above, so the shape is fixed.
+> **Still to generalise:** the legacy single Stripe webhook (`…/Stripe/StripeWebhook/StripeWebhookEndpoint.cs`)
+> remains for the platform-plane Stripe ingest; broadening the `payment_events` table (`StripeEvent` →
+> `Provider` + `TenantId`, UNIQUE `(Provider, TenantId, EventId)`) to every provider is the next step.
 
 ---
 
@@ -160,6 +171,9 @@ This is also device-module seam #8 (per-module reconciliation pattern available 
 |---|---|
 | `payment.gateway_not_configured` | no usable `(tenant, plane)` gateway config |
 | `payment.gateway_inactive` | config exists but `Status != Active` |
+| `billing.gateway.stripe_webhook_secret_required` | Stripe config REQUIRES a webhook signing secret (an absent one would 500-loop every retry) |
+| `tenancy.platform_plan_unknown` | platform-plane checkout got a plan key not in `Platform:Payments:Plans` |
+| `tenancy.platform_plan_misconfigured` | the named platform plan has no positive `AmountMinorUnits` |
 
 Every payment error code has an entry in **both** `SharedResource.resx` (en) and `SharedResource.cs.resx` (cs) —
 the ArchUnitNET resx-parity test enforces it.
