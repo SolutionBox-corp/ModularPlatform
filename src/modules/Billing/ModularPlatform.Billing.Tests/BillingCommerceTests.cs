@@ -66,7 +66,7 @@ public sealed class BillingCommerceTests(PlatformApiFactory fixture)
         // Admin creates the catalogue entry (billing.manage) in its OWN tenant.
         var create = await fixture.Client.SendAsync(fixture.Authed(
             HttpMethod.Post, "/v1/billing/admin/packages", adminToken,
-            new { name = $"Starter {Guid.CreateVersion7():N}", creditAmount = 500, price = 9.99, active = true, stripePriceId = "price_test_starter" }));
+            new { name = $"Starter {Guid.CreateVersion7():N}", creditAmount = 500, price = 9.99, currency = "EUR", active = true, stripePriceId = "price_test_starter" }));
         create.StatusCode.ShouldBe(HttpStatusCode.OK);
         var packageId = (await PlatformApiFactory.ReadData(create)).GetProperty("id").GetGuid();
 
@@ -147,7 +147,7 @@ public sealed class BillingCommerceTests(PlatformApiFactory fixture)
         await ConfigureAdminFakeGatewayAsync(adminToken);
         var create = await fixture.Client.SendAsync(fixture.Authed(
             HttpMethod.Post, "/v1/billing/admin/packages", adminToken,
-            new { name = $"Slowpoke {Guid.CreateVersion7():N}", creditAmount = 250, price = 4.99, active = true, stripePriceId = "price_test_slow" }));
+            new { name = $"Slowpoke {Guid.CreateVersion7():N}", creditAmount = 250, price = 4.99, currency = "EUR", active = true, stripePriceId = "price_test_slow" }));
         var packageId = (await PlatformApiFactory.ReadData(create)).GetProperty("id").GetGuid();
 
         var (userId, userToken) = await RegisterBuyerInAdminTenantAsync(adminToken);
@@ -371,7 +371,7 @@ public sealed class BillingCommerceTests(PlatformApiFactory fixture)
 
         var create = await fixture.Client.SendAsync(fixture.Authed(
             HttpMethod.Post, "/v1/billing/admin/packages", adminToken,
-            new { name = $"Pkg {Guid.CreateVersion7():N}", creditAmount, price = 9.99, active = true, stripePriceId }));
+            new { name = $"Pkg {Guid.CreateVersion7():N}", creditAmount, price = 9.99, currency = "EUR", active = true, stripePriceId }));
         var packageId = (await PlatformApiFactory.ReadData(create)).GetProperty("id").GetGuid();
 
         var (_, userToken) = await RegisterBuyerInAdminTenantAsync(adminToken);

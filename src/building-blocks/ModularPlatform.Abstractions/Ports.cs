@@ -67,6 +67,14 @@ public sealed record ModuleEntitlementView(string Key, bool Enabled, string? Tie
 public interface ITenantProvisioning
 {
     Task<Guid> CreateAsync(string name, string? subdomain = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// Best-effort removal of a just-provisioned tenant (and its default entitlements). The COMPENSATION for a
+    /// self-serve registration that provisioned a tenant but then failed to create the user (e.g. a concurrent
+    /// email-uniqueness race) — without it the failed registration leaks an orphan, owner-less tenant. Idempotent:
+    /// a missing tenant is a no-op.
+    /// </summary>
+    Task DeleteAsync(Guid tenantId, CancellationToken ct = default);
 }
 
 /// <summary>

@@ -17,7 +17,7 @@ internal static class CreateCreditPackageEndpoint
                 CancellationToken ct) =>
             {
                 var result = await dispatcher.Send(new CreateCreditPackageCommand(
-                    request.Name, request.CreditAmount, request.Price,
+                    request.Name, request.CreditAmount, request.Price, request.Currency,
                     request.BucketExpiryDays, request.Active, request.StripePriceId), ct);
                 return Results.Ok(ApiResponse<CreateCreditPackageResponse>.Ok(result));
             })

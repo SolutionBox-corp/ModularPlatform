@@ -10,9 +10,10 @@ public static class PaymentStateMapping
     /// <summary>Maps a Stripe PaymentIntent / Checkout-Session status. (verified against Stripe's status set)</summary>
     public static PaymentState FromStripe(string? status) => status switch
     {
-        "succeeded" or "complete" or "paid" => PaymentState.Paid,
+        "succeeded" or "complete" or "paid" or "no_payment_required" => PaymentState.Paid,
         "requires_capture" => PaymentState.Authorized,
         "canceled" => PaymentState.Canceled,
+        "expired" => PaymentState.Expired,
         "processing" or "requires_action" or "requires_confirmation" or "requires_payment_method"
             or "open" or "unpaid" => PaymentState.Pending,
         _ => PaymentState.Pending,

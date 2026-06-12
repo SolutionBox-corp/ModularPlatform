@@ -6,6 +6,7 @@ public sealed record CreateCreditPackageCommand(
     string Name,
     long CreditAmount,
     decimal Price,
+    string Currency,
     int? BucketExpiryDays,
     bool Active,
     string? StripePriceId) : ICommand<CreateCreditPackageResponse>;
@@ -16,6 +17,7 @@ public sealed record CreateCreditPackageRequest(
     string Name,
     long CreditAmount,
     decimal Price,
+    string Currency,
     int? BucketExpiryDays,
     bool Active,
     string? StripePriceId);

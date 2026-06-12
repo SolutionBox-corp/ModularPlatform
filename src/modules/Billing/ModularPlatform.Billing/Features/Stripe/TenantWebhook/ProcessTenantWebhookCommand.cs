@@ -1,8 +1,11 @@
 using System.Globalization;
+using Microsoft.EntityFrameworkCore;
+using ModularPlatform.Billing.Entities;
 using ModularPlatform.Billing.Persistence;
 using ModularPlatform.Billing.Sagas;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Payments;
+using ModularPlatform.Persistence;
 using Wolverine.EntityFrameworkCore;
 
 namespace ModularPlatform.Billing.Features.Stripe.TenantWebhook;
@@ -15,17 +18,34 @@ namespace ModularPlatform.Billing.Features.Stripe.TenantWebhook;
 /// </summary>
 public sealed record ProcessTenantWebhookCommand(
     Guid TenantId,
+    string? Token,
     string RawBody,
     string? SignatureHeader,
     IReadOnlyDictionary<string, string> Query) : ICommand;
 
 internal sealed class ProcessTenantWebhookHandler(
     IPaymentGatewayResolver resolver,
+    IReadDbContextFactory<BillingDbContext> readFactory,
     IDbContextOutbox<BillingDbContext> outbox)
     : ICommandHandler<ProcessTenantWebhookCommand, Unit>
 {
     public async Task<Unit> Handle(ProcessTenantWebhookCommand command, CancellationToken ct)
     {
+        // Defence-in-depth for the UNSIGNED GoPay callback: the per-tenant URL token must match the stored one. (Stripe
+        // has no token — its HMAC signature, verified below, is the binding.) The re-fetch from the provider is still
+        // the authoritative check; this just rejects spoofed callbacks early. A mismatch is acknowledged-and-ignored.
+        await using (var read = readFactory.Create())
+        {
+            var config = await read.PaymentConfigurations
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(c => c.TenantId == command.TenantId && c.Plane == PaymentPlane.Tenant, ct);
+            if (config is { Provider: PaymentProvider.GoPay, WebhookToken: { Length: > 0 } expected }
+                && !string.Equals(expected, command.Token, StringComparison.Ordinal))
+            {
+                return Unit.Value;
+            }
+        }
+
         PaymentSnapshot snapshot;
         try
         {

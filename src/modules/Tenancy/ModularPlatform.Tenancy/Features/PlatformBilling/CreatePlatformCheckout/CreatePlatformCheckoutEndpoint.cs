@@ -15,11 +15,11 @@ internal static class CreatePlatformCheckoutEndpoint
                 IDispatcher dispatcher,
                 CancellationToken ct) =>
             {
-                var result = await dispatcher.Send(new CreatePlatformCheckoutCommand(
-                    request.AmountMinorUnits, request.Currency, request.Description), ct);
+                var result = await dispatcher.Send(new CreatePlatformCheckoutCommand(request.PlanKey), ct);
                 return Results.Ok(ApiResponse<CreatePlatformCheckoutResponse>.Ok(result));
             })
             .RequireAuthorization()
+            .DenyMachinePrincipals()
             .WithTags("Tenancy")
             .WithName("CreatePlatformCheckout");
     }

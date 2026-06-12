@@ -36,6 +36,8 @@
   <data name="tenant.subdomain_taken" xml:space="preserve"><value>This subdomain is already taken.</value></data>
   <data name="tenant.module_not_entitled" xml:space="preserve"><value>This feature is not available for your workspace.</value></data>
   <data name="tenant.not_found" xml:space="preserve"><value>Workspace not found.</value></data>
+  <data name="tenancy.platform_plan_unknown" xml:space="preserve"><value>Unknown platform plan.</value></data>
+  <data name="tenancy.platform_plan_misconfigured" xml:space="preserve"><value>The platform plan is not configured correctly.</value></data>
   <data name="auth.tenant_mismatch" xml:space="preserve"><value>This session does not belong to this workspace.</value></data>
   <data name="tenant.name.required" xml:space="preserve"><value>Workspace name is required.</value></data>
   <data name="tenant.name.too_long" xml:space="preserve"><value>Workspace name is too long.</value></data>
@@ -46,6 +48,7 @@
   <data name="billing.gateway.stripe_key_required" xml:space="preserve"><value>A Stripe API key is required.</value></data>
   <data name="billing.gateway.gopay_goid_required" xml:space="preserve"><value>A GoPay merchant id (goid) is required.</value></data>
   <data name="billing.gateway.gopay_client_required" xml:space="preserve"><value>GoPay client credentials are required.</value></data>
+  <data name="billing.gateway.stripe_webhook_secret_required" xml:space="preserve"><value>A Stripe webhook signing secret is required.</value></data>
   <data name="payment.gateway_not_configured" xml:space="preserve"><value>No payment gateway is configured for this workspace.</value></data>
   <data name="payment.gateway_inactive" xml:space="preserve"><value>The payment gateway for this workspace is not active.</value></data>
   <data name="machine_token.tenant_required" xml:space="preserve"><value>A tenant is required to issue a machine token.</value></data>
@@ -106,6 +109,8 @@
   <data name="billing.package.name.too_long" xml:space="preserve"><value>The package name is too long.</value></data>
   <data name="billing.package.credit_amount.must_be_positive" xml:space="preserve"><value>The credit amount must be positive.</value></data>
   <data name="billing.package.price.must_not_be_negative" xml:space="preserve"><value>The price must not be negative.</value></data>
+  <data name="billing.package.currency.required" xml:space="preserve"><value>A currency is required.</value></data>
+  <data name="billing.package.currency.invalid" xml:space="preserve"><value>The currency must be a 3-letter ISO-4217 code.</value></data>
   <data name="billing.package.bucket_expiry.must_be_positive" xml:space="preserve"><value>The bucket expiry must be positive.</value></data>
   <data name="billing.package.stripe_price.too_long" xml:space="preserve"><value>The Stripe price id is too long.</value></data>
   <data name="billing.purchase_not_found" xml:space="preserve"><value>Purchase not found.</value></data>

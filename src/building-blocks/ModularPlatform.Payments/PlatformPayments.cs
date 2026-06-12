@@ -14,6 +14,8 @@ public static class PlatformPayments
     {
         // One reusable HttpClient (thread-safe; absolute per-tenant URLs are built per request from the credentials).
         services.TryAddSingleton(new HttpClient());
+        // Shared across the per-request GoPay gateways so the OAuth bearer is fetched once per client, not per request.
+        services.TryAddSingleton<GoPayTokenCache>();
         services.TryAddScoped<IPaymentGatewayResolver, PaymentGatewayResolver>();
         return services;
     }

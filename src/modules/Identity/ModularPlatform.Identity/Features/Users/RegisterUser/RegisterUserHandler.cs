@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Identity.Contracts;
@@ -20,7 +21,8 @@ internal sealed class RegisterUserHandler(
     IPasswordHasher passwordHasher,
     IBlindIndexHasher blindIndex,
     ITenantProvisioning tenantProvisioning,
-    IClock clock)
+    IClock clock,
+    ILogger<RegisterUserHandler> logger)
     : ICommandHandler<RegisterUserCommand, RegisterUserResponse>
 {
     public async Task<RegisterUserResponse> Handle(RegisterUserCommand command, CancellationToken ct)
@@ -41,8 +43,11 @@ internal sealed class RegisterUserHandler(
         // No subdomain (apex / localhost) ⇒ the self-serve "create workspace" flow provisions a NEW tenant via the port.
         // Either way the user is assigned to the tenant EXPLICITLY (the interceptor only fills rows when a tenant is in
         // context). A provisioned tenant's name is a neutral, non-PII identifier (email/display name are encrypted PII).
-        var tenantId = command.JoinTenantId
-            ?? await tenantProvisioning.CreateAsync($"tenant-{Guid.CreateVersion7():N}", subdomain: null, ct);
+        // Self-serve path provisions a NEW tenant; remember it so a failed user-save can COMPENSATE (delete the orphan).
+        var provisionedTenantId = command.JoinTenantId is null
+            ? await tenantProvisioning.CreateAsync($"tenant-{Guid.CreateVersion7():N}", subdomain: null, ct)
+            : (Guid?)null;
+        var tenantId = command.JoinTenantId ?? provisionedTenantId!.Value;
 
         var user = new User
         {
@@ -73,6 +78,21 @@ internal sealed class RegisterUserHandler(
             // Two concurrent registrations raced past the pre-check — the UNIQUE(EmailHash) index is the final guard
             // (Law 2 idiom). Narrowed to the unique-violation (23505) so an UNRELATED persistence failure (a future
             // NOT NULL / length / transient fault) is NOT mislabelled as "email already registered" — it surfaces.
+            // The self-serve path already committed a fresh tenant in a separate transaction; compensate so the lost
+            // race doesn't leak an orphan, owner-less tenant. Best-effort — a cleanup failure is logged, not masked.
+            if (provisionedTenantId is { } orphanTenantId)
+            {
+                try
+                {
+                    await tenantProvisioning.DeleteAsync(orphanTenantId, ct);
+                }
+                catch (Exception cleanupError)
+                {
+                    logger.LogError(cleanupError,
+                        "Failed to clean up orphan tenant {TenantId} after a lost registration race.", orphanTenantId);
+                }
+            }
+
             throw new ConflictException("user.email_taken", "This email address is already registered.");
         }
 

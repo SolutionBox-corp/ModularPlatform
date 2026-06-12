@@ -13,6 +13,9 @@ internal sealed class CreateCreditPackageValidator : AbstractValidator<CreateCre
             .GreaterThan(0).WithErrorCode("billing.package.credit_amount.must_be_positive");
         RuleFor(c => c.Price)
             .GreaterThanOrEqualTo(0).WithErrorCode("billing.package.price.must_not_be_negative");
+        RuleFor(c => c.Currency)
+            .NotEmpty().WithErrorCode("billing.package.currency.required")
+            .Length(3).WithErrorCode("billing.package.currency.invalid");
         RuleFor(c => c.BucketExpiryDays)
             .GreaterThan(0).When(c => c.BucketExpiryDays.HasValue)
             .WithErrorCode("billing.package.bucket_expiry.must_be_positive");

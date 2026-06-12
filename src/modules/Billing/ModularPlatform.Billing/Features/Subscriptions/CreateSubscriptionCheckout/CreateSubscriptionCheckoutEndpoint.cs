@@ -24,6 +24,7 @@ internal static class CreateSubscriptionCheckoutEndpoint
                 return Results.Ok(ApiResponse<CreateSubscriptionCheckoutResponse>.Ok(result));
             })
             .RequireAuthorization()
+            .DenyMachinePrincipals()
             .WithTags("Billing")
             .WithName("CreateSubscriptionCheckout");
     }

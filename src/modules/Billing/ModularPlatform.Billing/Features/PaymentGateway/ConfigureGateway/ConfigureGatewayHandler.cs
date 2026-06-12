@@ -47,11 +47,10 @@ internal sealed class ConfigureGatewayHandler(
             case PaymentProvider.Stripe:
                 await SealAsync(db, tenantId, "stripe.api_key",
                     Require(command.StripeApiKey, "billing.gateway.stripe_key_required"), ct);
-                if (!string.IsNullOrWhiteSpace(command.StripeWebhookSecret))
-                {
-                    await SealAsync(db, tenantId, "stripe.webhook_secret", command.StripeWebhookSecret, ct);
-                }
-
+                // REQUIRED: without it the tenant webhook can't verify signatures and would 500 on every Stripe retry
+                // (an un-acknowledged 5xx loops forever, blocking all credit grants for that tenant). Fail fast here.
+                await SealAsync(db, tenantId, "stripe.webhook_secret",
+                    Require(command.StripeWebhookSecret, "billing.gateway.stripe_webhook_secret_required"), ct);
                 break;
 
             case PaymentProvider.GoPay:

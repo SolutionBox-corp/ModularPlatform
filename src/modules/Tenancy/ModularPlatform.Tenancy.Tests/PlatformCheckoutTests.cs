@@ -20,7 +20,7 @@ public sealed class PlatformCheckoutTests(PlatformApiFactory fixture)
 
         var response = await fixture.Client.SendAsync(fixture.Authed(
             HttpMethod.Post, "/v1/tenant/me/platform-checkout", token,
-            new { amountMinorUnits = 4_900L, currency = "EUR", description = "Pro plan" }));
+            new { planKey = "pro" }));
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var data = await PlatformApiFactory.ReadData(response);
@@ -32,7 +32,7 @@ public sealed class PlatformCheckoutTests(PlatformApiFactory fixture)
     public async Task Platform_checkout_requires_authentication()
     {
         var response = await fixture.Client.PostAsJsonAsync("/v1/tenant/me/platform-checkout",
-            new { amountMinorUnits = 100L, currency = "EUR", description = "x" });
+            new { planKey = "pro" });
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 }

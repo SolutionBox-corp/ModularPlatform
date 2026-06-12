@@ -19,13 +19,10 @@ namespace ModularPlatform.Payments;
 public sealed class GoPayPaymentGateway(
     HttpClient http,
     GoPayCredentials credentials,
-    IClock clock) : IPaymentGateway
+    IClock clock,
+    GoPayTokenCache tokenCache) : IPaymentGateway
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
-
-    private string? _token;
-    private DateTimeOffset _tokenExpiresAt;
-    private readonly SemaphoreSlim _tokenLock = new(1, 1);
 
     public GatewayCapabilities Capabilities { get; } = new(
         SignedWebhooks: false, NativeSubscriptions: false, NativeCoupons: false, NativeTax: false, PreAuthorization: true);
@@ -71,7 +68,7 @@ public sealed class GoPayPaymentGateway(
         using var doc = await SendAsync(HttpMethod.Post, $"/payments/payment/{providerPaymentId}/refund",
             new Dictionary<string, object?> { ["amount"] = amount }, ct);
 
-        var full = amountMinorUnits is null || amountMinorUnits >= current.AmountMinorUnits;
+        var full = amountMinorUnits is null || amountMinorUnits >= (current.AmountMinorUnits ?? long.MaxValue);
         return new RefundResult(providerPaymentId, full ? PaymentState.Refunded : PaymentState.PartiallyRefunded);
     }
 
@@ -93,7 +90,9 @@ public sealed class GoPayPaymentGateway(
             await GetTokenAsync(ct);
             return true;
         }
-        catch (HttpRequestException)
+        // A probe: ANY failure (transport, non-2xx, missing/malformed access_token) means "credentials unusable".
+        // Cancellation is propagated, not swallowed.
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return false;
         }
@@ -116,48 +115,39 @@ public sealed class GoPayPaymentGateway(
         return await JsonDocument.ParseAsync(stream, cancellationToken: ct);
     }
 
-    private async Task<string> GetTokenAsync(CancellationToken ct)
+    // Token lives in a process-wide singleton cache keyed by client id — the resolver builds a throwaway gateway per
+    // request, so caching on the instance would re-auth every call. One in-flight fetch per client (the cache locks).
+    private Task<string> GetTokenAsync(CancellationToken ct) =>
+        tokenCache.GetAsync(credentials.ClientId, clock, FetchTokenAsync, ct);
+
+    private async Task<(string Token, DateTimeOffset ExpiresAt)> FetchTokenAsync(CancellationToken ct)
     {
-        // 60s safety margin so an in-flight request never uses a token that expires mid-call.
-        if (_token is not null && clock.UtcNow < _tokenExpiresAt.AddSeconds(-60))
+        var basic = Convert.ToBase64String(
+            Encoding.UTF8.GetBytes($"{credentials.ClientId}:{credentials.ClientSecret}"));
+        using var request = new HttpRequestMessage(HttpMethod.Post, credentials.BaseUrl.TrimEnd('/') + "/oauth2/token")
         {
-            return _token;
-        }
-
-        await _tokenLock.WaitAsync(ct);
-        try
-        {
-            if (_token is not null && clock.UtcNow < _tokenExpiresAt.AddSeconds(-60))
+            Content = new FormUrlEncodedContent(new Dictionary<string, string>
             {
-                return _token;
-            }
+                ["grant_type"] = "client_credentials",
+                ["scope"] = "payment-all",
+            }),
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Basic", basic);
 
-            var basic = Convert.ToBase64String(
-                Encoding.UTF8.GetBytes($"{credentials.ClientId}:{credentials.ClientSecret}"));
-            using var request = new HttpRequestMessage(HttpMethod.Post, credentials.BaseUrl.TrimEnd('/') + "/oauth2/token")
-            {
-                Content = new FormUrlEncodedContent(new Dictionary<string, string>
-                {
-                    ["grant_type"] = "client_credentials",
-                    ["scope"] = "payment-all",
-                }),
-            };
-            request.Headers.Authorization = new AuthenticationHeaderValue("Basic", basic);
+        using var response = await http.SendAsync(request, ct);
+        response.EnsureSuccessStatusCode();
+        using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+        var root = doc.RootElement;
 
-            using var response = await http.SendAsync(request, ct);
-            response.EnsureSuccessStatusCode();
-            using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
-            var root = doc.RootElement;
-
-            _token = root.GetProperty("access_token").GetString();
-            var expiresIn = root.TryGetProperty("expires_in", out var e) ? e.GetInt32() : 1800;
-            _tokenExpiresAt = clock.UtcNow.AddSeconds(expiresIn);
-            return _token!;
-        }
-        finally
+        // A 200 with a null/absent access_token is a malformed/maintenance response — fail loudly, never loop on null.
+        var token = root.TryGetProperty("access_token", out var t) ? t.GetString() : null;
+        if (string.IsNullOrEmpty(token))
         {
-            _tokenLock.Release();
+            throw new InvalidOperationException("GoPay token endpoint returned no access_token.");
         }
+
+        var expiresIn = root.TryGetProperty("expires_in", out var e) ? e.GetInt32() : 1800;
+        return (token, clock.UtcNow.AddSeconds(expiresIn));
     }
 
     private static PaymentSnapshot ToSnapshot(JsonElement root)

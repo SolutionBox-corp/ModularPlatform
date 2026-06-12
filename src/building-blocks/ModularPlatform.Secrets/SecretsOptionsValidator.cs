@@ -32,9 +32,15 @@ public sealed class SecretsOptionsValidator(IHostEnvironment environment) : IVal
         {
             errors.Add($"Secrets:MasterKeys must contain the active key version {version} outside Development.");
         }
-        else if (string.Equals(activeKey, SecretsOptions.DevPlaceholderMasterKey, StringComparison.Ordinal))
+
+        // Reject the dev placeholder in ANY key slot, not just the active one — a retained "legacy decrypt" version that
+        // is the well-known placeholder is still usable by any caller that supplies that KeyVersion (a real misconfig).
+        foreach (var (slot, keyValue) in options.MasterKeys)
         {
-            errors.Add("Secrets:MasterKeys active key must not be the dev placeholder outside Development.");
+            if (string.Equals(keyValue, SecretsOptions.DevPlaceholderMasterKey, StringComparison.Ordinal))
+            {
+                errors.Add($"Secrets:MasterKeys[{slot}] must not be the dev placeholder outside Development.");
+            }
         }
 
         return errors.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(errors);

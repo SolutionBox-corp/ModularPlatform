@@ -70,4 +70,23 @@ internal sealed class TenantProvisioning(IDbContextOutbox<TenancyDbContext> outb
 
         return tenant.Id;
     }
+
+    public async Task DeleteAsync(Guid tenantId, CancellationToken ct = default)
+    {
+        var db = outbox.DbContext;
+
+        var entitlements = await db.TenantEntitlements.Where(e => e.TenantId == tenantId).ToListAsync(ct);
+        if (entitlements.Count > 0)
+        {
+            db.TenantEntitlements.RemoveRange(entitlements);
+        }
+
+        var tenant = await db.Tenants.FirstOrDefaultAsync(t => t.Id == tenantId, ct);
+        if (tenant is not null)
+        {
+            db.Tenants.Remove(tenant);
+        }
+
+        await db.SaveChangesAsync(ct);
+    }
 }

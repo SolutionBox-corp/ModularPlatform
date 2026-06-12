@@ -59,9 +59,13 @@ public interface IPaymentGatewayResolver
 }
 
 internal sealed class PaymentGatewayResolver(
-    IEnumerable<IPaymentConfigStore> stores, HttpClient http, IClock clock, FakePaymentGateway? sharedFake = null)
+    IEnumerable<IPaymentConfigStore> stores, HttpClient http, IClock clock,
+    FakePaymentGateway? sharedFake = null, GoPayTokenCache? goPayTokenCache = null)
     : IPaymentGatewayResolver
 {
+    // Shared OAuth-token cache across the throwaway per-request GoPay gateways (a fresh one is fine for unit tests).
+    private readonly GoPayTokenCache _goPayTokenCache = goPayTokenCache ?? new GoPayTokenCache();
+
     public async Task<IPaymentGateway> ResolveAsync(Guid tenantId, PaymentPlane plane, CancellationToken ct = default)
     {
         // Pick the store that OWNS this plane (Billing = Tenant, Tenancy = Platform); both coexist as IEnumerable.
@@ -84,7 +88,7 @@ internal sealed class PaymentGatewayResolver(
             PaymentProvider.Stripe => new StripePaymentGateway(
                 config.Stripe?.ApiKey ?? throw MissingCredentials(), config.Stripe.WebhookSecret),
             PaymentProvider.GoPay => new GoPayPaymentGateway(
-                http, config.GoPay ?? throw MissingCredentials(), clock),
+                http, config.GoPay ?? throw MissingCredentials(), clock, _goPayTokenCache),
             // A DI-registered shared fake (test harness) lets a checkout created on one request be re-fetched by the
             // webhook on another; without one, a throwaway per-resolve instance is used.
             PaymentProvider.Fake => sharedFake ?? new FakePaymentGateway(),

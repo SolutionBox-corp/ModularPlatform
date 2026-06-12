@@ -9,4 +9,5 @@ public sealed record CreditPackageResponse(
     string Name,
     long CreditAmount,
     decimal Price,
+    string Currency,
     int? BucketExpiryDays);

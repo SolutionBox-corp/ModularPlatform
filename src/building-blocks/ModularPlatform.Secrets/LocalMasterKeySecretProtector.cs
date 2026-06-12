@@ -58,20 +58,27 @@ internal sealed class LocalMasterKeySecretProtector : ISecretProtector
         var key = _keys[_activeVersion];
         var aad = BuildAad(tenantId, purpose);
         var plainBytes = Encoding.UTF8.GetBytes(plaintext);
+        try
+        {
+            var nonce = RandomNumberGenerator.GetBytes(NonceSizeBytes);
+            var cipher = new byte[plainBytes.Length];
+            var tag = new byte[TagSizeBytes];
 
-        var nonce = RandomNumberGenerator.GetBytes(NonceSizeBytes);
-        var cipher = new byte[plainBytes.Length];
-        var tag = new byte[TagSizeBytes];
+            using var aes = new AesGcm(key, TagSizeBytes);
+            aes.Encrypt(nonce, plainBytes, cipher, tag, aad);
 
-        using var aes = new AesGcm(key, TagSizeBytes);
-        aes.Encrypt(nonce, plainBytes, cipher, tag, aad);
+            var blob = new byte[NonceSizeBytes + TagSizeBytes + cipher.Length];
+            Buffer.BlockCopy(nonce, 0, blob, 0, NonceSizeBytes);
+            Buffer.BlockCopy(tag, 0, blob, NonceSizeBytes, TagSizeBytes);
+            Buffer.BlockCopy(cipher, 0, blob, NonceSizeBytes + TagSizeBytes, cipher.Length);
 
-        var blob = new byte[NonceSizeBytes + TagSizeBytes + cipher.Length];
-        Buffer.BlockCopy(nonce, 0, blob, 0, NonceSizeBytes);
-        Buffer.BlockCopy(tag, 0, blob, NonceSizeBytes, TagSizeBytes);
-        Buffer.BlockCopy(cipher, 0, blob, NonceSizeBytes + TagSizeBytes, cipher.Length);
-
-        return Task.FromResult(new ProtectedSecret(_activeVersion, blob));
+            return Task.FromResult(new ProtectedSecret(_activeVersion, blob));
+        }
+        finally
+        {
+            // Wipe the plaintext copy ASAP (the immutable input string itself can't be zeroed — a CLR limitation).
+            CryptographicOperations.ZeroMemory(plainBytes);
+        }
     }
 
     public Task<string> RevealAsync(Guid? tenantId, string purpose, ProtectedSecret secret, CancellationToken ct = default)
@@ -101,11 +108,24 @@ internal sealed class LocalMasterKeySecretProtector : ISecretProtector
         var plain = new byte[cipher.Length];
         using var aes = new AesGcm(key, TagSizeBytes);
         aes.Decrypt(nonce, cipher, tag, plain, BuildAad(tenantId, purpose));
-        return Task.FromResult(Encoding.UTF8.GetString(plain));
+        try
+        {
+            return Task.FromResult(Encoding.UTF8.GetString(plain));
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(plain);
+        }
     }
 
-    private static byte[] BuildAad(Guid? tenantId, string purpose) =>
-        Encoding.UTF8.GetBytes($"{(tenantId?.ToString("N") ?? "platform")}|{purpose}");
+    // Length-prefixed components so the parts are unambiguous: a purpose containing the '|' separator can never alias a
+    // different (tenant, purpose) pair (confused-deputy). Changing this format invalidates older ciphertext — fine here
+    // (no persisted secrets predate it; the GCM tag would simply fail and surface as a CryptographicException).
+    private static byte[] BuildAad(Guid? tenantId, string purpose)
+    {
+        var tenant = tenantId?.ToString("N") ?? "platform";
+        return Encoding.UTF8.GetBytes($"{tenant.Length}:{tenant}|{purpose.Length}:{purpose}");
+    }
 
     private static byte[] DecodeKey(string base64, int version)
     {

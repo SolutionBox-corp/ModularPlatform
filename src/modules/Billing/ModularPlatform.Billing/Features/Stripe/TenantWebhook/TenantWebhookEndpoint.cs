@@ -16,8 +16,12 @@ internal static class TenantWebhookEndpoint
 {
     public static void MapTenantWebhook(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/billing/webhooks/{provider}/{tenantId:guid}", async (
+        // Optional {token} tail: GoPay callbacks are UNSIGNED, so a per-tenant secret token in the URL is the binding
+        // the handler checks (Stripe ignores it — its HMAC signature is the binding). The notification URL the config
+        // store hands GoPay includes this token, so the route MUST accept it or every GoPay callback would 404.
+        app.MapPost("/billing/webhooks/{provider}/{tenantId:guid}/{token?}", async (
                 Guid tenantId,
+                string? token,
                 HttpRequest request,
                 IDispatcher dispatcher,
                 CancellationToken ct) =>
@@ -27,7 +31,7 @@ internal static class TenantWebhookEndpoint
                 var signature = request.Headers["Stripe-Signature"].ToString();
                 var query = request.Query.ToDictionary(q => q.Key, q => q.Value.ToString());
 
-                await dispatcher.Send(new ProcessTenantWebhookCommand(tenantId, rawBody, signature, query), ct);
+                await dispatcher.Send(new ProcessTenantWebhookCommand(tenantId, token, rawBody, signature, query), ct);
                 return Results.Ok();
             })
             .AllowAnonymous()

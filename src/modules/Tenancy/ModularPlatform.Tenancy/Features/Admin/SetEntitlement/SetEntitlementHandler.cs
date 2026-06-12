@@ -36,6 +36,10 @@ internal sealed class SetEntitlementHandler(IDbContextOutbox<TenancyDbContext> o
 
         entitlement.Enabled = command.Enabled;
         entitlement.Tier = command.Tier;
+        // An explicit admin set is open-ended: clear any stale validity window left from a prior trial, otherwise an old
+        // ValidTo would silently re-disable the module again when it elapses (the command carries no window to re-apply).
+        entitlement.ValidFrom = clock.UtcNow;
+        entitlement.ValidTo = null;
 
         await outbox.SaveChangesAndFlushMessagesAsync();
 

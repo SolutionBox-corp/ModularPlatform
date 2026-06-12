@@ -14,6 +14,9 @@ public static class AuthorizationClaims
 
     /// <summary>One claim per assigned role name. JWT bearer is configured with this as the role claim type.</summary>
     public const string Role = "role";
+
+    /// <summary>The role marking a non-human machine/service principal (issued via the machine-token endpoint).</summary>
+    public const string MachineRole = "machine";
 }
 
 /// <summary>
@@ -35,6 +38,17 @@ public static class EndpointAuthorizationExtensions
         builder.RequireAuthorization(policy => policy
             .RequireAuthenticatedUser()
             .RequireRole(roles));
+
+    /// <summary>
+    /// Excludes machine/service principals (role <see cref="AuthorizationClaims.MachineRole"/>) from a human-only
+    /// endpoint — e.g. billing checkout. A machine token is authenticated but must opt IN to the endpoints it may use;
+    /// commerce/billing decisions are a human action. Combine with the relevant permission/role for the human side.
+    /// </summary>
+    public static TBuilder DenyMachinePrincipals<TBuilder>(this TBuilder builder)
+        where TBuilder : IEndpointConventionBuilder =>
+        builder.RequireAuthorization(policy => policy
+            .RequireAuthenticatedUser()
+            .RequireAssertion(ctx => !ctx.User.IsInRole(AuthorizationClaims.MachineRole)));
 
     /// <summary>
     /// Gates an endpoint on the current tenant having <paramref name="moduleKey"/> entitled. Unlike permissions

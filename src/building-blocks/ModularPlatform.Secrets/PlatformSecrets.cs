@@ -22,9 +22,15 @@ public static class PlatformSecrets
 
         var provider = configuration.GetValue<string>($"{SecretsOptions.SectionName}:Provider") ?? "local";
 
-        // Only the dependency-free local provider exists today; aws-kms | azure-kv | vault drop in here with the
-        // same ProtectedSecret shape. Unknown provider falls back to local (the validator gates prod misconfig).
-        _ = provider;
+        // Only the dependency-free local provider exists today; aws-kms | azure-kv | vault drop in here with the same
+        // ProtectedSecret shape. Fail FAST on an unrecognised provider — silently falling back to local would be a
+        // confidentiality downgrade (a deployment that asked for KMS must NOT get the weaker local key by accident).
+        if (!string.Equals(provider, "local", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"Secrets:Provider '{provider}' is not supported. Only 'local' exists today (KMS providers are not wired yet).");
+        }
+
         services.AddSingleton<ISecretProtector, LocalMasterKeySecretProtector>();
 
         return services;

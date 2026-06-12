@@ -18,6 +18,7 @@ internal sealed class CreateCreditPackageHandler(BillingDbContext db, ITenantCon
             Name = command.Name,
             CreditAmount = command.CreditAmount,
             Price = command.Price,
+            Currency = command.Currency.Trim().ToUpperInvariant(),
             BucketExpiryDays = command.BucketExpiryDays,
             Active = command.Active,
             StripePriceId = command.StripePriceId,

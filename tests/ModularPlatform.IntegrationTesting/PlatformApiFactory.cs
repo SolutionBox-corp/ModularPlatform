@@ -97,6 +97,10 @@ public sealed class PlatformApiFactory : IAsyncLifetime
             // Platform-plane gateway (tenant pays the SaaS) — the in-memory fake so the seam is assertable offline.
             builder.UseSetting("Platform:Payments:Provider", "fake");
             builder.UseSetting("Platform:Payments:Currency", "EUR");
+            // Server-authoritative platform plan catalogue (the tenant picks a plan KEY, never a free-form amount).
+            builder.UseSetting("Platform:Payments:Plans:pro:AmountMinorUnits", "4900");
+            builder.UseSetting("Platform:Payments:Plans:pro:Currency", "EUR");
+            builder.UseSetting("Platform:Payments:Plans:pro:Description", "Pro plan");
 
             foreach (var (key, value) in overrides)
             {

@@ -69,7 +69,8 @@ public sealed class StripePaymentGateway(string apiKey, string? webhookSecret) :
             new RefundCreateOptions { PaymentIntent = session.PaymentIntentId, Amount = amountMinorUnits },
             cancellationToken: ct);
 
-        var full = amountMinorUnits is null || amountMinorUnits >= session.AmountTotal;
+        // Total unknown (null on some session kinds) ⇒ can't prove a full refund, so label it partial (conservative).
+        var full = amountMinorUnits is null || amountMinorUnits >= (session.AmountTotal ?? long.MaxValue);
         return new RefundResult(refund.Id, full ? PaymentState.Refunded : PaymentState.PartiallyRefunded);
     }
 

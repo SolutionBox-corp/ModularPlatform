@@ -36,6 +36,8 @@
   <data name="tenant.subdomain_taken" xml:space="preserve"><value>Tato subdoména je již obsazena.</value></data>
   <data name="tenant.module_not_entitled" xml:space="preserve"><value>Tato funkce není pro vaši organizaci dostupná.</value></data>
   <data name="tenant.not_found" xml:space="preserve"><value>Organizace nebyla nalezena.</value></data>
+  <data name="tenancy.platform_plan_unknown" xml:space="preserve"><value>Neznámý platformní plán.</value></data>
+  <data name="tenancy.platform_plan_misconfigured" xml:space="preserve"><value>Platformní plán není správně nakonfigurován.</value></data>
   <data name="auth.tenant_mismatch" xml:space="preserve"><value>Tato relace nepatří k této organizaci.</value></data>
   <data name="tenant.name.required" xml:space="preserve"><value>Název organizace je povinný.</value></data>
   <data name="tenant.name.too_long" xml:space="preserve"><value>Název organizace je příliš dlouhý.</value></data>
@@ -46,6 +48,7 @@
   <data name="billing.gateway.stripe_key_required" xml:space="preserve"><value>Je vyžadován Stripe API klíč.</value></data>
   <data name="billing.gateway.gopay_goid_required" xml:space="preserve"><value>Je vyžadováno GoPay obchodní id (goid).</value></data>
   <data name="billing.gateway.gopay_client_required" xml:space="preserve"><value>Jsou vyžadovány GoPay klientské údaje.</value></data>
+  <data name="billing.gateway.stripe_webhook_secret_required" xml:space="preserve"><value>Je vyžadován podpisový tajný klíč Stripe webhooku.</value></data>
   <data name="payment.gateway_not_configured" xml:space="preserve"><value>Pro tuto organizaci není nakonfigurována platební brána.</value></data>
   <data name="payment.gateway_inactive" xml:space="preserve"><value>Platební brána této organizace není aktivní.</value></data>
   <data name="machine_token.tenant_required" xml:space="preserve"><value>K vydání strojového tokenu je vyžadována organizace.</value></data>
@@ -106,6 +109,8 @@
   <data name="billing.package.name.too_long" xml:space="preserve"><value>Název balíčku je příliš dlouhý.</value></data>
   <data name="billing.package.credit_amount.must_be_positive" xml:space="preserve"><value>Počet kreditů musí být kladný.</value></data>
   <data name="billing.package.price.must_not_be_negative" xml:space="preserve"><value>Cena nesmí být záporná.</value></data>
+  <data name="billing.package.currency.required" xml:space="preserve"><value>Měna je povinná.</value></data>
+  <data name="billing.package.currency.invalid" xml:space="preserve"><value>Měna musí být 3písmenný kód podle ISO-4217.</value></data>
   <data name="billing.package.bucket_expiry.must_be_positive" xml:space="preserve"><value>Expirace kreditů musí být kladná.</value></data>
   <data name="billing.package.stripe_price.too_long" xml:space="preserve"><value>Stripe price id je příliš dlouhé.</value></data>
   <data name="billing.purchase_not_found" xml:space="preserve"><value>Nákup nenalezen.</value></data>

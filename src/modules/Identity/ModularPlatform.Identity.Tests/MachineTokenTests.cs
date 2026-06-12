@@ -38,7 +38,8 @@ public sealed class MachineTokenTests(PlatformApiFactory fixture)
     public async Task Admin_mints_a_tenant_scoped_machine_token()
     {
         var admin = await AdminTokenAsync();
-        var tenantId = Guid.CreateVersion7();
+        // The target tenant must exist — use the admin's own provisioned tenant (a real registry row).
+        var tenantId = Guid.Parse(DecodeJwt(admin).GetProperty("tenant_id").GetString()!);
 
         var response = await fixture.Client.SendAsync(fixture.Authed(
             HttpMethod.Post, "/v1/identity/admin/machine-tokens", admin,
