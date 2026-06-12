@@ -21,23 +21,24 @@ public sealed class GoPayTokenCache
     {
         var entry = _entries.GetOrAdd(clientId, static _ => new Entry());
 
+        // The cached (token + expiry) is a single immutable reference read via the volatile field, so a lock-free
+        // fast-path reader can never see a torn token/expiry pair (matters on weak memory models, e.g. ARM64).
         // 60s safety margin so an in-flight request never uses a token that expires mid-call.
-        if (entry.Token is { } cached && clock.UtcNow < entry.ExpiresAt.AddSeconds(-60))
+        if (entry.Cached is { } cached && clock.UtcNow < cached.ExpiresAt.AddSeconds(-60))
         {
-            return cached;
+            return cached.Token;
         }
 
         await entry.Lock.WaitAsync(ct);
         try
         {
-            if (entry.Token is { } stillCached && clock.UtcNow < entry.ExpiresAt.AddSeconds(-60))
+            if (entry.Cached is { } stillCached && clock.UtcNow < stillCached.ExpiresAt.AddSeconds(-60))
             {
-                return stillCached;
+                return stillCached.Token;
             }
 
             var (token, expiresAt) = await fetch(ct);
-            entry.Token = token;
-            entry.ExpiresAt = expiresAt;
+            entry.Cached = new CachedToken(token, expiresAt);
             return token;
         }
         finally
@@ -46,10 +47,18 @@ public sealed class GoPayTokenCache
         }
     }
 
+    private sealed record CachedToken(string Token, DateTimeOffset ExpiresAt);
+
     private sealed class Entry
     {
-        public string? Token;
-        public DateTimeOffset ExpiresAt;
+        private CachedToken? _cached;
+
+        public CachedToken? Cached
+        {
+            get => Volatile.Read(ref _cached);
+            set => Volatile.Write(ref _cached, value);
+        }
+
         public readonly SemaphoreSlim Lock = new(1, 1);
     }
 }

@@ -39,9 +39,11 @@ internal sealed class TenantResolutionMiddleware(RequestDelegate next)
         }
 
         var tenant = await directory.FindBySubdomainAsync(subdomain, context.RequestAborted);
-        if (tenant is null || string.Equals(tenant.Status, "Suspended", StringComparison.OrdinalIgnoreCase))
+        // ALLOWLIST, not a Suspended denylist: only an Active tenant routes. Provisioning/Separating/Dedicated (future
+        // lifecycle states) must not silently pass through as if Active — they 404 until a state is explicitly allowed.
+        if (tenant is null || !string.Equals(tenant.Status, "Active", StringComparison.OrdinalIgnoreCase))
         {
-            // Route-not-found shape — never disclose whether a workspace exists or is suspended.
+            // Route-not-found shape — never disclose whether a workspace exists or is in a non-Active state.
             throw new NotFoundException("tenant.not_found", "Workspace not found.");
         }
 

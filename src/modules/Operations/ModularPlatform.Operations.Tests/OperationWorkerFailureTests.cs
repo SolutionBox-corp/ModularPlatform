@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Operations.Messaging;
 using Shouldly;
@@ -19,7 +20,7 @@ public sealed class OperationWorkerFailureTests
         var handler = new RunDemoOperationHandler();
 
         // Must NOT propagate the work exception as a forever-Running operation: the failure is recorded terminally.
-        await handler.Handle(new RunDemoOperation(operationId), store, CancellationToken.None);
+        await handler.Handle(new RunDemoOperation(operationId), store, NullLogger<RunDemoOperationHandler>.Instance, CancellationToken.None);
 
         store.FailedOperationId.ShouldBe(operationId);
         store.FailedErrorCode.ShouldBe("operation.failed");

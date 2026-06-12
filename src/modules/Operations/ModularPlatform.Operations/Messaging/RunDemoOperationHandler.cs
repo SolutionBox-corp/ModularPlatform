@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using ModularPlatform.Abstractions;
 
 namespace ModularPlatform.Operations.Messaging;
@@ -10,7 +11,8 @@ namespace ModularPlatform.Operations.Messaging;
 /// </summary>
 public sealed class RunDemoOperationHandler
 {
-    public async Task Handle(RunDemoOperation message, IOperationStore operations, CancellationToken ct)
+    public async Task Handle(
+        RunDemoOperation message, IOperationStore operations, ILogger<RunDemoOperationHandler> logger, CancellationToken ct)
     {
         try
         {
@@ -26,10 +28,12 @@ public sealed class RunDemoOperationHandler
         catch (Exception ex)
         {
             // Drive the operation to a TERMINAL state on ANY failure — never leave it stuck Pending/Running with the
-            // caller polling forever. The failure IS the user-facing record (the operation row). If FailAsync itself
-            // cannot write (e.g. the DB is down), the exception propagates and Wolverine retries the whole handler;
-            // a deterministic error terminalizes. Transient infra faults remain the messaging layer's job.
-            await operations.FailAsync(message.OperationId, "operation.failed", ex.Message, ct);
+            // caller polling forever. The detail is a GENERIC message (the raw ex.Message can carry internal detail —
+            // connection strings, table names — and is surfaced to the operation owner via GET /operations/{id}); the
+            // real exception is logged server-side. If FailAsync itself cannot write, the exception propagates and
+            // Wolverine retries the whole handler; transient infra faults remain the messaging layer's job.
+            logger.LogError(ex, "Demo operation {OperationId} failed.", message.OperationId);
+            await operations.FailAsync(message.OperationId, "operation.failed", "The operation failed.", ct);
         }
     }
 }

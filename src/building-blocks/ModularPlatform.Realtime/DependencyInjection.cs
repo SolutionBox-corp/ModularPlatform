@@ -16,7 +16,14 @@ public static class RealtimeServiceCollectionExtensions
     /// (handlers, worker) never change when you scale out.
     /// Also registers <see cref="IRealtimeReplay"/> for Last-Event-ID reconnect replay.
     /// </summary>
-    public static IServiceCollection AddPlatformRealtime(this IServiceCollection services, IConfiguration configuration)
+    /// <param name="withStreamListener">
+    /// True ONLY for the host that serves the SSE stream (the Api). The Redis→local-SSE subscriber (and its
+    /// PSUBSCRIBE) is pointless in the Worker/Jobs/Migration hosts — they hold no browser connections, so they'd
+    /// forward every fanned-out event to an empty local registry. Those hosts still get the PUBLISHER (they produce
+    /// events); only the Api LISTENS.
+    /// </param>
+    public static IServiceCollection AddPlatformRealtime(
+        this IServiceCollection services, IConfiguration configuration, bool withStreamListener = false)
     {
         services.Configure<RealtimeReplayOptions>(configuration.GetSection(RealtimeReplayOptions.SectionName));
         services.AddSingleton<RealtimeConnectionRegistry>();
@@ -24,12 +31,19 @@ public static class RealtimeServiceCollectionExtensions
         var redisConn = configuration.GetValue<string>("Redis:ConnectionString");
         if (!string.IsNullOrWhiteSpace(redisConn))
         {
-            services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConn));
+            // AbortOnConnectFail=false: if Redis is configured but momentarily unreachable (k8s/compose startup
+            // ordering), the host starts and the multiplexer reconnects in the background instead of crash-looping.
+            var options = ConfigurationOptions.Parse(redisConn);
+            options.AbortOnConnectFail = false;
+            services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(options));
             // RedisRealtimePublisher implements BOTH IRealtimePublisher and IRealtimeReplay.
             services.AddSingleton<RedisRealtimePublisher>();
             services.AddSingleton<IRealtimePublisher>(sp => sp.GetRequiredService<RedisRealtimePublisher>());
             services.AddSingleton<IRealtimeReplay>(sp => sp.GetRequiredService<RedisRealtimePublisher>());
-            services.AddHostedService<RealtimeRedisSubscriber>();
+            if (withStreamListener)
+            {
+                services.AddHostedService<RealtimeRedisSubscriber>();
+            }
         }
         else
         {
@@ -51,23 +65,35 @@ internal sealed class RealtimeRedisSubscriber(IConnectionMultiplexer redis, Real
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var subscriber = redis.GetSubscriber();
-        await subscriber.SubscribeAsync(
-            RedisChannel.Pattern($"{RedisRealtimePublisher.UserChannelPrefix}*"),
-            (channel, value) =>
+        var channel = RedisChannel.Pattern($"{RedisRealtimePublisher.UserChannelPrefix}*");
+        await subscriber.SubscribeAsync(channel, (ch, value) =>
+        {
+            var userIdText = ch.ToString()[RedisRealtimePublisher.UserChannelPrefix.Length..];
+            if (!Guid.TryParse(userIdText, out var userId) || value.IsNullOrEmpty)
             {
-                var userIdText = channel.ToString()[RedisRealtimePublisher.UserChannelPrefix.Length..];
-                if (!Guid.TryParse(userIdText, out var userId) || value.IsNullOrEmpty)
-                {
-                    return;
-                }
+                return;
+            }
 
-                var envelope = JsonSerializer.Deserialize<RedisRealtimePublisher.Envelope>((string)value!);
-                if (envelope is not null)
-                {
-                    // Use the stream Id from the envelope (not a hard-coded "0") so SSE clients get the
-                    // correct Last-Event-ID cursor for replay on reconnect.
-                    _ = registry.DeliverLocal(userId, new RealtimeMessage(envelope.EventType, envelope.Json, envelope.Id));
-                }
-            });
+            var envelope = JsonSerializer.Deserialize<RedisRealtimePublisher.Envelope>((string)value!);
+            if (envelope is not null)
+            {
+                // Use the stream Id from the envelope (not a hard-coded "0") so SSE clients get the
+                // correct Last-Event-ID cursor for replay on reconnect.
+                _ = registry.DeliverLocal(userId, new RealtimeMessage(envelope.EventType, envelope.Json, envelope.Id));
+            }
+        });
+
+        // Stay alive until shutdown, then unsubscribe cleanly (the base BackgroundService would otherwise treat the
+        // method returning right after SubscribeAsync as "completed" and never release the subscription).
+        try
+        {
+            await Task.Delay(Timeout.Infinite, stoppingToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // graceful shutdown
+        }
+
+        await subscriber.UnsubscribeAsync(channel);
     }
 }

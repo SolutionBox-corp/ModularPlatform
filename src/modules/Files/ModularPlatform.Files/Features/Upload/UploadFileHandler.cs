@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Files.Entities;
@@ -10,7 +11,7 @@ namespace ModularPlatform.Files.Features.Upload;
 /// then persists the metadata row owned by the caller. Pure DB write (no integration event) → scoped DbContext.
 /// Bytes go to storage first; the metadata row is the catalog entry the download/list endpoints read (RLS-scoped).
 /// </summary>
-internal sealed class UploadFileHandler(FilesDbContext db, IFileStorage storage)
+internal sealed class UploadFileHandler(FilesDbContext db, IFileStorage storage, ILogger<UploadFileHandler> logger)
     : ICommandHandler<UploadFileCommand, UploadFileResponse>
 {
     public async Task<UploadFileResponse> Handle(UploadFileCommand command, CancellationToken ct)
@@ -32,7 +33,26 @@ internal sealed class UploadFileHandler(FilesDbContext db, IFileStorage storage)
         };
 
         db.Files.Add(file);
-        await db.SaveChangesAsync(ct);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch
+        {
+            // Compensate: the bytes are already in storage but the metadata row failed to persist — without the row
+            // the blob is BOTH unreachable (download needs the row) and leaked. Best-effort delete, then surface the
+            // original failure.
+            try
+            {
+                await storage.DeleteAsync(storageKey, ct);
+            }
+            catch (Exception cleanupError)
+            {
+                logger.LogError(cleanupError, "Failed to delete orphan blob {StorageKey} after a failed upload.", storageKey);
+            }
+
+            throw;
+        }
 
         return new UploadFileResponse(file.Id, file.FileName, file.ContentType, file.Size);
     }
