@@ -26,6 +26,7 @@ internal static class GetMyNotificationsEndpoint
                 return Results.Ok(ApiResponse<PagedResponse<NotificationItem>>.Ok(feed));
             })
             .RequireAuthorization()
+            .RequireModule("notifications")
             .WithTags("Notifications")
             .WithName("GetMyNotifications");
     }

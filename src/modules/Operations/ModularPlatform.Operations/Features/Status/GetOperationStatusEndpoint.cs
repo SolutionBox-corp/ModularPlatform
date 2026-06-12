@@ -24,6 +24,7 @@ internal static class GetOperationStatusEndpoint
                 return Results.Ok(ApiResponse<OperationStatusResponse>.Ok(result));
             })
             .RequireAuthorization()
+            .RequireModule("operations")
             .WithTags("Operations")
             .WithName("GetOperationStatus");
     }

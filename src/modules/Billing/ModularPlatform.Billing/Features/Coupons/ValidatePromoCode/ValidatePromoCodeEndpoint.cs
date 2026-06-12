@@ -19,6 +19,7 @@ internal static class ValidatePromoCodeEndpoint
                 return Results.Ok(ApiResponse<PromoCodeResponse>.Ok(promo));
             })
             .RequireAuthorization()
+            .RequireModule("billing")
             .WithTags("Billing")
             .WithName("ValidatePromoCode");
     }

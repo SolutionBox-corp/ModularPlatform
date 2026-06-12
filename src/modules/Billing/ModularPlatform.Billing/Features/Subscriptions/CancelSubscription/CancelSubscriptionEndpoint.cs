@@ -22,6 +22,7 @@ internal static class CancelSubscriptionEndpoint
                 return Results.Ok(ApiResponse<CancelSubscriptionResponse>.Ok(result));
             })
             .RequireAuthorization()
+            .RequireModule("billing")
             .WithTags("Billing")
             .WithName("CancelSubscription");
     }

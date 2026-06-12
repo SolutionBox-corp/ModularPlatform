@@ -22,6 +22,7 @@ internal static class GetMySubscriptionEndpoint
                 return Results.Ok(ApiResponse<SubscriptionResponse>.Ok(subscription));
             })
             .RequireAuthorization()
+            .RequireModule("billing")
             .WithTags("Billing")
             .WithName("GetMySubscription");
     }

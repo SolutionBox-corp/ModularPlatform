@@ -16,6 +16,7 @@ internal static class ListCreditPackagesEndpoint
                 return Results.Ok(ApiResponse<IReadOnlyList<CreditPackageResponse>>.Ok(packages));
             })
             .RequireAuthorization()
+            .RequireModule("billing")
             .WithTags("Billing")
             .WithName("ListCreditPackages");
     }

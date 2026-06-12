@@ -25,6 +25,7 @@ internal static class CreateSubscriptionCheckoutEndpoint
             })
             .RequireAuthorization()
             .DenyMachinePrincipals()
+            .RequireModule("billing")
             .WithTags("Billing")
             .WithName("CreateSubscriptionCheckout");
     }

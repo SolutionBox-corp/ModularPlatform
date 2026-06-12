@@ -24,6 +24,7 @@ internal static class ReserveCreditsEndpoint
                 return Results.Ok(ApiResponse<ReserveCreditsResponse>.Ok(result));
             })
             .RequireAuthorization()
+            .RequireModule("billing")
             .WithTags("Billing")
             .WithName("ReserveCredits");
     }

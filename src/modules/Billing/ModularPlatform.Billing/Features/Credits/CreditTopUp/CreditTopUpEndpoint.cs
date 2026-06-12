@@ -28,6 +28,7 @@ internal static class CreditTopUpEndpoint
             })
             .RequireAuthorization()
             .RequirePermission(PlatformPermissions.BillingManage)
+            .RequireModule("billing")
             .WithTags("Billing")
             .WithName("CreditTopUp");
     }

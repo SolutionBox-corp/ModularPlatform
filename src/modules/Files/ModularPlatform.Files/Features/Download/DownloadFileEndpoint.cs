@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
+using ModularPlatform.Web;
 
 namespace ModularPlatform.Files.Features.Download;
 
@@ -29,6 +30,7 @@ internal static class DownloadFileEndpoint
                 return Results.Stream(stream, descriptor.ContentType, descriptor.FileName);
             })
             .RequireAuthorization()
+            .RequireModule("files")
             .WithTags("Files")
             .WithName("DownloadFile");
     }

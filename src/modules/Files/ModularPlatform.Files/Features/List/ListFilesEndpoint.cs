@@ -26,6 +26,7 @@ internal static class ListFilesEndpoint
                 return Results.Ok(ApiResponse<PagedResponse<FileListItem>>.Ok(result));
             })
             .RequireAuthorization()
+            .RequireModule("files")
             .WithTags("Files")
             .WithName("ListFiles");
     }

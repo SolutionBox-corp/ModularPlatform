@@ -16,6 +16,7 @@ internal static class GetSubscriptionPlansEndpoint
                 return Results.Ok(ApiResponse<IReadOnlyList<SubscriptionPlanResponse>>.Ok(plans));
             })
             .RequireAuthorization()
+            .RequireModule("billing")
             .WithTags("Billing")
             .WithName("GetSubscriptionPlans");
     }

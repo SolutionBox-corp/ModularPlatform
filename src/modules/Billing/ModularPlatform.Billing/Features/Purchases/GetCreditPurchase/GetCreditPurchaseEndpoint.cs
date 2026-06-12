@@ -23,6 +23,7 @@ internal static class GetCreditPurchaseEndpoint
                 return Results.Ok(ApiResponse<CreditPurchaseResponse>.Ok(purchase));
             })
             .RequireAuthorization()
+            .RequireModule("billing")
             .WithTags("Billing")
             .WithName("GetCreditPurchase");
     }

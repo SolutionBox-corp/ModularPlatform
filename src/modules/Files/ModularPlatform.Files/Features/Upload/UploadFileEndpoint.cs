@@ -45,6 +45,7 @@ internal static class UploadFileEndpoint
                 return Results.Created(location, ApiResponse<UploadFileResponse>.Ok(result));
             })
             .RequireAuthorization()
+            .RequireModule("files")
             .DisableAntiforgery()
             .WithMetadata(new RequestBodySizeLimit(FileUploadPolicy.MaxSizeBytes))
             .WithTags("Files")

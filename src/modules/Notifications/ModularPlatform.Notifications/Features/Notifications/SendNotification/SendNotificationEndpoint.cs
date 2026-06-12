@@ -23,6 +23,7 @@ internal static class SendNotificationEndpoint
             // Sending to an arbitrary UserId is a system/admin operation — gate it on a permission so a normal
             // authenticated user can't push notifications to others. System/worker sends bypass HTTP entirely.
             .RequirePermission(PlatformPermissions.NotificationsSend)
+            .RequireModule("notifications")
             .WithTags("Notifications")
             .WithName("SendNotification");
     }

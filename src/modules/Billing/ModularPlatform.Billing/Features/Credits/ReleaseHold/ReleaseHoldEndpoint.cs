@@ -24,6 +24,7 @@ internal static class ReleaseHoldEndpoint
                 return Results.Ok(ApiResponse<ReleaseHoldResponse>.Ok(result));
             })
             .RequireAuthorization()
+            .RequireModule("billing")
             .WithTags("Billing")
             .WithName("ReleaseHold");
     }

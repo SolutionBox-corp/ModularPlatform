@@ -31,6 +31,7 @@ internal static class StartDemoOperationEndpoint
                 return Results.Accepted(location, ApiResponse<StartDemoOperationResponse>.Ok(result));
             })
             .RequireAuthorization()
+            .RequireModule("operations")
             .WithTags("Operations")
             .WithName("StartDemoOperation");
     }

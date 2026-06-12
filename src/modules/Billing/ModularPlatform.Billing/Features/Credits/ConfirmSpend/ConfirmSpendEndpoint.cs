@@ -24,6 +24,7 @@ internal static class ConfirmSpendEndpoint
                 return Results.Ok(ApiResponse<ConfirmSpendResponse>.Ok(result));
             })
             .RequireAuthorization()
+            .RequireModule("billing")
             .WithTags("Billing")
             .WithName("ConfirmSpend");
     }

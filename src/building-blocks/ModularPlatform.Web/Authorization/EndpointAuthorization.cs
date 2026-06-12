@@ -58,8 +58,11 @@ public static class EndpointAuthorizationExtensions
     /// leak its existence). Combine with <c>.RequirePermission</c>/<c>.RequireRole</c> for who-can-do-what within the module.
     /// </summary>
     public static TBuilder RequireModule<TBuilder>(this TBuilder builder, string moduleKey)
-        where TBuilder : IEndpointConventionBuilder =>
-        builder.AddEndpointFilter(async (context, next) =>
+        where TBuilder : IEndpointConventionBuilder
+    {
+        // Discoverable marker so an enforcement test can assert every gated-module endpoint carries the guard.
+        builder.Add(b => b.Metadata.Add(new ModuleEntitlementMetadata(moduleKey)));
+        return builder.AddEndpointFilter(async (context, next) =>
         {
             var services = context.HttpContext.RequestServices;
             var tenant = services.GetRequiredService<ITenantContext>();
@@ -75,4 +78,9 @@ public static class EndpointAuthorizationExtensions
 
             return await next(context);
         });
+    }
 }
+
+/// <summary>Marker added by <c>RequireModule</c> so a test can verify the live entitlement guard is wired on every
+/// gated-module endpoint (the guard itself is an endpoint filter, which is otherwise invisible in endpoint metadata).</summary>
+public sealed record ModuleEntitlementMetadata(string ModuleKey);

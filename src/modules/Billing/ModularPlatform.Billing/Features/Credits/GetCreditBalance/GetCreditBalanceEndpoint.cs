@@ -22,6 +22,7 @@ internal static class GetCreditBalanceEndpoint
                 return Results.Ok(ApiResponse<CreditBalanceResponse>.Ok(balance));
             })
             .RequireAuthorization()
+            .RequireModule("billing")
             .WithTags("Billing")
             .WithName("GetCreditBalance");
     }

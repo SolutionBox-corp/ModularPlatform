@@ -23,6 +23,7 @@ internal static class CreateCreditPackageEndpoint
             })
             .RequireAuthorization()
             .RequirePermission(PlatformPermissions.BillingManage)
+            .RequireModule("billing")
             .WithTags("Billing")
             .WithName("CreateCreditPackage");
     }

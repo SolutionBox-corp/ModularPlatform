@@ -23,6 +23,7 @@ internal static class MarkNotificationReadEndpoint
                 return Results.Ok(ApiResponse<Unit>.Ok(Unit.Value));
             })
             .RequireAuthorization()
+            .RequireModule("notifications")
             .WithTags("Notifications")
             .WithName("MarkNotificationRead");
     }

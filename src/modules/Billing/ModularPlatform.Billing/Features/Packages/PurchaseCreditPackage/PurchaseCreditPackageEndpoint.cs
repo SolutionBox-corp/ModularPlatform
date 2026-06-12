@@ -23,6 +23,7 @@ internal static class PurchaseCreditPackageEndpoint
                 return Results.Ok(ApiResponse<PurchaseCreditPackageResponse>.Ok(result));
             })
             .RequireAuthorization()
+            .RequireModule("billing")
             .WithTags("Billing")
             .WithName("PurchaseCreditPackage");
     }

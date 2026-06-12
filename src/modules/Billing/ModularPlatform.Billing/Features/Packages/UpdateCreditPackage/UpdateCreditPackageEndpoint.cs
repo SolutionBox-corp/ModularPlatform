@@ -24,6 +24,7 @@ internal static class UpdateCreditPackageEndpoint
             })
             .RequireAuthorization()
             .RequirePermission(PlatformPermissions.BillingManage)
+            .RequireModule("billing")
             .WithTags("Billing")
             .WithName("UpdateCreditPackage");
     }
