@@ -78,6 +78,19 @@ public interface ITenantProvisioning
 }
 
 /// <summary>
+/// Gate consulted when a user signs up ON a tenant's subdomain (a JOIN). Enforces the tenant's
+/// <c>RegistrationMode</c>: <c>Open</c> always allows; <c>Closed</c> always denies; <c>InviteOnly</c> requires a
+/// valid single-use invite token, which it CONSUMES on success. Owned by Tenancy; consumed by Identity's
+/// registration. A null implementation (Tenancy disabled) means no subdomain ever resolves, so a join never reaches
+/// this gate. Identity NEVER reads the registry directly.
+/// </summary>
+public interface ITenantRegistrationGate
+{
+    /// <summary>True if the join is permitted (and any required invite has now been consumed); false if denied.</summary>
+    Task<bool> TryAcceptJoinAsync(Guid tenantId, string? inviteToken, CancellationToken ct = default);
+}
+
+/// <summary>
 /// Pushes a server-&gt;client event to a specific user across all API instances.
 /// Implemented over Redis pub/sub fan-out; producers (handlers, worker) stay transport-agnostic
 /// so a module can switch SSE-&gt;SignalR without touching this call site.

@@ -333,13 +333,20 @@ public sealed class BillingCommerceTests(PlatformApiFactory fixture)
     /// so it can purchase the admin's per-tenant catalogue package (packages are tenant-scoped, bought by members).</summary>
     private async Task<(Guid UserId, string AccessToken)> RegisterBuyerInAdminTenantAsync(string adminToken)
     {
+        var adminTenantId = TenantOf(adminToken);
         var subdomain = await fixture.ScalarAsync<string>(
-            $"SELECT \"Subdomain\" FROM tenants WHERE \"Id\" = '{TenantOf(adminToken)}'");
+            $"SELECT \"Subdomain\" FROM tenants WHERE \"Id\" = '{adminTenantId}'");
         var email = $"buyer-{Guid.CreateVersion7():N}@test.io";
+
+        // The admin's tenant is InviteOnly by default — mint a single-use invite so the buyer can join its subdomain.
+        var inviteResp = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, $"/v1/tenant/admin/tenants/{adminTenantId}/invites", adminToken, new { expiresInDays = 7 }));
+        inviteResp.EnsureSuccessStatusCode();
+        var inviteToken = (await PlatformApiFactory.ReadData(inviteResp)).GetProperty("inviteToken").GetString()!;
 
         var register = new HttpRequestMessage(HttpMethod.Post, "/v1/identity/users")
         {
-            Content = JsonContent.Create(new { email, password = Password }),
+            Content = JsonContent.Create(new { email, password = Password, inviteToken }),
         };
         register.Headers.Host = $"{subdomain}.lvh.me"; // signup on the gym's subdomain => joins that tenant
         var registered = await fixture.Client.SendAsync(register);

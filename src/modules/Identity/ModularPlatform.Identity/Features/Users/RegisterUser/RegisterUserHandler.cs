@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
@@ -22,7 +23,8 @@ internal sealed class RegisterUserHandler(
     IBlindIndexHasher blindIndex,
     ITenantProvisioning tenantProvisioning,
     IClock clock,
-    ILogger<RegisterUserHandler> logger)
+    ILogger<RegisterUserHandler> logger,
+    IServiceProvider services)
     : ICommandHandler<RegisterUserCommand, RegisterUserResponse>
 {
     public async Task<RegisterUserResponse> Handle(RegisterUserCommand command, CancellationToken ct)
@@ -36,6 +38,21 @@ internal sealed class RegisterUserHandler(
         if (await db.Users.IgnoreQueryFilters().AnyAsync(u => u.EmailHash == emailHash, ct))
         {
             throw new ConflictException("user.email_taken", "This email address is already registered.");
+        }
+
+        // JOINING an existing tenant (subdomain signup) is gated by that tenant's RegistrationMode: Open allows,
+        // Closed denies, InviteOnly requires a valid single-use invite (consumed here). The gate lives in Tenancy and
+        // is resolved optionally — a join can only have been routed here if Tenancy is enabled, so a null gate (or a
+        // denied/expired/used invite) fails CLOSED. Checked AFTER the email pre-check so a duplicate email doesn't burn
+        // an invite. (Identity never reads the tenant registry directly — Law: cross-module only via a port.)
+        if (command.JoinTenantId is { } joinTenantId)
+        {
+            var gate = services.GetService<ITenantRegistrationGate>();
+            if (gate is null || !await gate.TryAcceptJoinAsync(joinTenantId, command.InviteToken, ct))
+            {
+                throw new ForbiddenException(
+                    "registration.not_allowed", "Registration into this workspace is not allowed.");
+            }
         }
 
         // Registration runs anonymously (no tenant in context). The tenant REGISTRY is owned by the Tenancy module.

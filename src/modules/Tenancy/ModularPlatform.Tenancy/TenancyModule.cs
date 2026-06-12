@@ -8,6 +8,7 @@ using ModularPlatform.Persistence;
 using ModularPlatform.Persistence.Rls;
 using ModularPlatform.Secrets;
 using ModularPlatform.Payments;
+using ModularPlatform.Tenancy.Features.Admin.CreateTenantInvite;
 using ModularPlatform.Tenancy.Features.Admin.GetPlatformBillingStatus;
 using ModularPlatform.Tenancy.Features.Admin.ProvisionTenant;
 using ModularPlatform.Tenancy.Features.Admin.SetEntitlement;
@@ -46,6 +47,7 @@ public sealed class TenancyModule : IModule
         services.AddScoped<ITenantDirectory, TenantDirectory>();
         services.AddScoped<IEntitlementResolver, EntitlementResolver>();
         services.AddScoped<ITenantProvisioning, TenantProvisioning>();
+        services.AddScoped<ITenantRegistrationGate, TenantRegistrationGate>();
 
         // Platform-plane payments (tenant pays the SaaS): reuse the shared Payments building-block; this store
         // serves PaymentPlane.Platform and coexists with Billing's tenant-plane store (resolver picks by plane).
@@ -59,6 +61,7 @@ public sealed class TenancyModule : IModule
         endpoints.MapGetMyEntitlements();
         endpoints.MapProvisionTenant();
         endpoints.MapSetEntitlement();
+        endpoints.MapCreateTenantInvite();
         endpoints.MapGetPlatformBillingStatus();
         endpoints.MapCreatePlatformCheckout();
     }

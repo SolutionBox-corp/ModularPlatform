@@ -17,4 +17,5 @@ internal sealed class TenancyDbContext(DbContextOptions<TenancyDbContext> option
 
     public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<TenantEntitlement> TenantEntitlements => Set<TenantEntitlement>();
+    public DbSet<TenantInvite> TenantInvites => Set<TenantInvite>();
 }
