@@ -38,6 +38,7 @@
   <data name="tenant.not_found" xml:space="preserve"><value>Workspace not found.</value></data>
   <data name="registration.not_allowed" xml:space="preserve"><value>Registration into this workspace is not allowed.</value></data>
   <data name="tenant.invite.expiry_out_of_range" xml:space="preserve"><value>The invite expiry must be between 1 and 30 days.</value></data>
+  <data name="tenant.invite.collision" xml:space="preserve"><value>Could not mint a unique invite. Please retry.</value></data>
   <data name="tenancy.platform_plan_unknown" xml:space="preserve"><value>Unknown platform plan.</value></data>
   <data name="tenancy.platform_plan_misconfigured" xml:space="preserve"><value>The platform plan is not configured correctly.</value></data>
   <data name="auth.tenant_mismatch" xml:space="preserve"><value>This session does not belong to this workspace.</value></data>

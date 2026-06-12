@@ -29,7 +29,9 @@ internal sealed class TenantInviteConfiguration : IEntityTypeConfiguration<Tenan
         builder.HasKey(i => i.Id);
         builder.Property(i => i.TenantId).IsRequired();
         builder.Property(i => i.TokenHash).HasMaxLength(128).IsRequired();
-        builder.HasIndex(i => i.TokenHash).IsUnique();
-        builder.HasIndex(i => i.TenantId);
+        // Uniqueness is per-tenant (the gate looks up by (TenantId, TokenHash)) — a global unique index implied a
+        // cross-tenant constraint that doesn't exist and would surface an (astronomically rare) cross-tenant token
+        // collision as a raw 500. The composite also serves the gate's lookup.
+        builder.HasIndex(i => new { i.TenantId, i.TokenHash }).IsUnique();
     }
 }

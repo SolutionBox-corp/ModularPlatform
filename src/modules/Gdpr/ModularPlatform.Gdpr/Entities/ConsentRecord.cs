@@ -10,7 +10,7 @@ namespace ModularPlatform.Gdpr.Entities;
 /// auditable. The current state for a (UserId, ConsentType) is the most recently recorded row.
 /// Tenant-scoped; audit + xmin concurrency applied by convention.
 /// </summary>
-internal sealed class ConsentRecord : Entity, IUserOwned
+internal sealed class ConsentRecord : Entity, IUserOwned, ITenantScoped
 {
     public Guid UserId { get; set; }
     public string ConsentType { get; set; } = string.Empty;

@@ -30,7 +30,16 @@ internal sealed class CreateTenantInviteHandler(TenancyDbContext db, IClock cloc
             ExpiresAt = expiresAt,
             CreatedAt = now,
         });
-        await db.SaveChangesAsync(ct);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex)
+            when (ex.InnerException is Npgsql.PostgresException { SqlState: Npgsql.PostgresErrorCodes.UniqueViolation })
+        {
+            // A 256-bit token colliding with an existing one is astronomically unlikely, but never surface it as a 500.
+            throw new ConflictException("tenant.invite.collision", "Could not mint a unique invite. Please retry.");
+        }
 
         return new CreateTenantInviteResponse(rawToken, expiresAt);
     }
