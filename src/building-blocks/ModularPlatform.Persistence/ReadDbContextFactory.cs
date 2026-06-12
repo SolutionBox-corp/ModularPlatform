@@ -24,7 +24,10 @@ internal sealed class ReadDbContextFactory<TContext>(string readConnectionString
     {
         var builder = new DbContextOptionsBuilder<TContext>()
             .UseNpgsql(readConnectionString)
-            .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking);
+            .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking)
+            // Defence-in-depth: a SaveChanges on a read context (e.g. via a stray .AsTracking()) would bypass audit /
+            // tenant-stamp / PII encryption. Make it a loud throw rather than a silent plaintext write.
+            .AddInterceptors(new ReadOnlyGuardInterceptor());
 
         if (rlsEnabled)
         {

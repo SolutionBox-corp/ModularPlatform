@@ -10,4 +10,7 @@ public sealed class IdentityAuthOptions
     public const string SectionName = "Identity:Auth";
 
     public string[] AdminEmails { get; set; } = [];
+
+    /// <summary>How long an EXPIRED refresh token is retained before the purge job deletes it (forensics window).</summary>
+    public int RefreshTokenRetentionDays { get; set; } = 30;
 }

@@ -7,6 +7,8 @@ using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Identity.Authorization;
 using ModularPlatform.Identity.Gdpr;
+using ModularPlatform.Identity.Jobs;
+using Quartz;
 using ModularPlatform.Identity.Features.Admin.AssignRole;
 using ModularPlatform.Identity.Features.Admin.IssueMachineToken;
 using ModularPlatform.Identity.Features.Admin.RevokeRole;
@@ -78,6 +80,16 @@ public sealed class IdentityModule : IModule
     {
         // Identity currently publishes UserRegisteredIntegrationEvent (via the outbox) but consumes nothing.
         // Wolverine auto-discovers any message handlers added later in this assembly.
+    }
+
+    public void RegisterJobs(IServiceCollectionQuartzConfigurator quartz, IConfiguration configuration)
+    {
+        // Daily sweep that deletes long-expired refresh tokens (bounds the rotation table). Cron in UTC (Law #7).
+        var cron = configuration["Modules:Identity:Jobs:PurgeRefreshTokensCron"] ?? "0 0 3 * * ?"; // 03:00 UTC daily
+        var key = new JobKey("identity-purge-refresh-tokens");
+        quartz.AddJob<IdentityPurgeRefreshTokensJob>(key);
+        quartz.AddTrigger(trigger => trigger.ForJob(key)
+            .WithCronSchedule(cron, x => x.InTimeZone(TimeZoneInfo.Utc)));
     }
 
     public async Task ApplyMigrationsAsync(IServiceProvider services, CancellationToken ct)
