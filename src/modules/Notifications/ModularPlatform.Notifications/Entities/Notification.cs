@@ -9,7 +9,9 @@ namespace ModularPlatform.Notifications.Entities;
 /// One in-app notification row (the per-user feed). Flat aggregate — references the user by Id, no
 /// navigation. Tenant-scoped; audit + xmin concurrency applied by convention. One row is written per
 /// SendNotification regardless of channels; <see cref="Channel"/> records which channel produced it.
-/// Title/Body can hold rendered PII, so they are crypto-shredded under the recipient's DEK in the audit trail.
+/// Title/Body hold rendered PII, so they are <see cref="EncryptedAttribute">encrypted AT REST</see> under the
+/// recipient's DEK (a penc:v2 envelope in the live column) AND crypto-shredded in the audit trail — GDPR erasure
+/// (shredding the DEK) makes both unreadable even if the per-module anonymizer never runs.
 /// </summary>
 internal sealed class Notification : AuditableEntity, IUserOwned, IDataSubject
 {
@@ -17,8 +19,10 @@ internal sealed class Notification : AuditableEntity, IUserOwned, IDataSubject
     public string TemplateKey { get; set; } = string.Empty;
     public string Channel { get; set; } = "inapp";
     [PersonalData]
+    [Encrypted]
     public string Title { get; set; } = string.Empty;
     [PersonalData]
+    [Encrypted]
     public string Body { get; set; } = string.Empty;
     public DateTimeOffset? ReadAt { get; set; }
 
@@ -34,7 +38,8 @@ internal sealed class NotificationConfiguration : IEntityTypeConfiguration<Notif
         builder.Property(n => n.UserId).IsRequired();
         builder.Property(n => n.TemplateKey).HasMaxLength(128).IsRequired();
         builder.Property(n => n.Channel).HasMaxLength(16).IsRequired();
-        builder.Property(n => n.Title).HasMaxLength(256).IsRequired();
+        // [Encrypted] columns store a penc:v2 envelope, not the plaintext — size for the envelope (mirrors users.Email).
+        builder.Property(n => n.Title).HasMaxLength(1024).IsRequired();
         builder.Property(n => n.Body).IsRequired();
         builder.HasIndex(n => n.UserId);
     }

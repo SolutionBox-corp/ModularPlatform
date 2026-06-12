@@ -51,5 +51,8 @@ internal sealed class CreditAccountConfiguration : IEntityTypeConfiguration<Cred
         builder.Property(a => a.Pending).IsRequired();
         builder.Property(a => a.Available).IsRequired();
         builder.HasIndex(a => a.UserId).IsUnique();
+        // Per-tenant reporting/reconciliation queries filter by TenantId — index it (the prior schema had this index;
+        // it was dropped together with the column and reinstated without it, so this restores the lookup path).
+        builder.HasIndex(a => a.TenantId);
     }
 }

@@ -60,6 +60,15 @@ internal sealed class ConfirmSpendHandler(IDbContextOutbox<BillingDbContext> out
             remaining -= draw;
         }
 
+        // The active buckets MUST fully cover the confirmed hold. If they don't, a bucket backing this reservation
+        // expired between reserve and confirm — posting the full debit anyway would record a spend with no bucket
+        // trail (a silent double-count that breaks the double-entry invariant). Fail loud instead.
+        if (remaining > 0)
+        {
+            throw new BusinessRuleException(
+                "credit.bucket_underflow", "Reserved credits are no longer backed by an active bucket.");
+        }
+
         db.CreditEntries.Add(new CreditEntry
         {
             AccountId = account.Id,

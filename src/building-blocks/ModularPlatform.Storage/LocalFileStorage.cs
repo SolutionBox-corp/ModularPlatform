@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using ModularPlatform.Abstractions;
+using ModularPlatform.Cqrs;
 
 namespace ModularPlatform.Storage;
 
@@ -34,7 +35,9 @@ internal sealed class LocalFileStorage : IFileStorage
         var path = ResolvePath(key);
         if (!File.Exists(path))
         {
-            throw new FileNotFoundException("Stored object not found.", key);
+            // A missing blob whose metadata row still exists ⇒ 404 (same shape as a missing-metadata download),
+            // never a 500. Mirrored by S3FileStorage so the two providers behave identically.
+            throw new NotFoundException("file.not_found", "File not found.");
         }
 
         Stream stream = File.OpenRead(path);

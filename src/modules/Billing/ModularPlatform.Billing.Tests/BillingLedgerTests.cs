@@ -18,9 +18,9 @@ public sealed class BillingLedgerTests(PlatformApiFactory fixture)
         var (userId, token) = await fixture.RegisterAndLoginAsync(
             $"confirm-{Guid.CreateVersion7():N}@example.com", "Sup3rSecret!");
         await fixture.WaitForCountAsync($"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{userId}'", 1);
-        await fixture.ExecuteSqlAsync(
-            $"UPDATE credit_accounts SET \"Posted\" = 1000, \"Available\" = 1000, \"Pending\" = 0 " +
-            $"WHERE \"UserId\" = '{userId}'");
+        // Seed 1000 credits through the REAL top-up (creates a backing bucket) — a raw UPDATE of the projection
+        // alone would leave the account with no bucket, which the confirm's bucket-underflow guard correctly rejects.
+        await fixture.GrantCreditsAsync(userId, 1000L);
 
         var reserve = await fixture.Client.SendAsync(
             fixture.Authed(HttpMethod.Post, "/v1/billing/credits/reservations", token, new { amount = 100L }));

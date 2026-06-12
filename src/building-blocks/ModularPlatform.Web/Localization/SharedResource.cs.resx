@@ -69,6 +69,7 @@
   <data name="credit.account_not_found" xml:space="preserve"><value>Kreditní účet nenalezen.</value></data>
   <data name="credit.reservation_not_found" xml:space="preserve"><value>Rezervace kreditů nenalezena.</value></data>
   <data name="credit.reservation_not_active" xml:space="preserve"><value>Rezervace kreditů už není aktivní.</value></data>
+  <data name="credit.bucket_underflow" xml:space="preserve"><value>Rezervované kredity už nejsou kryté aktivním balíčkem.</value></data>
   <data name="credit.amount.must_be_positive" xml:space="preserve"><value>Částka musí být kladné číslo.</value></data>
   <data name="credit.user.required" xml:space="preserve"><value>Uživatel je povinný.</value></data>
   <data name="credit.reservation.required" xml:space="preserve"><value>Rezervace je povinná.</value></data>

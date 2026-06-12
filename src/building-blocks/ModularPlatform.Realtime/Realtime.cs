@@ -131,8 +131,10 @@ internal sealed class RedisRealtimePublisher(IConnectionMultiplexer redis, IOpti
     }
 
     public Task PublishToTenantAsync(Guid tenantId, string eventType, object payload, CancellationToken ct = default) =>
-        redis.GetSubscriber().PublishAsync(
-            RedisChannel.Literal($"{TenantChannelPrefix}{tenantId}"), Serialize(eventType, JsonSerializer.Serialize(payload), "0"));
+        // No subscriber consumes tenant channels yet, so a publish here would be silently swallowed (a dead feature).
+        // Fail LOUD until the tenant-broadcast subscriber + SSE fan-out are wired, rather than dropping events.
+        throw new NotSupportedException(
+            "Realtime tenant broadcast is not yet wired (no subscriber consumes tenant channels). Use PublishToUserAsync.");
 
     public async Task<IReadOnlyList<RealtimeMessage>> ReadSinceAsync(
         Guid userId, string? lastEventId, CancellationToken ct = default)
@@ -225,7 +227,9 @@ internal sealed class LocalRealtimePublisher(RealtimeConnectionRegistry registry
     }
 
     public Task PublishToTenantAsync(Guid tenantId, string eventType, object payload, CancellationToken ct = default) =>
-        Task.CompletedTask;
+        // Not wired (no tenant-channel consumer) — fail loud rather than silently swallow, matching the Redis impl.
+        throw new NotSupportedException(
+            "Realtime tenant broadcast is not yet wired (no subscriber consumes tenant channels). Use PublishToUserAsync.");
 
     public Task<IReadOnlyList<RealtimeMessage>> ReadSinceAsync(
         Guid userId, string? lastEventId, CancellationToken ct = default)

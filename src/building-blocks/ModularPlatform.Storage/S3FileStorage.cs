@@ -1,7 +1,9 @@
+using System.Net;
 using Amazon.S3;
 using Amazon.S3.Model;
 using Microsoft.Extensions.Options;
 using ModularPlatform.Abstractions;
+using ModularPlatform.Cqrs;
 
 namespace ModularPlatform.Storage;
 
@@ -38,8 +40,16 @@ internal sealed class S3FileStorage : IFileStorage
     public async Task<Stream> GetAsync(string key, CancellationToken ct)
     {
         StorageKey.Validate(key);
-        var response = await _client.GetObjectAsync(new GetObjectRequest { BucketName = _bucket, Key = key }, ct);
-        return response.ResponseStream;
+        try
+        {
+            var response = await _client.GetObjectAsync(new GetObjectRequest { BucketName = _bucket, Key = key }, ct);
+            return response.ResponseStream;
+        }
+        catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.NotFound || ex.ErrorCode == "NoSuchKey")
+        {
+            // A missing blob whose metadata row still exists ⇒ 404 (parity with LocalFileStorage), never a raw 500.
+            throw new NotFoundException("file.not_found", "File not found.");
+        }
     }
 
     public async Task DeleteAsync(string key, CancellationToken ct)

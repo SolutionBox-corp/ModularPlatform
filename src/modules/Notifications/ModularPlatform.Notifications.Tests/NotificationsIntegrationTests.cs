@@ -111,18 +111,27 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
         // 200 returned immediately — the slow SMTP work was deferred to the Worker, not run inline in the request.
         send.StatusCode.ShouldBe(HttpStatusCode.OK);
 
-        // Exactly one inapp feed row persisted, with the template rendered ({displayName} -> "Ada").
+        // Exactly one inapp feed row persisted (Channel is not PII, so a raw read is fine).
         var rows = await fixture.ScalarAsync<long>(
             $"SELECT count(*)::bigint FROM notifications WHERE \"UserId\" = '{recipientId}' AND \"TemplateKey\" = '{templateKey}'");
         rows.ShouldBe(1);
 
-        var title = await fixture.ScalarAsync<string>(
-            $"SELECT \"Title\" FROM notifications WHERE \"UserId\" = '{recipientId}' AND \"TemplateKey\" = '{templateKey}'");
-        title.ShouldBe("Hello Ada");
-
         var channel = await fixture.ScalarAsync<string>(
             $"SELECT \"Channel\" FROM notifications WHERE \"UserId\" = '{recipientId}' AND \"TemplateKey\" = '{templateKey}'");
         channel.ShouldBe("inapp");
+
+        // Title is [Encrypted] at rest (a penc:v2 envelope in the column) — the rendered plaintext ({displayName} ->
+        // "Ada") is only visible through the model converter, i.e. via the feed API, which decrypts on read.
+        var rawTitle = await fixture.ScalarAsync<string>(
+            $"SELECT \"Title\" FROM notifications WHERE \"UserId\" = '{recipientId}' AND \"TemplateKey\" = '{templateKey}'");
+        rawTitle.ShouldStartWith("penc:v2:");
+
+        var feed = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/notifications/me", adminToken));
+        feed.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var item = (await PlatformApiFactory.ReadData(feed)).GetProperty("items").EnumerateArray()
+            .Single(n => n.GetProperty("templateKey").GetString() == templateKey);
+        item.GetProperty("title").GetString().ShouldBe("Hello Ada");
     }
 
     // NT-4 — GetMyNotifications(unreadOnly=true) + MarkNotificationRead round-trip. Seed a template, send an
@@ -201,9 +210,15 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
             }));
         send.StatusCode.ShouldBe(HttpStatusCode.OK);
 
-        // The live notification keeps the rendered title (only the AUDIT trail is encrypted).
+        // Title is [Encrypted] at rest, so look the row up by its (non-PII) TemplateKey, not by the marker.
         var notificationId = await fixture.ScalarAsync<Guid>(
-            $"SELECT \"Id\" FROM notifications WHERE \"Title\" = '{marker}' LIMIT 1");
+            $"SELECT \"Id\" FROM notifications WHERE \"UserId\" = '{recipientId}' AND \"TemplateKey\" = '{templateKey}' LIMIT 1");
+
+        // The live column is now ALSO a penc:v2 envelope (encrypted at rest) — never the marker plaintext.
+        var rawTitle = await fixture.ScalarAsync<string>(
+            $"SELECT \"Title\" FROM notifications WHERE \"Id\" = '{notificationId}'");
+        rawTitle.ShouldStartWith("penc:v2:");
+        rawTitle.ShouldNotContain(marker);
 
         var rawAudit = await fixture.ScalarAsync<string>(
             $"SELECT \"NewValues\"::text FROM notifications_audit_entries WHERE \"EntityType\" = 'Notification' " +

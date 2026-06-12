@@ -31,9 +31,22 @@ internal sealed class LoginHandler(
 
     // A valid Argon2 hash (platform parameters), computed once on first use, so an unknown-email login spends the
     // same verification time as a real one. The plaintext is irrelevant — only the verification cost matters.
+    // Double-checked locking: a bare `??=` on a static field can let concurrent first callers each compute a hash
+    // (wasted Argon2 cost) and is not guaranteed atomic; the hasher is stateless so locking it is safe.
+    private static readonly object DummyHashLock = new();
     private static string? _dummyPasswordHash;
-    private string DummyPasswordHash() =>
-        _dummyPasswordHash ??= passwordHasher.Hash("d6f1c0a2-login-timing-equalization-seed");
+    private string DummyPasswordHash()
+    {
+        if (_dummyPasswordHash is { } cached)
+        {
+            return cached;
+        }
+
+        lock (DummyHashLock)
+        {
+            return _dummyPasswordHash ??= passwordHasher.Hash("d6f1c0a2-login-timing-equalization-seed");
+        }
+    }
 
     public async Task<AuthTokensResponse> Handle(LoginCommand command, CancellationToken ct)
     {

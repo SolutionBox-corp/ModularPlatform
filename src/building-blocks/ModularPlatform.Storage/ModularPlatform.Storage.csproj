@@ -8,6 +8,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ModularPlatform.Abstractions\ModularPlatform.Abstractions.csproj" />
+    <!-- For the platform exception types (NotFoundException) so a missing blob maps to 404, not 500. -->
+    <ProjectReference Include="..\ModularPlatform.Cqrs\ModularPlatform.Cqrs.csproj" />
   </ItemGroup>
 
   <ItemGroup>

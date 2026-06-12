@@ -14,7 +14,7 @@ namespace ModularPlatform.Identity.Gdpr;
 /// EF / LINQ only (atomic <c>ExecuteUpdate</c> — deliberately bypasses the encryption interceptor: the
 /// tombstone constants are not PII and must stay readable). Idempotent. Runs in the Worker's system context.
 /// </summary>
-internal sealed class IdentityPersonalDataEraser(IdentityDbContext db, IBlindIndexHasher blindIndex)
+internal sealed class IdentityPersonalDataEraser(IdentityDbContext db, IBlindIndexHasher blindIndex, IClock clock)
     : IErasePersonalData
 {
     public string ModuleName => "Identity";
@@ -23,6 +23,7 @@ internal sealed class IdentityPersonalDataEraser(IdentityDbContext db, IBlindInd
     {
         var token = $"erased-{userId:N}@erased.invalid";
         var tokenHash = blindIndex.Hash(token.ToUpperInvariant());
+        var now = clock.UtcNow;
 
         await db.Users
             .Where(u => u.Id == userId && u.DeletedAt == null)
@@ -32,13 +33,13 @@ internal sealed class IdentityPersonalDataEraser(IdentityDbContext db, IBlindInd
                     .SetProperty(u => u.EmailHash, tokenHash)
                     .SetProperty(u => u.DisplayName, (string?)null)
                     .SetProperty(u => u.PasswordHash, string.Empty)
-                    .SetProperty(u => u.DeletedAt, DateTimeOffset.UtcNow),
+                    .SetProperty(u => u.DeletedAt, now),
                 ct);
 
         // Terminate the subject's sessions: revoke every outstanding refresh token so an erased account cannot
         // keep minting access tokens via rotation. refresh_tokens carry no PII, so a set-based update is correct.
         await db.RefreshTokens
             .Where(t => t.UserId == userId && t.RevokedAt == null)
-            .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, DateTimeOffset.UtcNow), ct);
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, now), ct);
     }
 }
