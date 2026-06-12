@@ -15,6 +15,8 @@ internal sealed class ConfigureGatewayHandler(
     ISecretProtector secretProtector,
     ITenantContext tenant,
     IHostEnvironment environment,
+    HttpClient http,
+    GoPayTokenCache goPayTokenCache,
     IClock clock) : ICommandHandler<ConfigureGatewayCommand, ConfigureGatewayResponse>
 {
     public async Task<ConfigureGatewayResponse> Handle(ConfigureGatewayCommand command, CancellationToken ct)
@@ -33,6 +35,15 @@ internal sealed class ConfigureGatewayHandler(
         {
             throw new BusinessRuleException(
                 "billing.gateway.fake_not_allowed", "The fake payment gateway is not allowed in production.");
+        }
+
+        // Verify the submitted credentials BEFORE activating, so a wrong key fails at config time with a clear error
+        // instead of an opaque provider exception on the first real checkout/webhook. Gated to Production: the call hits
+        // the real provider (Stripe Balance / GoPay OAuth), which the test/dev fake keys can't satisfy.
+        if (environment.IsProduction() && !await ValidateSubmittedCredentialsAsync(provider, command, ct))
+        {
+            throw new BusinessRuleException(
+                "billing.gateway.credentials_invalid", "The payment gateway credentials could not be validated.");
         }
 
         var db = outbox.DbContext;
@@ -99,4 +110,28 @@ internal sealed class ConfigureGatewayHandler(
         string.IsNullOrWhiteSpace(value)
             ? throw new BusinessRuleException(errorCode, "Required gateway credential is missing.")
             : value;
+
+    /// <summary>Builds a throwaway gateway from the SUBMITTED plaintext creds and probes the provider.</summary>
+    private async Task<bool> ValidateSubmittedCredentialsAsync(
+        PaymentProvider provider, ConfigureGatewayCommand command, CancellationToken ct)
+    {
+        IPaymentGateway probe = provider switch
+        {
+            PaymentProvider.Stripe => new StripePaymentGateway(
+                Require(command.StripeApiKey, "billing.gateway.stripe_key_required"), command.StripeWebhookSecret),
+            PaymentProvider.GoPay => new GoPayPaymentGateway(
+                http,
+                new GoPayCredentials(
+                    command.GoPayGoid ?? throw new BusinessRuleException("billing.gateway.gopay_goid_required", "GoPay goid is required."),
+                    Require(command.GoPayClientId, "billing.gateway.gopay_client_required"),
+                    Require(command.GoPayClientSecret, "billing.gateway.gopay_client_required"),
+                    command.Sandbox ? "https://gw.sandbox.gopay.com/api" : "https://gate.gopay.cz/api",
+                    NotificationUrl: string.Empty),
+                clock,
+                goPayTokenCache),
+            _ => throw new BusinessRuleException("billing.gateway.unknown_provider", "Unknown payment provider."),
+        };
+
+        return await probe.ValidateCredentialsAsync(ct);
+    }
 }

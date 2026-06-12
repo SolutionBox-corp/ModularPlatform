@@ -72,7 +72,7 @@ internal sealed class PurchaseCreditPackageHandler(
 
         var checkout = await gateway.CreateCheckoutAsync(new CheckoutRequest(
             ReferenceId: purchaseId.ToString(),
-            AmountMinorUnits: (long)Math.Round(package.Price * 100m, MidpointRounding.AwayFromZero),
+            AmountMinorUnits: CurrencyMinorUnits.ToMinorUnits(package.Price, package.Currency),
             Currency: package.Currency,
             Mode: CheckoutMode.Payment,
             Description: package.Name,

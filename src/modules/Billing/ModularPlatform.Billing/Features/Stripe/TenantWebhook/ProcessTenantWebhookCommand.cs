@@ -39,10 +39,16 @@ internal sealed class ProcessTenantWebhookHandler(
             var config = await read.PaymentConfigurations
                 .IgnoreQueryFilters()
                 .FirstOrDefaultAsync(c => c.TenantId == command.TenantId && c.Plane == PaymentPlane.Tenant, ct);
-            if (config is { Provider: PaymentProvider.GoPay, WebhookToken: { Length: > 0 } expected }
-                && !string.Equals(expected, command.Token, StringComparison.Ordinal))
+            // Fail CLOSED for GoPay: the unsigned callback is only trusted when the URL token matches the STORED token.
+            // A missing stored token (only reachable via a direct DB write — ConfigureGateway always mints one) or a
+            // mismatch is acknowledged-and-ignored, never trusted. (Stripe carries no token; its HMAC is the binding.)
+            if (config is { Provider: PaymentProvider.GoPay })
             {
-                return Unit.Value;
+                var expected = config.WebhookToken;
+                if (string.IsNullOrEmpty(expected) || !string.Equals(expected, command.Token, StringComparison.Ordinal))
+                {
+                    return Unit.Value;
+                }
             }
         }
 

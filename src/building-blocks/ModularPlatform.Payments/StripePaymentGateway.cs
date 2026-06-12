@@ -101,7 +101,9 @@ public sealed class StripePaymentGateway(string apiKey, string? webhookSecret) :
             await new BalanceService(_client).GetAsync(cancellationToken: ct);
             return true;
         }
-        catch (StripeException)
+        // A probe: a bad key throws StripeException, but transport faults throw HttpRequestException — both mean
+        // "credentials unusable right now". Cancellation propagates, not swallowed.
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return false;
         }
