@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.Extensions.DependencyInjection;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Billing.Contracts;
 using ModularPlatform.Billing.Features.Credits.CreditTopUp;
@@ -55,7 +56,7 @@ public sealed class CreditPurchaseSaga : Saga, IUserOwned
     }
 
     public async Task<object[]> Handle(
-        CreditPurchaseConfirmed confirmed, IDispatcher dispatcher, IClock clock, CancellationToken ct)
+        CreditPurchaseConfirmed confirmed, IServiceScopeFactory scopes, IClock clock, CancellationToken ct)
     {
         // Terminal-state guard FIRST: a duplicate confirmation on an already-Completed saga must short-circuit
         // BEFORE re-dispatching anything (no wasted command, no risk of a second completion event escaping).
@@ -67,8 +68,15 @@ public sealed class CreditPurchaseSaga : Saga, IUserOwned
         // Grant through the ledger's idempotent top-up — a duplicate Stripe event, a saga replay, or a
         // confirmation arriving after the abandon timeout cannot double-credit (UNIQUE idempotency_key). A late
         // payment after the abandon timeout reaches here with Status="Abandoned" and correctly flips to Completed.
-        await dispatcher.Send(new CreditTopUpCommand(
-            UserId, CreditAmount, BucketExpiryDays, IdempotencyKey: $"purchase:{Id}"), ct);
+        // Dispatch in a SEPARATE DI scope so the top-up's own DbContext is used: otherwise an xmin conflict on the
+        // top-up would make ConcurrencyRetryBehavior clear THIS context's change tracker, DETACHING the saga entity
+        // Wolverine still needs to version-bump → the saga would wedge in 'Pending' (credit granted, never completed).
+        await using (var scope = scopes.CreateAsyncScope())
+        {
+            var dispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
+            await dispatcher.Send(new CreditTopUpCommand(
+                UserId, CreditAmount, BucketExpiryDays, IdempotencyKey: $"purchase:{Id}"), ct);
+        }
 
         Status = "Completed";
         ResolvedAt = clock.UtcNow;

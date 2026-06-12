@@ -34,6 +34,17 @@ public sealed class MessageWireIdentityTests
         "ModularPlatform.Tenancy.Contracts.TenantProvisionedIntegrationEvent",
     ];
 
+    // Durable Wolverine SAGA messages live in module Core (NOT *.Contracts) and carry no IIntegrationEvent marker, so
+    // the scan below can't see them — yet they are persisted by full .NET type name in saga + SCHEDULED (timeout)
+    // envelopes just the same. Renaming/moving one orphans an in-flight checkout: the CreditPurchaseTimeout never
+    // fires and a paid CreditPurchaseConfirmed dead-letters. Freeze them explicitly. ADD a new saga message here.
+    private static readonly string[] FrozenSagaMessageNames =
+    [
+        "ModularPlatform.Billing.Sagas.CreditPurchaseStarted",
+        "ModularPlatform.Billing.Sagas.CreditPurchaseConfirmed",
+        "ModularPlatform.Billing.Sagas.CreditPurchaseTimeout",
+    ];
+
     // Anchor types whose assemblies hold the integration-event contracts.
     private static readonly Assembly[] ContractAssemblies =
     [
@@ -62,5 +73,15 @@ public sealed class MessageWireIdentityTests
         Assert.True(added.Count == 0,
             "New integration event(s) detected. Add them to FrozenWireNames to lock their wire identity: "
             + string.Join(", ", added));
+    }
+
+    [Fact]
+    public void Saga_durable_message_wire_names_are_frozen()
+    {
+        var billingCore = typeof(ModularPlatform.Billing.Sagas.CreditPurchaseSaga).Assembly;
+        var missing = FrozenSagaMessageNames.Where(name => billingCore.GetType(name) is null).ToList();
+        Assert.True(missing.Count == 0,
+            "These durable saga messages lost their frozen wire name (renamed/moved) — a breaking change for in-flight "
+            + "checkout envelopes: " + string.Join(", ", missing));
     }
 }

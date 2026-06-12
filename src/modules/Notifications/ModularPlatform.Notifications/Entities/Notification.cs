@@ -26,6 +26,9 @@ internal sealed class Notification : AuditableEntity, IUserOwned, IDataSubject
     public string Body { get; set; } = string.Empty;
     public DateTimeOffset? ReadAt { get; set; }
 
+    /// <summary>Optional dedup key — a UNIQUE partial index makes a keyed send exactly-once (e.g. one welcome per user).</summary>
+    public string? IdempotencyKey { get; set; }
+
     Guid IDataSubject.SubjectId => UserId;
 }
 
@@ -41,6 +44,10 @@ internal sealed class NotificationConfiguration : IEntityTypeConfiguration<Notif
         // [Encrypted] columns store a penc:v2 envelope, not the plaintext — size for the envelope (mirrors users.Email).
         builder.Property(n => n.Title).HasMaxLength(1024).IsRequired();
         builder.Property(n => n.Body).IsRequired();
-        builder.HasIndex(n => n.UserId);
+        builder.Property(n => n.IdempotencyKey).HasMaxLength(128);
+        // Feed query is filter-by-user + sort-by-recency: a composite index avoids a sort-after-filter at scale.
+        builder.HasIndex(n => new { n.UserId, n.CreatedAt });
+        // Exactly-once for keyed sends; partial so the common (null-key) notifications are unconstrained.
+        builder.HasIndex(n => n.IdempotencyKey).IsUnique().HasFilter("\"IdempotencyKey\" IS NOT NULL");
     }
 }

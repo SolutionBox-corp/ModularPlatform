@@ -31,6 +31,10 @@ internal sealed class ReserveCreditsHandler(BillingDbContext db, IClock clock)
             throw new NotFoundException("credit.account_not_found", "Credit account not found.");
         }
 
+        // EXPLICIT transaction (not the outbox) so the atomic ExecuteUpdate debit guard and the tracked hold/entry
+        // insert commit together — ExecuteUpdate runs IMMEDIATELY, so without this wrapping tx a failed insert would
+        // leave Available already decremented (a leak). This path publishes NO event; if you ever add one here you
+        // MUST enrol the Wolverine outbox in this transaction (do NOT just call PublishAsync — it would be lost on crash).
         await using var tx = await db.Database.BeginTransactionAsync(ct);
 
         // Atomic check-and-debit: the row is locked by the UPDATE and only decremented when sufficient.

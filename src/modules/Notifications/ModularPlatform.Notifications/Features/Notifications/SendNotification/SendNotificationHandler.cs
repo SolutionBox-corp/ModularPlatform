@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Notifications.Contracts;
@@ -44,6 +45,7 @@ internal sealed class SendNotificationHandler(
             Title = title,
             Body = body,
             ReadAt = null,
+            IdempotencyKey = command.IdempotencyKey,
         };
         db.Notifications.Add(notification);
 
@@ -83,7 +85,18 @@ internal sealed class SendNotificationHandler(
         // NOT transactional, so it MUST fire AFTER the commit: otherwise a caller passing someone else's UserId
         // would still push them an event even though RLS (WITH CHECK on UserId) rejects the row and the commit
         // fails. Realtime-after-commit => a denied write produces no phantom realtime event.
-        await outbox.SaveChangesAndFlushMessagesAsync();
+        try
+        {
+            await outbox.SaveChangesAndFlushMessagesAsync();
+        }
+        catch (DbUpdateException ex)
+            when (command.IdempotencyKey is not null
+                && ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            // A keyed send already happened (a combined-envelope retry) — the whole transaction (feed row + the
+            // channel outbox messages) rolled back, so NO duplicate email/push/row. Idempotent: just acknowledge.
+            return Unit.Value;
+        }
 
         if (sendInApp)
         {

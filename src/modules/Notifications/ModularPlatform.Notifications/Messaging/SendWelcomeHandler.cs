@@ -25,7 +25,8 @@ public sealed class SendWelcomeHandler(ILogger<SendWelcomeHandler> logger)
         try
         {
             await dispatcher.Send(
-                new SendNotificationCommand(message.UserId, "welcome", ["email", "inapp"], data), ct);
+                new SendNotificationCommand(message.UserId, "welcome", ["email", "inapp"], data,
+                    IdempotencyKey: $"welcome:{message.UserId:N}"), ct);
         }
         catch (NotFoundException)
         {
