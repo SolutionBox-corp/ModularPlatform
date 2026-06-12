@@ -19,9 +19,6 @@ namespace ModularPlatform.Web;
 /// </summary>
 internal sealed class TenantResolutionMiddleware(RequestDelegate next)
 {
-    private static readonly HashSet<string> ReservedLabels =
-        new(StringComparer.OrdinalIgnoreCase) { "admin", "www", "api" };
-
     public async Task InvokeAsync(HttpContext context)
     {
         var directory = context.RequestServices.GetService<ITenantDirectory>();
@@ -32,7 +29,7 @@ internal sealed class TenantResolutionMiddleware(RequestDelegate next)
         }
 
         var subdomain = ExtractSubdomain(context.Request.Host.Host);
-        if (subdomain is null || ReservedLabels.Contains(subdomain))
+        if (subdomain is null || ReservedSubdomains.All.Contains(subdomain))
         {
             await next(context);
             return;

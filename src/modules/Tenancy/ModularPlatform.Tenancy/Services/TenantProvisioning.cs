@@ -39,6 +39,13 @@ internal sealed class TenantProvisioning(IDbContextOutbox<TenancyDbContext> outb
             ? $"t-{tenant.Id:N}"
             : subdomain.Trim().ToLowerInvariant();
 
+        // Reserved-label guard at the SERVICE layer (not only in the admin validator) — any port caller that passes a
+        // subdomain (a future module/saga/job) must not be able to provision a control-plane label.
+        if (ReservedSubdomains.All.Contains(tenant.Subdomain))
+        {
+            throw new ConflictException("tenant.subdomain.reserved", "This subdomain is reserved.");
+        }
+
         db.Tenants.Add(tenant);
 
         foreach (var moduleKey in DefaultEntitledModules)
