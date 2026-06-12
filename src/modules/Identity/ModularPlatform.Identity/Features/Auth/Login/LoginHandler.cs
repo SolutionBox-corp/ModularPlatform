@@ -71,11 +71,14 @@ internal sealed class LoginHandler(
             throw new UnauthorizedException("auth.invalid_credentials", "Invalid email or password.");
         }
 
-        // Reject even CORRECT credentials while the account is locked out.
+        // Reject even CORRECT credentials while the account is locked out — but reveal the LOCKOUT only to a caller
+        // who proved the password. Otherwise "locked" (after 5 wrong guesses) vs "unknown email" is a user-enumeration
+        // oracle: a wrong password during lockout returns the SAME generic error as an unknown email.
         if (user.LockoutEndUtc is { } lockoutEnd && lockoutEnd > now)
         {
-            throw new UnauthorizedException("auth.locked_out",
-                "This account is temporarily locked. Try again later.");
+            throw passwordValid
+                ? new UnauthorizedException("auth.locked_out", "This account is temporarily locked. Try again later.")
+                : new UnauthorizedException("auth.invalid_credentials", "Invalid email or password.");
         }
 
         if (!passwordValid)
@@ -156,7 +159,15 @@ internal sealed class LoginHandler(
         if (!await db.UserRoles.AnyAsync(ur => ur.UserId == user.Id && ur.RoleId == adminRole.Id, ct))
         {
             db.UserRoles.Add(new UserRole { UserId = user.Id, RoleId = adminRole.Id });
-            await db.SaveChangesAsync(ct);
+            try
+            {
+                await db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException)
+            {
+                // Two concurrent first-logins of the configured admin raced past the pre-check — the
+                // UNIQUE(UserId, RoleId) index is the final guard. The role IS assigned; not a 500 (Law 2 idiom).
+            }
         }
     }
 }

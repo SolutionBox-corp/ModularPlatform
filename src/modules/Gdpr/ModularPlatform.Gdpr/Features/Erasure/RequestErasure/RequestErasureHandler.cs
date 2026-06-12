@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Gdpr.Contracts;
 using ModularPlatform.Gdpr.Persistence;
@@ -19,6 +20,14 @@ internal sealed class RequestErasureHandler(
 {
     public async Task<Unit> Handle(RequestErasureCommand command, CancellationToken ct)
     {
+        // Idempotent: if the subject's DEK is already shredded the user is already erased — a repeated POST (double
+        // click) must NOT re-fan-out erasure across every module. (Re-erasure is safe since each eraser is idempotent;
+        // short-circuiting just avoids the needless durable work.)
+        if (await outbox.DbContext.SubjectKeys.AnyAsync(k => k.UserId == command.UserId && k.DeletedAt != null, ct))
+        {
+            return Unit.Value;
+        }
+
         await outbox.PublishAsync(new UserErasureRequested(
             EventId: Guid.CreateVersion7(),
             OccurredAt: clock.UtcNow,

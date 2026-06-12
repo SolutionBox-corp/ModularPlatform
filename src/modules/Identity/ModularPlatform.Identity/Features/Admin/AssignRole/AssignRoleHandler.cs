@@ -15,7 +15,9 @@ internal sealed class AssignRoleHandler(IdentityDbContext db) : ICommandHandler<
 {
     public async Task<Unit> Handle(AssignRoleCommand command, CancellationToken ct)
     {
-        if (!await db.Users.IgnoreQueryFilters().AnyAsync(u => u.Id == command.UserId, ct))
+        // Existence check bypasses the tenant filter (admin acts cross-tenant) but must still reject a soft-deleted /
+        // GDPR-erased tombstone — assigning a role to it would create a dead UserRole that can never authenticate.
+        if (!await db.Users.IgnoreQueryFilters().AnyAsync(u => u.Id == command.UserId && u.DeletedAt == null, ct))
         {
             throw new NotFoundException("user.not_found", "User not found.");
         }

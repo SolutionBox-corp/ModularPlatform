@@ -16,9 +16,12 @@ internal sealed class GetConsentsHandler(IReadDbContextFactory<GdprDbContext> re
     {
         await using var db = readFactory.Create();
 
+        // Cap the append-only history — a self-service grant/withdraw loop could otherwise amplify an unbounded heap
+        // read. The newest 500 records are far more than any real consent timeline needs.
         return await db.ConsentRecords
             .Where(c => c.UserId == query.UserId)
             .OrderByDescending(c => c.RecordedAt)
+            .Take(500)
             .Select(c => new ConsentResponse(c.Id, c.ConsentType, c.Granted, c.RecordedAt))
             .ToListAsync(ct);
     }
