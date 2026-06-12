@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Billing.Entities;
 using ModularPlatform.Billing.Persistence;
@@ -13,6 +14,7 @@ internal sealed class ConfigureGatewayHandler(
     IDbContextOutbox<BillingDbContext> outbox,
     ISecretProtector secretProtector,
     ITenantContext tenant,
+    IHostEnvironment environment,
     IClock clock) : ICommandHandler<ConfigureGatewayCommand, ConfigureGatewayResponse>
 {
     public async Task<ConfigureGatewayResponse> Handle(ConfigureGatewayCommand command, CancellationToken ct)
@@ -23,6 +25,14 @@ internal sealed class ConfigureGatewayHandler(
         if (!Enum.TryParse<PaymentProvider>(command.Provider, ignoreCase: true, out var provider))
         {
             throw new BusinessRuleException("billing.gateway.unknown_provider", "Unknown payment provider.");
+        }
+
+        // The Fake gateway accepts every payment — a TEST-ONLY seam. A tenant must never select it in Production
+        // (it would let them bypass real payment collection entirely).
+        if (provider == PaymentProvider.Fake && environment.IsProduction())
+        {
+            throw new BusinessRuleException(
+                "billing.gateway.fake_not_allowed", "The fake payment gateway is not allowed in production.");
         }
 
         var db = outbox.DbContext;

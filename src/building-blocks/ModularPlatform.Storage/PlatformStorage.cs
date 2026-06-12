@@ -15,7 +15,14 @@ public static class PlatformStorage
 {
     public static IServiceCollection AddPlatformStorage(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddOptions<StorageOptions>().Bind(configuration.GetSection(StorageOptions.SectionName));
+        services.AddOptions<StorageOptions>()
+            .Bind(configuration.GetSection(StorageOptions.SectionName))
+            // Fail FAST at startup if S3 is selected without a bucket — otherwise the host boots healthy, passes health
+            // checks, and only fails on the FIRST user upload with a cryptic AWS 403/malformed-request error.
+            .Validate(o => !string.Equals(o.Provider, "s3", StringComparison.OrdinalIgnoreCase)
+                || !string.IsNullOrWhiteSpace(o.S3.Bucket),
+                "Storage:S3:Bucket is required when Storage:Provider=s3.")
+            .ValidateOnStart();
 
         var provider = configuration.GetValue<string>($"{StorageOptions.SectionName}:Provider") ?? "local";
 

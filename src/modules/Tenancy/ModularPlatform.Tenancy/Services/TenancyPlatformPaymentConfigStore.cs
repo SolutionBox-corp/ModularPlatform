@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using ModularPlatform.Payments;
 
 namespace ModularPlatform.Tenancy.Services;
@@ -10,7 +11,8 @@ namespace ModularPlatform.Tenancy.Services;
 /// as not-yet-available, which is correct until the operator configures it. Coexists with Billing's tenant-plane store
 /// (each declares its <see cref="Plane"/>; the resolver picks by plane).
 /// </summary>
-internal sealed class TenancyPlatformPaymentConfigStore(IConfiguration configuration) : IPaymentConfigStore
+internal sealed class TenancyPlatformPaymentConfigStore(IConfiguration configuration, IHostEnvironment environment)
+    : IPaymentConfigStore
 {
     public PaymentPlane Plane => PaymentPlane.Platform;
 
@@ -20,6 +22,14 @@ internal sealed class TenancyPlatformPaymentConfigStore(IConfiguration configura
         var providerName = section["Provider"];
         if (string.IsNullOrWhiteSpace(providerName)
             || !Enum.TryParse<PaymentProvider>(providerName, ignoreCase: true, out var provider))
+        {
+            return Task.FromResult<ResolvedPaymentConfig?>(null);
+        }
+
+        // The in-memory Fake accepts every payment — a TEST-ONLY seam. Refuse it in Production (mirrors
+        // StripeOptionsValidator) so a forgotten `Provider=fake` fails CLOSED (platform plane unavailable) rather
+        // than silently collecting no real revenue.
+        if (provider == PaymentProvider.Fake && environment.IsProduction())
         {
             return Task.FromResult<ResolvedPaymentConfig?>(null);
         }

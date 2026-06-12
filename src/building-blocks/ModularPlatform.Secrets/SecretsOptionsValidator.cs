@@ -33,13 +33,33 @@ public sealed class SecretsOptionsValidator(IHostEnvironment environment) : IVal
             errors.Add($"Secrets:MasterKeys must contain the active key version {version} outside Development.");
         }
 
-        // Reject the dev placeholder in ANY key slot, not just the active one — a retained "legacy decrypt" version that
-        // is the well-known placeholder is still usable by any caller that supplies that KeyVersion (a real misconfig).
         foreach (var (slot, keyValue) in options.MasterKeys)
         {
+            // Reject the dev placeholder in ANY key slot, not just the active one — a retained "legacy decrypt"
+            // version that is the well-known placeholder is still usable by any caller that supplies that KeyVersion.
             if (string.Equals(keyValue, SecretsOptions.DevPlaceholderMasterKey, StringComparison.Ordinal))
             {
                 errors.Add($"Secrets:MasterKeys[{slot}] must not be the dev placeholder outside Development.");
+                continue;
+            }
+
+            // Validate base64 + AES-256 length HERE (clear startup error) rather than letting the protector throw an
+            // opaque InvalidOperationException on first use / at DI build.
+            if (string.IsNullOrWhiteSpace(keyValue))
+            {
+                continue; // handled by the active-key presence check above
+            }
+
+            try
+            {
+                if (Convert.FromBase64String(keyValue).Length != 32)
+                {
+                    errors.Add($"Secrets:MasterKeys[{slot}] must decode to 32 bytes (AES-256).");
+                }
+            }
+            catch (FormatException)
+            {
+                errors.Add($"Secrets:MasterKeys[{slot}] is not valid base64.");
             }
         }
 

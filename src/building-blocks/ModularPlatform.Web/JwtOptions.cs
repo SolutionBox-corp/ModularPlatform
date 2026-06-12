@@ -8,8 +8,9 @@ public sealed class JwtOptions
     public string Issuer { get; init; } = string.Empty;
     public string Audience { get; init; } = string.Empty;
 
-    /// <summary>HMAC signing key (min 32 bytes). In production inject from env/KeyVault, never appsettings.</summary>
-    public string SigningKey { get; init; } = string.Empty;
+    /// <summary>HMAC signing key (min 32 bytes). In production inject from env/KeyVault, never appsettings.
+    /// Settable (not init) so AddJwt can PostConfigure a random per-process key when none is configured (Dev only).</summary>
+    public string SigningKey { get; set; } = string.Empty;
 
     /// <summary>Access-token lifetime in minutes (short — 5–10).</summary>
     public int AccessTokenMinutes { get; init; } = 10;

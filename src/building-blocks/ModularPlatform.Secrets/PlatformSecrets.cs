@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using ModularPlatform.Abstractions;
 
@@ -18,7 +19,11 @@ public static class PlatformSecrets
         services.AddOptions<SecretsOptions>()
             .Bind(configuration.GetSection(SecretsOptions.SectionName))
             .ValidateOnStart();
-        services.AddSingleton<IValidateOptions<SecretsOptions>, SecretsOptionsValidator>();
+        // TryAdd: this is called by EVERY module that stores secrets (Billing + Tenancy today). Without TryAdd each
+        // call would register another validator AND another protector singleton — N copies of the raw master key in
+        // memory, and IEnumerable<ISecretProtector> resolving to N instances.
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IValidateOptions<SecretsOptions>, SecretsOptionsValidator>());
 
         var provider = configuration.GetValue<string>($"{SecretsOptions.SectionName}:Provider") ?? "local";
 
@@ -31,7 +36,7 @@ public static class PlatformSecrets
                 $"Secrets:Provider '{provider}' is not supported. Only 'local' exists today (KMS providers are not wired yet).");
         }
 
-        services.AddSingleton<ISecretProtector, LocalMasterKeySecretProtector>();
+        services.TryAddSingleton<ISecretProtector, LocalMasterKeySecretProtector>();
 
         return services;
     }

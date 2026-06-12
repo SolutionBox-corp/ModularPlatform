@@ -51,6 +51,8 @@
   <data name="billing.gateway.gopay_goid_required" xml:space="preserve"><value>Je vyžadováno GoPay obchodní id (goid).</value></data>
   <data name="billing.gateway.gopay_client_required" xml:space="preserve"><value>Jsou vyžadovány GoPay klientské údaje.</value></data>
   <data name="billing.gateway.stripe_webhook_secret_required" xml:space="preserve"><value>Je vyžadován podpisový tajný klíč Stripe webhooku.</value></data>
+  <data name="billing.gateway.fake_not_allowed" xml:space="preserve"><value>Fake platební brána není v produkci povolena.</value></data>
+  <data name="billing.gateway.credentials_invalid" xml:space="preserve"><value>Údaje platební brány se nepodařilo ověřit.</value></data>
   <data name="payment.gateway_not_configured" xml:space="preserve"><value>Pro tuto organizaci není nakonfigurována platební brána.</value></data>
   <data name="payment.gateway_inactive" xml:space="preserve"><value>Platební brána této organizace není aktivní.</value></data>
   <data name="machine_token.tenant_required" xml:space="preserve"><value>K vydání strojového tokenu je vyžadována organizace.</value></data>

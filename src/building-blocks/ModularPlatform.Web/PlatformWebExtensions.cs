@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -142,6 +143,18 @@ public static class PlatformWebExtensions
     {
         var jwt = configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
 
+        // An empty signing key is only reachable in Development (JwtOptionsValidator fail-fasts outside it). Fall back
+        // to a RANDOM per-process key — NEVER the well-known all-zeros placeholder, which a Staging box mistakenly run
+        // as Development could leak as a trivially-forgeable admin key. TokenIssuer reads IOptions<JwtOptions>, so push
+        // the same key there (PostConfigure) so issuance and validation agree.
+        var signingKey = string.IsNullOrEmpty(jwt.SigningKey)
+            ? Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))
+            : jwt.SigningKey;
+        if (string.IsNullOrEmpty(jwt.SigningKey))
+        {
+            services.PostConfigure<JwtOptions>(o => o.SigningKey = signingKey);
+        }
+
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
             {
@@ -153,10 +166,7 @@ public static class PlatformWebExtensions
                     ValidateIssuerSigningKey = true,
                     ValidIssuer = jwt.Issuer,
                     ValidAudience = jwt.Audience,
-                    IssuerSigningKey = new SymmetricSecurityKey(
-                        Encoding.UTF8.GetBytes(string.IsNullOrEmpty(jwt.SigningKey)
-                            ? new string('0', 32) // placeholder so DI builds in dev; real key from env/KeyVault
-                            : jwt.SigningKey)),
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)),
                     ClockSkew = TimeSpan.FromSeconds(30),
                     // Role claims are emitted as type "role" — make RequireRole / IsInRole match them.
                     RoleClaimType = AuthorizationClaims.Role,
