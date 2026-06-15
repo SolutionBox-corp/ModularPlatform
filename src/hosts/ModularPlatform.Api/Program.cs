@@ -4,6 +4,7 @@ using ModularPlatform.Billing;
 using ModularPlatform.Files;
 using ModularPlatform.Gdpr;
 using ModularPlatform.Identity;
+using ModularPlatform.Marketing;
 using ModularPlatform.Messaging;
 using ModularPlatform.Notifications;
 using ModularPlatform.Operations;
@@ -25,6 +26,7 @@ var modules = ModuleLoader.Discover(
     typeof(GdprModule).Assembly,
     typeof(OperationsModule).Assembly,
     typeof(FilesModule).Assembly,
+    typeof(MarketingModule).Assembly,
     // Tenancy LAST: it creates the `tenants` table that Identity's drop migration removes — discovery order is
     // migration-application order, so Identity (first) must drop before Tenancy (last) re-creates as its owner.
     typeof(TenancyModule).Assembly);

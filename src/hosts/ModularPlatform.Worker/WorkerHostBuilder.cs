@@ -5,6 +5,7 @@ using ModularPlatform.Cqrs.Behaviors;
 using ModularPlatform.Files;
 using ModularPlatform.Gdpr;
 using ModularPlatform.Identity;
+using ModularPlatform.Marketing;
 using ModularPlatform.Messaging;
 using ModularPlatform.Notifications;
 using ModularPlatform.Operations;
@@ -45,6 +46,7 @@ public static class WorkerHostBuilder
             typeof(GdprModule).Assembly,
             typeof(OperationsModule).Assembly,
             typeof(FilesModule).Assembly,
+            typeof(MarketingModule).Assembly,
             typeof(TenancyModule).Assembly);
         foreach (var module in modules)
         {

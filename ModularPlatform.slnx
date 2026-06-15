@@ -38,6 +38,10 @@
     <Project Path="src/modules/Identity/ModularPlatform.Identity.Tests/ModularPlatform.Identity.Tests.csproj" />
     <Project Path="src/modules/Identity/ModularPlatform.Identity/ModularPlatform.Identity.csproj" />
   </Folder>
+  <Folder Name="/src/modules/Marketing/">
+    <Project Path="src/modules/Marketing/ModularPlatform.Marketing.Tests/ModularPlatform.Marketing.Tests.csproj" />
+    <Project Path="src/modules/Marketing/ModularPlatform.Marketing/ModularPlatform.Marketing.csproj" />
+  </Folder>
   <Folder Name="/src/modules/Notifications/">
     <Project Path="src/modules/Notifications/ModularPlatform.Notifications.Contracts/ModularPlatform.Notifications.Contracts.csproj" />
     <Project Path="src/modules/Notifications/ModularPlatform.Notifications.Tests/ModularPlatform.Notifications.Tests.csproj" />
