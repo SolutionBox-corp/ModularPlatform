@@ -5,7 +5,9 @@ using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Marketing.Entities;
 using ModularPlatform.Marketing.Integrations;
+using ModularPlatform.Marketing.Messaging;
 using ModularPlatform.Marketing.Persistence;
+using Wolverine.EntityFrameworkCore;
 
 namespace ModularPlatform.Marketing.Features.Pulls.ExecutePull;
 
@@ -18,7 +20,7 @@ internal sealed record ExecutePullCommand(Guid DataPullId) : ICommand;
 /// the caller never polls a stuck pull (mirrors the Operations worker). Runs under system context (RLS bypassed).
 /// </summary>
 internal sealed class ExecutePullHandler(
-    MarketingDbContext db,
+    IDbContextOutbox<MarketingDbContext> outbox,
     IGa4Gateway ga4,
     IGscGateway gsc,
     IClock clock,
@@ -27,6 +29,7 @@ internal sealed class ExecutePullHandler(
 {
     public async Task<Unit> Handle(ExecutePullCommand command, CancellationToken ct)
     {
+        var db = outbox.DbContext;
         var pull = await db.DataPulls.FirstOrDefaultAsync(p => p.Id == command.DataPullId, ct);
         if (pull is null)
         {
@@ -66,11 +69,14 @@ internal sealed class ExecutePullHandler(
 
             pull.Status = PullStatus.Completed;
             pull.CompletedAt = clock.UtcNow;
-            await db.SaveChangesAsync(ct);
+
+            // Hand the completed pull to the analysis worker, atomically with the Completed status (outbox).
+            await outbox.PublishAsync(new MarketingDataPulled(pull.Id, pull.UserId, pull.Source.ToString()));
+            await outbox.SaveChangesAndFlushMessagesAsync();
         }
         catch (NotSupportedException ex)
         {
-            logger.LogWarning(ex, "Pull source {Source} not yet supported (pull {DataPullId}).", pull.Source, pull.Id);
+            logger.LogWarning(ex, "Pull source {Source} not supported (pull {DataPullId}).", pull.Source, pull.Id);
             await FailAsync(pull, "marketing.source_not_supported", ct);
         }
         catch (Exception ex)
@@ -97,7 +103,7 @@ internal sealed class ExecutePullHandler(
         pull.Status = PullStatus.Failed;
         pull.ErrorCode = errorCode;
         pull.CompletedAt = clock.UtcNow;
-        await db.SaveChangesAsync(ct);
+        await outbox.DbContext.SaveChangesAsync(ct);
     }
 
     private sealed record PullWindow(DateOnly Start, DateOnly End)

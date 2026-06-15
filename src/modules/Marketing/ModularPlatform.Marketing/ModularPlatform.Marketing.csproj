@@ -16,6 +16,8 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
+    <PackageReference Include="Microsoft.Extensions.AI" />
+    <PackageReference Include="Anthropic.SDK" />
   </ItemGroup>
 
   <ItemGroup>

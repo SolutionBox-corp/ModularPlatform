@@ -48,6 +48,22 @@ public sealed class PullPipelineTests(PlatformApiFactory fixture)
         var totalCount = (await PlatformApiFactory.ReadData(snapshots)).GetProperty("totalCount").GetInt64();
         totalCount.ShouldBeGreaterThan(0);
 
+        // The completed pull triggers the analysis worker (fake AI), which persists a MarketingAnalysis — poll for it.
+        long analysisCount = 0;
+        for (var attempt = 0; attempt < 60 && analysisCount == 0; attempt++)
+        {
+            var analyses = await fixture.Client.SendAsync(
+                fixture.Authed(HttpMethod.Get, "/v1/marketing/analyses", token));
+            analyses.StatusCode.ShouldBe(HttpStatusCode.OK);
+            analysisCount = (await PlatformApiFactory.ReadData(analyses)).GetProperty("totalCount").GetInt64();
+            if (analysisCount == 0)
+            {
+                await Task.Delay(500);
+            }
+        }
+
+        analysisCount.ShouldBeGreaterThan(0);
+
         // RLS owner-scoping: a DIFFERENT user cannot see the pull — it is simply not found.
         var (_, otherToken) = await fixture.RegisterAndLoginAsync($"mkt-other-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
         var foreign = await fixture.Client.SendAsync(

@@ -19,6 +19,11 @@
     <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
   </ItemGroup>
 
+  <ItemGroup Label="AI (Microsoft.Extensions.AI + Anthropic — free)">
+    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.3.0" />
+    <PackageVersion Include="Anthropic.SDK" Version="5.10.0" />
+  </ItemGroup>
+
   <ItemGroup Label="Durable messaging (Wolverine — MIT, free)">
     <PackageVersion Include="WolverineFx" Version="6.5.1" />
     <PackageVersion Include="WolverineFx.Postgresql" Version="6.5.1" />

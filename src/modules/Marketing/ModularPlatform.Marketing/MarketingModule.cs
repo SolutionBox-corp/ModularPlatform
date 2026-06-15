@@ -4,6 +4,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
+using ModularPlatform.Marketing.Features.Analyses.GetAnalysis;
+using ModularPlatform.Marketing.Features.Analyses.ListAnalyses;
 using ModularPlatform.Marketing.Features.Pulls.GetPullStatus;
 using ModularPlatform.Marketing.Features.Pulls.TriggerPull;
 using ModularPlatform.Marketing.Features.Snapshots.ListSnapshots;
@@ -39,6 +41,18 @@ public sealed class MarketingModule : IModule
 
         services.AddScoped<IGa4Gateway, FakeGa4Gateway>();
         services.AddScoped<IGscGateway, FakeGscGateway>();
+
+        // Analysis brain: the deterministic fake when Marketing:UseFakeGateways=true (dev/tests, no API key needed),
+        // otherwise the real Claude-backed gateway bound to Marketing:Claude.
+        if (configuration.GetValue("Marketing:UseFakeGateways", false))
+        {
+            services.AddScoped<IMarketingAiGateway, FakeMarketingAiGateway>();
+        }
+        else
+        {
+            services.Configure<MarketingClaudeOptions>(configuration.GetSection(MarketingClaudeOptions.SectionName));
+            services.AddScoped<IMarketingAiGateway, ClaudeMarketingGateway>();
+        }
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
@@ -46,11 +60,14 @@ public sealed class MarketingModule : IModule
         endpoints.MapTriggerPull();
         endpoints.MapGetPullStatus();
         endpoints.MapListSnapshots();
+        endpoints.MapListAnalyses();
+        endpoints.MapGetAnalysis();
     }
 
     public void ConfigureMessaging(WolverineOptions options)
     {
         options.Discovery.IncludeType<Messaging.RunDataPullHandler>();
+        options.Discovery.IncludeType<Messaging.MarketingDataPulledHandler>();
     }
 
     public async Task ApplyMigrationsAsync(IServiceProvider services, CancellationToken ct)

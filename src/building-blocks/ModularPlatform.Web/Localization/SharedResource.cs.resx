@@ -75,6 +75,7 @@
   <data name="marketing.pull_not_found" xml:space="preserve"><value>Stažení dat nebylo nalezeno.</value></data>
   <data name="marketing.source_not_supported" xml:space="preserve"><value>Tento marketingový zdroj zatím není podporován.</value></data>
   <data name="marketing.pull_failed" xml:space="preserve"><value>Stažení marketingových dat selhalo.</value></data>
+  <data name="marketing.analysis_not_found" xml:space="preserve"><value>Analýza nebyla nalezena.</value></data>
 
   <data name="credit.insufficient_balance" xml:space="preserve"><value>Nedostatečný zůstatek kreditů.</value></data>
   <data name="credit.account_not_found" xml:space="preserve"><value>Kreditní účet nenalezen.</value></data>
