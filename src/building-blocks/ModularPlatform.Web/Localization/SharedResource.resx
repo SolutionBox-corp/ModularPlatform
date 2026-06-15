@@ -70,6 +70,12 @@
   <data name="operation.not_found" xml:space="preserve"><value>Operation not found.</value></data>
   <data name="auth.required" xml:space="preserve"><value>Authentication required.</value></data>
 
+  <data name="marketing.source_unknown" xml:space="preserve"><value>Unknown marketing source.</value></data>
+  <data name="marketing.date_range_invalid" xml:space="preserve"><value>The start date must be on or before the end date.</value></data>
+  <data name="marketing.pull_not_found" xml:space="preserve"><value>Pull not found.</value></data>
+  <data name="marketing.source_not_supported" xml:space="preserve"><value>This marketing source is not supported yet.</value></data>
+  <data name="marketing.pull_failed" xml:space="preserve"><value>The marketing data pull failed.</value></data>
+
   <data name="credit.insufficient_balance" xml:space="preserve"><value>Insufficient credit balance.</value></data>
   <data name="credit.account_not_found" xml:space="preserve"><value>Credit account not found.</value></data>
   <data name="credit.reservation_not_found" xml:space="preserve"><value>Credit reservation not found.</value></data>

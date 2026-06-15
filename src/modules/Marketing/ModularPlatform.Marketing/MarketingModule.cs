@@ -4,6 +4,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
+using ModularPlatform.Marketing.Features.Pulls.GetPullStatus;
+using ModularPlatform.Marketing.Features.Pulls.TriggerPull;
+using ModularPlatform.Marketing.Features.Snapshots.ListSnapshots;
+using ModularPlatform.Marketing.Integrations;
 using ModularPlatform.Marketing.Persistence;
 using ModularPlatform.Messaging;
 using ModularPlatform.Persistence;
@@ -32,16 +36,21 @@ public sealed class MarketingModule : IModule
 
         services.AddModuleDbContext<MarketingDbContext>(Name, write);
         services.AddModuleReadDbContext<MarketingDbContext>(read);
+
+        services.AddScoped<IGa4Gateway, FakeGa4Gateway>();
+        services.AddScoped<IGscGateway, FakeGscGateway>();
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
-        // Endpoints are added in Phase 2 (pulls) and Phase 5 (vibe chat).
+        endpoints.MapTriggerPull();
+        endpoints.MapGetPullStatus();
+        endpoints.MapListSnapshots();
     }
 
     public void ConfigureMessaging(WolverineOptions options)
     {
-        // Wolverine handlers are added in Phase 2/3 (pull + analysis workers).
+        options.Discovery.IncludeType<Messaging.RunDataPullHandler>();
     }
 
     public async Task ApplyMigrationsAsync(IServiceProvider services, CancellationToken ct)
