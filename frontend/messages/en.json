@@ -1,0 +1,47 @@
+{
+  "app": {
+    "name": "ModularPlatform"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "billing": "Billing",
+    "files": "Files",
+    "notifications": "Notifications",
+    "account": "Account",
+    "profile": "Profile",
+    "privacy": "Privacy",
+    "admin": "Administration",
+    "users": "Users",
+    "audit": "Audit",
+    "platformTenants": "Tenants",
+    "platformFleet": "Fleet",
+    "signOut": "Sign out"
+  },
+  "common": {
+    "loading": "Loading…",
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "search": "Search",
+    "empty": "Nothing here yet",
+    "retry": "Retry",
+    "all": "All"
+  },
+  "auth": {
+    "login": "Sign in",
+    "register": "Create account",
+    "email": "Email",
+    "password": "Password",
+    "displayName": "Display name",
+    "acceptTerms": "I accept the Terms and Privacy Policy",
+    "haveAccount": "Already have an account?",
+    "noAccount": "Don't have an account?",
+    "expired": "Your session expired. Please sign in again."
+  },
+  "realtime": {
+    "open": "Live",
+    "connecting": "Connecting…",
+    "closed": "Offline"
+  }
+}

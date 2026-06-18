@@ -1,0 +1,47 @@
+{
+  "app": {
+    "name": "ModularPlatform"
+  },
+  "nav": {
+    "dashboard": "Přehled",
+    "billing": "Fakturace",
+    "files": "Soubory",
+    "notifications": "Oznámení",
+    "account": "Účet",
+    "profile": "Profil",
+    "privacy": "Soukromí",
+    "admin": "Administrace",
+    "users": "Uživatelé",
+    "audit": "Audit",
+    "platformTenants": "Nájemci",
+    "platformFleet": "Flotila",
+    "signOut": "Odhlásit se"
+  },
+  "common": {
+    "loading": "Načítání…",
+    "save": "Uložit",
+    "cancel": "Zrušit",
+    "confirm": "Potvrdit",
+    "delete": "Smazat",
+    "search": "Hledat",
+    "empty": "Zatím tu nic není",
+    "retry": "Zkusit znovu",
+    "all": "Vše"
+  },
+  "auth": {
+    "login": "Přihlásit se",
+    "register": "Vytvořit účet",
+    "email": "E-mail",
+    "password": "Heslo",
+    "displayName": "Zobrazované jméno",
+    "acceptTerms": "Souhlasím s podmínkami a zásadami ochrany soukromí",
+    "haveAccount": "Už máte účet?",
+    "noAccount": "Nemáte účet?",
+    "expired": "Vaše relace vypršela. Přihlaste se znovu."
+  },
+  "realtime": {
+    "open": "Živě",
+    "connecting": "Připojování…",
+    "closed": "Offline"
+  }
+}
