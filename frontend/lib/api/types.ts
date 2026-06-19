@@ -62,6 +62,27 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Duck-typing guard for ApiError that works across the Next.js Server Action
+ * serialization boundary. When a Server Action throws an ApiError, Next.js
+ * serializes it to a plain object on the client — the prototype is lost, so
+ * `instanceof ApiError` returns false. This guard checks `name` + shape instead.
+ * Use this in any client component that catches errors thrown by Server Actions.
+ */
+export function isApiError(err: unknown): err is ApiError {
+  if (err instanceof ApiError) return true;
+  // Plain-object form after server→client serialization
+  if (
+    err !== null &&
+    typeof err === "object" &&
+    (err as Record<string, unknown>)["name"] === "ApiError" &&
+    typeof (err as Record<string, unknown>)["status"] === "number"
+  ) {
+    return true;
+  }
+  return false;
+}
+
 /** Standard paged list shape used by feed/list endpoints. */
 export interface Paged<T> {
   items: T[];

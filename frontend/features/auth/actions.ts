@@ -16,6 +16,34 @@ interface RegisterResponse {
 }
 
 /**
+ * Server Actions LOSE thrown-error properties across the server→client boundary (Next.js
+ * only forwards the message + a digest, and redacts it in prod). So auth actions RETURN a
+ * structured result instead of throwing — the client re-wraps the error to display it.
+ */
+export type AuthResult =
+  | { ok: true }
+  | {
+      ok: false;
+      status: number;
+      errorCode?: string;
+      detail?: string;
+      fieldErrors?: Record<string, string[]>;
+    };
+
+function toResult(err: unknown): Extract<AuthResult, { ok: false }> {
+  if (err instanceof ApiError) {
+    return {
+      ok: false,
+      status: err.status,
+      errorCode: err.errorCode,
+      detail: err.detail,
+      fieldErrors: err.fieldErrors,
+    };
+  }
+  return { ok: false, status: 500, errorCode: "generic.error" };
+}
+
+/**
  * Decode the JWT payload (base64url JSON) without verifying the signature.
  * Verification happens on the backend; here we only extract display fields.
  */
@@ -135,18 +163,23 @@ async function buildSessionUser(
 
 /**
  * Authenticates with email + password. On success, establishes the iron-session
- * (tokens + user) and returns void. On failure, throws an ApiError.
+ * (tokens + user) and returns `{ ok: true }`. On failure, returns a structured error.
  */
-export async function loginAction(email: string, password: string): Promise<void> {
-  const tokens = await fetchTokens("/identity/auth/login", { email, password });
-  const user = await buildSessionUser(tokens.accessToken, email);
+export async function loginAction(email: string, password: string): Promise<AuthResult> {
+  try {
+    const tokens = await fetchTokens("/identity/auth/login", { email, password });
+    const user = await buildSessionUser(tokens.accessToken, email);
 
-  const session = await getSession();
-  session.accessToken = tokens.accessToken;
-  session.refreshToken = tokens.refreshToken;
-  session.accessTokenExpiresAt = Date.parse(tokens.accessTokenExpiresAt);
-  session.user = user;
-  await session.save();
+    const session = await getSession();
+    session.accessToken = tokens.accessToken;
+    session.refreshToken = tokens.refreshToken;
+    session.accessTokenExpiresAt = Date.parse(tokens.accessTokenExpiresAt);
+    session.user = user;
+    await session.save();
+    return { ok: true };
+  } catch (err) {
+    return toResult(err);
+  }
 }
 
 /**
@@ -158,57 +191,57 @@ export async function registerAction(
   password: string,
   displayName?: string,
   inviteToken?: string,
-): Promise<void> {
-  // POST /v1/identity/users → { data: { userId } }
-  const registerRes = await fetch(
-    `${serverConfig.backendUrl}/v1/identity/users`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email, password, displayName, inviteToken }),
-      cache: "no-store",
-    },
-  );
+): Promise<AuthResult> {
+  try {
+    // POST /v1/identity/users → { data: { userId } }
+    const registerRes = await fetch(
+      `${serverConfig.backendUrl}/v1/identity/users`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, password, displayName, inviteToken }),
+        cache: "no-store",
+      },
+    );
 
-  if (!registerRes.ok) {
-    let errorCode: string | undefined;
-    let detail: string | undefined;
-    let fieldErrors: Record<string, string[]> | undefined;
-    try {
-      const json = (await registerRes.json()) as {
-        errorCode?: string;
-        detail?: string;
-        errors?: Record<string, string[]>;
-      };
-      errorCode = json.errorCode;
-      detail = json.detail;
-      fieldErrors = json.errors;
-    } catch {
-      // ignore
+    if (!registerRes.ok) {
+      let errorCode: string | undefined;
+      let detail: string | undefined;
+      let fieldErrors: Record<string, string[]> | undefined;
+      try {
+        const json = (await registerRes.json()) as {
+          errorCode?: string;
+          detail?: string;
+          errors?: Record<string, string[]>;
+        };
+        errorCode = json.errorCode;
+        detail = json.detail;
+        fieldErrors = json.errors;
+      } catch {
+        // ignore
+      }
+      throw new ApiError({ status: registerRes.status, errorCode, detail, fieldErrors });
     }
-    throw new ApiError({
-      status: registerRes.status,
-      errorCode,
-      detail,
-      fieldErrors,
-    });
+
+    const regJson = (await registerRes.json()) as
+      | { data?: RegisterResponse }
+      | RegisterResponse;
+    void regJson; // userId not needed directly — auto-login follows
+
+    // Auto-login after registration.
+    const tokens = await fetchTokens("/identity/auth/login", { email, password });
+    const user = await buildSessionUser(tokens.accessToken, email);
+
+    const session = await getSession();
+    session.accessToken = tokens.accessToken;
+    session.refreshToken = tokens.refreshToken;
+    session.accessTokenExpiresAt = Date.parse(tokens.accessTokenExpiresAt);
+    session.user = user;
+    await session.save();
+    return { ok: true };
+  } catch (err) {
+    return toResult(err);
   }
-
-  const regJson = (await registerRes.json()) as
-    | { data?: RegisterResponse }
-    | RegisterResponse;
-  void regJson; // userId not needed directly — auto-login follows
-
-  // Auto-login after registration.
-  const tokens = await fetchTokens("/identity/auth/login", { email, password });
-  const user = await buildSessionUser(tokens.accessToken, email);
-
-  const session = await getSession();
-  session.accessToken = tokens.accessToken;
-  session.refreshToken = tokens.refreshToken;
-  session.accessTokenExpiresAt = Date.parse(tokens.accessTokenExpiresAt);
-  session.user = user;
-  await session.save();
 }
 
 /**

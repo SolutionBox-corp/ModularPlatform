@@ -20,6 +20,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -96,16 +97,18 @@ export function AppShell({ children, user, navItems }: AppShellProps) {
               </span>
             </DropdownMenuTrigger>
             <DropdownMenuContent side="top" align="start" className="w-52">
-              <DropdownMenuLabel className="font-normal">
-                <div className="flex flex-col gap-0.5">
-                  {user.displayName && (
-                    <span className="text-sm font-medium">{user.displayName}</span>
-                  )}
-                  <span className="text-xs text-muted-foreground truncate">
-                    {user.email}
-                  </span>
-                </div>
-              </DropdownMenuLabel>
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col gap-0.5">
+                    {user.displayName && (
+                      <span className="text-sm font-medium">{user.displayName}</span>
+                    )}
+                    <span className="text-xs text-muted-foreground truncate">
+                      {user.email}
+                    </span>
+                  </div>
+                </DropdownMenuLabel>
+              </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuItem render={<Link href="/account/profile" />}>
                 {t("profile")}

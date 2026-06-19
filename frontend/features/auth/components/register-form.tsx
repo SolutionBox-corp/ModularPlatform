@@ -45,34 +45,34 @@ export function RegisterForm() {
   function onSubmit(values: RegisterFormValues) {
     setServerError(null);
     startTransition(async () => {
-      try {
-        await registerAction(
-          values.email,
-          values.password,
-          values.displayName,
-          values.inviteToken,
-        );
+      const result = await registerAction(
+        values.email,
+        values.password,
+        values.displayName,
+        values.inviteToken,
+      );
+      if (result.ok) {
         toast.success("Account created! Welcome.");
         router.push("/");
         router.refresh();
-      } catch (err) {
-        if (err instanceof ApiError && err.fieldErrors) {
-          const map: Record<string, keyof RegisterFormValues> = {
-            email: "email", password: "password", displayname: "displayName", invitetoken: "inviteToken",
-          };
-          for (const [field, messages] of Object.entries(err.fieldErrors)) {
-            const mapped = map[field.toLowerCase()];
-            if (mapped && messages[0]) setError(mapped, { message: messages[0] });
-          }
-        }
-        if (err instanceof ApiError && err.errorCode === "user.email_taken") {
-          setError("email", {
-            message: toDisplayMessage(err, currentLocale()),
-          });
-          return;
-        }
-        setServerError(err);
+        return;
       }
+      // Re-wrap the structured result as a client-side ApiError to reuse the display logic.
+      const err = new ApiError(result);
+      if (err.fieldErrors) {
+        const map: Record<string, keyof RegisterFormValues> = {
+          email: "email", password: "password", displayname: "displayName", invitetoken: "inviteToken",
+        };
+        for (const [field, messages] of Object.entries(err.fieldErrors)) {
+          const mapped = map[field.toLowerCase()];
+          if (mapped && messages[0]) setError(mapped, { message: messages[0] });
+        }
+      }
+      if (err.errorCode === "user.email_taken") {
+        setError("email", { message: toDisplayMessage(err, currentLocale()) });
+        return;
+      }
+      setServerError(err);
     });
   }
 
@@ -161,14 +161,14 @@ export function RegisterForm() {
             I accept the{" "}
             <Link
               href="/terms"
-              className="text-primary underline-offset-4 hover:underline"
+              className="text-primary underline underline-offset-4"
             >
               Terms
             </Link>{" "}
             and{" "}
             <Link
               href="/privacy"
-              className="text-primary underline-offset-4 hover:underline"
+              className="text-primary underline underline-offset-4"
             >
               Privacy Policy
             </Link>
@@ -189,7 +189,7 @@ export function RegisterForm() {
         Already have an account?{" "}
         <Link
           href="/login"
-          className="text-primary underline-offset-4 hover:underline"
+          className="text-primary underline underline-offset-4"
         >
           Sign in
         </Link>

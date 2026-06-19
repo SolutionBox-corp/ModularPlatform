@@ -44,6 +44,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuGroup,
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
@@ -703,14 +704,15 @@ export function DesignGallery() {
                 <MoreHorizontalIcon className="mr-1" /> Actions
               </DropdownMenuTrigger>
               <DropdownMenuContent>
-                <DropdownMenuLabel>Account</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  <UserIcon /> Profile
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <SettingsIcon /> Settings
-                </DropdownMenuItem>
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Account</DropdownMenuLabel>
+                  <DropdownMenuItem>
+                    <UserIcon /> Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <SettingsIcon /> Settings
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="text-destructive focus:text-destructive">
                   <LogOutIcon /> Sign out

@@ -1,4 +1,4 @@
-import { ApiError } from "@/lib/api/types";
+import { isApiError } from "@/lib/api/types";
 
 /**
  * THE single error→message mapping. One pure function, a static catalog keyed by the
@@ -50,8 +50,8 @@ export function errorCodeToMessage(
 
 /** Resolve a thrown value (ApiError or anything) into a safe display message. */
 export function toDisplayMessage(error: unknown, locale: Locale): string {
-  if (error instanceof ApiError) {
-    if (error.isRateLimited) {
+  if (isApiError(error)) {
+    if (error.status === 429) {
       const base = errorCodeToMessage("rate_limit.exceeded", locale);
       return error.retryAfter ? `${base} (${error.retryAfter}s)` : base;
     }

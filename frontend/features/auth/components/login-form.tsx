@@ -32,33 +32,32 @@ export function LoginForm() {
   function onSubmit(values: LoginFormValues) {
     setServerError(null);
     startTransition(async () => {
-      try {
-        await loginAction(values.email, values.password);
+      const result = await loginAction(values.email, values.password);
+      if (result.ok) {
         toast.success("Welcome back!");
         router.push("/");
         router.refresh();
-      } catch (err) {
-        if (err instanceof ApiError) {
-          if (err.fieldErrors) {
-            for (const [field, messages] of Object.entries(err.fieldErrors)) {
-              const key = field.toLowerCase() as keyof LoginFormValues;
-              if (key === "email" || key === "password") {
-                setError(key, { message: messages[0] });
-              }
-            }
-          }
-          if (
-            err.errorCode === "auth.invalid_credentials" ||
-            err.errorCode === "auth.account_locked"
-          ) {
-            setError("password", {
-              message: toDisplayMessage(err, currentLocale()),
-            });
-            return;
+        return;
+      }
+      // Re-wrap the structured result as a client-side ApiError to reuse the display logic.
+      const err = new ApiError(result);
+      if (err.fieldErrors) {
+        for (const [field, messages] of Object.entries(err.fieldErrors)) {
+          const key = field.toLowerCase() as keyof LoginFormValues;
+          if (key === "email" || key === "password") {
+            setError(key, { message: messages[0] });
           }
         }
-        setServerError(err);
       }
+      if (
+        err.errorCode === "auth.invalid_credentials" ||
+        err.errorCode === "auth.account_locked" ||
+        err.errorCode === "auth.locked_out"
+      ) {
+        setError("password", { message: toDisplayMessage(err, currentLocale()) });
+        return;
+      }
+      setServerError(err);
     });
   }
 
@@ -108,7 +107,7 @@ export function LoginForm() {
         {"Don't have an account?"}{" "}
         <Link
           href="/register"
-          className="text-primary underline-offset-4 hover:underline"
+          className="text-primary underline underline-offset-4"
         >
           Create account
         </Link>
