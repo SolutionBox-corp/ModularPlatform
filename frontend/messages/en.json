@@ -31,39 +31,47 @@
   "auth": {
     "acceptTerms": "I accept the Terms and Privacy Policy",
     "brand": "ModularPlatform",
-    "dev.failed": "Quick login failed for {label}",
-    "dev.heading": "Dev quick login",
-    "dev.signedInAs": "Signed in as {label}",
-    "dev.signingIn": "Signing in…",
+    "dev": {
+      "failed": "Quick login failed for {label}",
+      "heading": "Dev quick login",
+      "signedInAs": "Signed in as {label}",
+      "signingIn": "Signing in…"
+    },
     "displayName": "Display name",
     "displayNameOptional": "(optional)",
     "email": "Email",
     "expired": "Your session expired. Please sign in again.",
     "haveAccount": "Already have an account?",
-    "login": "Sign in",
-    "login.heading": "Sign in",
-    "login.metaTitle": "Sign in — ModularPlatform",
-    "login.submitting": "Signing in…",
-    "login.subtitle": "Enter your email and password to continue.",
-    "login.success": "Welcome back!",
+    "login": {
+      "heading": "Sign in",
+      "metaTitle": "Sign in — ModularPlatform",
+      "submitting": "Signing in…",
+      "subtitle": "Enter your email and password to continue.",
+      "success": "Welcome back!",
+      "label": "Sign in"
+    },
     "noAccount": "Don't have an account?",
     "password": "Password",
     "privacyLink": "Privacy Policy",
-    "register": "Create account",
-    "register.heading": "Create account",
-    "register.metaTitle": "Create account — ModularPlatform",
-    "register.submitting": "Creating account…",
-    "register.subtitle": "Get started with ModularPlatform.",
-    "register.success": "Account created! Welcome.",
+    "register": {
+      "heading": "Create account",
+      "metaTitle": "Create account — ModularPlatform",
+      "submitting": "Creating account…",
+      "subtitle": "Get started with ModularPlatform.",
+      "success": "Account created! Welcome.",
+      "label": "Create account"
+    },
     "termsConjunction": "and",
     "termsLink": "Terms",
     "termsPrefix": "I accept the",
-    "validation.acceptTerms": "You must accept the Terms and Privacy Policy",
-    "validation.emailInvalid": "Enter a valid email",
-    "validation.emailRequired": "Email is required",
-    "validation.passwordMax": "Password too long",
-    "validation.passwordMin": "Password must be at least 8 characters",
-    "validation.passwordRequired": "Password is required"
+    "validation": {
+      "acceptTerms": "You must accept the Terms and Privacy Policy",
+      "emailInvalid": "Enter a valid email",
+      "emailRequired": "Email is required",
+      "passwordMax": "Password too long",
+      "passwordMin": "Password must be at least 8 characters",
+      "passwordRequired": "Password is required"
+    }
   },
   "billing": {
     "balance": {

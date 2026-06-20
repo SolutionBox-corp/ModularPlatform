@@ -73,7 +73,7 @@ test.describe("Locale toggle", () => {
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
 
     // Open the locale dropdown (aria-label="Switch language").
-    await page.getByRole("button", { name: "Switch language" }).click();
+    await page.getByRole("button", { name: /switch language|přepnout jazyk/i }).click();
     // The dropdown renders DropdownMenuItems with "Čeština".
     await page.getByRole("menuitem", { name: "Čeština" }).click();
 
@@ -100,7 +100,7 @@ test.describe("Locale toggle", () => {
     // Verify we are in Czech.
     await expect(page.locator("html")).toHaveAttribute("lang", "cs");
 
-    await page.getByRole("button", { name: "Switch language" }).click();
+    await page.getByRole("button", { name: /switch language|přepnout jazyk/i }).click();
     await page.getByRole("menuitem", { name: "English" }).click();
     await page.waitForURL("/", { timeout: 20_000 });
 

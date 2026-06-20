@@ -32,7 +32,7 @@ test.describe("Privacy page structure", () => {
   test("Privacy page renders consent toggles", async ({ page }) => {
     await page.goto("/account/privacy");
     await expect(page.getByRole("heading", { name: /consent preferences/i })).toBeVisible();
-    await expect(page.getByRole("switch", { name: /marketing emails/i })).toBeVisible();
+    await expect(page.getByRole("switch", { name: /product news & offers/i })).toBeVisible();
     await expect(page.getByRole("switch", { name: /analytics/i })).toBeVisible();
     await expect(page.getByRole("switch", { name: /third-party sharing/i })).toBeVisible();
   });
@@ -149,7 +149,7 @@ test.describe("Consent toggles — fresh user", () => {
     await registerFreshUser(page);
     await page.goto("/account/privacy");
 
-    const marketingSwitch = page.getByRole("switch", { name: /marketing emails/i });
+    const marketingSwitch = page.getByRole("switch", { name: /product news & offers/i });
     await expect(marketingSwitch).toBeVisible();
 
     // The fresh user has no consent history, so the switch starts unchecked.
@@ -163,7 +163,7 @@ test.describe("Consent toggles — fresh user", () => {
 
     // Reload and verify the state is persisted.
     await page.reload();
-    await expect(page.getByRole("switch", { name: /marketing emails/i })).toHaveAttribute(
+    await expect(page.getByRole("switch", { name: /product news & offers/i })).toHaveAttribute(
       "aria-checked",
       "true",
     );

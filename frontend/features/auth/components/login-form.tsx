@@ -105,7 +105,7 @@ export function LoginForm() {
       </div>
 
       <Button type="submit" className="w-full" disabled={isPending}>
-        {isPending ? t("login.submitting") : t("login")}
+        {isPending ? t("login.submitting") : t("login.label")}
       </Button>
 
       <p className="text-center text-sm text-muted-foreground">
@@ -114,7 +114,7 @@ export function LoginForm() {
           href="/register"
           className="text-primary underline underline-offset-4"
         >
-          {t("register")}
+          {t("register.label")}
         </Link>
       </p>
     </form>

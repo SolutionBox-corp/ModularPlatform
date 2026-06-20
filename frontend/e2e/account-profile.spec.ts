@@ -113,14 +113,14 @@ test.describe("Account Profile — /account/profile", () => {
     await expect(nav.getByRole("link", { name: "Dashboard", exact: true })).toBeVisible();
 
     // Switch to Czech.
-    await page.getByRole("button", { name: /switch language/i }).click();
+    await page.getByRole("button", { name: /switch language|přepnout jazyk/i }).click();
     await page.getByRole("menuitem", { name: "Čeština" }).click();
 
     // After the reload, the Dashboard nav label is the Czech "Přehled".
     await expect(nav.getByRole("link", { name: "Přehled", exact: true })).toBeVisible({ timeout: 15_000 });
 
     // Restore English so subsequent specs see a predictable locale.
-    await page.getByRole("button", { name: /switch language/i }).click();
+    await page.getByRole("button", { name: /switch language|přepnout jazyk/i }).click();
     await page.getByRole("menuitem", { name: "English" }).click();
     await expect(nav.getByRole("link", { name: "Dashboard", exact: true })).toBeVisible({ timeout: 15_000 });
   });

@@ -31,39 +31,47 @@
   "auth": {
     "acceptTerms": "Souhlasím s podmínkami a zásadami ochrany osobních údajů",
     "brand": "ModularPlatform",
-    "dev.failed": "Rychlé přihlášení selhalo pro {label}",
-    "dev.heading": "Dev rychlé přihlášení",
-    "dev.signedInAs": "Přihlášen jako {label}",
-    "dev.signingIn": "Přihlašování…",
+    "dev": {
+      "failed": "Rychlé přihlášení selhalo pro {label}",
+      "heading": "Dev rychlé přihlášení",
+      "signedInAs": "Přihlášen jako {label}",
+      "signingIn": "Přihlašování…"
+    },
     "displayName": "Zobrazované jméno",
     "displayNameOptional": "(nepovinné)",
     "email": "E-mail",
     "expired": "Vaše relace vypršela. Přihlaste se prosím znovu.",
     "haveAccount": "Už máte účet?",
-    "login": "Přihlásit se",
-    "login.heading": "Přihlásit se",
-    "login.metaTitle": "Přihlášení — ModularPlatform",
-    "login.submitting": "Přihlašování…",
-    "login.subtitle": "Pokračujte zadáním e-mailu a hesla.",
-    "login.success": "Vítejte zpět!",
+    "login": {
+      "heading": "Přihlásit se",
+      "metaTitle": "Přihlášení — ModularPlatform",
+      "submitting": "Přihlašování…",
+      "subtitle": "Pokračujte zadáním e-mailu a hesla.",
+      "success": "Vítejte zpět!",
+      "label": "Přihlásit se"
+    },
     "noAccount": "Nemáte účet?",
     "password": "Heslo",
     "privacyLink": "zásadami ochrany osobních údajů",
-    "register": "Vytvořit účet",
-    "register.heading": "Vytvořit účet",
-    "register.metaTitle": "Vytvořit účet — ModularPlatform",
-    "register.submitting": "Vytváření účtu…",
-    "register.subtitle": "Začněte s platformou ModularPlatform.",
-    "register.success": "Účet byl vytvořen! Vítejte.",
+    "register": {
+      "heading": "Vytvořit účet",
+      "metaTitle": "Vytvořit účet — ModularPlatform",
+      "submitting": "Vytváření účtu…",
+      "subtitle": "Začněte s platformou ModularPlatform.",
+      "success": "Účet byl vytvořen! Vítejte.",
+      "label": "Vytvořit účet"
+    },
     "termsConjunction": "a",
     "termsLink": "podmínkami",
     "termsPrefix": "Souhlasím s",
-    "validation.acceptTerms": "Musíte souhlasit s podmínkami a zásadami ochrany osobních údajů",
-    "validation.emailInvalid": "Zadejte platný e-mail",
-    "validation.emailRequired": "E-mail je povinný",
-    "validation.passwordMax": "Heslo je příliš dlouhé",
-    "validation.passwordMin": "Heslo musí mít alespoň 8 znaků",
-    "validation.passwordRequired": "Heslo je povinné"
+    "validation": {
+      "acceptTerms": "Musíte souhlasit s podmínkami a zásadami ochrany osobních údajů",
+      "emailInvalid": "Zadejte platný e-mail",
+      "emailRequired": "E-mail je povinný",
+      "passwordMax": "Heslo je příliš dlouhé",
+      "passwordMin": "Heslo musí mít alespoň 8 znaků",
+      "passwordRequired": "Heslo je povinné"
+    }
   },
   "billing": {
     "balance": {
