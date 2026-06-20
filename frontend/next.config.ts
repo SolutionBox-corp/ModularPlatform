@@ -3,9 +3,16 @@ import createNextIntlPlugin from "next-intl/plugin";
 
 const withNextIntl = createNextIntlPlugin("./lib/i18n/request.ts");
 
+const isProd = process.env.NODE_ENV === "production";
+
 // Static sibling security headers (the per-request CSP nonce is set in proxy.ts).
+// HSTS is PRODUCTION-ONLY: on the HTTP dev server it would force the browser to upgrade
+// localhost to https (which the dev server can't serve) — and the browser caches that for
+// up to 2 years. Never send it in dev.
 const securityHeaders = [
-  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+  ...(isProd
+    ? [{ key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" }]
+    : []),
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "X-Frame-Options", value: "DENY" },

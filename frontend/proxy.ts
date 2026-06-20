@@ -83,9 +83,13 @@ function buildCsp(nonce: string, isDev: boolean): string {
     `base-uri 'self'`,
     `form-action 'self'`,
     `frame-ancestors 'none'`,
-    `upgrade-insecure-requests`,
   ];
-  if (!isDev) directives.push(`require-trusted-types-for 'script'`);
+  // HTTPS-forcing directives MUST NOT run on the HTTP dev server (they'd upgrade _next/static
+  // asset requests to https and break CSS/JS loading). Production only.
+  if (!isDev) {
+    directives.push(`upgrade-insecure-requests`);
+    directives.push(`require-trusted-types-for 'script'`);
+  }
   return directives.join("; ");
 }
 

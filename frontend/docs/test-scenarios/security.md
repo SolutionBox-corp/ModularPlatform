@@ -69,15 +69,16 @@ cookie is `mp_csrf` (the double-submit CSRF token). All `/v1` traffic is proxied
 
 ---
 
-## SEC-07 — Response headers include HSTS
+## SEC-07 — HSTS is production-only (omitted on the HTTP dev server)
 
-- **Given** a GET request to any HTML page
+- **Given** a GET request to any HTML page on the HTTP dev server
 - **When** response headers are inspected
-- **Then** `Strict-Transport-Security` is present and contains `max-age=` and `includeSubDomains`
-- Priority: P1 · Type: security · Automated: yes (e2e: `document response includes Strict-Transport-Security`)
-- Note: HSTS is only meaningful over TLS. The header is set unconditionally in `next.config.ts`
-  and will be present in dev (http) too, which is what the E2E suite tests. A production TLS
-  check is a manual/infrastructure concern.
+- **Then** `Strict-Transport-Security` is **absent** (it is sent ONLY in production)
+- Priority: P1 · Type: security · Automated: yes (e2e: `Strict-Transport-Security is production-only…`)
+- Note: HSTS on HTTP `localhost` would force the browser to upgrade to https — which the dev
+  server can't serve — and the browser caches that for up to 2 years, breaking local access.
+  So `next.config.ts` gates HSTS to `NODE_ENV === "production"`. Verifying the header IS present
+  in a real production TLS deployment is a manual/infrastructure check.
 
 ---
 
