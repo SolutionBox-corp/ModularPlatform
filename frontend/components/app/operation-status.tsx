@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { CheckCircle2Icon, XCircleIcon, LoaderCircleIcon } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,7 @@ export function OperationStatus({
   onDone,
   className,
 }: OperationStatusProps) {
+  const t = useTranslations("shell");
   const { data } = useQuery({
     ...operationQueries.status(operationId),
     refetchInterval: (query) => {
@@ -40,6 +42,15 @@ export function OperationStatus({
 
   const status = data?.status ?? "Pending";
   const terminal = isTerminal(status);
+  // Localized display label for the API status enum; unknown values fall back to the raw status.
+  const STATUS_KEYS: Record<string, string> = {
+    Pending: "operationStatus.status.pending",
+    Running: "operationStatus.status.running",
+    Completed: "operationStatus.status.completed",
+    Failed: "operationStatus.status.failed",
+    Cancelled: "operationStatus.status.cancelled",
+  };
+  const statusLabel = STATUS_KEYS[status] ? t(STATUS_KEYS[status]) : status;
 
   return (
     <div className={cn("flex flex-col gap-2", className)} aria-live="polite">
@@ -64,7 +75,7 @@ export function OperationStatus({
             !terminal && "text-muted-foreground",
           )}
         >
-          {status}
+          {statusLabel}
         </span>
       </div>
 
@@ -72,8 +83,8 @@ export function OperationStatus({
         <Progress
           value={null}
           className="h-1 animate-pulse"
-          aria-label="Operation in progress"
-          aria-valuetext="In progress"
+          aria-label={t("operationStatus.inProgress")}
+          aria-valuetext={t("operationStatus.inProgress")}
         />
       )}
 

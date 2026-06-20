@@ -19,8 +19,16 @@ import "vanilla-cookieconsent/dist/cookieconsent.css";
  * Mounted once inside <Providers> (client boundary). The banner is shown on first visit and
  * hidden permanently after consent is recorded in the cc_cookie cookie.
  */
+/** Reads the NEXT_LOCALE cookie ("cs" → Czech, anything else → English). */
+function readLocale(): "en" | "cs" {
+  if (typeof document === "undefined") return "en";
+  const match = document.cookie.match(/(?:^|;\s*)NEXT_LOCALE=(\w+)/);
+  return match?.[1] === "cs" ? "cs" : "en";
+}
+
 export function CookieConsentBanner() {
   useEffect(() => {
+    const locale = readLocale();
     void CookieConsent.run({
       categories: {
         necessary: {
@@ -38,7 +46,10 @@ export function CookieConsentBanner() {
       },
 
       language: {
-        default: "en",
+        // Cookie-consent strings are managed by the vanilla-cookieconsent library's own
+        // translation map (it renders outside the React/next-intl tree). We provide both
+        // English and Czech here and pick the active language from the NEXT_LOCALE cookie.
+        default: locale,
         translations: {
           en: {
             consentModal: {
@@ -78,6 +89,48 @@ export function CookieConsentBanner() {
                   title: "More information",
                   description:
                     "For questions about our cookie use, see our <a href='/privacy' class='cc-link'>Privacy Policy</a>.",
+                },
+              ],
+            },
+          },
+          cs: {
+            consentModal: {
+              title: "Používáme cookies",
+              description:
+                "Používáme nezbytně nutné cookies, abyste zůstali přihlášeni. S vaším souhlasem nastavujeme také analytické a marketingové cookies. Podrobnosti najdete v našich <a href='/privacy' class='cc-link'>zásadách ochrany osobních údajů</a>.",
+              acceptAllBtn: "Přijmout vše",
+              acceptNecessaryBtn: "Jen nezbytné",
+              showPreferencesBtn: "Spravovat předvolby",
+            },
+            preferencesModal: {
+              title: "Předvolby cookies",
+              acceptAllBtn: "Přijmout vše",
+              acceptNecessaryBtn: "Jen nezbytné",
+              savePreferencesBtn: "Uložit předvolby",
+              closeIconLabel: "Zavřít",
+              sections: [
+                {
+                  title: "Nezbytně nutné cookies",
+                  description:
+                    "Tyto cookies jsou nutné pro fungování platformy a nelze je vypnout. Patří mezi ně session cookie, která vás udržuje přihlášené.",
+                  linkedCategory: "necessary",
+                },
+                {
+                  title: "Analytické cookies",
+                  description:
+                    "Tyto cookies nám pomáhají porozumět tomu, jak platformu používáte, abychom ji mohli vylepšovat. Žádné osobní údaje nesdílíme s třetími stranami.",
+                  linkedCategory: "analytics",
+                },
+                {
+                  title: "Marketingové cookies",
+                  description:
+                    "Tyto cookies zaznamenávají vaše předvolby souhlasu a pomáhají nám měřit dosah naší komunikace.",
+                  linkedCategory: "marketing",
+                },
+                {
+                  title: "Více informací",
+                  description:
+                    "S dotazy ohledně používání cookies se obraťte na naše <a href='/privacy' class='cc-link'>zásady ochrany osobních údajů</a>.",
                 },
               ],
             },

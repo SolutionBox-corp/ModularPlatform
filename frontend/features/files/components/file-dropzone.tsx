@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { UploadCloudIcon } from "lucide-react";
@@ -11,13 +12,15 @@ import {
   FILE_MAX_SIZE_BYTES,
   FILE_ALLOWED_CONTENT_TYPES,
   FILE_ALLOWED_EXTENSIONS_LABEL,
-  validateFile,
+  useValidateFile,
 } from "@/features/files/schema";
 import { queryRoots } from "@/lib/api/query-keys";
 
 const ACCEPTED_ATTR = [...FILE_ALLOWED_CONTENT_TYPES].join(",");
 
 export function FileDropzone() {
+  const t = useTranslations("files");
+  const validateFile = useValidateFile();
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -44,7 +47,7 @@ export function FileDropzone() {
       try {
         await uploadFile(file);
         setProgress(100);
-        toast.success(`"${file.name}" uploaded successfully.`);
+        toast.success(t("dropzone.uploadSuccess", { name: file.name }));
         // Invalidate all pages of the files list.
         await queryClient.invalidateQueries({ queryKey: [...queryRoots.files, "list"] });
       } finally {
@@ -55,7 +58,7 @@ export function FileDropzone() {
         }, 600);
       }
     },
-    [queryClient],
+    [queryClient, t, validateFile],
   );
 
   const onFileSelected = useCallback(
@@ -91,7 +94,7 @@ export function FileDropzone() {
     <div
       role="button"
       tabIndex={0}
-      aria-label="Upload a file — drag and drop or click to browse"
+      aria-label={t("dropzone.ariaLabel")}
       aria-disabled={isUploading}
       onDrop={isUploading ? undefined : onDrop}
       onDragOver={isUploading ? undefined : onDragOver}
@@ -128,16 +131,19 @@ export function FileDropzone() {
 
       <div className="space-y-1">
         <p className="text-sm font-medium">
-          {isUploading ? "Uploading…" : "Drag & drop a file here, or click to browse"}
+          {isUploading ? t("dropzone.uploading") : t("dropzone.prompt")}
         </p>
         <p className="text-xs text-muted-foreground">
-          {FILE_ALLOWED_EXTENSIONS_LABEL} &mdash; up to {FILE_MAX_SIZE_BYTES / (1024 * 1024)} MB
+          {t("dropzone.hint", {
+            types: FILE_ALLOWED_EXTENSIONS_LABEL,
+            maxMb: FILE_MAX_SIZE_BYTES / (1024 * 1024),
+          })}
         </p>
       </div>
 
       {isUploading && (
         <div className="w-full max-w-xs">
-          <Progress value={progress} aria-label="Upload progress" />
+          <Progress value={progress} aria-label={t("dropzone.progressLabel")} />
         </div>
       )}
     </div>

@@ -18,5 +18,7 @@ internal sealed class RegisterUserValidator : AbstractValidator<RegisterUserComm
 
         RuleFor(x => x.DisplayName)
             .MaximumLength(128).WithErrorCode("user.display_name.too_long");
+
+        RuleFor(x => x.AcceptedTermsVersion).MaximumLength(32);
     }
 }

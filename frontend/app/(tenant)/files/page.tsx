@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
 import { getQueryClient } from "@/lib/api/query-client";
 import { fileQueries } from "@/features/files/api";
@@ -7,11 +8,13 @@ import { entitlementQueries, isModuleEnabled } from "@/features/entitlements/api
 import { FileDropzone } from "@/features/files/components/file-dropzone";
 import { FileTable } from "@/features/files/components/file-table";
 
-export const metadata: Metadata = {
-  title: "Files — ModularPlatform",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("files");
+  return { title: t("metaTitle") };
+}
 
 export default async function FilesPage() {
+  const t = await getTranslations("files");
   const queryClient = getQueryClient();
 
   // Guard: the layout already awaited this query; fetchQuery reuses the cached result.
@@ -25,16 +28,16 @@ export default async function FilesPage() {
     <HydrationBoundary state={dehydrate(queryClient)}>
       <div className="space-y-6">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Files</h1>
+          <h1 className="text-xl font-semibold tracking-tight">{t("page.heading")}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Upload and manage your files. Each file is private to your account.
+            {t("page.description")}
           </p>
         </div>
 
         <FileDropzone />
 
         <div className="space-y-2">
-          <h2 className="text-sm font-medium text-muted-foreground">Your files</h2>
+          <h2 className="text-sm font-medium text-muted-foreground">{t("page.yourFiles")}</h2>
           <FileTable />
         </div>
       </div>

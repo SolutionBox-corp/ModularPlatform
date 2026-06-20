@@ -1,6 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api/client";
 import { queryRoots } from "@/lib/api/query-keys";
+import { PRIVACY_VERSION } from "@/lib/legal-versions";
 
 // ---------------------------------------------------------------------------
 // Types matching the backend DTOs (camelCase)
@@ -13,6 +14,8 @@ export interface ConsentResponse {
   consentType: string;
   granted: boolean;
   recordedAt: string;
+  /** Version of the privacy policy in force when this entry was recorded (may be null for legacy rows). */
+  policyVersion: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -34,18 +37,24 @@ export const privacyQueries = {
 // ---------------------------------------------------------------------------
 
 /** POST /v1/gdpr/consents/grant */
-export async function grantConsent(consentType: string): Promise<{ consentRecordId: string }> {
+export async function grantConsent(
+  consentType: string,
+  policyVersion: string = PRIVACY_VERSION,
+): Promise<{ consentRecordId: string }> {
   return apiFetch<{ consentRecordId: string }>("gdpr/consents/grant", {
     method: "POST",
-    body: { consentType },
+    body: { consentType, policyVersion },
   });
 }
 
 /** POST /v1/gdpr/consents/withdraw */
-export async function withdrawConsent(consentType: string): Promise<{ consentRecordId: string }> {
+export async function withdrawConsent(
+  consentType: string,
+  policyVersion: string = PRIVACY_VERSION,
+): Promise<{ consentRecordId: string }> {
   return apiFetch<{ consentRecordId: string }>("gdpr/consents/withdraw", {
     method: "POST",
-    body: { consentType },
+    body: { consentType, policyVersion },
   });
 }
 

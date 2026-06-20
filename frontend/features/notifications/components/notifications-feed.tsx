@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { BellIcon, CheckIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,7 @@ const PAGE_SIZE = 20;
  * - Stays live via the RealtimeProvider (event-map invalidates notifications root).
  */
 export function NotificationsFeed() {
+  const t = useTranslations("notifications");
   const locale = useLocale();
   const [page, setPage] = useState(1);
   const { data, isLoading } = useQuery(
@@ -49,8 +50,8 @@ export function NotificationsFeed() {
       ) : !data || data.items.length === 0 ? (
         <EmptyState
           icon={BellIcon}
-          title="No notifications"
-          description="You're all caught up — no notifications yet."
+          title={t("empty.title")}
+          description={t("empty.feedDescription")}
         />
       ) : (
         <>
@@ -84,7 +85,7 @@ export function NotificationsFeed() {
                     </p>
                     {!n.readAt && (
                       <Badge variant="default" className="shrink-0">
-                        New
+                        {t("badge.new")}
                       </Badge>
                     )}
                   </div>
@@ -106,7 +107,7 @@ export function NotificationsFeed() {
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
-                    aria-label={`Mark "${n.title}" as read`}
+                    aria-label={t("markRead.ariaLabel", { title: n.title })}
                     disabled={markRead.isPending}
                     onClick={() => markRead.mutate(n.id)}
                   >

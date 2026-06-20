@@ -8,6 +8,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { getQueryClient } from "@/lib/api/query-client";
 import { CookieConsentBanner } from "@/components/app/cookie-consent";
+import { ClientErrorReporter } from "@/components/app/client-error-reporter";
 
 /**
  * Global client providers wrapped around the whole app: one QueryClient (the single
@@ -24,6 +25,7 @@ export function Providers({ children, nonce }: { children: ReactNode; nonce?: st
         <TooltipProvider>{children}</TooltipProvider>
         <Toaster richColors closeButton position="top-right" />
         <CookieConsentBanner />
+        <ClientErrorReporter />
       </ThemeProvider>
       {process.env.NODE_ENV === "development" && <ReactQueryDevtools initialIsOpen={false} />}
     </QueryClientProvider>

@@ -11,12 +11,13 @@ import { cn } from "@/lib/utils";
 export function RealtimeIndicator() {
   const status = useRealtimeStatus();
   const t = useTranslations("realtime");
+  const tShell = useTranslations("shell");
 
   return (
     <span
       className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
       aria-live="polite"
-      aria-label={`Realtime: ${t(status)}`}
+      aria-label={tShell("realtimeIndicator.label", { status: t(status) })}
     >
       <span
         aria-hidden="true"

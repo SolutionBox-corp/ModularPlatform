@@ -13,7 +13,7 @@ namespace ModularPlatform.Billing.Features.Credits.ReserveCredits;
 /// no raw SQL, no <c>FOR UPDATE</c>. The hold + ledger entry are written in the same transaction so the
 /// reserved amount always has a matching hold. <c>available</c>/<c>pending</c> are authoritative stored columns.
 /// </summary>
-internal sealed class ReserveCreditsHandler(BillingDbContext db, IClock clock)
+internal sealed class ReserveCreditsHandler(BillingDbContext db, IRealtimePublisher realtime, IClock clock)
     : ICommandHandler<ReserveCreditsCommand, ReserveCreditsResponse>
 {
     private const int DefaultHoldMinutes = 15;
@@ -76,6 +76,13 @@ internal sealed class ReserveCreditsHandler(BillingDbContext db, IClock clock)
         await tx.CommitAsync(ct);
 
         var available = await db.CreditAccounts.Where(a => a.Id == accountId).Select(a => a.Available).FirstAsync(ct);
+
+        // Post-commit realtime nudge so the FE refreshes the balance live (no polling). Non-transactional, so it
+        // MUST fire AFTER tx.CommitAsync — a rolled-back reservation must not emit a phantom event. The FE only
+        // uses the event TYPE to invalidate its credit query.
+        await realtime.PublishToUserAsync(
+            command.UserId, "billing.credits_changed", new { available }, ct);
+
         return new ReserveCreditsResponse(hold.Id, available);
     }
 }

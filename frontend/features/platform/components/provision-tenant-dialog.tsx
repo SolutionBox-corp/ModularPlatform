@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { PlusIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useProvisionTenant } from "@/features/platform/hooks";
 import {
-  provisionTenantSchema,
+  buildProvisionTenantSchema,
   type ProvisionTenantFormValues,
 } from "@/features/platform/schema";
 
@@ -29,6 +30,7 @@ interface ProvisionTenantDialogProps {
 export function ProvisionTenantDialog({
   onProvisioned,
 }: ProvisionTenantDialogProps) {
+  const t = useTranslations("platform");
   const [open, setOpen] = useState(false);
   const mutation = useProvisionTenant();
 
@@ -39,7 +41,7 @@ export function ProvisionTenantDialog({
     setError,
     formState: { errors, isSubmitting },
   } = useForm<ProvisionTenantFormValues>({
-    resolver: zodResolver(provisionTenantSchema),
+    resolver: zodResolver(buildProvisionTenantSchema(t)),
     defaultValues: { name: "", subdomain: "" },
   });
 
@@ -73,26 +75,25 @@ export function ProvisionTenantDialog({
         render={
           <Button size="sm">
             <PlusIcon className="h-3.5 w-3.5 mr-1.5" />
-            Provision tenant
+            {t("provisionDialog.trigger")}
           </Button>
         }
       />
       <DialogContent>
         <form onSubmit={onSubmit} noValidate>
           <DialogHeader>
-            <DialogTitle>Provision new tenant</DialogTitle>
+            <DialogTitle>{t("provisionDialog.title")}</DialogTitle>
             <DialogDescription>
-              Creates a new workspace with the default module entitlements
-              (billing, notifications, files, operations, gdpr).
+              {t("provisionDialog.description")}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
             <div className="space-y-1.5">
-              <Label htmlFor="pt-name">Organisation name</Label>
+              <Label htmlFor="pt-name">{t("provisionDialog.nameLabel")}</Label>
               <Input
                 id="pt-name"
-                placeholder="Acme Corp"
+                placeholder={t("provisionDialog.namePlaceholder")}
                 autoComplete="off"
                 aria-invalid={!!errors.name}
                 aria-describedby={errors.name ? "pt-name-error" : undefined}
@@ -104,11 +105,13 @@ export function ProvisionTenantDialog({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="pt-subdomain">Subdomain</Label>
+              <Label htmlFor="pt-subdomain">
+                {t("provisionDialog.subdomainLabel")}
+              </Label>
               <div className="flex items-center gap-1.5">
                 <Input
                   id="pt-subdomain"
-                  placeholder="acme"
+                  placeholder={t("provisionDialog.subdomainPlaceholder")}
                   autoComplete="off"
                   aria-invalid={!!errors.subdomain}
                   aria-describedby={errors.subdomain ? "pt-subdomain-error" : undefined}
@@ -128,7 +131,9 @@ export function ProvisionTenantDialog({
 
           <DialogFooter>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Provisioning…" : "Provision"}
+              {isSubmitting
+                ? t("provisionDialog.submitting")
+                : t("provisionDialog.submit")}
             </Button>
           </DialogFooter>
         </form>

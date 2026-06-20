@@ -1,21 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSetEntitlement } from "@/features/platform/hooks";
 import type { PlatformBillingModuleView } from "@/features/platform/api";
 
-/** Known product modules in display order. Keys must match backend RequireModule keys. */
-const MODULE_LABELS: Record<string, string> = {
-  billing: "Billing",
-  notifications: "Notifications",
-  files: "Files",
-  operations: "Operations",
-  gdpr: "GDPR / Privacy",
-  marketing: "Marketing",
-};
+/** Known product module keys in display order. Keys must match backend RequireModule keys. */
+const KNOWN_MODULE_KEYS = [
+  "billing",
+  "notifications",
+  "files",
+  "operations",
+  "gdpr",
+  "marketing",
+] as const;
 
 /**
  * Default-entitled modules seeded on every fresh tenant (mirrors TenantProvisioning.DefaultEntitledModules).
@@ -57,7 +58,13 @@ export function EntitlementToggles({
   isLoading = false,
   fallbackToDefaults = false,
 }: EntitlementTogglesProps) {
+  const t = useTranslations("platform");
   const mutation = useSetEntitlement();
+
+  const moduleLabel = (key: string): string =>
+    (KNOWN_MODULE_KEYS as readonly string[]).includes(key)
+      ? t(`entitlements.modules.${key}`)
+      : key;
 
   // Build initial state from props or fallback defaults.
   const initialModules: ModuleToggleState[] =
@@ -84,7 +91,7 @@ export function EntitlementToggles({
   if (localState.length === 0) {
     return (
       <p className="text-sm text-muted-foreground py-4">
-        No entitlement data available.
+        {t("entitlements.empty")}
       </p>
     );
   }
@@ -106,7 +113,7 @@ export function EntitlementToggles({
   return (
     <ul className="space-y-1" role="list">
       {localState.map((mod) => {
-        const label = MODULE_LABELS[mod.key] ?? mod.key;
+        const label = moduleLabel(mod.key);
         const isPending =
           mutation.isPending && mutation.variables?.moduleKey === mod.key;
 
@@ -127,7 +134,11 @@ export function EntitlementToggles({
             <Switch
               checked={mod.enabled}
               disabled={isPending}
-              aria-label={`${mod.enabled ? "Disable" : "Enable"} ${label}`}
+              aria-label={
+                mod.enabled
+                  ? t("entitlements.disableLabel", { module: label })
+                  : t("entitlements.enableLabel", { module: label })
+              }
               onCheckedChange={(checked) => {
                 handleToggle(mod.key, checked, mod.tier);
               }}

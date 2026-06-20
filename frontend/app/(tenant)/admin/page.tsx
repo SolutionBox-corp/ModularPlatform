@@ -1,13 +1,17 @@
 import { redirect } from "next/navigation";
 import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { getQueryClient } from "@/lib/api/query-client";
 import { getSession, isAuthenticated } from "@/lib/auth/session";
 import { IdentityAdminPanel } from "@/features/identity-admin/components/identity-admin-panel";
 
-export const metadata: Metadata = {
-  title: "Identity Admin — ModularPlatform",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("identityAdmin");
+  return {
+    title: t("metadata.title"),
+  };
+}
 
 /**
  * Permission-gated Identity admin page.
@@ -26,6 +30,7 @@ export const metadata: Metadata = {
  */
 export default async function IdentityAdminPage() {
   const session = await getSession();
+  const t = await getTranslations("identityAdmin");
 
   // The layout guards auth; this is a defence-in-depth check.
   if (!isAuthenticated(session)) {
@@ -50,10 +55,10 @@ export default async function IdentityAdminPage() {
       <div className="space-y-6 max-w-3xl">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">
-            Identity admin
+            {t("page.heading")}
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Manage user roles and inspect the Identity audit trail.
+            {t("page.description")}
           </p>
         </div>
 

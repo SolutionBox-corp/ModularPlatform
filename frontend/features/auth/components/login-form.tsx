@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import Link from "next/link";
-import { loginSchema, type LoginFormValues } from "@/features/auth/schema";
+import { buildLoginSchema, type LoginFormValues } from "@/features/auth/schema";
 import { loginAction } from "@/features/auth/actions";
 import { ApiError } from "@/lib/api/types";
 import { toDisplayMessage, currentLocale } from "@/lib/errors/error-map";
@@ -17,8 +18,11 @@ import { Label } from "@/components/ui/label";
 
 export function LoginForm() {
   const router = useRouter();
+  const t = useTranslations("auth");
   const [isPending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<unknown>(null);
+
+  const loginSchema = useMemo(() => buildLoginSchema(t), [t]);
 
   const {
     register,
@@ -34,7 +38,7 @@ export function LoginForm() {
     startTransition(async () => {
       const result = await loginAction(values.email, values.password);
       if (result.ok) {
-        toast.success("Welcome back!");
+        toast.success(t("login.success"));
         router.push("/");
         router.refresh();
         return;
@@ -66,7 +70,7 @@ export function LoginForm() {
       {serverError !== null && <ProblemDetails error={serverError} />}
 
       <div className="space-y-1.5">
-        <Label htmlFor="email">Email</Label>
+        <Label htmlFor="email">{t("email")}</Label>
         <Input
           id="email"
           type="email"
@@ -84,7 +88,7 @@ export function LoginForm() {
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="password">Password</Label>
+        <Label htmlFor="password">{t("password")}</Label>
         <Input
           id="password"
           type="password"
@@ -101,16 +105,16 @@ export function LoginForm() {
       </div>
 
       <Button type="submit" className="w-full" disabled={isPending}>
-        {isPending ? "Signing in…" : "Sign in"}
+        {isPending ? t("login.submitting") : t("login")}
       </Button>
 
       <p className="text-center text-sm text-muted-foreground">
-        {"Don't have an account?"}{" "}
+        {t("noAccount")}{" "}
         <Link
           href="/register"
           className="text-primary underline underline-offset-4"
         >
-          Create account
+          {t("register")}
         </Link>
       </p>
     </form>

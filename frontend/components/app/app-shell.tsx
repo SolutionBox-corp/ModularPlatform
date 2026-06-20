@@ -53,13 +53,14 @@ function userInitials(user: SessionUser): string {
 
 export function AppShell({ children, user, navItems }: AppShellProps) {
   const t = useTranslations("nav");
+  const tShell = useTranslations("shell");
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   function handleLogout() {
     startTransition(async () => {
       await logoutAction();
-      toast.success("Signed out.");
+      toast.success(tShell("appShell.signedOut"));
       router.push("/login");
       router.refresh();
     });
@@ -72,7 +73,7 @@ export function AppShell({ children, user, navItems }: AppShellProps) {
         href="#main-content"
         className="sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:left-4 focus-visible:top-4 focus-visible:z-50 focus-visible:rounded-md focus-visible:bg-background focus-visible:px-4 focus-visible:py-2 focus-visible:text-sm focus-visible:font-medium focus-visible:ring-2 focus-visible:ring-ring"
       >
-        Skip to content
+        {tShell("appShell.skipToContent")}
       </a>
 
       {/* Left sidebar */}
@@ -95,7 +96,7 @@ export function AppShell({ children, user, navItems }: AppShellProps) {
           <DropdownMenu>
             <DropdownMenuTrigger
               className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label="User menu"
+              aria-label={tShell("appShell.userMenu")}
             >
               <Avatar className="h-6 w-6 text-xs">
                 <AvatarFallback>{userInitials(user)}</AvatarFallback>
@@ -130,7 +131,7 @@ export function AppShell({ children, user, navItems }: AppShellProps) {
                 disabled={isPending}
                 className="text-destructive focus:text-destructive"
               >
-                {isPending ? "Signing out…" : t("signOut")}
+                {isPending ? tShell("appShell.signingOut") : t("signOut")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

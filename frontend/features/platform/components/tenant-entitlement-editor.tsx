@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { SearchIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import {
   Card,
   CardContent,
@@ -30,6 +31,7 @@ import { CreateInviteDialog } from "./create-invite-dialog";
  * with a `useQuery` that fetches the live entitlement snapshot.
  */
 export function TenantEntitlementEditor() {
+  const t = useTranslations("platform");
   const [inputId, setInputId] = useState("");
   const [activeTenantId, setActiveTenantId] = useState<string | null>(null);
 
@@ -43,15 +45,13 @@ export function TenantEntitlementEditor() {
     <Card>
       <CardHeader>
         <CardTitle className="text-sm font-medium">
-          Tenant entitlement editor
+          {t("entitlementEditor.heading")}
         </CardTitle>
         <CardDescription className="text-xs">
-          Enter a tenant UUID to toggle its module entitlements.
+          {t("entitlementEditor.description")}
           <br />
           <span className="text-muted-foreground/70">
-            No list-tenants or get-by-id endpoint exists yet — use the ID from
-            the provision response. Switch state reflects your actions in this
-            session, not the persisted value.
+            {t("entitlementEditor.note")}
           </span>
         </CardDescription>
       </CardHeader>
@@ -59,7 +59,9 @@ export function TenantEntitlementEditor() {
       <CardContent className="space-y-4">
         <div className="flex items-end gap-2">
           <div className="flex-1 space-y-1.5">
-            <Label htmlFor="tenant-id-input">Tenant ID (UUID)</Label>
+            <Label htmlFor="tenant-id-input">
+              {t("entitlementEditor.idLabel")}
+            </Label>
             <Input
               id="tenant-id-input"
               value={inputId}
@@ -67,7 +69,7 @@ export function TenantEntitlementEditor() {
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleLookup();
               }}
-              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+              placeholder={t("entitlementEditor.inputHint")}
               className="font-mono text-xs"
               autoComplete="off"
             />
@@ -79,7 +81,7 @@ export function TenantEntitlementEditor() {
             disabled={!inputId.trim()}
           >
             <SearchIcon className="h-3.5 w-3.5 mr-1.5" />
-            Open
+            {t("entitlementEditor.open")}
           </Button>
         </div>
 
@@ -90,7 +92,7 @@ export function TenantEntitlementEditor() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-0.5">
-                  Tenant ID
+                  {t("entitlementEditor.tenantIdLabel")}
                 </p>
                 <p className="text-xs font-mono text-foreground break-all">
                   {activeTenantId}
@@ -103,7 +105,7 @@ export function TenantEntitlementEditor() {
 
             <div>
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-                Module entitlements
+                {t("entitlementEditor.moduleEntitlements")}
               </p>
               <EntitlementToggles
                 tenantId={activeTenantId}

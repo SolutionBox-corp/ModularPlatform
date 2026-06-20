@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { ZapIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ const DEV_ACCOUNTS: DevAccount[] = [
 /** Dev-only convenience: one-click sign-in for fixed demo accounts. */
 export function DevQuickLogin() {
   const router = useRouter();
+  const t = useTranslations("auth");
   const [isPending, startTransition] = useTransition();
   const [busyEmail, setBusyEmail] = useState<string | null>(null);
 
@@ -33,11 +35,11 @@ export function DevQuickLogin() {
       const result = await devQuickLogin(account.email, account.password, account.displayName);
       setBusyEmail(null);
       if (result.ok) {
-        toast.success(`Signed in as ${account.label}`);
+        toast.success(t("dev.signedInAs", { label: account.label }));
         router.push("/");
         router.refresh();
       } else {
-        toast.error(`Quick login failed for ${account.label}`);
+        toast.error(t("dev.failed", { label: account.label }));
       }
     });
   }
@@ -46,7 +48,7 @@ export function DevQuickLogin() {
     <div className="mt-4 rounded-lg border border-dashed border-border p-3">
       <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
         <ZapIcon className="h-3.5 w-3.5" aria-hidden="true" />
-        Dev quick login
+        {t("dev.heading")}
       </p>
       <div className="grid gap-2 sm:grid-cols-2">
         {DEV_ACCOUNTS.map((account) => (
@@ -58,7 +60,7 @@ export function DevQuickLogin() {
             disabled={isPending}
             onClick={() => quickLogin(account)}
           >
-            {busyEmail === account.email ? "Signing in…" : account.label}
+            {busyEmail === account.email ? t("dev.signingIn") : account.label}
           </Button>
         ))}
       </div>

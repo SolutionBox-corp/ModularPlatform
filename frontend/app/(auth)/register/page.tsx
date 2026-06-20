@@ -1,18 +1,23 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { getTranslations } from "next-intl/server";
 import { RegisterForm } from "@/features/auth/components/register-form";
 
-export const metadata: Metadata = {
-  title: "Create account — ModularPlatform",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("auth");
+  return {
+    title: t("register.metaTitle"),
+  };
+}
 
-export default function RegisterPage() {
+export default async function RegisterPage() {
+  const t = await getTranslations("auth");
   return (
     <section className="space-y-4">
       <div className="space-y-1 text-center">
-        <h2 className="text-xl font-semibold">Create account</h2>
+        <h2 className="text-xl font-semibold">{t("register.heading")}</h2>
         <p className="text-sm text-muted-foreground">
-          Get started with ModularPlatform.
+          {t("register.subtitle")}
         </p>
       </div>
       {/* Suspense required because RegisterForm uses useSearchParams */}

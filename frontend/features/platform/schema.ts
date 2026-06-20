@@ -1,28 +1,36 @@
 import { z } from "zod";
 
-export const provisionTenantSchema = z.object({
-  name: z
-    .string()
-    .min(1, "Name is required")
-    .max(256, "Name must be 256 characters or fewer"),
-  subdomain: z
-    .string()
-    .min(1, "Subdomain is required")
-    .max(63, "Subdomain must be 63 characters or fewer")
-    .regex(
-      /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/,
-      "Subdomain must be lowercase alphanumeric with hyphens (no leading/trailing hyphen)",
-    ),
-});
+/** Translator shape (next-intl's `useTranslations('platform')`) — only what the schema needs. */
+type Translate = (key: string) => string;
 
-export type ProvisionTenantFormValues = z.infer<typeof provisionTenantSchema>;
+export function buildProvisionTenantSchema(t: Translate) {
+  return z.object({
+    name: z
+      .string()
+      .min(1, t("validation.nameRequired"))
+      .max(256, t("validation.nameMax")),
+    subdomain: z
+      .string()
+      .min(1, t("validation.subdomainRequired"))
+      .max(63, t("validation.subdomainMax"))
+      .regex(/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/, t("validation.subdomainPattern")),
+  });
+}
 
-export const createInviteSchema = z.object({
-  expiresInDays: z
-    .number({ error: "Must be a number" })
-    .int("Must be a whole number")
-    .min(1, "Minimum 1 day")
-    .max(90, "Maximum 90 days"),
-});
+export type ProvisionTenantFormValues = z.infer<
+  ReturnType<typeof buildProvisionTenantSchema>
+>;
 
-export type CreateInviteFormValues = z.infer<typeof createInviteSchema>;
+export function buildCreateInviteSchema(t: Translate) {
+  return z.object({
+    expiresInDays: z
+      .number({ error: t("validation.daysNumber") })
+      .int(t("validation.daysWhole"))
+      .min(1, t("validation.daysMin"))
+      .max(90, t("validation.daysMax")),
+  });
+}
+
+export type CreateInviteFormValues = z.infer<
+  ReturnType<typeof buildCreateInviteSchema>
+>;

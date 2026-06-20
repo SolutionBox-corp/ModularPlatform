@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { TagIcon, CheckCircle2Icon, XCircleIcon } from "lucide-react";
@@ -9,7 +10,10 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { MoneyAmount } from "@/components/app/money-amount";
 import { usePromoCode } from "@/features/billing/hooks";
-import { promoCodeSchema, type PromoCodeInput } from "@/features/billing/schema";
+import {
+  buildPromoCodeSchema,
+  type PromoCodeInput,
+} from "@/features/billing/schema";
 
 /**
  * Inline promo-code validator. Calls GET /v1/billing/promo-codes/{code}/validate
@@ -19,6 +23,7 @@ import { promoCodeSchema, type PromoCodeInput } from "@/features/billing/schema"
  * checkout when AllowPromotionCodes is enabled on the Checkout session.
  */
 export function PromoCodeInput() {
+  const t = useTranslations("billing");
   const [submitted, setSubmitted] = useState<string>("");
 
   const {
@@ -27,7 +32,7 @@ export function PromoCodeInput() {
     reset,
     formState: { errors },
   } = useForm<PromoCodeInput>({
-    resolver: zodResolver(promoCodeSchema),
+    resolver: zodResolver(buildPromoCodeSchema(t)),
     defaultValues: { code: "" },
   });
 
@@ -52,13 +57,13 @@ export function PromoCodeInput() {
         noValidate
         className="space-y-2"
       >
-        <Label htmlFor="promo-code">Promo code</Label>
+        <Label htmlFor="promo-code">{t("promo.label")}</Label>
         <div className="flex gap-2 items-start">
           <div className="flex-1 space-y-1">
             <Input
               id="promo-code"
               {...register("code")}
-              placeholder="ENTER CODE"
+              placeholder={t("promo.inputHint")}
               className="uppercase placeholder:normal-case font-mono text-sm"
               disabled={isFetching}
               aria-invalid={!!errors.code}
@@ -77,7 +82,7 @@ export function PromoCodeInput() {
             className="shrink-0"
           >
             <TagIcon className="h-3.5 w-3.5 mr-1.5" />
-            {isFetching ? "Checking…" : "Apply"}
+            {isFetching ? t("promo.checking") : t("promo.apply")}
           </Button>
           {submitted && (
             <Button
@@ -86,7 +91,7 @@ export function PromoCodeInput() {
               onClick={onReset}
               className="shrink-0"
             >
-              Clear
+              {t("promo.clear")}
             </Button>
           )}
         </div>
@@ -105,7 +110,7 @@ export function PromoCodeInput() {
             <span className="font-medium font-mono">{data.code}</span>
             {" — "}
             {data.percentOff != null
-              ? `${data.percentOff}% off`
+              ? t("promo.percentOff", { percent: data.percentOff })
               : data.amountOff != null && data.currency != null
                 ? (
                   <>
@@ -113,10 +118,10 @@ export function PromoCodeInput() {
                       value={data.amountOff / 100}
                       currency={data.currency}
                     />{" "}
-                    off
+                    {t("promo.amountOffSuffix")}
                   </>
                 )
-                : "discount applied"}
+                : t("promo.discountApplied")}
           </span>
         </div>
       )}
@@ -131,7 +136,7 @@ export function PromoCodeInput() {
         >
           <XCircleIcon className="h-4 w-4 text-destructive shrink-0" />
           <p className="text-sm text-destructive">
-            Invalid or expired promo code.
+            {t("promo.invalid")}
           </p>
         </div>
       )}

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { TriangleAlertIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ const CONFIRMATION_PHRASE = "delete my account";
  * gate against accidental clicks.
  */
 export function EraseAccountDialog() {
+  const t = useTranslations("privacy");
   const router = useRouter();
   const { mutate, isPending } = useEraseAccount();
   const [open, setOpen] = useState(false);
@@ -43,7 +45,7 @@ export function EraseAccountDialog() {
     if (!canSubmit) return;
     mutate(void 0, {
       onSuccess: async () => {
-        toast.success("Account erasure has been queued. You will be signed out.");
+        toast.success(t("erase.toast.queued"));
         setOpen(false);
         // Destroy the iron-session so the user is no longer technically logged in,
         // then redirect to login.
@@ -66,19 +68,18 @@ export function EraseAccountDialog() {
         render={
           <Button variant="destructive" className="gap-1.5">
             <TriangleAlertIcon className="h-4 w-4" aria-hidden />
-            Delete my account
+            {t("erase.dialog.trigger")}
           </Button>
         }
       />
 
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Delete account permanently</DialogTitle>
+          <DialogTitle>{t("erase.dialog.title")}</DialogTitle>
           <DialogDescription>
-            This is <strong>irreversible</strong>. All personal data will be
-            erased from every module. Audit logs will be anonymised and your
-            encryption key will be destroyed, making stored data permanently
-            unrecoverable.
+            {t.rich("erase.dialog.description", {
+              strong: (chunks) => <strong>{chunks}</strong>,
+            })}
           </DialogDescription>
         </DialogHeader>
 
@@ -91,19 +92,18 @@ export function EraseAccountDialog() {
         >
           <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2">
             <p className="text-xs text-destructive">
-              What will be erased: your profile, consents, notification
-              history, billing records, and any files you own. This cannot be
-              undone.
+              {t("erase.dialog.whatWillBeErased")}
             </p>
           </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="erase-confirm" className="text-sm">
-              To confirm, type{" "}
-              <span className="font-medium text-foreground">
-                {CONFIRMATION_PHRASE}
-              </span>{" "}
-              below:
+              {t.rich("erase.dialog.confirmLabel", {
+                phrase: CONFIRMATION_PHRASE,
+                strong: (chunks) => (
+                  <span className="font-medium text-foreground">{chunks}</span>
+                ),
+              })}
             </Label>
             <Input
               id="erase-confirm"
@@ -115,7 +115,7 @@ export function EraseAccountDialog() {
               disabled={isPending}
             />
             <p id="erase-confirm-hint" className="text-xs text-muted-foreground">
-              Type exactly: {CONFIRMATION_PHRASE}
+              {t("erase.dialog.confirmHint", { phrase: CONFIRMATION_PHRASE })}
             </p>
           </div>
 
@@ -125,7 +125,7 @@ export function EraseAccountDialog() {
               variant="destructive"
               disabled={!canSubmit || isPending}
             >
-              {isPending ? "Erasing…" : "Permanently delete my account"}
+              {isPending ? t("erase.dialog.erasing") : t("erase.dialog.submit")}
             </Button>
           </DialogFooter>
         </form>

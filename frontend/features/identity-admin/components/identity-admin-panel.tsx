@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { SearchIcon, Loader2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +14,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { AuditTrailTable } from "@/features/identity-admin/components/audit-trail-table";
+import { UserAuditTrailTable } from "@/features/identity-admin/components/audit-trail-table";
 import { RoleManager } from "@/features/identity-admin/components/role-manager";
 
 const UUID_RE =
@@ -44,6 +45,7 @@ export function IdentityAdminPanel({
   canManageRoles,
   canReadAudit,
 }: IdentityAdminPanelProps) {
+  const t = useTranslations("identityAdmin");
   const [inputValue, setInputValue] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [inputError, setInputError] = useState<string | null>(null);
@@ -52,7 +54,7 @@ export function IdentityAdminPanel({
   const handleLookup = () => {
     const trimmed = inputValue.trim();
     if (!UUID_RE.test(trimmed)) {
-      setInputError("Enter a valid user UUID (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx).");
+      setInputError(t("lookup.invalidId"));
       return;
     }
     setInputError(null);
@@ -71,12 +73,12 @@ export function IdentityAdminPanel({
       {/* User lookup */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium">User lookup</CardTitle>
+          <CardTitle className="text-sm font-medium">{t("lookup.title")}</CardTitle>
           <CardDescription className="text-xs">
-            Enter a user ID to manage roles and view the audit trail.
+            {t("lookup.description")}
             {!hasActions && (
               <span className="block mt-1 text-destructive">
-                You do not have any Identity admin permissions.
+                {t("lookup.noPermissions")}
               </span>
             )}
           </CardDescription>
@@ -85,7 +87,7 @@ export function IdentityAdminPanel({
           <div className="flex gap-2 items-end">
             <div className="flex-1 space-y-1">
               <Label htmlFor="user-id-input" className="text-xs font-medium">
-                User ID
+                {t("lookup.userIdLabel")}
               </Label>
               <Input
                 id="user-id-input"
@@ -121,11 +123,11 @@ export function IdentityAdminPanel({
               ) : (
                 <SearchIcon className="h-3.5 w-3.5" />
               )}
-              Look up
+              {t("lookup.lookUp")}
             </Button>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            No list-users endpoint exists on the backend — look up by ID only.
+            {t("lookup.noListHint")}
           </p>
         </CardContent>
       </Card>
@@ -138,7 +140,7 @@ export function IdentityAdminPanel({
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium">
-                  Role management
+                  {t("roleManagement.title")}
                 </CardTitle>
                 <CardDescription className="text-xs font-mono">
                   {selectedUserId}
@@ -161,14 +163,14 @@ export function IdentityAdminPanel({
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm font-medium">
-                    Identity audit trail
+                    {t("audit.title")}
                   </CardTitle>
                   <CardDescription className="text-xs font-mono">
                     {selectedUserId}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
-                  <AuditTrailTable userId={selectedUserId} />
+                  <UserAuditTrailTable userId={selectedUserId} />
                 </CardContent>
               </Card>
             </>
@@ -176,8 +178,9 @@ export function IdentityAdminPanel({
 
           {!canReadAudit && (
             <p className="text-xs text-muted-foreground">
-              Audit trail hidden — requires the{" "}
-              <span className="font-mono">audit.read</span> permission.
+              {t.rich("audit.hiddenHint", {
+                code: (chunks) => <span className="font-mono">{chunks}</span>,
+              })}
             </p>
           )}
         </>

@@ -16,7 +16,10 @@ namespace ModularPlatform.Billing.Features.Credits.CreditTopUp;
 /// top-ups), a bucket + balanced entry are appended, and <see cref="CreditsToppedUpIntegrationEvent"/> is
 /// published — all atomically via the outbox. No raw SQL.
 /// </summary>
-internal sealed class CreditTopUpHandler(IDbContextOutbox<BillingDbContext> outbox, IClock clock)
+internal sealed class CreditTopUpHandler(
+    IDbContextOutbox<BillingDbContext> outbox,
+    IRealtimePublisher realtime,
+    IClock clock)
     : ICommandHandler<CreditTopUpCommand, CreditTopUpResponse>
 {
     public async Task<CreditTopUpResponse> Handle(CreditTopUpCommand command, CancellationToken ct)
@@ -108,6 +111,12 @@ internal sealed class CreditTopUpHandler(IDbContextOutbox<BillingDbContext> outb
 
             throw;
         }
+
+        // Post-commit realtime nudge so the FE refreshes the balance live (no polling). Non-transactional, so it
+        // MUST fire AFTER the commit — a rolled-back top-up must not emit a phantom event. Payload is minimal: the
+        // FE only uses the event TYPE to invalidate its credit query.
+        await realtime.PublishToUserAsync(
+            account.UserId, "billing.credits_changed", new { available = account.Available }, ct);
 
         return new CreditTopUpResponse(account.Id, account.Posted, AlreadyApplied: false);
     }

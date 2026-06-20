@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -9,24 +10,23 @@ import { useConsents, useGrantConsent, useWithdrawConsent } from "@/features/pri
 import { type ConsentResponse } from "@/features/privacy/api";
 
 /** The consent types the platform recognises. The backend stores any string;
- *  we enumerate the ones we surface in the UI so the display label stays in one place. */
-const CONSENT_TYPES: { key: string; label: string; description: string }[] = [
+ *  we enumerate the ones we surface in the UI so the i18n label key stays in one place.
+ *  `labelKey`/`descriptionKey` are resolved against the `privacy` namespace at render time. */
+const CONSENT_TYPES: { key: string; labelKey: string; descriptionKey: string }[] = [
   {
     key: "marketing_emails",
-    label: "Marketing emails",
-    description: "Receive product news, tips, and promotional offers by email.",
+    labelKey: "consents.types.marketingEmails.label",
+    descriptionKey: "consents.types.marketingEmails.description",
   },
   {
     key: "analytics",
-    label: "Analytics & improvement",
-    description:
-      "Allow us to collect usage data to improve the platform.",
+    labelKey: "consents.types.analytics.label",
+    descriptionKey: "consents.types.analytics.description",
   },
   {
     key: "third_party_sharing",
-    label: "Third-party sharing",
-    description:
-      "Share your data with trusted partners for service delivery.",
+    labelKey: "consents.types.thirdPartySharing.label",
+    descriptionKey: "consents.types.thirdPartySharing.description",
   },
 ];
 
@@ -43,6 +43,7 @@ function currentStateMap(consents: ConsentResponse[]): Record<string, boolean> {
 }
 
 export function ConsentToggles() {
+  const t = useTranslations("privacy");
   const { data, isLoading } = useConsents();
   const grantMutation = useGrantConsent();
   const withdrawMutation = useWithdrawConsent();
@@ -55,8 +56,8 @@ export function ConsentToggles() {
       onSuccess: () => {
         toast.success(
           checked
-            ? "Consent granted."
-            : "Consent withdrawn.",
+            ? t("consents.toast.granted")
+            : t("consents.toast.withdrawn"),
         );
       },
     });
@@ -90,16 +91,16 @@ export function ConsentToggles() {
                 htmlFor={`consent-${ct.key}`}
                 className="text-sm font-medium cursor-pointer"
               >
-                {ct.label}
+                {t(ct.labelKey)}
               </Label>
-              <p className="text-xs text-muted-foreground">{ct.description}</p>
+              <p className="text-xs text-muted-foreground">{t(ct.descriptionKey)}</p>
             </div>
             <Switch
               id={`consent-${ct.key}`}
               checked={isGranted}
               onCheckedChange={(checked) => handleToggle(ct.key, checked)}
               disabled={isBusy}
-              aria-label={ct.label}
+              aria-label={t(ct.labelKey)}
             />
           </div>
         );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { InfoIcon } from "lucide-react";
 import { accountQueries } from "@/features/account/api";
 import { Input } from "@/components/ui/input";
@@ -24,14 +25,17 @@ import { Alert } from "@/components/ui/alert";
  * the profileSchema and a useMutation calling apiFetch with method:"PATCH".
  */
 export function ProfileForm() {
+  const t = useTranslations("account");
   const { data, isLoading } = useQuery(accountQueries.profile());
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base font-semibold">Profile</CardTitle>
+        <CardTitle className="text-base font-semibold">
+          {t("form.title")}
+        </CardTitle>
         <CardDescription className="text-sm">
-          Your account details.
+          {t("form.description")}
         </CardDescription>
       </CardHeader>
 
@@ -39,14 +43,11 @@ export function ProfileForm() {
         {/* Read-only notice */}
         <Alert className="flex items-start gap-2 py-3 px-3 text-sm text-muted-foreground">
           <InfoIcon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-          <span>
-            Profile editing is not yet available. Contact support to update your
-            display name or locale preference.
-          </span>
+          <span>{t("form.readOnlyNotice")}</span>
         </Alert>
 
         <div className="space-y-1.5">
-          <Label htmlFor="profile-email">Email</Label>
+          <Label htmlFor="profile-email">{t("form.email.label")}</Label>
           {isLoading ? (
             <Skeleton className="h-8 w-full" />
           ) : (
@@ -56,13 +57,15 @@ export function ProfileForm() {
               value={data?.email ?? ""}
               readOnly
               disabled
-              aria-label="Email address"
+              aria-label={t("form.email.ariaLabel")}
             />
           )}
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="profile-display-name">Display name</Label>
+          <Label htmlFor="profile-display-name">
+            {t("form.displayName.label")}
+          </Label>
           {isLoading ? (
             <Skeleton className="h-8 w-full" />
           ) : (
@@ -72,14 +75,14 @@ export function ProfileForm() {
               value={data?.displayName ?? ""}
               readOnly
               disabled
-              placeholder="Not set"
-              aria-label="Display name"
+              placeholder={t("form.displayName.inputHint")}
+              aria-label={t("form.displayName.ariaLabel")}
             />
           )}
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="profile-locale">Locale</Label>
+          <Label htmlFor="profile-locale">{t("form.locale.label")}</Label>
           {isLoading ? (
             <Skeleton className="h-8 w-2/12" />
           ) : (
@@ -89,11 +92,11 @@ export function ProfileForm() {
               value={data?.locale ?? ""}
               readOnly
               disabled
-              aria-label="Locale"
+              aria-label={t("form.locale.ariaLabel")}
             />
           )}
           <p className="text-xs text-muted-foreground">
-            Change your language using the locale toggle in the top bar.
+            {t("form.locale.hint")}
           </p>
         </div>
       </CardContent>

@@ -8,10 +8,19 @@ import {
   provisionTenant,
   setEntitlement,
   createTenantInvite,
+  type ListPlatformUsersParams,
 } from "./api";
 
 export function usePlatformBillingStatus() {
   return useQuery(platformQueries.billingStatus());
+}
+
+export function useListPlatformUsers(params: ListPlatformUsersParams = {}) {
+  return useQuery(platformQueries.users(params));
+}
+
+export function usePlatformUserAudit(userId: string) {
+  return useQuery(platformQueries.userAudit(userId));
 }
 
 export function useProvisionTenant() {

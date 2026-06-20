@@ -3,10 +3,14 @@ import { getQueryClient } from "@/lib/api/query-client";
 import { platformQueries } from "@/features/platform/api";
 import { TenantDetailContent } from "@/features/platform/components/tenant-detail-content";
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 
-export const metadata: Metadata = {
-  title: "Tenant detail — Platform Admin",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("platform");
+  return {
+    title: t("meta.tenantDetailTitle"),
+  };
+}
 
 interface PageProps {
   params: Promise<{ tenantId: string }>;

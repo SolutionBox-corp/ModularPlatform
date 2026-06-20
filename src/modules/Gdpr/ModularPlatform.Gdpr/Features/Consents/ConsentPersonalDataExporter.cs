@@ -22,7 +22,7 @@ internal sealed class ConsentPersonalDataExporter(IReadDbContextFactory<GdprDbCo
         var consents = await db.ConsentRecords
             .Where(c => c.UserId == userId)
             .OrderBy(c => c.RecordedAt)
-            .Select(c => new { c.ConsentType, c.Granted, c.RecordedAt })
+            .Select(c => new { c.ConsentType, c.Granted, c.RecordedAt, c.PolicyVersion })
             .ToListAsync(ct);
 
         return new Dictionary<string, object?> { ["consents"] = consents };

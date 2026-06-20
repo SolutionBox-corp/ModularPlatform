@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import { serverConfig } from "@/lib/config";
+import { TERMS_VERSION } from "@/lib/legal-versions";
 import { getSession } from "@/lib/auth/session";
 import { ApiError } from "@/lib/api/types";
 import { CSRF_COOKIE } from "@/lib/auth/csrf";
@@ -201,7 +202,15 @@ export async function registerAction(
       {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, password, displayName, inviteToken }),
+        // acceptTerms is validated `true` by registerSchema, so we always send the
+        // active Terms version the user accepted (the backend stores it on the user).
+        body: JSON.stringify({
+          email,
+          password,
+          displayName,
+          inviteToken,
+          acceptedTermsVersion: TERMS_VERSION,
+        }),
         cache: "no-store",
       },
     );

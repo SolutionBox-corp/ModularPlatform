@@ -31,6 +31,9 @@ export interface SessionData {
 }
 
 export const sessionOptions: SessionOptions = {
+  // Keyed-map password (rotation-safe). iron-session v8 seals new cookies with the
+  // highest-keyed entry and unseals with ANY entry, so a cookie sealed under id "1"
+  // still decrypts after we add id "2" and rotate. See lib/config.ts.
   password: serverConfig.sessionPassword,
   cookieName: "mp_session",
   // No `domain` → bound to the exact subdomain (host-only). NEVER set Domain=.root

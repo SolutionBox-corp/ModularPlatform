@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { MailPlusIcon, CopyIcon, CheckIcon } from "lucide-react";
 import { toast } from "sonner";
+import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,7 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCreateTenantInvite } from "@/features/platform/hooks";
 import {
-  createInviteSchema,
+  buildCreateInviteSchema,
   type CreateInviteFormValues,
 } from "@/features/platform/schema";
 
@@ -32,6 +33,8 @@ export function CreateInviteDialog({
   tenantId,
   tenantName,
 }: CreateInviteDialogProps) {
+  const t = useTranslations("platform");
+  const locale = useLocale();
   const [open, setOpen] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
@@ -44,7 +47,7 @@ export function CreateInviteDialog({
     reset,
     formState: { errors, isSubmitting },
   } = useForm<CreateInviteFormValues>({
-    resolver: zodResolver(createInviteSchema),
+    resolver: zodResolver(buildCreateInviteSchema(t)),
     defaultValues: { expiresInDays: 7 },
   });
 
@@ -71,7 +74,7 @@ export function CreateInviteDialog({
     if (!token) return;
     await navigator.clipboard.writeText(token);
     setCopied(true);
-    toast.success("Invite token copied to clipboard.");
+    toast.success(t("inviteDialog.copied"));
     setTimeout(() => setCopied(false), 2000);
   }
 
@@ -81,41 +84,39 @@ export function CreateInviteDialog({
         render={
           <Button variant="outline" size="sm">
             <MailPlusIcon className="h-3.5 w-3.5 mr-1.5" />
-            Create invite
+            {t("inviteDialog.trigger")}
           </Button>
         }
       />
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Create invite token</DialogTitle>
+          <DialogTitle>{t("inviteDialog.title")}</DialogTitle>
           <DialogDescription>
-            Mint a single-use invite so a new member can join{" "}
-            {tenantName ? (
-              <strong>{tenantName}</strong>
-            ) : (
-              "this workspace"
-            )}
-            . The raw token is shown once — copy it before closing.
+            {tenantName
+              ? t.rich("inviteDialog.descriptionNamed", {
+                  tenant: () => <strong>{tenantName}</strong>,
+                })
+              : t("inviteDialog.descriptionFallback")}
           </DialogDescription>
         </DialogHeader>
 
         {token ? (
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label>Invite token</Label>
+              <Label>{t("inviteDialog.tokenLabel")}</Label>
               <div className="flex items-center gap-2">
                 <Input
                   readOnly
                   value={token}
                   className="font-mono text-xs"
-                  aria-label="Invite token"
+                  aria-label={t("inviteDialog.tokenAria")}
                 />
                 <Button
                   type="button"
                   variant="outline"
                   size="icon-sm"
                   onClick={handleCopy}
-                  aria-label="Copy token"
+                  aria-label={t("inviteDialog.copyAria")}
                 >
                   {copied ? (
                     <CheckIcon className="h-3.5 w-3.5 text-success" />
@@ -127,11 +128,12 @@ export function CreateInviteDialog({
             </div>
             {expiresAt && (
               <p className="text-xs text-muted-foreground">
-                Expires{" "}
-                {new Date(expiresAt).toLocaleDateString("en", {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
+                {t("inviteDialog.expires", {
+                  date: new Date(expiresAt).toLocaleDateString(locale, {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  }),
                 })}
               </p>
             )}
@@ -141,7 +143,7 @@ export function CreateInviteDialog({
           <form onSubmit={onSubmit} noValidate>
             <div className="space-y-4 py-4">
               <div className="space-y-1.5">
-                <Label htmlFor="ci-days">Expires in (days)</Label>
+                <Label htmlFor="ci-days">{t("inviteDialog.daysLabel")}</Label>
                 <Input
                   id="ci-days"
                   type="number"
@@ -160,7 +162,9 @@ export function CreateInviteDialog({
 
             <DialogFooter>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Creating…" : "Create token"}
+                {isSubmitting
+                  ? t("inviteDialog.submitting")
+                  : t("inviteDialog.submit")}
               </Button>
             </DialogFooter>
           </form>

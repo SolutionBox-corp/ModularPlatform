@@ -7,6 +7,8 @@ import {
   UserIcon,
   ShieldIcon,
   BuildingIcon,
+  UsersIcon,
+  ScrollTextIcon,
 } from "lucide-react";
 
 export interface NavItem {
@@ -73,6 +75,18 @@ export const PLATFORM_NAV_ITEMS: NavItem[] = [
     icon: BuildingIcon,
     permission: "platform.tenants.manage",
   },
-  // /platform/users and /platform/audit are not yet built — add them here
-  // once the platform-level identity-admin and audit pages exist.
+  {
+    key: "platformUsers",
+    href: "/platform/users",
+    labelKey: "users",
+    icon: UsersIcon,
+    permission: "platform.users.list",
+  },
+  {
+    key: "platformAudit",
+    href: "/platform/audit",
+    labelKey: "audit",
+    icon: ScrollTextIcon,
+    permission: "audit.read",
+  },
 ];

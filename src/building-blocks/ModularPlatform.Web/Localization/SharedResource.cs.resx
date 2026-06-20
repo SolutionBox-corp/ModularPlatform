@@ -105,6 +105,7 @@
   <data name="gdpr.consent.user_id.required" xml:space="preserve"><value>ID uživatele je povinné.</value></data>
   <data name="gdpr.consent.type.required" xml:space="preserve"><value>Typ souhlasu je povinný.</value></data>
   <data name="gdpr.consent.type.too_long" xml:space="preserve"><value>Typ souhlasu je příliš dlouhý.</value></data>
+  <data name="gdpr.consent.policy_version.too_long" xml:space="preserve"><value>Verze zásad je příliš dlouhá.</value></data>
 
   <data name="file.not_found" xml:space="preserve"><value>Soubor nenalezen.</value></data>
   <data name="file.empty" xml:space="preserve"><value>Soubor je prázdný.</value></data>

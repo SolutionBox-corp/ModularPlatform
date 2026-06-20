@@ -5,14 +5,19 @@ import { ConsentToggles } from "@/features/privacy/components/consent-toggles";
 import { ExportDataFlow } from "@/features/privacy/components/export-data-flow";
 import { EraseAccountDialog } from "@/features/privacy/components/erase-account-dialog";
 import { Separator } from "@/components/ui/separator";
+import { getTranslations } from "next-intl/server";
 import type { Metadata } from "next";
 
-export const metadata: Metadata = {
-  title: "Privacy — ModularPlatform",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("privacy");
+  return {
+    title: t("metadata.title"),
+  };
+}
 
 export default async function PrivacyPage() {
   const queryClient = getQueryClient();
+  const t = await getTranslations("privacy");
 
   // Prefetch consent history without awaiting — streamed to the client island.
   void queryClient.prefetchQuery(privacyQueries.consents());
@@ -22,9 +27,9 @@ export default async function PrivacyPage() {
       <div className="max-w-lg space-y-8">
         {/* Page header */}
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Privacy &amp; Data</h1>
+          <h1 className="text-xl font-semibold tracking-tight">{t("header.title")}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Manage your consent preferences and exercise your data rights.
+            {t("header.description")}
           </p>
         </div>
 
@@ -32,10 +37,10 @@ export default async function PrivacyPage() {
         <section aria-labelledby="consents-heading" className="space-y-3">
           <div>
             <h2 id="consents-heading" className="text-sm font-medium">
-              Consent preferences
+              {t("consents.heading")}
             </h2>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Control how we use your data. Changes take effect immediately.
+              {t("consents.description")}
             </p>
           </div>
           <ConsentToggles />
@@ -47,10 +52,10 @@ export default async function PrivacyPage() {
         <section aria-labelledby="export-heading" className="space-y-3">
           <div>
             <h2 id="export-heading" className="text-sm font-medium">
-              Export your data
+              {t("export.heading")}
             </h2>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Download a machine-readable copy of all personal data we hold about you (GDPR Art.&nbsp;20).
+              {t("export.description")}
             </p>
           </div>
           <ExportDataFlow />
@@ -62,11 +67,10 @@ export default async function PrivacyPage() {
         <section aria-labelledby="erase-heading" className="space-y-3">
           <div>
             <h2 id="erase-heading" className="text-sm font-medium text-destructive">
-              Delete account
+              {t("erase.heading")}
             </h2>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Permanently erase your account and all associated personal data. This cannot be
-              reversed (GDPR Art.&nbsp;17).
+              {t("erase.description")}
             </p>
           </div>
           <EraseAccountDialog />

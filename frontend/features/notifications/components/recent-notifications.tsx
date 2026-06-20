@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { BellIcon, CheckIcon } from "lucide-react";
 import Link from "next/link";
 import {
@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
  * notifications root on "notification.created" / "notification.read").
  */
 export function RecentNotifications() {
+  const t = useTranslations("notifications");
   const locale = useLocale();
   const { data, isLoading } = useQuery(
     notificationQueries.feed({ page: 1, pageSize: 5 }),
@@ -36,15 +37,15 @@ export function RecentNotifications() {
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-medium">Notifications</CardTitle>
+          <CardTitle className="text-sm font-medium">{t("recent.title")}</CardTitle>
           <Link
             href="/notifications"
             className="text-xs text-primary underline-offset-4 hover:underline"
           >
-            View all
+            {t("recent.viewAll")}
           </Link>
         </div>
-        <CardDescription className="text-xs">Recent activity</CardDescription>
+        <CardDescription className="text-xs">{t("recent.subtitle")}</CardDescription>
       </CardHeader>
       <CardContent className="p-0">
         {isLoading ? (
@@ -56,8 +57,8 @@ export function RecentNotifications() {
         ) : !data || data.items.length === 0 ? (
           <EmptyState
             icon={BellIcon}
-            title="No notifications"
-            description="You're all caught up."
+            title={t("empty.title")}
+            description={t("empty.recentDescription")}
             className="py-8"
           />
         ) : (
@@ -92,13 +93,13 @@ export function RecentNotifications() {
                 {!n.readAt ? (
                   <div className="flex items-center gap-1.5 shrink-0">
                     <Badge variant="default" className="">
-                      New
+                      {t("badge.new")}
                     </Badge>
                     <Button
                       variant="ghost"
                       size="icon"
                       className="h-6 w-6"
-                      aria-label={`Mark "${n.title}" as read`}
+                      aria-label={t("markRead.ariaLabel", { title: n.title })}
                       disabled={markRead.isPending}
                       onClick={() => markRead.mutate(n.id)}
                     >

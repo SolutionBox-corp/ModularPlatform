@@ -7,6 +7,7 @@ import { ADMIN_TENANT, TENANT_HEADER } from "@/lib/tenant";
 import { PLATFORM_NAV_ITEMS } from "@/features/entitlements/nav";
 import { ProblemDetails } from "@/components/app/problem-details";
 import { ApiError } from "@/lib/api/types";
+import { getTranslations } from "next-intl/server";
 import type { ReactNode } from "react";
 
 export default async function PlatformLayout({ children }: { children: ReactNode }) {
@@ -31,10 +32,11 @@ export default async function PlatformLayout({ children }: { children: ReactNode
   if (!isPlatformAdmin) {
     // Render a 403 instead of redirecting to /login (the user IS authenticated —
     // they just don't have platform access).
+    const t = await getTranslations("platform");
     const forbidden = new ApiError({
       status: 403,
       errorCode: "auth.forbidden",
-      detail: "You do not have access to the platform administration area.",
+      detail: t("forbidden.area"),
     });
     return (
       <div className="min-h-screen flex items-center justify-center p-6">

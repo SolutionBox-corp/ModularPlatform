@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { PlusIcon, XIcon, Loader2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +31,7 @@ export function RoleManager({
   currentRoles,
   canManageRoles,
 }: RoleManagerProps) {
+  const t = useTranslations("identityAdmin");
   const [newRole, setNewRole] = useState("");
   const assign = useAssignRole();
   const revoke = useRevokeRole();
@@ -54,10 +56,10 @@ export function RoleManager({
       {/* Current roles */}
       <div>
         <p className="text-xs font-medium text-muted-foreground mb-2">
-          Current roles
+          {t("roleManager.currentRoles")}
         </p>
         {currentRoles.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No roles assigned.</p>
+          <p className="text-sm text-muted-foreground">{t("roleManager.noRoles")}</p>
         ) : (
           <div className="flex flex-wrap gap-2">
             {currentRoles.map((role) => (
@@ -70,7 +72,7 @@ export function RoleManager({
                 {canManageRoles && (
                   <button
                     type="button"
-                    aria-label={`Revoke role ${role}`}
+                    aria-label={t("roleManager.revokeAria", { role })}
                     className="ml-0.5 rounded hover:text-destructive transition-colors disabled:opacity-50"
                     onClick={() => handleRevoke(role)}
                     disabled={isBusy}
@@ -88,14 +90,14 @@ export function RoleManager({
       {canManageRoles && (
         <div className="space-y-1.5">
           <Label htmlFor="new-role" className="text-xs font-medium">
-            Assign role
+            {t("roleManager.assignLabel")}
           </Label>
           <div className="flex gap-2">
             <Input
               id="new-role"
               value={newRole}
               onChange={(e) => setNewRole(e.target.value)}
-              placeholder="e.g. admin"
+              placeholder={t("roleManager.assignPlaceholder")}
               className="h-8 text-sm"
               disabled={isBusy}
               onKeyDown={(e) => {
@@ -117,20 +119,20 @@ export function RoleManager({
               ) : (
                 <PlusIcon className="h-3.5 w-3.5" />
               )}
-              Assign
+              {t("roleManager.assign")}
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Enter an existing role name. The user must re-authenticate to pick
-            up the change.
+            {t("roleManager.assignHint")}
           </p>
         </div>
       )}
 
       {!canManageRoles && (
         <p className="text-xs text-muted-foreground">
-          You do not have the{" "}
-          <span className="font-mono">identity.manage_roles</span> permission.
+          {t.rich("roleManager.noPermission", {
+            code: (chunks) => <span className="font-mono">{chunks}</span>,
+          })}
         </p>
       )}
     </div>

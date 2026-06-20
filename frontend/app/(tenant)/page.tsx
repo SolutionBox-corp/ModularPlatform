@@ -9,13 +9,16 @@ import { CreditBalanceCard, SubscriptionCard } from "@/features/billing/componen
 import { RecentNotifications } from "@/features/notifications/components/recent-notifications";
 import Link from "next/link";
 import { ArrowRightIcon } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 import type { Metadata } from "next";
 
-export const metadata: Metadata = {
-  title: "Dashboard — ModularPlatform",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("shell");
+  return { title: t("dashboard.metaTitle") };
+}
 
 export default async function DashboardPage() {
+  const t = await getTranslations("shell");
   const session = await getSession();
   const queryClient = getQueryClient();
   const user = session.user;
@@ -48,10 +51,12 @@ export default async function DashboardPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">
-            Welcome back{user.displayName ? `, ${user.displayName}` : ""}
+            {user.displayName
+              ? t("dashboard.welcomeNamed", { name: user.displayName })
+              : t("dashboard.welcome")}
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Here&apos;s an overview of your workspace.
+            {t("dashboard.subtitle")}
           </p>
         </div>
 
@@ -70,13 +75,13 @@ export default async function DashboardPage() {
           {/* Quick actions — always shown */}
           <div className="space-y-2">
             <h2 className="text-sm font-medium text-muted-foreground">
-              Quick actions
+              {t("dashboard.quickActions")}
             </h2>
             <div className="rounded-lg border border-border divide-y divide-border">
               {[
-                { label: "Upload a file", href: "/files" },
-                { label: "Top up credits", href: "/billing/packages" },
-                { label: "View audit trail", href: "/account/privacy" },
+                { label: t("dashboard.actions.uploadFile"), href: "/files" },
+                { label: t("dashboard.actions.topUpCredits"), href: "/billing/packages" },
+                { label: t("dashboard.actions.viewAuditTrail"), href: "/account/privacy" },
               ].map(({ label, href }) => (
                 <Link
                   key={href}

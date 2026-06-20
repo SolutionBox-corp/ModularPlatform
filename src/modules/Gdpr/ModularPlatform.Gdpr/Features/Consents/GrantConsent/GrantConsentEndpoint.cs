@@ -19,7 +19,7 @@ internal static class GrantConsentEndpoint
             {
                 // Identity comes from the token, NOT request.UserId (which is ignored to prevent acting as another user).
                 var userId = tenant.UserId ?? throw new UnauthorizedException("auth.required", "Authentication required.");
-                var result = await dispatcher.Send(new GrantConsentCommand(userId, request.ConsentType), ct);
+                var result = await dispatcher.Send(new GrantConsentCommand(userId, request.ConsentType, request.PolicyVersion), ct);
                 return Results.Ok(ApiResponse<GrantConsentResponse>.Ok(result));
             })
             .RequireAuthorization()

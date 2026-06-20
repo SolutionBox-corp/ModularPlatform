@@ -11,7 +11,7 @@ namespace ModularPlatform.Billing.Features.Credits.ReleaseHold;
 /// concurrent double-release conflicts on the xmin token and is retried (then sees the hold already resolved and
 /// returns idempotently). Keeps the invariant <c>available = posted - pending</c>. No raw SQL.
 /// </summary>
-internal sealed class ReleaseHoldHandler(BillingDbContext db, IClock clock)
+internal sealed class ReleaseHoldHandler(BillingDbContext db, IRealtimePublisher realtime, IClock clock)
     : ICommandHandler<ReleaseHoldCommand, ReleaseHoldResponse>
 {
     public async Task<ReleaseHoldResponse> Handle(ReleaseHoldCommand command, CancellationToken ct)
@@ -66,6 +66,12 @@ internal sealed class ReleaseHoldHandler(BillingDbContext db, IClock clock)
 
             throw;
         }
+
+        // Post-commit realtime nudge so the FE refreshes the balance live (no polling). Non-transactional, so it
+        // MUST fire AFTER the commit — a rolled-back release must not emit a phantom event. The FE only uses the
+        // event TYPE to invalidate its credit query.
+        await realtime.PublishToUserAsync(
+            account.UserId, "billing.credits_changed", new { available = account.Available }, ct);
 
         return new ReleaseHoldResponse(account.Id, account.Available);
     }

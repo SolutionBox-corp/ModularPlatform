@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import Link from "next/link";
-import { registerSchema, type RegisterFormValues } from "@/features/auth/schema";
+import { buildRegisterSchema, type RegisterFormValues } from "@/features/auth/schema";
 import { registerAction } from "@/features/auth/actions";
 import { ApiError } from "@/lib/api/types";
 import { toDisplayMessage, currentLocale } from "@/lib/errors/error-map";
@@ -18,10 +19,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 export function RegisterForm() {
   const router = useRouter();
+  const t = useTranslations("auth");
   const searchParams = useSearchParams();
   const inviteToken = searchParams.get("invite") ?? undefined;
   const [isPending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<unknown>(null);
+
+  const registerSchema = useMemo(() => buildRegisterSchema(t), [t]);
 
   const {
     register,
@@ -52,7 +56,7 @@ export function RegisterForm() {
         values.inviteToken,
       );
       if (result.ok) {
-        toast.success("Account created! Welcome.");
+        toast.success(t("register.success"));
         router.push("/");
         router.refresh();
         return;
@@ -81,7 +85,7 @@ export function RegisterForm() {
       {serverError !== null && <ProblemDetails error={serverError} />}
 
       <div className="space-y-1.5">
-        <Label htmlFor="email">Email</Label>
+        <Label htmlFor="email">{t("email")}</Label>
         <Input
           id="email"
           type="email"
@@ -100,8 +104,8 @@ export function RegisterForm() {
 
       <div className="space-y-1.5">
         <Label htmlFor="displayName">
-          Display name{" "}
-          <span className="text-muted-foreground font-normal">(optional)</span>
+          {t("displayName")}{" "}
+          <span className="text-muted-foreground font-normal">{t("displayNameOptional")}</span>
         </Label>
         <Input
           id="displayName"
@@ -119,7 +123,7 @@ export function RegisterForm() {
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="reg-password">Password</Label>
+        <Label htmlFor="reg-password">{t("password")}</Label>
         <Input
           id="reg-password"
           type="password"
@@ -159,19 +163,19 @@ export function RegisterForm() {
             htmlFor="acceptTerms"
             className="text-sm font-normal text-muted-foreground leading-snug cursor-pointer"
           >
-            I accept the{" "}
+            {t("termsPrefix")}{" "}
             <Link
               href="/terms"
               className="text-primary underline underline-offset-4"
             >
-              Terms
+              {t("termsLink")}
             </Link>{" "}
-            and{" "}
+            {t("termsConjunction")}{" "}
             <Link
               href="/privacy"
               className="text-primary underline underline-offset-4"
             >
-              Privacy Policy
+              {t("privacyLink")}
             </Link>
           </Label>
         </div>
@@ -183,16 +187,16 @@ export function RegisterForm() {
       </div>
 
       <Button type="submit" className="w-full" disabled={isPending}>
-        {isPending ? "Creating account…" : "Create account"}
+        {isPending ? t("register.submitting") : t("register")}
       </Button>
 
       <p className="text-center text-sm text-muted-foreground">
-        Already have an account?{" "}
+        {t("haveAccount")}{" "}
         <Link
           href="/login"
           className="text-primary underline underline-offset-4"
         >
-          Sign in
+          {t("login")}
         </Link>
       </p>
     </form>

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ChevronLeftIcon, BuildingIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import {
   Card,
   CardContent,
@@ -30,6 +31,7 @@ interface TenantDetailContentProps {
  * feed the response into the EntitlementToggles modules prop.
  */
 export function TenantDetailContent({ tenantId }: TenantDetailContentProps) {
+  const t = useTranslations("platform");
   return (
     <div className="space-y-6">
       {/* Back link */}
@@ -38,7 +40,7 @@ export function TenantDetailContent({ tenantId }: TenantDetailContentProps) {
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
       >
         <ChevronLeftIcon className="h-4 w-4" />
-        All tenants
+        {t("tenantDetail.back")}
       </Link>
 
       {/* Header */}
@@ -49,7 +51,7 @@ export function TenantDetailContent({ tenantId }: TenantDetailContentProps) {
           </span>
           <div>
             <h1 className="text-xl font-semibold tracking-tight">
-              Tenant detail
+              {t("tenantDetail.heading")}
             </h1>
             <p className="text-xs font-mono text-muted-foreground">{tenantId}</p>
           </div>
@@ -66,11 +68,10 @@ export function TenantDetailContent({ tenantId }: TenantDetailContentProps) {
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-medium">
-              Module entitlements
+              {t("tenantDetail.entitlements.heading")}
             </CardTitle>
             <CardDescription className="text-xs">
-              Toggle individual modules on or off for this tenant. Changes are
-              effective immediately (the entitlement guard reads live).
+              {t("tenantDetail.entitlements.description")}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -84,9 +85,7 @@ export function TenantDetailContent({ tenantId }: TenantDetailContentProps) {
               fallbackToDefaults
             />
             <p className="mt-3 text-xs text-muted-foreground">
-              Current enabled state is unknown — no GET /tenant/admin/tenants/
-              {"{id}"} endpoint exists yet. Toggling sends the PUT; the switch
-              reflects your action, not the persisted value.
+              {t("tenantDetail.entitlements.unknownState")}
             </p>
           </CardContent>
         </Card>
@@ -97,10 +96,11 @@ export function TenantDetailContent({ tenantId }: TenantDetailContentProps) {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm font-medium">Invite</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                {t("tenantDetail.invite.heading")}
+              </CardTitle>
               <CardDescription className="text-xs">
-                Mint a single-use invite so a new member can join this
-                workspace.
+                {t("tenantDetail.invite.description")}
               </CardDescription>
             </CardHeader>
             <CardContent>

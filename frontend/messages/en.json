@@ -1,47 +1,624 @@
 {
+  "account": {
+    "form": {
+      "description": "Your account details.",
+      "displayName": {
+        "ariaLabel": "Display name",
+        "label": "Display name",
+        "inputHint": "Not set"
+      },
+      "email": {
+        "ariaLabel": "Email address",
+        "label": "Email"
+      },
+      "locale": {
+        "ariaLabel": "Locale",
+        "hint": "Change your language using the locale toggle in the top bar.",
+        "label": "Locale"
+      },
+      "readOnlyNotice": "Profile editing is not yet available. Contact support to update your display name or locale preference.",
+      "title": "Profile"
+    },
+    "page": {
+      "heading": "Profile",
+      "metaTitle": "Profile — ModularPlatform",
+      "subtitle": "Your account information."
+    }
+  },
   "app": {
     "name": "ModularPlatform"
   },
-  "nav": {
-    "dashboard": "Dashboard",
-    "billing": "Billing",
-    "files": "Files",
-    "notifications": "Notifications",
-    "account": "Account",
-    "profile": "Profile",
-    "privacy": "Privacy",
-    "admin": "Administration",
-    "users": "Users",
-    "audit": "Audit",
-    "platformTenants": "Tenants",
-    "platformFleet": "Fleet",
-    "signOut": "Sign out"
+  "auth": {
+    "acceptTerms": "I accept the Terms and Privacy Policy",
+    "brand": "ModularPlatform",
+    "dev.failed": "Quick login failed for {label}",
+    "dev.heading": "Dev quick login",
+    "dev.signedInAs": "Signed in as {label}",
+    "dev.signingIn": "Signing in…",
+    "displayName": "Display name",
+    "displayNameOptional": "(optional)",
+    "email": "Email",
+    "expired": "Your session expired. Please sign in again.",
+    "haveAccount": "Already have an account?",
+    "login": "Sign in",
+    "login.heading": "Sign in",
+    "login.metaTitle": "Sign in — ModularPlatform",
+    "login.submitting": "Signing in…",
+    "login.subtitle": "Enter your email and password to continue.",
+    "login.success": "Welcome back!",
+    "noAccount": "Don't have an account?",
+    "password": "Password",
+    "privacyLink": "Privacy Policy",
+    "register": "Create account",
+    "register.heading": "Create account",
+    "register.metaTitle": "Create account — ModularPlatform",
+    "register.submitting": "Creating account…",
+    "register.subtitle": "Get started with ModularPlatform.",
+    "register.success": "Account created! Welcome.",
+    "termsConjunction": "and",
+    "termsLink": "Terms",
+    "termsPrefix": "I accept the",
+    "validation.acceptTerms": "You must accept the Terms and Privacy Policy",
+    "validation.emailInvalid": "Enter a valid email",
+    "validation.emailRequired": "Email is required",
+    "validation.passwordMax": "Password too long",
+    "validation.passwordMin": "Password must be at least 8 characters",
+    "validation.passwordRequired": "Password is required"
+  },
+  "billing": {
+    "balance": {
+      "columns": {
+        "category": "Category",
+        "credits": "Credits",
+        "note": "Note"
+      },
+      "description": "Authoritative balance projection from the ledger.",
+      "emptyDescription": "Your credit account will appear here after your first top-up.",
+      "emptyTitle": "No balance data",
+      "heading": "Credit balance",
+      "rows": {
+        "available": "Available",
+        "availableNote": "Ready to spend (posted minus active holds).",
+        "held": "Held / pending",
+        "heldNote": "Reserved by in-flight operations; released on confirm or expiry.",
+        "posted": "Posted",
+        "postedNote": "Total credits ever granted to this account."
+      }
+    },
+    "buyCredits": {
+      "description": "One-time top-ups processed securely via Stripe.",
+      "heading": "Buy credits"
+    },
+    "checkout": {
+      "invalidRedirect": "Checkout failed: invalid redirect URL.",
+      "unexpectedRedirect": "Checkout failed: unexpected redirect destination."
+    },
+    "creditCard": {
+      "description": "Available balance",
+      "manage": "Manage billing",
+      "noAccount": "No account yet.",
+      "ofPosted": "of <amount></amount> posted",
+      "title": "Credits"
+    },
+    "header": {
+      "description": "Manage your credits, subscription, and payment settings.",
+      "title": "Billing"
+    },
+    "metaTitle": "Billing — ModularPlatform",
+    "package": {
+      "buyNow": "Buy now",
+      "creditsExpireIn": "<amount></amount> credits · expire in {days}d",
+      "creditsNoExpiry": "<amount></amount> credits · no expiry",
+      "oneTimePayment": "one-time payment",
+      "redirecting": "Redirecting…"
+    },
+    "packages": {
+      "emptyDescription": "Credit packages will appear here once configured.",
+      "emptyTitle": "No packages available"
+    },
+    "promo": {
+      "amountOffSuffix": "off",
+      "apply": "Apply",
+      "checking": "Checking…",
+      "clear": "Clear",
+      "description": "Have a discount code? Verify it here before checkout.",
+      "discountApplied": "discount applied",
+      "heading": "Promo code",
+      "invalid": "Invalid or expired promo code.",
+      "label": "Promo code",
+      "percentOff": "{percent}% off",
+      "inputHint": "ENTER CODE",
+      "validation": {
+        "required": "Enter a promo code.",
+        "tooLong": "Code is too long."
+      }
+    },
+    "subscriptionCard": {
+      "cancelPlan": "Cancel plan",
+      "cancelling": "Cancelling…",
+      "cancels": "Cancels",
+      "cancelsAtPeriodEnd": "Cancels at period end",
+      "description": "Current plan",
+      "none": "No active subscription.",
+      "renews": "Renews",
+      "title": "Subscription",
+      "viewPlans": "View plans"
+    }
   },
   "common": {
-    "loading": "Loading…",
-    "save": "Save",
+    "all": "All",
     "cancel": "Cancel",
     "confirm": "Confirm",
     "delete": "Delete",
-    "search": "Search",
     "empty": "Nothing here yet",
+    "loading": "Loading…",
     "retry": "Retry",
-    "all": "All"
+    "save": "Save",
+    "search": "Search"
   },
-  "auth": {
-    "login": "Sign in",
-    "register": "Create account",
-    "email": "Email",
-    "password": "Password",
-    "displayName": "Display name",
-    "acceptTerms": "I accept the Terms and Privacy Policy",
-    "haveAccount": "Already have an account?",
-    "noAccount": "Don't have an account?",
-    "expired": "Your session expired. Please sign in again."
+  "files": {
+    "dropzone": {
+      "ariaLabel": "Upload a file — drag and drop or click to browse",
+      "hint": "{types} — up to {maxMb} MB",
+      "progressLabel": "Upload progress",
+      "prompt": "Drag & drop a file here, or click to browse",
+      "uploadSuccess": "\"{name}\" uploaded successfully.",
+      "uploading": "Uploading…"
+    },
+    "metaTitle": "Files — ModularPlatform",
+    "page": {
+      "description": "Upload and manage your files. Each file is private to your account.",
+      "heading": "Files",
+      "yourFiles": "Your files"
+    },
+    "table": {
+      "download": "Download {name}",
+      "emptyDescription": "Upload a file using the dropzone above.",
+      "emptyTitle": "No files yet",
+      "name": "Name",
+      "size": "Size",
+      "type": "Type",
+      "uploaded": "Uploaded"
+    },
+    "validation": {
+      "tooLarge": "File is too large. Maximum size is {maxMb} MB.",
+      "typeNotAllowed": "File type \"{type}\" is not allowed. Accepted types: {types}.",
+      "unknownType": "unknown"
+    }
+  },
+  "identityAdmin": {
+    "audit": {
+      "columns": {
+        "action": "Action",
+        "changedFields": "Changed fields",
+        "timestamp": "Timestamp"
+      },
+      "empty": {
+        "description": "No Identity audit events recorded for this user yet.",
+        "tableDescription": "No Identity audit events recorded for this user.",
+        "title": "No audit entries"
+      },
+      "erasedValue": "[erased]",
+      "hiddenHint": "Audit trail hidden — requires the <code>audit.read</code> permission.",
+      "nullValue": "null",
+      "title": "Identity audit trail"
+    },
+    "lookup": {
+      "description": "Enter a user ID to manage roles and view the audit trail.",
+      "invalidId": "Enter a valid user UUID (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx).",
+      "lookUp": "Look up",
+      "noListHint": "No list-users endpoint exists on the backend — look up by ID only.",
+      "noPermissions": "You do not have any Identity admin permissions.",
+      "title": "User lookup",
+      "userIdLabel": "User ID"
+    },
+    "metadata": {
+      "title": "Identity Admin — ModularPlatform"
+    },
+    "page": {
+      "description": "Manage user roles and inspect the Identity audit trail.",
+      "heading": "Identity admin"
+    },
+    "roleManagement": {
+      "title": "Role management"
+    },
+    "roleManager": {
+      "assign": "Assign",
+      "assignHint": "Enter an existing role name. The user must re-authenticate to pick up the change.",
+      "assignLabel": "Assign role",
+      "assignPlaceholder": "e.g. admin",
+      "currentRoles": "Current roles",
+      "noPermission": "You do not have the <code>identity.manage_roles</code> permission.",
+      "noRoles": "No roles assigned.",
+      "revokeAria": "Revoke role {role}"
+    }
+  },
+  "legal": {
+    "backToSignIn": "← Back to sign in",
+    "draftBanner": "This Czech translation is a draft provided for convenience. The English version of this document is the legally authoritative text; in case of any discrepancy, the English version prevails.",
+    "lastUpdated": "Last updated: {date}",
+    "privacy": {
+      "lastUpdatedDate": "20 June 2026",
+      "metaTitle": "Privacy Policy — ModularPlatform",
+      "sections": {
+        "changes": {
+          "body": "We may update this policy from time to time. Material changes will be communicated via the platform or by email before they take effect. The \"Last updated\" date at the top reflects the most recent revision.",
+          "heading": "10. Changes to This Policy"
+        },
+        "cookies": {
+          "body": "We use strictly necessary cookies to maintain your authenticated session (iron-session cookie). With your consent we also set analytics cookies to measure how you use the platform and marketing cookies to record consent preferences. You can manage your cookie choices at any time via the cookie settings link in the footer.",
+          "heading": "5. Cookies"
+        },
+        "dataWeCollect": {
+          "body": "We collect data you provide directly (name, email, password hash, display name), data generated by your use of the service (audit logs, billing records, notification history, files you upload), and, with your consent, analytics data (page views, feature usage) and marketing data (click-through records for communications we send).",
+          "heading": "2. Data We Collect"
+        },
+        "howWeUse": {
+          "body": "Your data is used to operate and improve the platform, to send transactional notifications (account activity, billing receipts), to fulfil legal obligations, and — with your consent — to analyse usage patterns and to send marketing communications. We do not sell your personal data to third parties.",
+          "heading": "4. How We Use Your Data"
+        },
+        "legalBasis": {
+          "body": "We process your personal data on the following bases: contract performance (to provide the service you signed up for), legal obligation (audit retention, AML), legitimate interest (security monitoring, fraud prevention), and consent (analytics, marketing, third-party sharing — you can change these at any time in Privacy settings).",
+          "heading": "3. Legal Basis for Processing"
+        },
+        "processors": {
+          "body": "We use Stripe for payment processing (subject to Stripe's privacy policy). Where enabled by your tenant, we may share data with other processors listed in the platform settings. We enter into data processing agreements with all sub-processors and require them to apply equivalent protections.",
+          "heading": "9. Third-Party Processors"
+        },
+        "retention": {
+          "body": "We retain your personal data for as long as your account is active. Audit and billing records are retained for the minimum period required by applicable law (typically 7–10 years) even after account deletion; personal identifiers in those records are anonymised on erasure. All other data is deleted within 30 days of account closure.",
+          "heading": "6. Data Retention"
+        },
+        "security": {
+          "body": "Passwords are hashed using Argon2. Sensitive personal data fields are encrypted at rest (AES-GCM) under per-subject encryption keys. TLS is enforced in transit. Access to personal data is restricted to the data subject and platform administrators via role-based permissions and Postgres row-level security.",
+          "heading": "8. Security"
+        },
+        "whoWeAre": {
+          "body": "ModularPlatform is a SaaS platform operated as a data controller under the General Data Protection Regulation (GDPR). References to \"we\", \"us\", or \"our\" mean the platform operator. If you have questions about this policy, contact us via the support channel in your account dashboard.",
+          "heading": "1. Who We Are"
+        },
+        "yourRights": {
+          "body": "Under GDPR you have the right to access, rectify, erase, restrict, and port your personal data, and to object to processing. You can exercise most rights directly in the Privacy settings page. To download all data we hold about you, use the \"Download my data\" button. To permanently delete your account and erase personal data, use the \"Delete my account\" option — this crypto-shreds your encryption key so stored data becomes permanently unrecoverable.",
+          "heading": "7. Your Rights"
+        }
+      },
+      "title": "Privacy Policy"
+    },
+    "terms": {
+      "lastUpdatedDate": "20 June 2026",
+      "metaTitle": "Terms of Service — ModularPlatform",
+      "sections": {
+        "acceptableUse": {
+          "body": "You agree not to use the platform to transmit unlawful content, attempt to circumvent security controls, reverse-engineer any component of the service, or interfere with the availability of the service for other users.",
+          "heading": "4. Acceptable Use"
+        },
+        "acceptance": {
+          "body": "By creating an account or using ModularPlatform you agree to these Terms of Service and our <privacyLink>Privacy Policy</privacyLink>. If you do not agree, do not use the service.",
+          "heading": "1. Acceptance of Terms"
+        },
+        "accounts": {
+          "body": "You are responsible for maintaining the confidentiality of your credentials and for all activity that occurs under your account. You must notify us immediately of any unauthorised use. We may suspend accounts that violate these terms or that we believe are compromised.",
+          "heading": "3. Accounts and Security"
+        },
+        "billing": {
+          "body": "Credit purchases are processed by Stripe and are non-refundable unless required by applicable law. Unused credits expire according to the plan terms visible in your billing dashboard.",
+          "heading": "6. Billing and Credits"
+        },
+        "changes": {
+          "body": "We may update these terms from time to time. Material changes will be notified via the platform or by email. Continued use after the effective date constitutes acceptance of the revised terms.",
+          "heading": "9. Changes to These Terms"
+        },
+        "description": {
+          "body": "ModularPlatform is a multi-tenant SaaS platform that provides identity management, billing, file storage, notifications, and GDPR tooling via a modular architecture. Access to individual modules depends on the entitlements granted to your tenant.",
+          "heading": "2. Description of Service"
+        },
+        "governingLaw": {
+          "body": "These terms are governed by the laws of the Czech Republic. Disputes shall be resolved in the courts of the Czech Republic unless mandatory consumer-protection law in your jurisdiction provides otherwise.",
+          "heading": "10. Governing Law"
+        },
+        "intellectualProperty": {
+          "body": "All platform software and documentation are the exclusive property of ModularPlatform and its licensors. Your data remains yours; you grant us a limited licence to process it solely to provide the service.",
+          "heading": "5. Intellectual Property"
+        },
+        "liability": {
+          "body": "To the maximum extent permitted by law, ModularPlatform is not liable for any indirect, incidental, or consequential damages arising from your use of the service. Our total liability to you shall not exceed the amounts you paid us in the twelve months preceding the claim.",
+          "heading": "8. Limitation of Liability"
+        },
+        "termination": {
+          "body": "You may delete your account at any time via the Privacy settings page. We may terminate or suspend access for violations of these terms. On termination, your data is erased in accordance with our Privacy Policy and applicable GDPR obligations.",
+          "heading": "7. Termination"
+        }
+      },
+      "title": "Terms of Service"
+    }
+  },
+  "nav": {
+    "account": "Account",
+    "admin": "Administration",
+    "audit": "Audit",
+    "billing": "Billing",
+    "dashboard": "Dashboard",
+    "files": "Files",
+    "notifications": "Notifications",
+    "platformFleet": "Fleet",
+    "platformTenants": "Tenants",
+    "privacy": "Privacy",
+    "profile": "Profile",
+    "signOut": "Sign out",
+    "users": "Users"
+  },
+  "notifications": {
+    "badge": {
+      "new": "New"
+    },
+    "empty": {
+      "feedDescription": "You're all caught up — no notifications yet.",
+      "recentDescription": "You're all caught up.",
+      "title": "No notifications"
+    },
+    "markRead": {
+      "ariaLabel": "Mark \"{title}\" as read"
+    },
+    "page": {
+      "description": "Your recent activity and system messages.",
+      "heading": "Notifications",
+      "metaTitle": "Notifications — ModularPlatform"
+    },
+    "recent": {
+      "subtitle": "Recent activity",
+      "title": "Notifications",
+      "viewAll": "View all"
+    }
+  },
+  "platform": {
+    "audit": {
+      "description": "Inspect a user’s cross-tenant audit trail. PII is shown until the subject is erased, then it reads <mono>[erased]</mono>.",
+      "heading": "Audit",
+      "lookup": {
+        "description": "Enter a user ID to inspect their cross-tenant audit trail, or open it from the Users list.",
+        "heading": "User lookup",
+        "invalid": "Enter a valid user UUID (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx).",
+        "label": "User ID",
+        "inputHint": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+        "submit": "Look up"
+      },
+      "trail": {
+        "heading": "Audit trail"
+      }
+    },
+    "billingCard": {
+      "description": "SaaS operator billing",
+      "empty": "No billing data.",
+      "off": "off",
+      "on": "on",
+      "title": "Platform plan"
+    },
+    "entitlementEditor": {
+      "description": "Enter a tenant UUID to toggle its module entitlements.",
+      "heading": "Tenant entitlement editor",
+      "idLabel": "Tenant ID (UUID)",
+      "moduleEntitlements": "Module entitlements",
+      "note": "No list-tenants or get-by-id endpoint exists yet — use the ID from the provision response. Switch state reflects your actions in this session, not the persisted value.",
+      "open": "Open",
+      "inputHint": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+      "tenantIdLabel": "Tenant ID"
+    },
+    "entitlements": {
+      "disableLabel": "Disable {module}",
+      "empty": "No entitlement data available.",
+      "enableLabel": "Enable {module}",
+      "modules": {
+        "billing": "Billing",
+        "files": "Files",
+        "gdpr": "GDPR / Privacy",
+        "marketing": "Marketing",
+        "notifications": "Notifications",
+        "operations": "Operations"
+      }
+    },
+    "forbidden": {
+      "area": "You do not have access to the platform administration area.",
+      "audit": "You do not have permission to read the audit trail.",
+      "users": "You do not have permission to list platform users."
+    },
+    "inviteDialog": {
+      "copied": "Invite token copied to clipboard.",
+      "copyAria": "Copy token",
+      "daysLabel": "Expires in (days)",
+      "descriptionFallback": "Mint a single-use invite so a new member can join this workspace. The raw token is shown once — copy it before closing.",
+      "descriptionNamed": "Mint a single-use invite so a new member can join <tenant></tenant>. The raw token is shown once — copy it before closing.",
+      "expires": "Expires {date}",
+      "submit": "Create token",
+      "submitting": "Creating…",
+      "title": "Create invite token",
+      "tokenAria": "Invite token",
+      "tokenLabel": "Invite token",
+      "trigger": "Create invite"
+    },
+    "meta": {
+      "auditTitle": "Audit — Platform Admin",
+      "overviewTitle": "Platform — ModularPlatform",
+      "tenantDetailTitle": "Tenant detail — Platform Admin",
+      "tenantsTitle": "Tenants — Platform Admin",
+      "usersTitle": "Users — Platform Admin"
+    },
+    "overview": {
+      "description": "Provision tenants, manage module entitlements, and monitor platform-plane billing.",
+      "heading": "Platform administration"
+    },
+    "provisionDialog": {
+      "description": "Creates a new workspace with the default module entitlements (billing, notifications, files, operations, gdpr).",
+      "nameLabel": "Organisation name",
+      "namePlaceholder": "Acme Corp",
+      "subdomainLabel": "Subdomain",
+      "subdomainPlaceholder": "acme",
+      "submit": "Provision",
+      "submitting": "Provisioning…",
+      "title": "Provision new tenant",
+      "trigger": "Provision tenant"
+    },
+    "tenantDetail": {
+      "back": "All tenants",
+      "entitlements": {
+        "description": "Toggle individual modules on or off for this tenant. Changes are effective immediately (the entitlement guard reads live).",
+        "heading": "Module entitlements",
+        "unknownState": "Current enabled state is unknown — no GET /tenant/admin/tenants/'{'id'}' endpoint exists yet. Toggling sends the PUT; the switch reflects your action, not the persisted value."
+      },
+      "heading": "Tenant detail",
+      "invite": {
+        "description": "Mint a single-use invite so a new member can join this workspace.",
+        "heading": "Invite"
+      }
+    },
+    "tenants": {
+      "description": "Provision new tenants and manage their module entitlements. Use the tenant ID from the provision response to open the entitlement editor.",
+      "heading": "Tenants"
+    },
+    "users": {
+      "description": "Cross-tenant user directory. Open a user’s audit trail from the row action.",
+      "heading": "Users",
+      "table": {
+        "created": "Created",
+        "email": "Email",
+        "emptyDescription": "No users match the current filter.",
+        "emptyTitle": "No users",
+        "name": "Name",
+        "tenant": "Tenant",
+        "viewAudit": "View audit trail for {email}"
+      }
+    },
+    "validation": {
+      "daysMax": "Maximum 90 days",
+      "daysMin": "Minimum 1 day",
+      "daysNumber": "Must be a number",
+      "daysWhole": "Must be a whole number",
+      "nameMax": "Name must be 256 characters or fewer",
+      "nameRequired": "Name is required",
+      "subdomainMax": "Subdomain must be 63 characters or fewer",
+      "subdomainPattern": "Subdomain must be lowercase alphanumeric with hyphens (no leading/trailing hyphen)",
+      "subdomainRequired": "Subdomain is required"
+    }
+  },
+  "privacy": {
+    "consents": {
+      "description": "Control how we use your data. Changes take effect immediately.",
+      "heading": "Consent preferences",
+      "toast": {
+        "granted": "Consent granted.",
+        "withdrawn": "Consent withdrawn."
+      },
+      "types": {
+        "analytics": {
+          "description": "Allow us to collect usage data to improve the platform.",
+          "label": "Analytics & improvement"
+        },
+        "marketingEmails": {
+          "description": "Receive non-transactional marketing emails such as product news, tips, and promotional offers. Essential emails (account, security, and the welcome email) are always sent regardless of this setting.",
+          "label": "Product news & offers"
+        },
+        "thirdPartySharing": {
+          "description": "Share your data with trusted partners for service delivery.",
+          "label": "Third-party sharing"
+        }
+      }
+    },
+    "erase": {
+      "description": "Permanently erase your account and all associated personal data. This cannot be reversed (GDPR Art. 17).",
+      "dialog": {
+        "confirmHint": "Type exactly: {phrase}",
+        "confirmLabel": "To confirm, type <strong>{phrase}</strong> below:",
+        "description": "This is <strong>irreversible</strong>. All personal data will be erased from every module. Audit logs will be anonymised and your encryption key will be destroyed, making stored data permanently unrecoverable.",
+        "erasing": "Erasing…",
+        "submit": "Permanently delete my account",
+        "title": "Delete account permanently",
+        "trigger": "Delete my account",
+        "whatWillBeErased": "What will be erased: your profile, consents, notification history, billing records, and any files you own. This cannot be undone."
+      },
+      "heading": "Delete account",
+      "toast": {
+        "queued": "Account erasure has been queued. You will be signed out."
+      }
+    },
+    "export": {
+      "body": "Download a copy of all personal data we hold about you. The export includes your profile, consents, notifications, billing history, and any other data associated with your account.",
+      "description": "Download a machine-readable copy of all personal data we hold about you (GDPR Art. 20).",
+      "download": "Download my data",
+      "downloaded": "Downloaded",
+      "heading": "Export your data",
+      "preparing": "Preparing export…",
+      "toast": {
+        "ready": "Your data export is ready and has been downloaded."
+      }
+    },
+    "header": {
+      "description": "Manage your consent preferences and exercise your data rights.",
+      "title": "Privacy & Data"
+    },
+    "metadata": {
+      "title": "Privacy — ModularPlatform"
+    }
   },
   "realtime": {
-    "open": "Live",
+    "closed": "Offline",
     "connecting": "Connecting…",
-    "closed": "Offline"
+    "open": "Live"
+  },
+  "shell": {
+    "appShell": {
+      "signedOut": "Signed out.",
+      "signingOut": "Signing out…",
+      "skipToContent": "Skip to content",
+      "userMenu": "User menu"
+    },
+    "dashboard": {
+      "actions": {
+        "topUpCredits": "Top up credits",
+        "uploadFile": "Upload a file",
+        "viewAuditTrail": "View audit trail"
+      },
+      "metaTitle": "Dashboard — ModularPlatform",
+      "quickActions": "Quick actions",
+      "subtitle": "Here's an overview of your workspace.",
+      "welcome": "Welcome back",
+      "welcomeNamed": "Welcome back, {name}"
+    },
+    "dataTable": {
+      "emptyDescription": "No items to display.",
+      "emptyTitle": "Nothing here yet"
+    },
+    "error": {
+      "tryAgain": "Try again"
+    },
+    "localeToggle": {
+      "switchLanguage": "Switch language"
+    },
+    "notFound": {
+      "description": "The page you're looking for doesn't exist or has been moved.",
+      "goToDashboard": "Go to dashboard",
+      "heading": "Page not found",
+      "metaTitle": "Page not found — ModularPlatform"
+    },
+    "operationStatus": {
+      "inProgress": "Operation in progress",
+      "status": {
+        "cancelled": "Cancelled",
+        "completed": "Completed",
+        "failed": "Failed",
+        "pending": "Pending",
+        "running": "Running"
+      }
+    },
+    "problemDetails": {
+      "title": "Error"
+    },
+    "realtimeIndicator": {
+      "label": "Realtime: {status}"
+    },
+    "themeToggle": {
+      "darkMode": "Dark mode",
+      "lightMode": "Light mode",
+      "switchToDark": "Switch to dark mode",
+      "switchToLight": "Switch to light mode"
+    }
   }
 }

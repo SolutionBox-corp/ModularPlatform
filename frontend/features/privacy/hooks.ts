@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryRoots } from "@/lib/api/query-keys";
+import { PRIVACY_VERSION } from "@/lib/legal-versions";
 import {
   privacyQueries,
   grantConsent,
@@ -25,7 +26,9 @@ export function useConsents() {
 export function useGrantConsent() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (consentType: string) => grantConsent(consentType),
+    // policyVersion defaults to the active PRIVACY_VERSION so callers (the toggles)
+    // only pass the consent type.
+    mutationFn: (consentType: string) => grantConsent(consentType, PRIVACY_VERSION),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: [...queryRoots.gdpr, "consents"] });
     },
@@ -35,7 +38,7 @@ export function useGrantConsent() {
 export function useWithdrawConsent() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (consentType: string) => withdrawConsent(consentType),
+    mutationFn: (consentType: string) => withdrawConsent(consentType, PRIVACY_VERSION),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: [...queryRoots.gdpr, "consents"] });
     },

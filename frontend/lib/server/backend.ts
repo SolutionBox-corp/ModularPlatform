@@ -1,6 +1,8 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import { serverConfig } from "@/lib/config";
 import { getSession, type SessionData } from "@/lib/auth/session";
+import { getRedis } from "@/lib/server/redis";
 import type { IronSession } from "iron-session";
 
 /**
@@ -11,6 +13,13 @@ import type { IronSession } from "iron-session";
  * Refresh is single-flight PER SESSION (keyed by the current refresh token) so N
  * concurrent 401s trigger exactly one `/refresh` — mandatory because the backend
  * rotates refresh tokens one-time-use and reuse-detection would kill the session.
+ *
+ * SINGLE-NODE: an in-process `Map` coalesces concurrent refreshes (below).
+ * MULTI-NODE (REDIS_URL set): a Redis `SET NX EX` lock elects ONE node to refresh;
+ * the winner publishes the rotated token pair into Redis keyed by the old token's
+ * hash, and contending nodes read that published result instead of re-consuming the
+ * one-time refresh token (which would trip backend reuse-detection and kill the
+ * session). Redis errors degrade gracefully back to the in-proc Map.
  */
 
 interface RefreshResult {
@@ -21,6 +30,21 @@ interface RefreshResult {
 }
 
 const refreshInFlight = new Map<string, Promise<RefreshResult>>();
+
+// --- Redis distributed single-flight (multi-node) ---------------------------------
+const REFRESH_LOCK_PREFIX = "modularplatform:refresh:lock:";
+const REFRESH_RESULT_PREFIX = "modularplatform:refresh:result:";
+const LOCK_TTL_SECONDS = 10;
+const RESULT_TTL_SECONDS = 30; // outlives the lock so late contenders still read it
+const POLL_INTERVAL_MS = 50;
+const POLL_TIMEOUT_MS = LOCK_TTL_SECONDS * 1000;
+
+/** Hash the refresh token so it never appears in plaintext as a Redis key. */
+function tokenHash(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 interface BackendFetchOptions {
   method?: string;
@@ -84,16 +108,7 @@ async function refreshSession(session: IronSession<SessionData>): Promise<boolea
   const key = session.refreshToken;
   if (!key) return false;
 
-  let inFlight = refreshInFlight.get(key);
-  if (!inFlight) {
-    inFlight = doRefresh(key);
-    refreshInFlight.set(key, inFlight);
-    void inFlight.finally(() => {
-      if (refreshInFlight.get(key) === inFlight) refreshInFlight.delete(key);
-    });
-  }
-
-  const result = await inFlight;
+  const result = await coalesceRefresh(key);
   if (!result.ok || !result.accessToken) {
     await clearSession(session);
     return false;
@@ -104,6 +119,78 @@ async function refreshSession(session: IronSession<SessionData>): Promise<boolea
   session.accessTokenExpiresAt = result.expiresAt;
   await session.save();
   return true;
+}
+
+/**
+ * Single-flight the refresh of a one-time refresh token. Within a process the in-proc
+ * Map already coalesces concurrent callers; across processes (multi-node) a Redis lock
+ * elects one winner that publishes the rotated tokens for the losers to consume.
+ */
+async function coalesceRefresh(refreshToken: string): Promise<RefreshResult> {
+  // In-proc coalescing (always — cheap, and the only mechanism on single-node).
+  let inFlight = refreshInFlight.get(refreshToken);
+  if (inFlight) return inFlight;
+
+  inFlight = serverConfig.redisUrl ? distributedRefresh(refreshToken) : doRefresh(refreshToken);
+  refreshInFlight.set(refreshToken, inFlight);
+  void inFlight.finally(() => {
+    if (refreshInFlight.get(refreshToken) === inFlight) refreshInFlight.delete(refreshToken);
+  });
+  return inFlight;
+}
+
+/**
+ * Multi-node single-flight. Acquire `SET NX EX` lock keyed by the token hash; the winner
+ * refreshes and publishes the result, contenders poll for the published result rather
+ * than double-consuming the one-time token. Any Redis failure falls back to a local
+ * refresh (single-node behavior) so we never block auth on Redis availability.
+ */
+async function distributedRefresh(refreshToken: string): Promise<RefreshResult> {
+  const redis = getRedis();
+  if (!redis) return doRefresh(refreshToken);
+
+  const hash = tokenHash(refreshToken);
+  const lockKey = `${REFRESH_LOCK_PREFIX}${hash}`;
+  const resultKey = `${REFRESH_RESULT_PREFIX}${hash}`;
+
+  let acquired = false;
+  try {
+    acquired = (await redis.set(lockKey, "1", "EX", LOCK_TTL_SECONDS, "NX")) === "OK";
+  } catch {
+    // Redis unreachable → degrade to a local refresh (the in-proc Map still prevents
+    // a local double-refresh; cross-node risk reverts to pre-Redis behavior).
+    return doRefresh(refreshToken);
+  }
+
+  if (acquired) {
+    const result = await doRefresh(refreshToken);
+    try {
+      // Publish only a SUCCESS the losers can apply. On failure, leave nothing so a
+      // contender (after the lock TTL frees it) can retry independently.
+      if (result.ok && result.accessToken) {
+        await redis.set(resultKey, JSON.stringify(result), "EX", RESULT_TTL_SECONDS);
+      }
+    } catch {
+      // Best-effort publish; losers will time out their poll and the original 401
+      // propagates (browser logs out) — strictly safer than a double-consume.
+    }
+    return result;
+  }
+
+  // Lost the race: poll for the winner's published result.
+  const deadline = Date.now() + POLL_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    try {
+      const raw = await redis.get(resultKey);
+      if (raw) return JSON.parse(raw) as RefreshResult;
+    } catch {
+      break; // Redis went away mid-poll — fall through to the unauthenticated result.
+    }
+    await sleep(POLL_INTERVAL_MS);
+  }
+  // No result appeared (winner failed, or its publish was lost). Do NOT re-refresh the
+  // same one-time token — return unauthenticated so the caller logs out cleanly.
+  return { ok: false };
 }
 
 async function doRefresh(refreshToken: string): Promise<RefreshResult> {

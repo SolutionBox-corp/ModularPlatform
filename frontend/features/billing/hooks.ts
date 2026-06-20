@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { queryRoots } from "@/lib/api/query-keys";
 import {
@@ -10,23 +11,31 @@ import {
   cancelSubscription,
 } from "@/features/billing/api";
 
+interface CheckoutRedirectMessages {
+  invalidRedirect: string;
+  unexpectedRedirect: string;
+}
+
 /**
  * Only navigate to backend-provided checkout URLs that are valid HTTPS URLs
  * on stripe.com. Anything else is treated as a server-side error.
  */
-function safeExternalRedirect(url: string): void {
+function safeExternalRedirect(
+  url: string,
+  messages: CheckoutRedirectMessages,
+): void {
   let parsed: URL;
   try {
     parsed = new URL(url);
   } catch {
-    toast.error("Checkout failed: invalid redirect URL.");
+    toast.error(messages.invalidRedirect);
     return;
   }
   if (
     parsed.protocol !== "https:" ||
     !parsed.host.endsWith("stripe.com")
   ) {
-    toast.error("Checkout failed: unexpected redirect destination.");
+    toast.error(messages.unexpectedRedirect);
     return;
   }
   window.location.href = url;
@@ -65,10 +74,14 @@ export function usePromoCode(code: string, enabled: boolean) {
  * checkout URL returned by the backend.
  */
 export function useCheckoutPackage() {
+  const t = useTranslations("billing");
   return useMutation({
     mutationFn: (packageId: string) => checkoutPackage(packageId),
     onSuccess: (data) => {
-      safeExternalRedirect(data.checkoutUrl);
+      safeExternalRedirect(data.checkoutUrl, {
+        invalidRedirect: t("checkout.invalidRedirect"),
+        unexpectedRedirect: t("checkout.unexpectedRedirect"),
+      });
     },
   });
 }
@@ -77,10 +90,14 @@ export function useCheckoutPackage() {
  * Start a subscription checkout — on success redirects to Stripe.
  */
 export function useSubscribeCheckout() {
+  const t = useTranslations("billing");
   return useMutation({
     mutationFn: (planKey: string) => subscribeCheckout(planKey),
     onSuccess: (data) => {
-      safeExternalRedirect(data.checkoutUrl);
+      safeExternalRedirect(data.checkoutUrl, {
+        invalidRedirect: t("checkout.invalidRedirect"),
+        unexpectedRedirect: t("checkout.unexpectedRedirect"),
+      });
     },
   });
 }

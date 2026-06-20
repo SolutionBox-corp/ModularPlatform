@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { PackageIcon } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/app/empty-state";
@@ -12,6 +13,7 @@ import { PackageCard } from "@/features/billing/components/package-card";
  * Each card wires its own checkout mutation.
  */
 export function PackagesGrid() {
+  const t = useTranslations("billing");
   const { data, isLoading } = useQuery(billingQueries.packages());
 
   if (isLoading) {
@@ -28,8 +30,8 @@ export function PackagesGrid() {
     return (
       <EmptyState
         icon={PackageIcon}
-        title="No packages available"
-        description="Credit packages will appear here once configured."
+        title={t("packages.emptyTitle")}
+        description={t("packages.emptyDescription")}
       />
     );
   }

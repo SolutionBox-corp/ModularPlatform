@@ -1,11 +1,35 @@
 import { queryOptions } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api/client";
 import { queryRoots } from "@/lib/api/query-keys";
+import type { UserAuditTrailResponse } from "@/features/identity-admin/api";
 
 // ─── Response shapes (mirroring backend records) ───────────────────────────
 
 export interface ProvisionTenantResponse {
   tenantId: string;
+}
+
+/** A row of GET /v1/identity/platform/users. */
+export interface PlatformUserItem {
+  userId: string;
+  email: string;
+  displayName: string;
+  tenantId: string;
+  createdAt: string;
+}
+
+/** Envelope of GET /v1/identity/platform/users — limit/offset paged. */
+export interface PlatformUsersResponse {
+  items: PlatformUserItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface ListPlatformUsersParams {
+  tenantId?: string;
+  limit?: number;
+  offset?: number;
 }
 
 export interface SetEntitlementResponse {
@@ -44,6 +68,49 @@ export const platformQueries = {
       queryKey: [...queryRoots.admin, "platform-billing"],
       queryFn: () =>
         apiFetch<PlatformBillingStatusView>("tenant/admin/platform-billing"),
+      staleTime: 30_000,
+    }),
+
+  /**
+   * GET /v1/identity/platform/users?tenantId&limit&offset
+   * Platform-wide user list (cross-tenant). Requires platform.users.list.
+   */
+  users: ({ tenantId, limit = 50, offset = 0 }: ListPlatformUsersParams = {}) =>
+    queryOptions({
+      queryKey: [
+        ...queryRoots.admin,
+        "platform",
+        "users",
+        tenantId ?? null,
+        limit,
+        offset,
+      ],
+      queryFn: () => {
+        const sp = new URLSearchParams({
+          limit: String(limit),
+          offset: String(offset),
+        });
+        if (tenantId) sp.set("tenantId", tenantId);
+        return apiFetch<PlatformUsersResponse>(
+          `identity/platform/users?${sp.toString()}`,
+        );
+      },
+      staleTime: 30_000,
+    }),
+
+  /**
+   * GET /v1/identity/platform/users/{userId}/audit
+   * Same UserAuditTrailResponse shape as the per-tenant audit view.
+   * Requires audit.read.
+   */
+  userAudit: (userId: string) =>
+    queryOptions({
+      queryKey: [...queryRoots.admin, "platform", "users", userId, "audit"],
+      queryFn: () =>
+        apiFetch<UserAuditTrailResponse>(
+          `identity/platform/users/${userId}/audit`,
+        ),
+      enabled: userId.trim().length > 0,
       staleTime: 30_000,
     }),
 };

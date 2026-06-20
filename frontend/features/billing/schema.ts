@@ -1,12 +1,17 @@
 import { z } from "zod";
 
-/** Promo code input — trimmed, non-empty. */
-export const promoCodeSchema = z.object({
-  code: z
-    .string()
-    .min(1, "Enter a promo code.")
-    .max(64, "Code is too long.")
-    .transform((v) => v.trim().toUpperCase()),
-});
+/** Translator shape (next-intl's `useTranslations('billing')`) — only what the schema needs. */
+type Translate = (key: string) => string;
 
-export type PromoCodeInput = z.infer<typeof promoCodeSchema>;
+/** Promo code input — trimmed, non-empty. */
+export function buildPromoCodeSchema(t: Translate) {
+  return z.object({
+    code: z
+      .string()
+      .min(1, t("promo.validation.required"))
+      .max(64, t("promo.validation.tooLong"))
+      .transform((v) => v.trim().toUpperCase()),
+  });
+}
+
+export type PromoCodeInput = z.infer<ReturnType<typeof buildPromoCodeSchema>>;

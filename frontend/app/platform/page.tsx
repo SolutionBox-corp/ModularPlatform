@@ -5,12 +5,17 @@ import { PlatformBillingCard } from "@/features/platform/components/platform-bil
 import { ProvisionTenantDialog } from "@/features/platform/components/provision-tenant-dialog";
 import { TenantEntitlementEditor } from "@/features/platform/components/tenant-entitlement-editor";
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 
-export const metadata: Metadata = {
-  title: "Platform — ModularPlatform",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("platform");
+  return {
+    title: t("meta.overviewTitle"),
+  };
+}
 
 export default async function PlatformOverviewPage() {
+  const t = await getTranslations("platform");
   const queryClient = getQueryClient();
 
   // Prefetch billing status for the admin's own tenant.
@@ -23,11 +28,10 @@ export default async function PlatformOverviewPage() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">
-              Platform administration
+              {t("overview.heading")}
             </h1>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Provision tenants, manage module entitlements, and monitor
-              platform-plane billing.
+              {t("overview.description")}
             </p>
           </div>
           <ProvisionTenantDialog />

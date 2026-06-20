@@ -1,6 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { InfoIcon } from "lucide-react";
 
@@ -11,14 +12,13 @@ import { InfoIcon } from "lucide-react";
  */
 export function SessionExpiredBanner() {
   const params = useSearchParams();
+  const t = useTranslations("auth");
   if (params.get("reason") !== "expired") return null;
 
   return (
     <Alert>
       <InfoIcon />
-      <AlertDescription>
-        Your session expired. Please sign in again.
-      </AlertDescription>
+      <AlertDescription>{t("expired")}</AlertDescription>
     </Alert>
   );
 }

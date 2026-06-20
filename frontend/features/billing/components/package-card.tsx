@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { MoneyAmount } from "@/components/app/money-amount";
 import { useCheckoutPackage } from "@/features/billing/hooks";
@@ -23,6 +24,7 @@ interface PackageCardProps {
  * and a "Buy now" button that initiates Stripe checkout (browser redirect).
  */
 export function PackageCard({ pkg }: PackageCardProps) {
+  const t = useTranslations("billing");
   const checkout = useCheckoutPackage();
 
   return (
@@ -33,11 +35,14 @@ export function PackageCard({ pkg }: PackageCardProps) {
           <div className="min-w-0">
             <CardTitle className="text-sm font-semibold">{pkg.name}</CardTitle>
             <CardDescription className="text-xs mt-0.5">
-              <MoneyAmount value={pkg.creditAmount} />{" "}
-              credits
               {pkg.bucketExpiryDays != null
-                ? ` · expire in ${pkg.bucketExpiryDays}d`
-                : " · no expiry"}
+                ? t.rich("package.creditsExpireIn", {
+                    days: pkg.bucketExpiryDays,
+                    amount: () => <MoneyAmount value={pkg.creditAmount} />,
+                  })
+                : t.rich("package.creditsNoExpiry", {
+                    amount: () => <MoneyAmount value={pkg.creditAmount} />,
+                  })}
             </CardDescription>
           </div>
         </div>
@@ -47,7 +52,9 @@ export function PackageCard({ pkg }: PackageCardProps) {
         <p className="text-2xl font-semibold tabular-nums">
           <MoneyAmount value={pkg.price} currency={pkg.currency} />
         </p>
-        <p className="text-xs text-muted-foreground mt-0.5">one-time payment</p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {t("package.oneTimePayment")}
+        </p>
       </CardContent>
 
       <CardFooter className="pt-0">
@@ -57,7 +64,9 @@ export function PackageCard({ pkg }: PackageCardProps) {
           disabled={checkout.isPending}
           onClick={() => checkout.mutate(pkg.id)}
         >
-          {checkout.isPending ? "Redirecting…" : "Buy now"}
+          {checkout.isPending
+            ? t("package.redirecting")
+            : t("package.buyNow")}
         </Button>
       </CardFooter>
     </Card>

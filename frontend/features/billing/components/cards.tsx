@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MoneyAmount } from "@/components/app/money-amount";
 import { billingQueries } from "@/features/billing/api";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useCancelSubscription } from "@/features/billing/hooks";
 
 // ---------------------------------------------------------------------------
@@ -50,6 +50,7 @@ function subscriptionStatusVariant(
  * credit-related server-sent events, so useQuery re-fetches automatically.
  */
 export function CreditBalanceCard() {
+  const t = useTranslations("billing");
   const { data, isLoading } = useQuery(billingQueries.balance());
 
   return (
@@ -57,8 +58,12 @@ export function CreditBalanceCard() {
       <CardHeader className="pb-2 flex flex-row items-start gap-2">
         <CircleDollarSignIcon className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
         <div className="flex-1 min-w-0">
-          <CardTitle className="text-sm font-medium">Credits</CardTitle>
-          <CardDescription className="text-xs">Available balance</CardDescription>
+          <CardTitle className="text-sm font-medium">
+            {t("creditCard.title")}
+          </CardTitle>
+          <CardDescription className="text-xs">
+            {t("creditCard.description")}
+          </CardDescription>
         </div>
       </CardHeader>
       <CardContent>
@@ -70,19 +75,23 @@ export function CreditBalanceCard() {
               <MoneyAmount value={data.available} />
             </p>
             <p className="text-xs text-muted-foreground">
-              of{" "}
-              <MoneyAmount value={data.posted} className="text-xs" />{" "}
-              posted
+              {t.rich("creditCard.ofPosted", {
+                amount: () => (
+                  <MoneyAmount value={data.posted} className="text-xs" />
+                ),
+              })}
             </p>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">No account yet.</p>
+          <p className="text-sm text-muted-foreground">
+            {t("creditCard.noAccount")}
+          </p>
         )}
         <Link
           href="/billing"
           className="mt-3 block text-xs text-primary underline-offset-4 hover:underline"
         >
-          Manage billing
+          {t("creditCard.manage")}
         </Link>
       </CardContent>
     </Card>
@@ -99,6 +108,7 @@ export function CreditBalanceCard() {
  * the period ends; no immediate loss of access.
  */
 export function SubscriptionCard() {
+  const t = useTranslations("billing");
   const locale = useLocale();
   const { data, isLoading } = useQuery(billingQueries.subscriptionMe());
   const cancel = useCancelSubscription();
@@ -113,8 +123,12 @@ export function SubscriptionCard() {
       <CardHeader className="pb-2 flex flex-row items-start gap-2">
         <CreditCardIcon className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
         <div className="flex-1 min-w-0">
-          <CardTitle className="text-sm font-medium">Subscription</CardTitle>
-          <CardDescription className="text-xs">Current plan</CardDescription>
+          <CardTitle className="text-sm font-medium">
+            {t("subscriptionCard.title")}
+          </CardTitle>
+          <CardDescription className="text-xs">
+            {t("subscriptionCard.description")}
+          </CardDescription>
         </div>
       </CardHeader>
       <CardContent>
@@ -134,7 +148,9 @@ export function SubscriptionCard() {
 
             {data.currentPeriodEnd && (
               <p className="text-xs text-muted-foreground">
-                {data.cancelAtPeriodEnd ? "Cancels" : "Renews"}{" "}
+                {data.cancelAtPeriodEnd
+                  ? t("subscriptionCard.cancels")
+                  : t("subscriptionCard.renews")}{" "}
                 {new Date(data.currentPeriodEnd).toLocaleDateString(locale, {
                   month: "short",
                   day: "numeric",
@@ -146,12 +162,14 @@ export function SubscriptionCard() {
             {data.cancelAtPeriodEnd && (
               <p className="flex items-center gap-1 text-xs text-destructive">
                 <AlertCircleIcon className="h-3 w-3 shrink-0" />
-                Cancels at period end
+                {t("subscriptionCard.cancelsAtPeriodEnd")}
               </p>
             )}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">No active subscription.</p>
+          <p className="text-sm text-muted-foreground">
+            {t("subscriptionCard.none")}
+          </p>
         )}
 
         <div className="mt-3 flex items-center gap-3">
@@ -159,7 +177,7 @@ export function SubscriptionCard() {
             href="/billing"
             className="text-xs text-primary underline-offset-4 hover:underline"
           >
-            View plans
+            {t("subscriptionCard.viewPlans")}
           </Link>
 
           {canCancel && (
@@ -170,7 +188,9 @@ export function SubscriptionCard() {
               disabled={cancel.isPending}
               onClick={() => cancel.mutate()}
             >
-              {cancel.isPending ? "Cancelling…" : "Cancel plan"}
+              {cancel.isPending
+                ? t("subscriptionCard.cancelling")
+                : t("subscriptionCard.cancelPlan")}
             </Button>
           )}
         </div>

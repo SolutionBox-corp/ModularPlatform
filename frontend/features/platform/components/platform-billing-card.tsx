@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { ReceiptIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import {
   Card,
   CardContent,
@@ -14,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { platformQueries } from "@/features/platform/api";
 
 export function PlatformBillingCard() {
+  const t = useTranslations("platform");
   const { data, isLoading } = useQuery(platformQueries.billingStatus());
 
   return (
@@ -21,9 +23,11 @@ export function PlatformBillingCard() {
       <CardHeader className="pb-2 flex flex-row items-start gap-2">
         <ReceiptIcon className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
         <div className="flex-1 min-w-0">
-          <CardTitle className="text-sm font-medium">Platform plan</CardTitle>
+          <CardTitle className="text-sm font-medium">
+            {t("billingCard.title")}
+          </CardTitle>
           <CardDescription className="text-xs">
-            SaaS operator billing
+            {t("billingCard.description")}
           </CardDescription>
         </div>
       </CardHeader>
@@ -59,7 +63,7 @@ export function PlatformBillingCard() {
                           : "text-muted-foreground"
                       }
                     >
-                      {mod.enabled ? "on" : "off"}
+                      {mod.enabled ? t("billingCard.on") : t("billingCard.off")}
                     </span>
                   </div>
                 </li>
@@ -67,7 +71,9 @@ export function PlatformBillingCard() {
             </ul>
           </>
         ) : (
-          <p className="text-sm text-muted-foreground">No billing data.</p>
+          <p className="text-sm text-muted-foreground">
+            {t("billingCard.empty")}
+          </p>
         )}
       </CardContent>
     </Card>

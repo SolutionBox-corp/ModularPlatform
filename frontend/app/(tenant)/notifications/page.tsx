@@ -4,13 +4,18 @@ import { getQueryClient } from "@/lib/api/query-client";
 import { notificationQueries } from "@/features/notifications/api";
 import { entitlementQueries, isModuleEnabled } from "@/features/entitlements/api";
 import { NotificationsFeed } from "@/features/notifications/components/notifications-feed";
+import { getTranslations } from "next-intl/server";
 import type { Metadata } from "next";
 
-export const metadata: Metadata = {
-  title: "Notifications — ModularPlatform",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("notifications");
+  return {
+    title: t("page.metaTitle"),
+  };
+}
 
 export default async function NotificationsPage() {
+  const t = await getTranslations("notifications");
   const queryClient = getQueryClient();
 
   // Guard: the layout already awaited this query; fetchQuery reuses the cached result.
@@ -24,9 +29,9 @@ export default async function NotificationsPage() {
     <HydrationBoundary state={dehydrate(queryClient)}>
       <div className="space-y-6">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Notifications</h1>
+          <h1 className="text-xl font-semibold tracking-tight">{t("page.heading")}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Your recent activity and system messages.
+            {t("page.description")}
           </p>
         </div>
 

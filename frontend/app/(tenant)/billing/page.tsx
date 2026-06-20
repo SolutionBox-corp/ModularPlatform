@@ -8,13 +8,16 @@ import { PackagesGrid } from "@/features/billing/components/packages-grid";
 import { CreditSummaryTable } from "@/features/billing/components/credit-summary-table";
 import { PromoCodeInput } from "@/features/billing/components/promo-code-input";
 import { Separator } from "@/components/ui/separator";
+import { getTranslations } from "next-intl/server";
 import type { Metadata } from "next";
 
-export const metadata: Metadata = {
-  title: "Billing — ModularPlatform",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("billing");
+  return { title: t("metaTitle") };
+}
 
 export default async function BillingPage() {
+  const t = await getTranslations("billing");
   const queryClient = getQueryClient();
 
   // Guard: the layout already awaited this query; fetchQuery reuses the cached result.
@@ -32,9 +35,11 @@ export default async function BillingPage() {
       <div className="space-y-8">
         {/* Page header */}
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Billing</h1>
+          <h1 className="text-xl font-semibold tracking-tight">
+            {t("header.title")}
+          </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Manage your credits, subscription, and payment settings.
+            {t("header.description")}
           </p>
         </div>
 
@@ -49,9 +54,9 @@ export default async function BillingPage() {
         {/* Credit packages */}
         <section className="space-y-4">
           <div>
-            <h2 className="text-base font-semibold">Buy credits</h2>
+            <h2 className="text-base font-semibold">{t("buyCredits.heading")}</h2>
             <p className="text-sm text-muted-foreground mt-0.5">
-              One-time top-ups processed securely via Stripe.
+              {t("buyCredits.description")}
             </p>
           </div>
           <PackagesGrid />
@@ -62,9 +67,9 @@ export default async function BillingPage() {
         {/* Promo code */}
         <section className="space-y-4 max-w-sm">
           <div>
-            <h2 className="text-base font-semibold">Promo code</h2>
+            <h2 className="text-base font-semibold">{t("promo.heading")}</h2>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Have a discount code? Verify it here before checkout.
+              {t("promo.description")}
             </p>
           </div>
           <PromoCodeInput />
@@ -75,9 +80,9 @@ export default async function BillingPage() {
         {/* Credit balance breakdown */}
         <section className="space-y-4">
           <div>
-            <h2 className="text-base font-semibold">Credit balance</h2>
+            <h2 className="text-base font-semibold">{t("balance.heading")}</h2>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Authoritative balance projection from the ledger.
+              {t("balance.description")}
             </p>
           </div>
           <CreditSummaryTable />

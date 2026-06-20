@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { DownloadIcon, CheckCircle2Icon, LoaderCircleIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useExportPersonalData } from "@/features/privacy/hooks";
@@ -17,6 +18,7 @@ import { useExportPersonalData } from "@/features/privacy/hooks";
  *   2. Trigger a browser download of the JSON blob when the response arrives.
  */
 export function ExportDataFlow() {
+  const t = useTranslations("privacy");
   const { mutate, isPending } = useExportPersonalData();
   const [exported, setExported] = useState(false);
 
@@ -32,7 +34,7 @@ export function ExportDataFlow() {
         anchor.click();
         URL.revokeObjectURL(url);
         setExported(true);
-        toast.success("Your data export is ready and has been downloaded.");
+        toast.success(t("export.toast.ready"));
       },
     });
   }
@@ -40,9 +42,7 @@ export function ExportDataFlow() {
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        Download a copy of all personal data we hold about you. The export
-        includes your profile, consents, notifications, billing history, and
-        any other data associated with your account.
+        {t("export.body")}
       </p>
 
       <div className="flex items-center gap-3">
@@ -57,13 +57,13 @@ export function ExportDataFlow() {
           ) : (
             <DownloadIcon className="h-4 w-4" aria-hidden />
           )}
-          {isPending ? "Preparing export…" : "Download my data"}
+          {isPending ? t("export.preparing") : t("export.download")}
         </Button>
 
         {exported && !isPending && (
           <span className="flex items-center gap-1 text-xs text-success">
             <CheckCircle2Icon className="h-3.5 w-3.5" aria-hidden />
-            Downloaded
+            {t("export.downloaded")}
           </span>
         )}
       </div>

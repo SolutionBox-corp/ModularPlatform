@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -17,6 +18,7 @@ const LOCALE_LABELS: Record<AppLocale, string> = {
 };
 
 export function LocaleToggle() {
+  const t = useTranslations("shell");
   const [, startTransition] = useTransition();
 
   function switchLocale(locale: AppLocale) {
@@ -28,7 +30,7 @@ export function LocaleToggle() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Switch language" />}>
+      <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label={t("localeToggle.switchLanguage")} />}>
         <GlobeIcon aria-hidden="true" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">

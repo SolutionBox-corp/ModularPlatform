@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useTranslations } from "next-intl";
 import {
   Table,
   TableBody,
@@ -62,9 +63,12 @@ export function DataTable<TData>({
   page = 1,
   pageSize = 20,
   onPageChange,
-  emptyTitle = "Nothing here yet",
-  emptyDescription = "No items to display.",
+  emptyTitle,
+  emptyDescription,
 }: DataTableProps<TData>) {
+  const t = useTranslations("shell");
+  const resolvedEmptyTitle = emptyTitle ?? t("dataTable.emptyTitle");
+  const resolvedEmptyDescription = emptyDescription ?? t("dataTable.emptyDescription");
   const totalPages = total !== undefined ? Math.ceil(total / pageSize) : 1;
   const showPagination =
     total !== undefined && totalPages > 1 && onPageChange !== undefined;
@@ -97,8 +101,8 @@ export function DataTable<TData>({
               <TableRow>
                 <TableCell colSpan={columns.length} className="p-0">
                   <EmptyState
-                    title={emptyTitle}
-                    description={emptyDescription}
+                    title={resolvedEmptyTitle}
+                    description={resolvedEmptyDescription}
                   />
                 </TableCell>
               </TableRow>

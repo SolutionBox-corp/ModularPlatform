@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { DataTable } from "@/components/app/data-table";
 import { MoneyAmount } from "@/components/app/money-amount";
 import { billingQueries } from "@/features/billing/api";
@@ -12,27 +13,6 @@ interface CreditRow {
   note: string;
 }
 
-const columns: ColumnDef<CreditRow>[] = [
-  {
-    key: "label",
-    header: "Category",
-    cell: (row) => <span className="font-medium text-sm">{row.label}</span>,
-  },
-  {
-    key: "amount",
-    header: "Credits",
-    cell: (row) => <MoneyAmount value={row.amount} />,
-    className: "text-right",
-  },
-  {
-    key: "note",
-    header: "Note",
-    cell: (row) => (
-      <span className="text-xs text-muted-foreground">{row.note}</span>
-    ),
-  },
-];
-
 /**
  * Credit balance summary table.
  *
@@ -43,24 +23,46 @@ const columns: ColumnDef<CreditRow>[] = [
  * exposes GET /v1/billing/credits/entries.
  */
 export function CreditSummaryTable() {
+  const t = useTranslations("billing");
   const { data, isLoading } = useQuery(billingQueries.balance());
+
+  const columns: ColumnDef<CreditRow>[] = [
+    {
+      key: "label",
+      header: t("balance.columns.category"),
+      cell: (row) => <span className="font-medium text-sm">{row.label}</span>,
+    },
+    {
+      key: "amount",
+      header: t("balance.columns.credits"),
+      cell: (row) => <MoneyAmount value={row.amount} />,
+      className: "text-right",
+    },
+    {
+      key: "note",
+      header: t("balance.columns.note"),
+      cell: (row) => (
+        <span className="text-xs text-muted-foreground">{row.note}</span>
+      ),
+    },
+  ];
 
   const rows: CreditRow[] = data
     ? [
         {
-          label: "Posted",
+          label: t("balance.rows.posted"),
           amount: data.posted,
-          note: "Total credits ever granted to this account.",
+          note: t("balance.rows.postedNote"),
         },
         {
-          label: "Available",
+          label: t("balance.rows.available"),
           amount: data.available,
-          note: "Ready to spend (posted minus active holds).",
+          note: t("balance.rows.availableNote"),
         },
         {
-          label: "Held / pending",
+          label: t("balance.rows.held"),
           amount: data.posted - data.available,
-          note: "Reserved by in-flight operations; released on confirm or expiry.",
+          note: t("balance.rows.heldNote"),
         },
       ]
     : [];
@@ -71,8 +73,8 @@ export function CreditSummaryTable() {
       data={rows}
       rowKey={(row) => row.label}
       isLoading={isLoading}
-      emptyTitle="No balance data"
-      emptyDescription="Your credit account will appear here after your first top-up."
+      emptyTitle={t("balance.emptyTitle")}
+      emptyDescription={t("balance.emptyDescription")}
     />
   );
 }

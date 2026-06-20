@@ -4,12 +4,17 @@ import { platformQueries } from "@/features/platform/api";
 import { ProvisionTenantDialog } from "@/features/platform/components/provision-tenant-dialog";
 import { TenantsContent } from "@/features/platform/components/tenants-content";
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 
-export const metadata: Metadata = {
-  title: "Tenants — Platform Admin",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("platform");
+  return {
+    title: t("meta.tenantsTitle"),
+  };
+}
 
 export default async function TenantsPage() {
+  const t = await getTranslations("platform");
   const queryClient = getQueryClient();
 
   // Prefetch the platform billing status (shows operator's own plan).
@@ -20,11 +25,11 @@ export default async function TenantsPage() {
       <div className="space-y-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-xl font-semibold tracking-tight">Tenants</h1>
+            <h1 className="text-xl font-semibold tracking-tight">
+              {t("tenants.heading")}
+            </h1>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Provision new tenants and manage their module entitlements. Use
-              the tenant ID from the provision response to open the entitlement
-              editor.
+              {t("tenants.description")}
             </p>
           </div>
           <ProvisionTenantDialog />
