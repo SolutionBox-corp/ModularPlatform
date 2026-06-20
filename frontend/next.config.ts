@@ -21,6 +21,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Allow accessing the dev server via 127.0.0.1 (a clean host with no cached localhost HSTS):
+  // without this, Next blocks cross-origin dev resources + Server Actions from 127.0.0.1.
+  allowedDevOrigins: ["127.0.0.1", "localhost"],
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },

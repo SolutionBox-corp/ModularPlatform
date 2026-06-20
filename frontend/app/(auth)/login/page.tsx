@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { LoginForm } from "@/features/auth/components/login-form";
+import { DevQuickLogin } from "@/features/auth/components/dev-quick-login";
 
 export const metadata: Metadata = {
   title: "Sign in — ModularPlatform",
@@ -15,6 +16,7 @@ export default function LoginPage() {
         </p>
       </div>
       <LoginForm />
+      {process.env.NODE_ENV !== "production" && <DevQuickLogin />}
     </section>
   );
 }
