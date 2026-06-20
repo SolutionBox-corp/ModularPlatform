@@ -7,6 +7,7 @@ import { ThemeProvider } from "next-themes";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { getQueryClient } from "@/lib/api/query-client";
+import { CookieConsentBanner } from "@/components/app/cookie-consent";
 
 /**
  * Global client providers wrapped around the whole app: one QueryClient (the single
@@ -22,6 +23,7 @@ export function Providers({ children, nonce }: { children: ReactNode; nonce?: st
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange nonce={nonce}>
         <TooltipProvider>{children}</TooltipProvider>
         <Toaster richColors closeButton position="top-right" />
+        <CookieConsentBanner />
       </ThemeProvider>
       {process.env.NODE_ENV === "development" && <ReactQueryDevtools initialIsOpen={false} />}
     </QueryClientProvider>

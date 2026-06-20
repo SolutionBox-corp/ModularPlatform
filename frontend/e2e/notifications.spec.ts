@@ -71,7 +71,7 @@ test.describe("Notifications feed — fresh user", () => {
 
     // Checkmark "Mark as read" button must be present.
     const markReadBtn = welcomeItem.getByRole("button", {
-      name: "Mark as read",
+      name: /mark .* as read/i,
     });
     await expect(markReadBtn).toBeVisible();
 
@@ -96,7 +96,7 @@ test.describe("Notifications feed — fresh user", () => {
     await expect(dot).toBeVisible();
 
     // Mark-as-read button has an accessible label (NOTIF-20).
-    await expect(markReadBtn).toHaveAttribute("aria-label", "Mark as read");
+    await expect(markReadBtn).toHaveAttribute("aria-label", /^Mark .* as read$/);
   });
 
   test("mark-read removes badge and button from the feed item", async ({
@@ -122,7 +122,7 @@ test.describe("Notifications feed — fresh user", () => {
     // Confirm unread state before acting.
     await expect(welcomeItem.getByText("New")).toBeVisible();
     const markReadBtn = welcomeItem.getByRole("button", {
-      name: "Mark as read",
+      name: /mark .* as read/i,
     });
     await expect(markReadBtn).toBeVisible();
 
@@ -159,7 +159,7 @@ test.describe("Notifications feed — fresh user", () => {
 
     // Mark as read on the /notifications page.
     const markReadBtn = welcomeItem.getByRole("button", {
-      name: "Mark as read",
+      name: /mark .* as read/i,
     });
     await markReadBtn.click();
     // Wait for the badge to disappear before navigating — confirms the mutation completed.
@@ -186,7 +186,7 @@ test.describe("Notifications feed — fresh user", () => {
 
     // Mark-as-read button also absent.
     await expect(
-      dashWelcomeItem.getByRole("button", { name: "Mark as read" }),
+      dashWelcomeItem.getByRole("button", { name: /mark .* as read/i }),
     ).not.toBeVisible();
   });
 

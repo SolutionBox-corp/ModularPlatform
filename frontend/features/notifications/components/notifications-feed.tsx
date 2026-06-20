@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLocale } from "next-intl";
 import { BellIcon, CheckIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@ const PAGE_SIZE = 20;
  * - Stays live via the RealtimeProvider (event-map invalidates notifications root).
  */
 export function NotificationsFeed() {
+  const locale = useLocale();
   const [page, setPage] = useState(1);
   const { data, isLoading } = useQuery(
     notificationQueries.feed({ page, pageSize: PAGE_SIZE }),
@@ -90,7 +92,7 @@ export function NotificationsFeed() {
                     {n.body}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {new Date(n.createdAt).toLocaleString("en", {
+                    {new Date(n.createdAt).toLocaleString(locale, {
                       month: "short",
                       day: "numeric",
                       hour: "2-digit",
@@ -104,7 +106,7 @@ export function NotificationsFeed() {
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
-                    aria-label="Mark as read"
+                    aria-label={`Mark "${n.title}" as read`}
                     disabled={markRead.isPending}
                     onClick={() => markRead.mutate(n.id)}
                   >
@@ -121,7 +123,8 @@ export function NotificationsFeed() {
                 <PaginationItem>
                   <PaginationPrevious
                     aria-disabled={page === 1}
-                    onClick={page > 1 ? () => setPage((p) => p - 1) : undefined}
+                    tabIndex={page === 1 ? -1 : undefined}
+                    onClick={page > 1 ? () => setPage((p) => p - 1) : (e) => e.preventDefault()}
                     className={cn(page === 1 && "pointer-events-none opacity-50")}
                   />
                 </PaginationItem>
@@ -142,10 +145,11 @@ export function NotificationsFeed() {
                 <PaginationItem>
                   <PaginationNext
                     aria-disabled={page === totalPages}
+                    tabIndex={page === totalPages ? -1 : undefined}
                     onClick={
                       page < totalPages
                         ? () => setPage((p) => p + 1)
-                        : undefined
+                        : (e) => e.preventDefault()
                     }
                     className={cn(
                       page === totalPages && "pointer-events-none opacity-50",

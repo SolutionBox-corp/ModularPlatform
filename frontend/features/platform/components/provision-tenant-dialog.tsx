@@ -95,10 +95,11 @@ export function ProvisionTenantDialog({
                 placeholder="Acme Corp"
                 autoComplete="off"
                 aria-invalid={!!errors.name}
+                aria-describedby={errors.name ? "pt-name-error" : undefined}
                 {...register("name")}
               />
               {errors.name && (
-                <p className="text-xs text-destructive">{errors.name.message}</p>
+                <p id="pt-name-error" className="text-xs text-destructive">{errors.name.message}</p>
               )}
             </div>
 
@@ -110,6 +111,7 @@ export function ProvisionTenantDialog({
                   placeholder="acme"
                   autoComplete="off"
                   aria-invalid={!!errors.subdomain}
+                  aria-describedby={errors.subdomain ? "pt-subdomain-error" : undefined}
                   {...register("subdomain")}
                 />
                 <span className="shrink-0 text-sm text-muted-foreground">
@@ -117,7 +119,7 @@ export function ProvisionTenantDialog({
                 </span>
               </div>
               {errors.subdomain && (
-                <p className="text-xs text-destructive">
+                <p id="pt-subdomain-error" className="text-xs text-destructive">
                   {errors.subdomain.message}
                 </p>
               )}

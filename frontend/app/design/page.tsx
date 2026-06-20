@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { DesignGallery } from "./design-gallery";
 
 export const metadata: Metadata = {
@@ -6,10 +7,12 @@ export const metadata: Metadata = {
 };
 
 /**
- * Dev-only component gallery. No auth guard intentional — this is a local/dev
- * tooling page only. Production deployments should gate it behind a route group
- * or middleware if needed.
+ * Dev-only component gallery. Renders a 404 in production so the design
+ * sandbox is never exposed in shipped builds.
  */
 export default function DesignPage() {
+  if (process.env.NODE_ENV === "production") {
+    notFound();
+  }
   return <DesignGallery />;
 }

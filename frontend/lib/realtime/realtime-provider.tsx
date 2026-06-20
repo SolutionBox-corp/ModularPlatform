@@ -23,7 +23,14 @@ export function useRealtimeStatus(): ConnectionStatus {
 export function RealtimeProvider({ children, enabled = true }: { children: ReactNode; enabled?: boolean }) {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<ConnectionStatus>("closed");
+  const statusRef = useRef<ConnectionStatus>("closed");
   const controllerRef = useRef<EventSourceController | null>(null);
+
+  // Keep statusRef in sync so event handlers that capture this ref see the live value.
+  const updateStatus = (next: ConnectionStatus) => {
+    statusRef.current = next;
+    setStatus(next);
+  };
 
   useEffect(() => {
     if (!enabled) return;
@@ -35,10 +42,10 @@ export function RealtimeProvider({ children, enabled = true }: { children: React
     });
 
     const connect = () => {
-      setStatus("connecting");
+      updateStatus("connecting");
       controllerRef.current = source.listen({
         onMessage(message) {
-          setStatus("open");
+          updateStatus("open");
           const keys = keysForEvent(message.event);
           if (!keys) return;
           for (const queryKey of keys) {
@@ -46,34 +53,38 @@ export function RealtimeProvider({ children, enabled = true }: { children: React
           }
         },
         onResponseError({ response }) {
-          // A 401 means the BFF could not refresh → hard logout. Other statuses: let the
-          // library keep retrying with backoff.
+          // A 401 means the BFF could not refresh → hard logout. Any other error status
+          // (5xx, proxy failures) downgrades the indicator to "connecting" so the UI
+          // does not falsely show "open" while the library retries with backoff.
           if (response.status === 401) {
             controllerRef.current?.abort("unauthorized");
             window.location.assign("/login?reason=expired");
+          } else {
+            updateStatus("connecting");
           }
         },
         onRequestError() {
-          setStatus("connecting");
+          updateStatus("connecting");
         },
       });
       // Fetch-based SSE has no reliable "opened" callback (ofetch defers onResponse until
       // the streamed body settles, which never happens for an open stream). The library
       // maintains + auto-retries the connection, so once we're listening we treat it as
       // live; onRequestError/onResponseError downgrade it on a real failure.
-      setStatus("open");
+      updateStatus("open");
       return controllerRef.current;
     };
 
     connect();
 
     // Pause the stream when the tab is hidden, resume when visible — saves a connection
-    // and a flurry of catch-up invalidations are handled by Last-Event-ID on resume.
+    // and catch-up invalidations are handled by Last-Event-ID on resume. We read
+    // statusRef (not the closed-over `status`) to always see the live value.
     const onVisibility = () => {
       if (document.visibilityState === "hidden") {
         controllerRef.current?.abort("hidden");
-        setStatus("closed");
-      } else if (!controllerRef.current || status === "closed") {
+        updateStatus("closed");
+      } else if (!controllerRef.current || statusRef.current === "closed") {
         connect();
       }
     };
@@ -84,7 +95,6 @@ export function RealtimeProvider({ children, enabled = true }: { children: React
       controllerRef.current?.abort("unmount");
       controllerRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, queryClient]);
 
   return <RealtimeContext.Provider value={status}>{children}</RealtimeContext.Provider>;

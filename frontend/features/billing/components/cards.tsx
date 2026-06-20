@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MoneyAmount } from "@/components/app/money-amount";
 import { billingQueries } from "@/features/billing/api";
+import { useLocale } from "next-intl";
 import { useCancelSubscription } from "@/features/billing/hooks";
 
 // ---------------------------------------------------------------------------
@@ -98,6 +99,7 @@ export function CreditBalanceCard() {
  * the period ends; no immediate loss of access.
  */
 export function SubscriptionCard() {
+  const locale = useLocale();
   const { data, isLoading } = useQuery(billingQueries.subscriptionMe());
   const cancel = useCancelSubscription();
 
@@ -133,7 +135,7 @@ export function SubscriptionCard() {
             {data.currentPeriodEnd && (
               <p className="text-xs text-muted-foreground">
                 {data.cancelAtPeriodEnd ? "Cancels" : "Renews"}{" "}
-                {new Date(data.currentPeriodEnd).toLocaleDateString("en", {
+                {new Date(data.currentPeriodEnd).toLocaleDateString(locale, {
                   month: "short",
                   day: "numeric",
                   year: "numeric",

@@ -117,12 +117,26 @@ function parseRetryAfter(value: string | null): number | undefined {
   return Number.isNaN(date) ? undefined : Math.max(0, Math.round((date - Date.now()) / 1000));
 }
 
+/**
+ * Validates that `path` is a safe same-origin relative URL for use as a `?next=` redirect
+ * target. Accepts paths that start with a single "/" and are not protocol-relative ("//")
+ * or backslash-prefixed. Returns undefined when the value is unsafe so it is omitted.
+ */
+function sanitizeNext(path: string): string | undefined {
+  if (path.startsWith("/") && !path.startsWith("//") && !path.startsWith("/\\")) {
+    return path;
+  }
+  return undefined;
+}
+
 let redirecting = false;
 function redirectToLogin(): void {
   if (redirecting) return;
   redirecting = true;
-  const next = encodeURIComponent(window.location.pathname + window.location.search);
-  window.location.assign(`/login?reason=expired&next=${next}`);
+  const raw = window.location.pathname + window.location.search;
+  const safe = sanitizeNext(raw);
+  const query = safe ? `&next=${encodeURIComponent(safe)}` : "";
+  window.location.assign(`/login?reason=expired${query}`);
 }
 
 function readCookie(name: string): string | undefined {

@@ -71,6 +71,7 @@ export function LoginForm() {
           id="email"
           type="email"
           autoComplete="email"
+          autoFocus
           aria-invalid={!!errors.email}
           aria-describedby={errors.email ? "email-error" : undefined}
           {...register("email")}

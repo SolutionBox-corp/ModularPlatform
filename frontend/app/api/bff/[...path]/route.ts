@@ -15,6 +15,10 @@ const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 // Headers safe to forward upstream. Everything else (cookie, host, authorization) is dropped.
 const FORWARD_HEADERS = ["accept", "accept-language", "content-type", "last-event-id"];
 
+// 11 MB pre-check threshold — the backend caps uploads at 10 MB; we reject slightly above
+// that here so we never buffer an arbitrarily large body in Node heap.
+const MAX_BODY_BYTES = 11 * 1024 * 1024;
+
 async function handle(request: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   const { path } = await ctx.params;
   const method = request.method.toUpperCase();
@@ -28,6 +32,18 @@ async function handle(request: NextRequest, ctx: { params: Promise<{ path: strin
         { errorCode: "security.csrf_failed", status: 403, detail: "CSRF validation failed." },
         { status: 403, headers: { "content-type": "application/problem+json" } },
       );
+    }
+
+    // Reject oversized bodies before reading into heap (OOM DoS guard).
+    const contentLength = request.headers.get("content-length");
+    if (contentLength !== null) {
+      const byteLength = parseInt(contentLength, 10);
+      if (!Number.isNaN(byteLength) && byteLength > MAX_BODY_BYTES) {
+        return NextResponse.json(
+          { errorCode: "file.too_large", status: 413, detail: "Request body exceeds the 10 MB limit." },
+          { status: 413, headers: { "content-type": "application/problem+json" } },
+        );
+      }
     }
   }
 
@@ -43,6 +59,16 @@ async function handle(request: NextRequest, ctx: { params: Promise<{ path: strin
     const value = request.headers.get(name);
     if (value) headers[name] = value;
   }
+
+  // Forward the client IP so the .NET backend's per-IP rate-limit works correctly.
+  // Read the inbound x-forwarded-for chain (set by the load-balancer/CDN in front of Next.js).
+  const inboundXff = request.headers.get("x-forwarded-for");
+  if (inboundXff) {
+    headers["x-forwarded-for"] = inboundXff;
+  }
+  // Forward the protocol so the backend can reconstruct the canonical URL.
+  const proto = request.nextUrl.protocol.replace(/:$/, "");
+  headers["x-forwarded-proto"] = proto;
 
   const upstream = await backendFetch(upstreamPath, {
     method,

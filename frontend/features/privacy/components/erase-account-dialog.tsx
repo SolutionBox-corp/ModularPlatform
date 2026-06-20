@@ -17,6 +17,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useEraseAccount } from "@/features/privacy/hooks";
+import { logoutAction } from "@/features/auth/actions";
 
 const CONFIRMATION_PHRASE = "delete my account";
 
@@ -41,10 +42,12 @@ export function EraseAccountDialog() {
   function handleErase() {
     if (!canSubmit) return;
     mutate(void 0, {
-      onSuccess: () => {
+      onSuccess: async () => {
         toast.success("Account erasure has been queued. You will be signed out.");
         setOpen(false);
-        // Redirect to login — the session will be invalidated by the Worker.
+        // Destroy the iron-session so the user is no longer technically logged in,
+        // then redirect to login.
+        await logoutAction();
         router.push("/login?reason=erased");
       },
     });
@@ -79,7 +82,13 @@ export function EraseAccountDialog() {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3 py-1">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleErase();
+          }}
+          className="space-y-3 py-1"
+        >
           <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2">
             <p className="text-xs text-destructive">
               What will be erased: your profile, consents, notification
@@ -109,17 +118,17 @@ export function EraseAccountDialog() {
               Type exactly: {CONFIRMATION_PHRASE}
             </p>
           </div>
-        </div>
 
-        <DialogFooter>
-          <Button
-            variant="destructive"
-            onClick={handleErase}
-            disabled={!canSubmit || isPending}
-          >
-            {isPending ? "Erasing…" : "Permanently delete my account"}
-          </Button>
-        </DialogFooter>
+          <DialogFooter>
+            <Button
+              type="submit"
+              variant="destructive"
+              disabled={!canSubmit || isPending}
+            >
+              {isPending ? "Erasing…" : "Permanently delete my account"}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

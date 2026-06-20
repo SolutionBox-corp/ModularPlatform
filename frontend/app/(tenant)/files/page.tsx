@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
 import { getQueryClient } from "@/lib/api/query-client";
 import { fileQueries } from "@/features/files/api";
+import { entitlementQueries, isModuleEnabled } from "@/features/entitlements/api";
 import { FileDropzone } from "@/features/files/components/file-dropzone";
 import { FileTable } from "@/features/files/components/file-table";
 
@@ -11,6 +13,10 @@ export const metadata: Metadata = {
 
 export default async function FilesPage() {
   const queryClient = getQueryClient();
+
+  // Guard: the layout already awaited this query; fetchQuery reuses the cached result.
+  const ent = await queryClient.fetchQuery(entitlementQueries.me());
+  if (!isModuleEnabled(ent, "files")) notFound();
 
   // Prefetch page 1 — streamed into HydrationBoundary, no loading flash.
   void queryClient.prefetchQuery(fileQueries.list(1, 20));

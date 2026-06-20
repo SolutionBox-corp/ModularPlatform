@@ -1,8 +1,10 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { serverConfig } from "@/lib/config";
 import { getSession } from "@/lib/auth/session";
 import { ApiError } from "@/lib/api/types";
+import { CSRF_COOKIE } from "@/lib/auth/csrf";
 import type { SessionUser } from "@/lib/auth/session";
 
 interface AuthTokensResponse {
@@ -270,4 +272,7 @@ export async function logoutAction(): Promise<void> {
 
   session.destroy();
   await session.save();
+
+  // Remove the CSRF double-submit cookie so a stale token cannot be reused after logout.
+  (await cookies()).delete(CSRF_COOKIE);
 }

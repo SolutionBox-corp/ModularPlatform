@@ -26,3 +26,16 @@ export const serverConfig = {
 if (serverConfig.sessionPassword.length < 32) {
   throw new Error("SESSION_PASSWORD must be at least 32 characters.");
 }
+
+// Fail-fast on a known dev secret in production — but only at RUNTIME, not during
+// `next build` (the build runs with NODE_ENV=production yet the real secret is injected at
+// deploy/serve time, so checking at build would wrongly fail CI on the dev default value).
+const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
+if (serverConfig.isProduction && !isBuildPhase) {
+  const lower = serverConfig.sessionPassword.toLowerCase();
+  if (lower.includes("dev-only") || lower.includes("change-me")) {
+    throw new Error(
+      "SESSION_PASSWORD is still the dev default ('dev-only' / 'change-me'). Set a real secret in production.",
+    );
+  }
+}

@@ -1,6 +1,8 @@
+import { notFound } from "next/navigation";
 import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
 import { getQueryClient } from "@/lib/api/query-client";
 import { notificationQueries } from "@/features/notifications/api";
+import { entitlementQueries, isModuleEnabled } from "@/features/entitlements/api";
 import { NotificationsFeed } from "@/features/notifications/components/notifications-feed";
 import type { Metadata } from "next";
 
@@ -10,6 +12,10 @@ export const metadata: Metadata = {
 
 export default async function NotificationsPage() {
   const queryClient = getQueryClient();
+
+  // Guard: the layout already awaited this query; fetchQuery reuses the cached result.
+  const ent = await queryClient.fetchQuery(entitlementQueries.me());
+  if (!isModuleEnabled(ent, "notifications")) notFound();
 
   // Prefetch the first page so it streams to the browser without a waterfall.
   void queryClient.prefetchQuery(notificationQueries.feed({ page: 1, pageSize: 20 }));

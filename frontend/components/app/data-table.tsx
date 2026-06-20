@@ -122,8 +122,9 @@ export function DataTable<TData>({
           <PaginationContent>
             <PaginationItem>
               <PaginationPrevious
-                onClick={page > 1 ? () => onPageChange(page - 1) : undefined}
+                onClick={page > 1 ? () => onPageChange(page - 1) : (e) => e.preventDefault()}
                 aria-disabled={page <= 1}
+                tabIndex={page <= 1 ? -1 : undefined}
                 className={page <= 1 ? "pointer-events-none opacity-50" : ""}
               />
             </PaginationItem>
@@ -148,9 +149,12 @@ export function DataTable<TData>({
             <PaginationItem>
               <PaginationNext
                 onClick={
-                  page < totalPages ? () => onPageChange(page + 1) : undefined
+                  page < totalPages
+                    ? () => onPageChange(page + 1)
+                    : (e) => e.preventDefault()
                 }
                 aria-disabled={page >= totalPages}
+                tabIndex={page >= totalPages ? -1 : undefined}
                 className={
                   page >= totalPages ? "pointer-events-none opacity-50" : ""
                 }

@@ -86,6 +86,7 @@ export function RegisterForm() {
           id="email"
           type="email"
           autoComplete="email"
+          autoFocus
           aria-invalid={!!errors.email}
           aria-describedby={errors.email ? "reg-email-error" : undefined}
           {...register("email")}

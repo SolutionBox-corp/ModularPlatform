@@ -13,10 +13,10 @@ export const eventTypeToQueryKeys: Record<string, QueryKey[]> = {
   // Billing — credit ledger / balance changes.
   "billing.credits_changed": [[...queryRoots.billing, "balance"], [...queryRoots.billing]],
   "billing.subscription_changed": [[...queryRoots.billing, "subscription"], [...queryRoots.billing, "balance"]],
-  // Notifications — new in-app notification.
-  "notification.created": [[...queryRoots.notifications]],
-  "notification.read": [[...queryRoots.notifications]],
-  // Operations — long-running 202 work transitions.
+  // Notifications — the backend (SendNotificationHandler) publishes exactly "notification".
+  "notification": [[...queryRoots.notifications]],
+  // Operations — aspirational; backend currently uses client polling (202 + GET /operations/{id}).
+  // These entries are ready for when the backend starts publishing operation SSE events.
   "operation.updated": [[...queryRoots.operations]],
   "operation.completed": [[...queryRoots.operations]],
 };

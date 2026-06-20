@@ -94,7 +94,12 @@ export function PromoCodeInput() {
 
       {/* Success result */}
       {submitted && data && (
-        <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
+        <div
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2"
+        >
           <CheckCircle2Icon className="h-4 w-4 text-success shrink-0" />
           <span className="text-sm">
             <span className="font-medium font-mono">{data.code}</span>
@@ -118,7 +123,12 @@ export function PromoCodeInput() {
 
       {/* Error result */}
       {submitted && isError && (
-        <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2">
+        <div
+          role="alert"
+          aria-live="polite"
+          aria-atomic="true"
+          className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2"
+        >
           <XCircleIcon className="h-4 w-4 text-destructive shrink-0" />
           <p className="text-sm text-destructive">
             Invalid or expired promo code.

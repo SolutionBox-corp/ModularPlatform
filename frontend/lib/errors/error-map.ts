@@ -15,8 +15,12 @@ const CATALOG: Catalog = {
   // Generic
   "generic.error": { en: "Something went wrong. Please try again.", cs: "Něco se pokazilo. Zkuste to znovu." },
   "network.error": { en: "Network error. Check your connection.", cs: "Chyba sítě. Zkontrolujte připojení." },
+  // Auth
   "auth.unauthenticated": { en: "Please sign in to continue.", cs: "Pro pokračování se přihlaste." },
+  "auth.expired": { en: "Your session expired. Please sign in again.", cs: "Platnost vaší relace vypršela. Přihlaste se znovu." },
   "auth.invalid_credentials": { en: "Incorrect email or password.", cs: "Nesprávný e-mail nebo heslo." },
+  // Backend code: auth.locked_out (LoginHandler.cs). Keep auth.account_locked as alias.
+  "auth.locked_out": { en: "Account temporarily locked. Try again later.", cs: "Účet je dočasně uzamčen. Zkuste to později." },
   "auth.account_locked": { en: "Account temporarily locked. Try again later.", cs: "Účet je dočasně uzamčen. Zkuste to později." },
   "security.csrf_failed": { en: "Security check failed. Reload and retry.", cs: "Bezpečnostní kontrola selhala. Obnovte stránku." },
   "rate_limit.exceeded": { en: "Too many requests. Please slow down.", cs: "Příliš mnoho požadavků. Zpomalte prosím." },
@@ -27,8 +31,10 @@ const CATALOG: Catalog = {
   "billing.insufficient_credits": { en: "Not enough credits for this action.", cs: "Nedostatek kreditů pro tuto akci." },
   "billing.package_not_found": { en: "That package is no longer available.", cs: "Tento balíček již není dostupný." },
   "billing.promo_invalid": { en: "This promo code is not valid.", cs: "Tento promo kód není platný." },
-  // Files
+  // Files — backend code: file.content_type.not_allowed (UploadFileValidator.cs).
+  // Keep file.type_not_allowed as alias in case it appears in older API responses.
   "file.too_large": { en: "File is too large (max 10 MB).", cs: "Soubor je příliš velký (max 10 MB)." },
+  "file.content_type.not_allowed": { en: "This file type is not allowed.", cs: "Tento typ souboru není povolen." },
   "file.type_not_allowed": { en: "This file type is not allowed.", cs: "Tento typ souboru není povolen." },
   "file.not_found": { en: "File not found.", cs: "Soubor nenalezen." },
   // Notifications

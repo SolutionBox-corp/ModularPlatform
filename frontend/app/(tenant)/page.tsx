@@ -4,6 +4,7 @@ import { getQueryClient } from "@/lib/api/query-client";
 import { getSession } from "@/lib/auth/session";
 import { billingQueries } from "@/features/billing/api";
 import { notificationQueries } from "@/features/notifications/api";
+import { entitlementQueries, isModuleEnabled } from "@/features/entitlements/api";
 import { CreditBalanceCard, SubscriptionCard } from "@/features/billing/components/cards";
 import { RecentNotifications } from "@/features/notifications/components/recent-notifications";
 import Link from "next/link";
@@ -20,14 +21,27 @@ export default async function DashboardPage() {
   const user = session.user;
   if (!user) redirect("/login");
 
-  // Await the prefetches so the dehydrated cache is fully resolved → server and client
-  // render the same first paint (no hydration mismatch, no skeleton flash). The queries
-  // are independent, so run them concurrently.
-  await Promise.all([
-    queryClient.prefetchQuery(billingQueries.balance()),
-    queryClient.prefetchQuery(billingQueries.subscription()),
-    queryClient.prefetchQuery(notificationQueries.list({ page: 1, pageSize: 5 })),
-  ]);
+  // Entitlements: the layout already awaited this; fetchQuery reuses the cached result.
+  const ent = await queryClient.fetchQuery(entitlementQueries.me());
+
+  const billingEnabled = isModuleEnabled(ent, "billing");
+  const notificationsEnabled = isModuleEnabled(ent, "notifications");
+
+  // Prefetch only the modules that are entitled — avoids 404 errors on the API
+  // for disabled modules. Queries are independent so run them concurrently.
+  const prefetches: Promise<unknown>[] = [];
+  if (billingEnabled) {
+    prefetches.push(
+      queryClient.prefetchQuery(billingQueries.balance()),
+      queryClient.prefetchQuery(billingQueries.subscription()),
+    );
+  }
+  if (notificationsEnabled) {
+    prefetches.push(
+      queryClient.prefetchQuery(notificationQueries.list({ page: 1, pageSize: 5 })),
+    );
+  }
+  await Promise.all(prefetches);
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
@@ -41,17 +55,19 @@ export default async function DashboardPage() {
           </p>
         </div>
 
-        {/* Stats grid */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <CreditBalanceCard />
-          <SubscriptionCard />
-        </div>
+        {/* Stats grid — only shown when the billing module is enabled */}
+        {billingEnabled && (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <CreditBalanceCard />
+            <SubscriptionCard />
+          </div>
+        )}
 
-        {/* Recent notifications */}
         <div className="grid gap-4 lg:grid-cols-2">
-          <RecentNotifications />
+          {/* Recent notifications — only shown when the notifications module is enabled */}
+          {notificationsEnabled && <RecentNotifications />}
 
-          {/* Quick actions */}
+          {/* Quick actions — always shown */}
           <div className="space-y-2">
             <h2 className="text-sm font-medium text-muted-foreground">
               Quick actions

@@ -96,6 +96,8 @@ export function IdentityAdminPanel({
                 }}
                 placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
                 className="h-8 text-sm font-mono"
+                aria-invalid={!!inputError}
+                aria-describedby={inputError ? "user-id-error" : undefined}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
@@ -104,7 +106,7 @@ export function IdentityAdminPanel({
                 }}
               />
               {inputError && (
-                <p className="text-xs text-destructive">{inputError}</p>
+                <p id="user-id-error" className="text-xs text-destructive">{inputError}</p>
               )}
             </div>
             <Button

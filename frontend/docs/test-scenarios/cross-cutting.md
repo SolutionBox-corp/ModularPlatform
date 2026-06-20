@@ -103,12 +103,14 @@ authenticated app shell and the auth flows.
   - Then: the page reloads; `NEXT_LOCALE` cookie is set to "en"; nav shows "Dashboard" again
   - Priority: P1 · Type: happy · Automated: yes (e2e: "locale toggle switches cs back to en")
 
-- **I18-03** — Czech locale shows Czech auth strings on the login page
+- **I18-03** — Czech locale does NOT translate auth form strings on the login page
   - Given: NEXT_LOCALE cookie is set to "cs"
   - When: the user navigates to /login
-  - Then: the heading reads "Přihlásit se" and the submit button says "Přihlásit se"
-  - Priority: P1 · Type: happy · Automated: manual (session cookie interaction with anon page; covered
-    indirectly by I18-01 flow which verifies nav labels)
+  - Then: the heading still reads "Sign in" and the submit button still says "Sign in" — auth forms
+    use inline EN strings and are not wired to next-intl translations; only nav labels (e.g.
+    "Dashboard" → "Přehled") switch locale
+  - Priority: P1 · Type: happy · Automated: manual (verifiable by inspecting the login page source
+    after setting the NEXT_LOCALE cookie to "cs")
 
 - **I18-04** — Locale toggle is keyboard accessible
   - Given: authenticated user on the dashboard

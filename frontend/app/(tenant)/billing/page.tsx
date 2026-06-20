@@ -1,6 +1,8 @@
+import { notFound } from "next/navigation";
 import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
 import { getQueryClient } from "@/lib/api/query-client";
 import { billingQueries } from "@/features/billing/api";
+import { entitlementQueries, isModuleEnabled } from "@/features/entitlements/api";
 import { CreditBalanceCard, SubscriptionCard } from "@/features/billing/components/cards";
 import { PackagesGrid } from "@/features/billing/components/packages-grid";
 import { CreditSummaryTable } from "@/features/billing/components/credit-summary-table";
@@ -14,6 +16,10 @@ export const metadata: Metadata = {
 
 export default async function BillingPage() {
   const queryClient = getQueryClient();
+
+  // Guard: the layout already awaited this query; fetchQuery reuses the cached result.
+  const ent = await queryClient.fetchQuery(entitlementQueries.me());
+  if (!isModuleEnabled(ent, "billing")) notFound();
 
   // Prefetch all billing data in parallel — no await, streamed via HydrationBoundary.
   void queryClient.prefetchQuery(billingQueries.balance());

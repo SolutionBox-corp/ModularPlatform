@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useLocale } from "next-intl";
 import { BellIcon, CheckIcon } from "lucide-react";
 import Link from "next/link";
 import {
@@ -25,6 +26,7 @@ import { cn } from "@/lib/utils";
  * notifications root on "notification.created" / "notification.read").
  */
 export function RecentNotifications() {
+  const locale = useLocale();
   const { data, isLoading } = useQuery(
     notificationQueries.feed({ page: 1, pageSize: 5 }),
   );
@@ -81,7 +83,7 @@ export function RecentNotifications() {
                     {n.body}
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {new Date(n.createdAt).toLocaleDateString("en", {
+                    {new Date(n.createdAt).toLocaleDateString(locale, {
                       month: "short",
                       day: "numeric",
                     })}
@@ -96,7 +98,7 @@ export function RecentNotifications() {
                       variant="ghost"
                       size="icon"
                       className="h-6 w-6"
-                      aria-label="Mark as read"
+                      aria-label={`Mark "${n.title}" as read`}
                       disabled={markRead.isPending}
                       onClick={() => markRead.mutate(n.id)}
                     >

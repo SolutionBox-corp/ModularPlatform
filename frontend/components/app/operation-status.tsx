@@ -73,6 +73,7 @@ export function OperationStatus({
           value={null}
           className="h-1 animate-pulse"
           aria-label="Operation in progress"
+          aria-valuetext="In progress"
         />
       )}
 
