@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
+import { allowedDevOrigins, serverActionsAllowedOrigins } from "./lib/origins";
 
 const withNextIntl = createNextIntlPlugin("./lib/i18n/request.ts");
 
@@ -21,9 +22,15 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  // Allow accessing the dev server via 127.0.0.1 (a clean host with no cached localhost HSTS):
-  // without this, Next blocks cross-origin dev resources + Server Actions from 127.0.0.1.
-  allowedDevOrigins: ["127.0.0.1", "localhost"],
+  // Cross-origin allowlists, derived from ROOT_DOMAIN (see lib/origins.ts):
+  //  - allowedDevOrigins (dev): hosts that may reach dev resources + Server Actions — localhost,
+  //    127.0.0.1, and every tenant subdomain (*.lvh.me). Without it Next blocks them.
+  //  - serverActions.allowedOrigins (prod): the Origin↔Host CSRF allowlist that survives the
+  //    reverse proxy + subdomain-per-tenant (*.nasedomena.cz, admin., apex).
+  allowedDevOrigins: allowedDevOrigins(),
+  experimental: {
+    serverActions: { allowedOrigins: serverActionsAllowedOrigins() },
+  },
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },

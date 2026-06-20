@@ -69,6 +69,10 @@ if (builder.Configuration.GetValue<bool>("RunMigrationsAtStartup"))
     await RlsBootstrapper.ApplyAsync(app.Services, writeConn, CancellationToken.None);
 }
 
+// NO CORS by design: the browser NEVER calls this API directly — the Next.js BFF
+// (/api/bff/*) proxies every /v1 request server-side, so there is no cross-origin browser
+// traffic to permit. CORS/origin trust lives at the BFF edge (frontend/lib/origins.ts).
+// Do NOT add a permissive CORS policy here; it would only widen the attack surface.
 app.UsePlatformWeb();
 
 // OpenAPI is a DEVELOPMENT convenience — the document enumerates every route and DTO shape, which is

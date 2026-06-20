@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { backendFetch } from "@/lib/server/backend";
-import { CSRF_COOKIE, CSRF_HEADER, csrfMatches, isSameOrigin } from "@/lib/auth/csrf";
+import { CSRF_COOKIE, CSRF_HEADER, csrfMatches, isTrustedRequestOrigin } from "@/lib/auth/csrf";
 
 /**
  * Catch-all Backend-for-Frontend proxy. The browser NEVER calls .NET directly:
@@ -23,7 +23,7 @@ async function handle(request: NextRequest, ctx: { params: Promise<{ path: strin
   if (MUTATING.has(method)) {
     const cookieToken = request.cookies.get(CSRF_COOKIE)?.value;
     const headerToken = request.headers.get(CSRF_HEADER);
-    if (!isSameOrigin(request) || !csrfMatches(cookieToken, headerToken)) {
+    if (!isTrustedRequestOrigin(request) || !csrfMatches(cookieToken, headerToken)) {
       return NextResponse.json(
         { errorCode: "security.csrf_failed", status: 403, detail: "CSRF validation failed." },
         { status: 403, headers: { "content-type": "application/problem+json" } },

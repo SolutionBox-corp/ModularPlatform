@@ -1,7 +1,10 @@
+import { isTrustedOrigin } from "@/lib/origins";
+
 /**
  * CSRF defence for mutating BFF routes. Three cheap layers, no heavy lib:
  *  1. SameSite=Lax session cookie (blocks cross-site form posts by default).
- *  2. Origin/Referer allowlist (same-host only) — checked in the BFF.
+ *  2. Origin/Referer allowlist — checked in the BFF against the trusted-origins config
+ *     (the served host, the root domain + every tenant subdomain, and vanity domains).
  *  3. Signed double-submit: a non-httpOnly `mp_csrf` cookie echoed in `x-csrf-token`.
  * The cookie is JS-readable on purpose so the browser client can echo it; an
  * attacker on another origin cannot read it (SOP) nor set our header.
@@ -28,28 +31,14 @@ export function csrfMatches(cookieValue: string | undefined, headerValue: string
   return diff === 0;
 }
 
-/** True when the request Origin (or Referer) host matches the served host. */
-export function isSameOrigin(request: Request): boolean {
+/** True when the request's Origin (or Referer) is a trusted origin for the served host. */
+export function isTrustedRequestOrigin(request: Request): boolean {
   const host = request.headers.get("host");
   if (!host) return false;
-  const origin = request.headers.get("origin");
-  if (origin) {
-    try {
-      return new URL(origin).host === host;
-    } catch {
-      return false;
-    }
-  }
-  const referer = request.headers.get("referer");
-  if (referer) {
-    try {
-      return new URL(referer).host === host;
-    } catch {
-      return false;
-    }
-  }
+  // Prefer Origin; fall back to Referer (some agents omit Origin on same-origin GET-ish posts).
+  const origin = request.headers.get("origin") ?? request.headers.get("referer");
   // No Origin and no Referer on a mutating request → reject.
-  return false;
+  return isTrustedOrigin(origin, host);
 }
 
 function base64url(bytes: Uint8Array): string {
