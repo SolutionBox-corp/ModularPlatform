@@ -21,11 +21,11 @@ This file tracked the 10 that needed a **backend change** or a **product/ops dec
 | 9 | **Full i18n of feature UI** | Every page/feature string extracted into next-intl (`messages/en.json` + `cs.json`, **14 namespaces, 390 keys, full EN/CS parity**). Server components use `getTranslations`, client use `useTranslations`; zod messages via `build*Schema(t)` factories; ICU interpolation/rich tags where needed. The locale toggle now translates the whole app. See **i18n notes** below for the two intentional carve-outs. |
 | 10 | **Platform-admin pages** | Read-only cross-tenant views. Backend: `GET /v1/identity/platform/users` (paged, `IgnoreQueryFilters` + re-added soft-delete guard, new permission `platform.users.list`, auto-seeded + admin-granted) and `GET /v1/identity/platform/users/{id}/audit` (reuses the existing cross-tenant audit query, gated on `audit.read`). FE: `/platform/users` + `/platform/audit` pages, `platform-users-table`, nav re-added; audit view reuses the identity-admin audit-trail component. **No** cross-tenant role mutation (out of scope). |
 
-## Still deferred — a product decision (unchanged)
+## Resolved — decision recorded
 
-| # | Finding | Decision needed |
+| # | Finding | Decision (2026-06-21) |
 |---|---|---|
-| 5 | **Orphaned consent types** (`analytics`, `third_party_sharing`) | The UI offers these toggles but nothing in the app uses analytics or third-party sharing yet. Decide: remove the toggles until the functionality exists, or keep them as forward-looking preferences. (They are now versioned per #2, so keeping them is cheap.) |
+| 5 | **Orphaned consent types** (`analytics`, `third_party_sharing`) | **KEEP** as forward-looking preferences. The toggles are wired to the real (now versioned, #2) consent ledger, so they capture provable consent *before* the analytics / third-party features exist — which is the GDPR-positive ordering (consent-first). No feature reads these yet; a future analytics/third-party integration must gate on a granted consent. Removing user-facing privacy controls is an outward-facing change, so it is intentionally NOT done here — say the word and the two toggles can be removed until the functionality lands. |
 
 ## i18n notes (#9) — intentional carve-outs
 
