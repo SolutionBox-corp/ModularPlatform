@@ -49,7 +49,7 @@ export function AnalysesList() {
                 {analysis.source}
               </Badge>
             </CardTitle>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-muted-foreground" suppressHydrationWarning>
               {new Date(analysis.analyzedAt).toLocaleDateString(locale, {
                 year: "numeric",
                 month: "short",

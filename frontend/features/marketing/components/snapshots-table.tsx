@@ -50,7 +50,7 @@ function buildColumns(t: Translate, locale: string): ColumnDef<SnapshotListItem>
       header: t("snapshots.table.recorded"),
       className: "hidden md:table-cell",
       cell: (row) => (
-        <span className="text-sm text-muted-foreground">
+        <span className="text-sm text-muted-foreground" suppressHydrationWarning>
           {new Date(row.recordedAt).toLocaleDateString(locale, {
             year: "numeric",
             month: "short",

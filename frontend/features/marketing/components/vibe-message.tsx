@@ -39,7 +39,7 @@ export function VibeMessage({
           <ToolTrace toolCallsJson={message.toolCallsJson} />
         )}
       </div>
-      <span className="px-1 text-[0.7rem] text-muted-foreground">
+      <span className="px-1 text-[0.7rem] text-muted-foreground" suppressHydrationWarning>
         {pending
           ? t("vibeChat.sending")
           : new Date(message.createdAt).toLocaleTimeString(locale, {

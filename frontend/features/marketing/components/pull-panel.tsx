@@ -148,7 +148,7 @@ export function PullPanel() {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {pull.completedAt && (
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-xs text-muted-foreground" suppressHydrationWarning>
                         {new Date(pull.completedAt).toLocaleString(locale, {
                           month: "short",
                           day: "numeric",
