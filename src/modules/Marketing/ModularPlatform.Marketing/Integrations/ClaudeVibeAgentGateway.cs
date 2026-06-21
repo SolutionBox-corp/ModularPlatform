@@ -35,6 +35,46 @@ internal sealed class ClaudeVibeAgentGateway(
     public async Task<VibeTurnResult> RunTurnAsync(
         Guid userId, IReadOnlyList<VibeTurnInput> history, CancellationToken ct)
     {
+        using var client = BuildClient(userId, history, out var messages, out var chatOptions);
+
+        var response = await client.GetResponseAsync(messages, chatOptions, ct);
+
+        var toolCalls = ExtractToolCalls(response);
+        var toolCallsJson = toolCalls.Count > 0 ? JsonSerializer.Serialize(toolCalls) : null;
+
+        return new VibeTurnResult((response.Text ?? string.Empty).Trim(), toolCallsJson);
+    }
+
+    public async IAsyncEnumerable<string> RunTurnStreamingAsync(
+        Guid userId,
+        IReadOnlyList<VibeTurnInput> history,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+    {
+        using var client = BuildClient(userId, history, out var messages, out var chatOptions);
+
+        // Same client + tools + UseFunctionInvocation loop, but streamed: the function-invoking middleware still runs
+        // the call→tool→call loop transparently; we yield only the assistant TEXT deltas (ChatResponseUpdate.Text
+        // skips reasoning/tool content), so the UI shows tokens as they arrive.
+        await foreach (var update in client.GetStreamingResponseAsync(messages, chatOptions, ct))
+        {
+            var delta = update.Text;
+            if (!string.IsNullOrEmpty(delta))
+            {
+                yield return delta;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Builds the configured tool-using <see cref="IChatClient"/> + the seeded message list + <see cref="ChatOptions"/>
+    /// shared by the buffered and streaming turn paths (same client, tools and <c>UseFunctionInvocation</c> loop).
+    /// </summary>
+    private IChatClient BuildClient(
+        Guid userId,
+        IReadOnlyList<VibeTurnInput> history,
+        out List<ChatMessage> messages,
+        out ChatOptions chatOptions)
+    {
         if (string.IsNullOrWhiteSpace(_options.ApiKey))
         {
             throw new InvalidOperationException("Marketing:Claude:ApiKey is not configured.");
@@ -42,18 +82,18 @@ internal sealed class ClaudeVibeAgentGateway(
 
         var tools = new VibeAgentTools(readDb, userId);
 
-        using IChatClient client = new ChatClientBuilder(new AnthropicClient(_options.ApiKey).Messages)
+        IChatClient client = new ChatClientBuilder(new AnthropicClient(_options.ApiKey).Messages)
             .ConfigureOptions(o => o.ModelId ??= _options.Model)
             .UseFunctionInvocation(configure: f => f.MaximumIterationsPerRequest = MaxToolIterations)
             .Build();
 
-        var messages = new List<ChatMessage> { new(ChatRole.System, SystemPrompt) };
+        messages = [new ChatMessage(ChatRole.System, SystemPrompt)];
         foreach (var turn in history)
         {
             messages.Add(new ChatMessage(MapRole(turn.Role), turn.Content));
         }
 
-        var chatOptions = new ChatOptions
+        chatOptions = new ChatOptions
         {
             Tools =
             [
@@ -64,12 +104,7 @@ internal sealed class ClaudeVibeAgentGateway(
             ],
         };
 
-        var response = await client.GetResponseAsync(messages, chatOptions, ct);
-
-        var toolCalls = ExtractToolCalls(response);
-        var toolCallsJson = toolCalls.Count > 0 ? JsonSerializer.Serialize(toolCalls) : null;
-
-        return new VibeTurnResult((response.Text ?? string.Empty).Trim(), toolCallsJson);
+        return client;
     }
 
     private static ChatRole MapRole(string role) => role switch

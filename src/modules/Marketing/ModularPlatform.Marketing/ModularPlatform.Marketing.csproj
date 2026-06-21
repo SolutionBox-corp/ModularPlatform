@@ -18,6 +18,8 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
     <PackageReference Include="Microsoft.Extensions.AI" />
     <PackageReference Include="Anthropic.SDK" />
+    <PackageReference Include="Google.Apis.AnalyticsData.v1beta" />
+    <PackageReference Include="Google.Apis.SearchConsole.v1" />
   </ItemGroup>
 
   <ItemGroup>

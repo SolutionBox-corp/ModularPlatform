@@ -56,6 +56,11 @@
     <PackageVersion Include="AWSSDK.S3" Version="4.0.24.2" />
   </ItemGroup>
 
+  <ItemGroup Label="Marketing — Google data sources (Apache-2.0, free official SDKs)">
+    <PackageVersion Include="Google.Apis.AnalyticsData.v1beta" Version="1.74.0.3608" />
+    <PackageVersion Include="Google.Apis.SearchConsole.v1" Version="1.74.0.3847" />
+  </ItemGroup>
+
   <ItemGroup Label="Security">
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.8" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.8" />

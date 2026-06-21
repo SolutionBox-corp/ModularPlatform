@@ -388,6 +388,7 @@
       "deleted": "Konverzace byla smazána.",
       "startPrompt": "Zeptejte se asistenta na cokoli ohledně vašich marketingových dat.",
       "assistantThinking": "Asistent pracuje…",
+      "streamError": "Odpověď asistenta selhala. Zkuste to prosím znovu.",
       "sending": "Odesílám…",
       "toolTrace": "Volání nástrojů",
       "inputLabel": "Zpráva",

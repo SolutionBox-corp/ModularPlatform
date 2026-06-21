@@ -30,4 +30,30 @@ internal sealed class FakeVibeAgentGateway : IVibeAgentGateway
 
         return Task.FromResult(new VibeTurnResult(content, toolCalls));
     }
+
+    public async IAsyncEnumerable<string> RunTurnStreamingAsync(
+        Guid userId,
+        IReadOnlyList<VibeTurnInput> history,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+    {
+        var lastUser = history.LastOrDefault(t => t.Role == "user")?.Content ?? "(no question)";
+
+        // Deterministic chunks so the streaming endpoint (delta events → accumulate → assistant turn) is testable
+        // without a Claude API key. The concatenation is the full assistant reply the endpoint persists.
+        string[] chunks =
+        [
+            "Based on your marketing data, ",
+            $"here's a quick take on \"{lastUser}\": ",
+            "organic search is your strongest channel ",
+            "and lead conversion is steady. ",
+            "Next step: double down on your top-performing keywords.",
+        ];
+
+        foreach (var chunk in chunks)
+        {
+            ct.ThrowIfCancellationRequested();
+            yield return chunk;
+            await Task.Yield();
+        }
+    }
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -9,7 +10,9 @@ import {
   triggerPull,
   startConversation,
   sendMessage,
+  streamMessage,
   deleteConversation,
+  type StreamMessageCallbacks,
   type SnapshotsParams,
 } from "@/features/marketing/api";
 
@@ -98,6 +101,35 @@ export function useSendMessage(conversationId: string) {
       });
     },
   });
+}
+
+/**
+ * Interactive streaming send. Runs the LLM IN the request and yields the assistant
+ * text token-by-token to `onDelta`. On `done` the backend has already persisted both
+ * turns, so we invalidate the open conversation — the persisted final message (and any
+ * tool trace) then replaces the streamed text. Returns a stable `start` callback; the
+ * component owns the live-bubble state and passes `onDelta`/`onDone` per send.
+ */
+export function useStreamMessage(conversationId: string) {
+  const queryClient = useQueryClient();
+  return useCallback(
+    (content: string, callbacks: StreamMessageCallbacks, signal?: AbortSignal) =>
+      streamMessage(
+        conversationId,
+        content,
+        {
+          onDelta: callbacks.onDelta,
+          onDone: () => {
+            callbacks.onDone?.();
+            void queryClient.invalidateQueries({
+              queryKey: [...queryRoots.marketing, "conversations", conversationId],
+            });
+          },
+        },
+        signal,
+      ),
+    [conversationId, queryClient],
+  );
 }
 
 /** Delete a conversation; invalidate the conversations list. */

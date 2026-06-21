@@ -68,14 +68,18 @@ test.describe("Marketing — vibe assistant chat", () => {
     // button which overlaps the bottom-right Send icon in the dev server (not present in prod).
     await input.press("Enter");
 
-    // User turn echoes immediately.
+    // User turn echoes immediately. (.first() — during the stream→persist window the optimistic bubble
+    // and the refetched persisted turn can briefly co-exist before the optimistic state is cleared.)
     await expect(
-      page.getByText("How is my GA4 traffic trending this week?"),
+      page.getByText("How is my GA4 traffic trending this week?").first(),
     ).toBeVisible();
 
-    // The worker runs the (fake) agent turn; the assistant reply + its tool-call trace arrive async.
+    // The assistant reply streams in token-by-token (SSE) then is persisted. Live SSE delivery can lag
+    // under a loaded dev server, so fall back to a reload — the persisted assistant turn is the ground truth.
     await pollWithReload(page, async () => {
-      await expect(page.getByText("Tool calls")).toBeVisible();
+      await expect(
+        page.getByText(/organic search is your strongest channel/i),
+      ).toBeVisible({ timeout: 5_000 });
     });
   });
 });

@@ -388,6 +388,7 @@
       "deleted": "Conversation deleted.",
       "startPrompt": "Ask the assistant anything about your marketing data.",
       "assistantThinking": "The assistant is working…",
+      "streamError": "The assistant reply failed. Please try again.",
       "sending": "Sending…",
       "toolTrace": "Tool calls",
       "inputLabel": "Message",

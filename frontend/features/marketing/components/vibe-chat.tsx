@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { PlusIcon, SendIcon, Trash2Icon, MessageSquareIcon } from "lucide-react";
@@ -14,7 +15,7 @@ import {
   useVibeConversations,
   useVibeConversation,
   useStartConversation,
-  useSendMessage,
+  useStreamMessage,
   useDeleteConversation,
 } from "@/features/marketing/hooks";
 import {
@@ -26,10 +27,10 @@ import type { ConversationMessage } from "@/features/marketing/api";
 
 /**
  * Vibe AI chat. Left rail = conversation list (+ new); right = the open thread with
- * an optimistic user bubble. The assistant reply is NOT awaited here — it arrives
- * asynchronously: the backend processes the durable turn and publishes
- * "marketing.vibe_message_ready", which the realtime provider maps to an
- * invalidation of [marketing, "conversations"], refetching the open thread.
+ * an optimistic user bubble. The assistant reply STREAMS token-by-token: the composer
+ * calls the SSE endpoint (`/messages/stream`), appends each `delta` to a live assistant
+ * bubble, and on `done` invalidates [marketing, "conversations", id] so the persisted
+ * final message (and any tool trace) replaces the streamed text.
  */
 export function VibeChat() {
   const t = useTranslations("marketing");
@@ -124,11 +125,15 @@ function VibeThread({
   const deleteConversation = useDeleteConversation();
   const endRef = useRef<HTMLDivElement>(null);
 
-  // Optimistic user turn(s) — appended on send, cleared once the send settles (the
-  // refetch the mutation triggers brings back the persisted turn). Clearing in the
-  // mutation lifecycle (not an effect) keeps this React-Compiler-clean.
+  // Optimistic user turn(s) — appended on send, cleared once the stream's `done`
+  // invalidation refetches the persisted thread. Clearing in the send lifecycle (not
+  // an effect) keeps this React-Compiler-clean.
   const [optimistic, setOptimistic] = useState<ConversationMessage[]>([]);
-  const sendMessage = useSendMessage(conversationId);
+  // The live assistant bubble: `null` = no stream in flight; "" = awaiting the first
+  // delta (show "thinking"); non-empty = the accumulated streamed text so far.
+  const [streamingText, setStreamingText] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const streamMessage = useStreamMessage(conversationId);
 
   const {
     register,
@@ -145,13 +150,14 @@ function VibeThread({
     [data?.messages, optimistic],
   );
 
-  // Scroll to newest on any message change. This synchronizes the DOM scroll
-  // position with React state (a legitimate effect — no setState).
+  // Scroll to newest on any message change or as the streamed text grows. This
+  // synchronizes the DOM scroll position with React state (a legitimate effect — no setState).
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length]);
+  }, [messages.length, streamingText]);
 
-  const onSubmit = (values: ChatMessageInput) => {
+  const onSubmit = async (values: ChatMessageInput) => {
+    if (sending) return;
     const content = values.content;
     const createdAt = new Date().toISOString();
     setOptimistic((prev) => [
@@ -166,9 +172,28 @@ function VibeThread({
       },
     ]);
     reset();
-    sendMessage.mutate(content, {
-      onSettled: () => setOptimistic([]),
-    });
+    setSending(true);
+    setStreamingText(""); // "" → show the thinking indicator until the first delta.
+    try {
+      await streamMessage(content, {
+        onDelta: (chunk) => setStreamingText((prev) => (prev ?? "") + chunk),
+        // `onDone` in the hook also invalidates the conversation query — the persisted
+        // turns then replace the optimistic user bubble + the streamed assistant text.
+        onDone: () => {
+          setOptimistic([]);
+          setStreamingText(null);
+        },
+      });
+    } catch {
+      // The stream failed to open (e.g. validation/network). Surface a toast and clear
+      // the optimistic state so the user can retry; the persisted user turn (saved
+      // before the stream) will reappear on the next refetch.
+      toast.error(t("vibeChat.streamError"));
+      setOptimistic([]);
+      setStreamingText(null);
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -207,20 +232,29 @@ function VibeThread({
                 pending={m.id.startsWith("optimistic-")}
               />
             ))
-          ) : (
+          ) : streamingText === null ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
               {t("vibeChat.startPrompt")}
             </p>
-          )}
-          {sendMessage.isPending && (
-            <p
-              role="status"
-              aria-live="polite"
-              className="text-center text-xs text-muted-foreground"
-            >
-              {t("vibeChat.assistantThinking")}
-            </p>
-          )}
+          ) : null}
+
+          {/* Live assistant bubble: empty streamed text → "thinking"; deltas append here. */}
+          {streamingText !== null &&
+            (streamingText.length === 0 ? (
+              <p
+                role="status"
+                aria-live="polite"
+                className="text-center text-xs text-muted-foreground"
+              >
+                {t("vibeChat.assistantThinking")}
+              </p>
+            ) : (
+              <div className="flex flex-col items-start gap-1" aria-live="polite">
+                <div className="max-w-[85%] rounded-2xl bg-muted px-3.5 py-2 text-sm text-foreground">
+                  <p className="whitespace-pre-wrap break-words">{streamingText}</p>
+                </div>
+              </div>
+            ))}
           <div ref={endRef} />
         </div>
       </ScrollArea>
@@ -254,7 +288,7 @@ function VibeThread({
           <Button
             type="submit"
             size="icon"
-            disabled={sendMessage.isPending}
+            disabled={sending}
             aria-label={t("vibeChat.send")}
           >
             <SendIcon className="h-4 w-4" aria-hidden="true" />

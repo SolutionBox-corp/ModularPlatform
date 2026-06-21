@@ -1,6 +1,8 @@
 import { queryOptions } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api/client";
 import { queryRoots } from "@/lib/api/query-keys";
+import { ApiError, type ProblemDetails } from "@/lib/api/types";
+import { CSRF_COOKIE, CSRF_HEADER } from "@/lib/auth/csrf";
 
 // ---------------------------------------------------------------------------
 // Response shapes (mirrored from backend C# records — camelCase JSON)
@@ -229,5 +231,150 @@ export function sendMessage(
 export function deleteConversation(conversationId: string): Promise<void> {
   return apiFetch<void>(`marketing/vibe/conversations/${conversationId}`, {
     method: "DELETE",
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Interactive streaming send (token-by-token)
+// ---------------------------------------------------------------------------
+
+/**
+ * POST /v1/marketing/vibe/conversations/{id}/messages/stream {content}
+ * → `text/event-stream` of `delta` events (data = a text chunk) then a final
+ * `done` event (data = `[DONE]`). The backend persists BOTH the user turn (before
+ * the stream opens) and the assistant turn (after it completes), so the caller
+ * should invalidate the conversation query on `done` to swap the streamed text for
+ * the persisted message.
+ *
+ * EventSource can't POST a body, so we use `fetch` + a ReadableStream reader and
+ * parse SSE frames by hand. The request goes through the BFF (`/api/bff/...`),
+ * which injects the bearer and streams the SSE body straight through.
+ *
+ * Errors (404 / validation) surface BEFORE the stream opens as a normal RFC 9457
+ * response — parsed here into an {@link ApiError}, exactly like `apiFetch`.
+ */
+export interface StreamMessageCallbacks {
+  /** Called for every text delta as it arrives (append to the live assistant bubble). */
+  onDelta: (chunk: string) => void;
+  /** Called once when the `done` event arrives (the assistant turn is now persisted). */
+  onDone?: () => void;
+}
+
+export async function streamMessage(
+  conversationId: string,
+  content: string,
+  callbacks: StreamMessageCallbacks,
+  signal?: AbortSignal,
+): Promise<void> {
+  const headers = new Headers();
+  headers.set("accept", "text/event-stream");
+  headers.set("content-type", "application/json");
+  headers.set("accept-language", document.documentElement.lang || "en");
+  const csrf = readCsrfCookie();
+  if (csrf) headers.set(CSRF_HEADER, csrf);
+
+  const res = await fetch(
+    `/api/bff/marketing/vibe/conversations/${conversationId}/messages/stream`,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ content }),
+      credentials: "same-origin",
+      signal,
+    },
+  );
+
+  if (!res.ok || !res.body) {
+    throw await problemToApiError(res);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      // SSE frames are separated by a blank line. Process every complete frame in
+      // the buffer, keeping the trailing partial frame for the next chunk.
+      let sep: number;
+      while ((sep = indexOfFrameBoundary(buffer)) !== -1) {
+        const frame = buffer.slice(0, sep);
+        buffer = buffer.slice(sep).replace(/^(\r?\n)+/, "");
+        dispatchFrame(frame, callbacks);
+      }
+    }
+    // Flush any trailing frame that wasn't terminated by a blank line.
+    if (buffer.trim().length > 0) {
+      dispatchFrame(buffer, callbacks);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+/** Index just past the blank-line frame boundary (`\n\n` or `\r\n\r\n`), or -1. */
+function indexOfFrameBoundary(buffer: string): number {
+  const lf = buffer.indexOf("\n\n");
+  const crlf = buffer.indexOf("\r\n\r\n");
+  if (lf === -1) return crlf === -1 ? -1 : crlf + 4;
+  if (crlf === -1) return lf + 2;
+  return Math.min(lf + 2, crlf + 4);
+}
+
+/**
+ * Parse one SSE frame (its `event:` + possibly multi-line `data:`) and route it.
+ * Per the SSE spec, multiple `data:` lines join with `\n`; a leading space after
+ * the colon is stripped. The backend's final `done` event carries `[DONE]`, which
+ * is a marker (not assistant text) and must NOT be appended.
+ */
+function dispatchFrame(frame: string, callbacks: StreamMessageCallbacks): void {
+  let event = "message";
+  const dataLines: string[] = [];
+  for (const rawLine of frame.split("\n")) {
+    const line = rawLine.replace(/\r$/, "");
+    if (line.startsWith(":")) continue; // comment / heartbeat
+    if (line.startsWith("event:")) {
+      event = line.slice(6).replace(/^ /, "");
+    } else if (line.startsWith("data:")) {
+      dataLines.push(line.slice(5).replace(/^ /, ""));
+    }
+  }
+  const data = dataLines.join("\n");
+
+  if (event === "done") {
+    callbacks.onDone?.();
+  } else if (event === "delta") {
+    if (data.length > 0) callbacks.onDelta(data);
+  }
+}
+
+/** Read the JS-readable CSRF cookie to echo it in `x-csrf-token` (browser-only). */
+function readCsrfCookie(): string | undefined {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${CSRF_COOKIE}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : undefined;
+}
+
+/** Turn a non-OK BFF response into the same {@link ApiError} shape `apiFetch` produces. */
+async function problemToApiError(res: Response): Promise<ApiError> {
+  let problem: ProblemDetails = {};
+  try {
+    const contentType = res.headers.get("content-type") ?? "";
+    if (contentType.includes("json")) {
+      problem = (await res.json()) as ProblemDetails;
+    } else {
+      problem = { detail: (await res.text()) || undefined };
+    }
+  } catch {
+    problem = {};
+  }
+  return new ApiError({
+    status: res.status,
+    errorCode: problem.errorCode,
+    detail: problem.detail ?? problem.title,
+    fieldErrors: problem.errors,
   });
 }

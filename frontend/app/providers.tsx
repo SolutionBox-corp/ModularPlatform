@@ -21,7 +21,20 @@ export function Providers({ children, nonce }: { children: ReactNode; nonce?: st
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange nonce={nonce}>
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="system"
+        enableSystem
+        disableTransitionOnChange
+        nonce={nonce}
+        // The no-flash theme <script> runs only on the server (a real executable
+        // tag), so it still sets the theme before first paint. On the client it
+        // reconciles as `text/plain`, which stops React 19's dev-only "Encountered
+        // a script tag while rendering" warning + the resulting tree-diff hydration
+        // noise. next-themes already forces suppressHydrationWarning on this node,
+        // covering the type-attribute mismatch. (Next.js 16 documented pattern.)
+        scriptProps={{ type: typeof window === "undefined" ? "text/javascript" : "text/plain" }}
+      >
         <TooltipProvider>{children}</TooltipProvider>
         <Toaster richColors closeButton position="top-right" />
         <CookieConsentBanner />

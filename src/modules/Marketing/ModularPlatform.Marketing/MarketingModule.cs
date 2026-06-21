@@ -15,6 +15,7 @@ using ModularPlatform.Marketing.Features.Vibe.GetConversation;
 using ModularPlatform.Marketing.Features.Vibe.ListConversations;
 using ModularPlatform.Marketing.Features.Vibe.SendMessage;
 using ModularPlatform.Marketing.Features.Vibe.StartConversation;
+using ModularPlatform.Marketing.Features.Vibe.StreamMessage;
 using ModularPlatform.Marketing.Integrations;
 using ModularPlatform.Marketing.Persistence;
 using ModularPlatform.Messaging;
@@ -45,18 +46,23 @@ public sealed class MarketingModule : IModule
         services.AddModuleDbContext<MarketingDbContext>(Name, write);
         services.AddModuleReadDbContext<MarketingDbContext>(read);
 
-        services.AddScoped<IGa4Gateway, FakeGa4Gateway>();
-        services.AddScoped<IGscGateway, FakeGscGateway>();
-
-        // Analysis brain + agentic vibe-chat brain: the deterministic fakes when Marketing:UseFakeGateways=true
-        // (dev/tests, no API key needed), otherwise the real Claude-backed gateways bound to Marketing:Claude.
+        // Data-source gateways (GA4 + Search Console) + analysis/vibe brains: the deterministic fakes when
+        // Marketing:UseFakeGateways=true (dev/tests, no credentials needed), otherwise the real SDK-backed gateways
+        // — the Google ones bound to Marketing:Google, the Claude ones to Marketing:Claude. A missing key/target
+        // surfaces at call time rather than at boot, so the fakes stay the only path the test harness exercises.
         if (configuration.GetValue("Marketing:UseFakeGateways", false))
         {
+            services.AddScoped<IGa4Gateway, FakeGa4Gateway>();
+            services.AddScoped<IGscGateway, FakeGscGateway>();
             services.AddScoped<IMarketingAiGateway, FakeMarketingAiGateway>();
             services.AddScoped<IVibeAgentGateway, FakeVibeAgentGateway>();
         }
         else
         {
+            services.Configure<MarketingGoogleOptions>(configuration.GetSection(MarketingGoogleOptions.SectionName));
+            services.AddScoped<IGa4Gateway, RealGa4Gateway>();
+            services.AddScoped<IGscGateway, RealGscGateway>();
+
             services.Configure<MarketingClaudeOptions>(configuration.GetSection(MarketingClaudeOptions.SectionName));
             services.AddScoped<IMarketingAiGateway, ClaudeMarketingGateway>();
             services.AddScoped<IVibeAgentGateway, ClaudeVibeAgentGateway>();
@@ -79,6 +85,7 @@ public sealed class MarketingModule : IModule
 
         endpoints.MapStartConversation();
         endpoints.MapSendMessage();
+        endpoints.MapStreamMessage();
         endpoints.MapListConversations();
         endpoints.MapGetConversation();
         endpoints.MapDeleteConversation();

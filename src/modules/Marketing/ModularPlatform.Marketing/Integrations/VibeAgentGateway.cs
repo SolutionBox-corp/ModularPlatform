@@ -19,4 +19,13 @@ internal sealed record VibeTurnResult(string Content, string? ToolCallsJson);
 internal interface IVibeAgentGateway
 {
     Task<VibeTurnResult> RunTurnAsync(Guid userId, IReadOnlyList<VibeTurnInput> history, CancellationToken ct);
+
+    /// <summary>
+    /// Streaming variant of <see cref="RunTurnAsync"/>: runs the SAME bounded read-only tool-use loop but yields the
+    /// assistant's text deltas as they arrive (for the interactive vibe-chat that shows tokens live). Tool-call
+    /// trace projection is NOT available on this path — the caller persists the accumulated full text with a null
+    /// <c>ToolCallsJson</c>. The <paramref name="userId"/> scopes every tool to the caller's rows.
+    /// </summary>
+    IAsyncEnumerable<string> RunTurnStreamingAsync(
+        Guid userId, IReadOnlyList<VibeTurnInput> history, CancellationToken ct);
 }
