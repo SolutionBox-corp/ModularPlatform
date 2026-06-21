@@ -9,6 +9,7 @@ import {
   BuildingIcon,
   UsersIcon,
   ScrollTextIcon,
+  TrendingUpIcon,
 } from "lucide-react";
 
 export interface NavItem {
@@ -51,6 +52,13 @@ export const NAV_ITEMS: NavItem[] = [
     labelKey: "notifications",
     icon: BellIcon,
     moduleKey: "notifications",
+  },
+  {
+    key: "marketing",
+    href: "/marketing",
+    labelKey: "marketing",
+    icon: TrendingUpIcon,
+    moduleKey: "marketing",
   },
   {
     key: "profile",

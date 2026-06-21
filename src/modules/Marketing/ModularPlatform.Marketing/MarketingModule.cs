@@ -7,8 +7,14 @@ using ModularPlatform.Cqrs;
 using ModularPlatform.Marketing.Features.Analyses.GetAnalysis;
 using ModularPlatform.Marketing.Features.Analyses.ListAnalyses;
 using ModularPlatform.Marketing.Features.Pulls.GetPullStatus;
+using ModularPlatform.Marketing.Features.Pulls.ListPulls;
 using ModularPlatform.Marketing.Features.Pulls.TriggerPull;
 using ModularPlatform.Marketing.Features.Snapshots.ListSnapshots;
+using ModularPlatform.Marketing.Features.Vibe.DeleteConversation;
+using ModularPlatform.Marketing.Features.Vibe.GetConversation;
+using ModularPlatform.Marketing.Features.Vibe.ListConversations;
+using ModularPlatform.Marketing.Features.Vibe.SendMessage;
+using ModularPlatform.Marketing.Features.Vibe.StartConversation;
 using ModularPlatform.Marketing.Integrations;
 using ModularPlatform.Marketing.Persistence;
 using ModularPlatform.Messaging;
@@ -42,32 +48,47 @@ public sealed class MarketingModule : IModule
         services.AddScoped<IGa4Gateway, FakeGa4Gateway>();
         services.AddScoped<IGscGateway, FakeGscGateway>();
 
-        // Analysis brain: the deterministic fake when Marketing:UseFakeGateways=true (dev/tests, no API key needed),
-        // otherwise the real Claude-backed gateway bound to Marketing:Claude.
+        // Analysis brain + agentic vibe-chat brain: the deterministic fakes when Marketing:UseFakeGateways=true
+        // (dev/tests, no API key needed), otherwise the real Claude-backed gateways bound to Marketing:Claude.
         if (configuration.GetValue("Marketing:UseFakeGateways", false))
         {
             services.AddScoped<IMarketingAiGateway, FakeMarketingAiGateway>();
+            services.AddScoped<IVibeAgentGateway, FakeVibeAgentGateway>();
         }
         else
         {
             services.Configure<MarketingClaudeOptions>(configuration.GetSection(MarketingClaudeOptions.SectionName));
             services.AddScoped<IMarketingAiGateway, ClaudeMarketingGateway>();
+            services.AddScoped<IVibeAgentGateway, ClaudeVibeAgentGateway>();
         }
+
+        // GDPR data-portability + erasure ports (fanned out by the Gdpr module). Both MUST be registered or the
+        // module's personal data is silently skipped from export/erasure.
+        services.AddScoped<IExportPersonalData, ModularPlatform.Marketing.Gdpr.MarketingPersonalDataExporter>();
+        services.AddScoped<IErasePersonalData, ModularPlatform.Marketing.Gdpr.MarketingPersonalDataEraser>();
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
         endpoints.MapTriggerPull();
         endpoints.MapGetPullStatus();
+        endpoints.MapListPulls();
         endpoints.MapListSnapshots();
         endpoints.MapListAnalyses();
         endpoints.MapGetAnalysis();
+
+        endpoints.MapStartConversation();
+        endpoints.MapSendMessage();
+        endpoints.MapListConversations();
+        endpoints.MapGetConversation();
+        endpoints.MapDeleteConversation();
     }
 
     public void ConfigureMessaging(WolverineOptions options)
     {
         options.Discovery.IncludeType<Messaging.RunDataPullHandler>();
         options.Discovery.IncludeType<Messaging.MarketingDataPulledHandler>();
+        options.Discovery.IncludeType<Messaging.RunVibeAgentTurnHandler>();
     }
 
     public async Task ApplyMigrationsAsync(IServiceProvider services, CancellationToken ct)

@@ -340,6 +340,66 @@
       "title": "Podmínky služby"
     }
   },
+  "marketing": {
+    "metaTitle": "Marketing — ModularPlatform",
+    "page": {
+      "heading": "Marketing",
+      "description": "Stáhněte si analytická data, prohlédněte si AI poznatky a popovídejte si s vibe asistentem."
+    },
+    "pulls": {
+      "heading": "Stahování dat",
+      "description": "Stáhněte nejnovější metriky z připojeného zdroje.",
+      "sourceLabel": "Zdroj",
+      "sourcePlaceholder": "Vyberte zdroj",
+      "sourceGa4": "Google Analytics 4",
+      "sourceGsc": "Search Console",
+      "trigger": "Stáhnout data",
+      "triggering": "Spouštím…",
+      "triggered": "Stahování dat bylo spuštěno.",
+      "recent": "Poslední stahování",
+      "empty": "Zatím žádné stahování dat. Spusťte ho výše."
+    },
+    "snapshots": {
+      "heading": "Snímky metrik",
+      "description": "Metriky zachycené při vašich posledních stahováních dat.",
+      "table": {
+        "metric": "Metrika",
+        "source": "Zdroj",
+        "value": "Hodnota",
+        "recorded": "Zaznamenáno",
+        "emptyTitle": "Zatím žádné snímky",
+        "emptyDescription": "Spusťte stahování dat pro získání snímků metrik."
+      }
+    },
+    "analyses": {
+      "heading": "AI analýzy",
+      "description": "Poznatky vygenerované AI z vašich marketingových dat.",
+      "emptyTitle": "Zatím žádné analýzy",
+      "emptyDescription": "Analýzy se zde objeví, jakmile budou vaše data zpracována."
+    },
+    "vibeChat": {
+      "heading": "Vibe asistent",
+      "description": "Popovídejte si s AI asistentem o svých marketingových datech.",
+      "newConversation": "Nová konverzace",
+      "noConversations": "Zatím žádné konverzace.",
+      "emptyThread": "Vyberte konverzaci nebo začněte novou.",
+      "loading": "Načítám…",
+      "deleteConversation": "Smazat konverzaci",
+      "deleted": "Konverzace byla smazána.",
+      "startPrompt": "Zeptejte se asistenta na cokoli ohledně vašich marketingových dat.",
+      "assistantThinking": "Asistent pracuje…",
+      "sending": "Odesílám…",
+      "toolTrace": "Volání nástrojů",
+      "inputLabel": "Zpráva",
+      "inputPlaceholder": "Napište zprávu…",
+      "send": "Odeslat"
+    },
+    "validation": {
+      "sourceRequired": "Vyberte zdroj dat.",
+      "messageRequired": "Zadejte zprávu.",
+      "messageTooLong": "Zpráva je příliš dlouhá (max 4000 znaků)."
+    }
+  },
   "nav": {
     "account": "Účet",
     "admin": "Administrace",
@@ -347,6 +407,7 @@
     "billing": "Fakturace",
     "dashboard": "Přehled",
     "files": "Soubory",
+    "marketing": "Marketing",
     "notifications": "Oznámení",
     "platformFleet": "Flotila",
     "platformTenants": "Nájemci",

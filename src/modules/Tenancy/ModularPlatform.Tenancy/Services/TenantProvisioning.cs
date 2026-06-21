@@ -22,7 +22,7 @@ internal sealed class TenantProvisioning(IDbContextOutbox<TenancyDbContext> outb
     /// match the <c>.RequireModule("…")</c> keys on each module's endpoints.
     /// </summary>
     private static readonly string[] DefaultEntitledModules =
-        ["billing", "notifications", "files", "operations", "gdpr"];
+        ["billing", "notifications", "files", "operations", "gdpr", "marketing"];
 
     public async Task<Guid> CreateAsync(string name, string? subdomain = null, CancellationToken ct = default)
     {

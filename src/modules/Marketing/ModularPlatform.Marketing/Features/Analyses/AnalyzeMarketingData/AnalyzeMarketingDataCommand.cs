@@ -19,6 +19,7 @@ internal sealed record AnalyzeMarketingDataCommand(Guid DataPullId, Guid UserId,
 internal sealed class AnalyzeMarketingDataHandler(
     MarketingDbContext db,
     IMarketingAiGateway ai,
+    IRealtimePublisher realtime,
     IClock clock)
     : ICommandHandler<AnalyzeMarketingDataCommand>
 {
@@ -48,6 +49,14 @@ internal sealed class AnalyzeMarketingDataHandler(
             AnalyzedAt = clock.UtcNow,
         });
         await db.SaveChangesAsync(ct);
+
+        // Non-transactional realtime push fires ONLY AFTER the commit (mirrors SendNotificationHandler): a failed
+        // write must not produce a phantom "analysis ready" event. Worker path — pushing to the owning user is correct.
+        await realtime.PublishToUserAsync(
+            command.UserId,
+            "marketing.pull_completed",
+            new { command.DataPullId },
+            ct);
 
         return Unit.Value;
     }

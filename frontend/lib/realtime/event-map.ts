@@ -19,6 +19,10 @@ export const eventTypeToQueryKeys: Record<string, QueryKey[]> = {
   // These entries are ready for when the backend starts publishing operation SSE events.
   "operation.updated": [[...queryRoots.operations]],
   "operation.completed": [[...queryRoots.operations]],
+  // Marketing — a data pull finished (refresh pulls/snapshots/analyses panels).
+  "marketing.pull_completed": [[...queryRoots.marketing]],
+  // Marketing — the durable vibe agent turn produced an assistant reply (refresh the open thread).
+  "marketing.vibe_message_ready": [[...queryRoots.marketing, "conversations"]],
 };
 
 /** Keys to invalidate for an event, or null if we don't care about this type. */

@@ -340,6 +340,66 @@
       "title": "Terms of Service"
     }
   },
+  "marketing": {
+    "metaTitle": "Marketing — ModularPlatform",
+    "page": {
+      "heading": "Marketing",
+      "description": "Pull analytics data, review AI insights, and chat with the vibe assistant."
+    },
+    "pulls": {
+      "heading": "Data pulls",
+      "description": "Pull the latest metrics from a connected source.",
+      "sourceLabel": "Source",
+      "sourcePlaceholder": "Choose a source",
+      "sourceGa4": "Google Analytics 4",
+      "sourceGsc": "Search Console",
+      "trigger": "Pull data",
+      "triggering": "Starting…",
+      "triggered": "Data pull started.",
+      "recent": "Recent pulls",
+      "empty": "No data pulls yet. Start one above."
+    },
+    "snapshots": {
+      "heading": "Metric snapshots",
+      "description": "The metrics captured by your most recent data pulls.",
+      "table": {
+        "metric": "Metric",
+        "source": "Source",
+        "value": "Value",
+        "recorded": "Recorded",
+        "emptyTitle": "No snapshots yet",
+        "emptyDescription": "Run a data pull to collect metric snapshots."
+      }
+    },
+    "analyses": {
+      "heading": "AI analyses",
+      "description": "AI-generated insights over your marketing data.",
+      "emptyTitle": "No analyses yet",
+      "emptyDescription": "Analyses appear here once your data has been processed."
+    },
+    "vibeChat": {
+      "heading": "Vibe assistant",
+      "description": "Chat with the AI assistant about your marketing data.",
+      "newConversation": "New conversation",
+      "noConversations": "No conversations yet.",
+      "emptyThread": "Select a conversation or start a new one.",
+      "loading": "Loading…",
+      "deleteConversation": "Delete conversation",
+      "deleted": "Conversation deleted.",
+      "startPrompt": "Ask the assistant anything about your marketing data.",
+      "assistantThinking": "The assistant is working…",
+      "sending": "Sending…",
+      "toolTrace": "Tool calls",
+      "inputLabel": "Message",
+      "inputPlaceholder": "Type a message…",
+      "send": "Send"
+    },
+    "validation": {
+      "sourceRequired": "Choose a data source.",
+      "messageRequired": "Enter a message.",
+      "messageTooLong": "Message is too long (max 4000 characters)."
+    }
+  },
   "nav": {
     "account": "Account",
     "admin": "Administration",
@@ -347,6 +407,7 @@
     "billing": "Billing",
     "dashboard": "Dashboard",
     "files": "Files",
+    "marketing": "Marketing",
     "notifications": "Notifications",
     "platformFleet": "Fleet",
     "platformTenants": "Tenants",

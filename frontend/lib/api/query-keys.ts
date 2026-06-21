@@ -14,4 +14,5 @@ export const queryRoots = {
   gdpr: ["gdpr"] as const,
   entitlements: ["entitlements"] as const,
   admin: ["admin"] as const,
+  marketing: ["marketing"] as const,
 } as const;
