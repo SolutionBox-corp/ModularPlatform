@@ -578,17 +578,9 @@
         "withdrawn": "Souhlas odvolán."
       },
       "types": {
-        "analytics": {
-          "description": "Umožněte nám sbírat data o používání pro zlepšování platformy.",
-          "label": "Analytika a vylepšování"
-        },
         "marketingEmails": {
           "description": "Dostávejte netransakční marketingové e-maily, jako jsou novinky o produktu, tipy a propagační nabídky. Nezbytné e-maily (účet, zabezpečení a uvítací e-mail) se odesílají vždy bez ohledu na toto nastavení.",
           "label": "Novinky o produktu a nabídky"
-        },
-        "thirdPartySharing": {
-          "description": "Sdílejte svá data s důvěryhodnými partnery pro poskytování služeb.",
-          "label": "Sdílení s třetími stranami"
         }
       }
     },

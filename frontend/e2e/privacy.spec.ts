@@ -33,8 +33,10 @@ test.describe("Privacy page structure", () => {
     await page.goto("/account/privacy");
     await expect(page.getByRole("heading", { name: /consent preferences/i })).toBeVisible();
     await expect(page.getByRole("switch", { name: /product news & offers/i })).toBeVisible();
-    await expect(page.getByRole("switch", { name: /analytics/i })).toBeVisible();
-    await expect(page.getByRole("switch", { name: /third-party sharing/i })).toBeVisible();
+    // The orphaned `analytics` + `third_party_sharing` toggles were removed (audit follow-up #5 —
+    // nothing in the app reads them yet). Only the real marketing-emails consent remains.
+    await expect(page.getByRole("switch", { name: /analytics/i })).toHaveCount(0);
+    await expect(page.getByRole("switch", { name: /third-party sharing/i })).toHaveCount(0);
   });
 
   // PRIV-11
@@ -169,53 +171,53 @@ test.describe("Consent toggles — fresh user", () => {
     );
   });
 
-  // PRIV-03 — grant analytics then withdraw and verify withdrawal persists
-  test("toggle analytics consent — withdraw persists after reload", async ({ page }) => {
+  // PRIV-03 — grant marketing consent then withdraw and verify withdrawal persists
+  test("toggle marketing consent — withdraw persists after reload", async ({ page }) => {
     await registerFreshUser(page);
     await page.goto("/account/privacy");
 
-    const analyticsSwitch = page.getByRole("switch", { name: /analytics/i });
-    await expect(analyticsSwitch).toBeVisible();
+    const consentSwitch = page.getByRole("switch", { name: /product news & offers/i });
+    await expect(consentSwitch).toBeVisible();
 
     // Grant first so we have something to withdraw.
-    await analyticsSwitch.click();
-    await expect(analyticsSwitch).toHaveAttribute("aria-checked", "true");
+    await consentSwitch.click();
+    await expect(consentSwitch).toHaveAttribute("aria-checked", "true");
     await expect(page.getByText(/consent granted/i)).toBeVisible();
 
     // Now withdraw.
-    await analyticsSwitch.click();
-    await expect(analyticsSwitch).toHaveAttribute("aria-checked", "false");
+    await consentSwitch.click();
+    await expect(consentSwitch).toHaveAttribute("aria-checked", "false");
     await expect(page.getByText(/consent withdrawn/i)).toBeVisible();
 
     // Reload and verify withdrawal persists.
     await page.reload();
-    await expect(page.getByRole("switch", { name: /analytics/i })).toHaveAttribute(
+    await expect(page.getByRole("switch", { name: /product news & offers/i })).toHaveAttribute(
       "aria-checked",
       "false",
     );
   });
 
-  // PRIV-04 — toggle third-party sharing twice, verify settles at withdrawn
-  test("toggle third-party sharing twice settles at withdrawn", async ({ page }) => {
+  // PRIV-04 — toggle marketing consent twice, verify settles at withdrawn
+  test("toggle marketing consent twice settles at withdrawn", async ({ page }) => {
     await registerFreshUser(page);
     await page.goto("/account/privacy");
 
-    const thirdPartySwitch = page.getByRole("switch", { name: /third-party sharing/i });
-    await expect(thirdPartySwitch).toBeVisible();
+    const consentSwitch = page.getByRole("switch", { name: /product news & offers/i });
+    await expect(consentSwitch).toBeVisible();
 
     // Grant
-    await thirdPartySwitch.click();
-    await expect(thirdPartySwitch).toHaveAttribute("aria-checked", "true");
+    await consentSwitch.click();
+    await expect(consentSwitch).toHaveAttribute("aria-checked", "true");
     await expect(page.getByText(/consent granted/i)).toBeVisible();
 
     // Withdraw
-    await thirdPartySwitch.click();
-    await expect(thirdPartySwitch).toHaveAttribute("aria-checked", "false");
+    await consentSwitch.click();
+    await expect(consentSwitch).toHaveAttribute("aria-checked", "false");
     await expect(page.getByText(/consent withdrawn/i)).toBeVisible();
 
     // Reload and verify final state is withdrawn
     await page.reload();
-    await expect(page.getByRole("switch", { name: /third-party sharing/i })).toHaveAttribute(
+    await expect(page.getByRole("switch", { name: /product news & offers/i })).toHaveAttribute(
       "aria-checked",
       "false",
     );

@@ -578,17 +578,9 @@
         "withdrawn": "Consent withdrawn."
       },
       "types": {
-        "analytics": {
-          "description": "Allow us to collect usage data to improve the platform.",
-          "label": "Analytics & improvement"
-        },
         "marketingEmails": {
           "description": "Receive non-transactional marketing emails such as product news, tips, and promotional offers. Essential emails (account, security, and the welcome email) are always sent regardless of this setting.",
           "label": "Product news & offers"
-        },
-        "thirdPartySharing": {
-          "description": "Share your data with trusted partners for service delivery.",
-          "label": "Third-party sharing"
         }
       }
     },

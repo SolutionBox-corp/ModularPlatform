@@ -5,7 +5,11 @@ produced **50 verified findings**. The frontend-only, clear-cut ones were fixed 
 This file tracked the 10 that needed a **backend change** or a **product/ops decision**.
 
 **2026-06-20 update:** 9 of the 10 were implemented (backend + FE, build/tsc/lint clean, 118 backend integration tests +
-9 ArchUnit boundary tests green). Only #5 stays deferred (a deliberate product decision). Details below.
+9 ArchUnit boundary tests green).
+
+**2026-06-22 update:** the last one (#5) is now done too — **all 10 resolved**. The orphaned `analytics` +
+`third_party_sharing` consent toggles were **removed** from the Privacy settings (nothing in the app consumes them
+yet); only the real `marketing_emails` consent remains. Re-add a consent type once a feature actually gates on it.
 
 ## Done (2026-06-20)
 
@@ -25,7 +29,7 @@ This file tracked the 10 that needed a **backend change** or a **product/ops dec
 
 | # | Finding | Decision (2026-06-21) |
 |---|---|---|
-| 5 | **Orphaned consent types** (`analytics`, `third_party_sharing`) | **KEEP** as forward-looking preferences. The toggles are wired to the real (now versioned, #2) consent ledger, so they capture provable consent *before* the analytics / third-party features exist — which is the GDPR-positive ordering (consent-first). No feature reads these yet; a future analytics/third-party integration must gate on a granted consent. Removing user-facing privacy controls is an outward-facing change, so it is intentionally NOT done here — say the word and the two toggles can be removed until the functionality lands. |
+| 5 | **Orphaned consent types** (`analytics`, `third_party_sharing`) | **DONE (2026-06-22) — REMOVED.** Nothing in the app reads these consents, so the two toggles were dead UI promising functionality that doesn't exist. Removed from `features/privacy/components/consent-toggles.tsx` + their i18n keys; the consent ledger (backend) is unchanged (it stores any string). Only `marketing_emails` (real — gates non-transactional mail) remains. The privacy-policy body still describes analytics/marketing via the separate **cookie-consent banner**. Re-add a consent type here once a feature actually gates on it. |
 
 ## i18n notes (#9) — intentional carve-outs
 

@@ -18,16 +18,8 @@ const CONSENT_TYPES: { key: string; labelKey: string; descriptionKey: string }[]
     labelKey: "consents.types.marketingEmails.label",
     descriptionKey: "consents.types.marketingEmails.description",
   },
-  {
-    key: "analytics",
-    labelKey: "consents.types.analytics.label",
-    descriptionKey: "consents.types.analytics.description",
-  },
-  {
-    key: "third_party_sharing",
-    labelKey: "consents.types.thirdPartySharing.label",
-    descriptionKey: "consents.types.thirdPartySharing.description",
-  },
+  // `analytics` and `third_party_sharing` were removed (audit follow-up #5): nothing in the app reads
+  // them yet, so they were orphaned consent toggles. Re-add a type here once a feature actually gates on it.
 ];
 
 /** Derive the current boolean state per consent type from the append-only history. */
