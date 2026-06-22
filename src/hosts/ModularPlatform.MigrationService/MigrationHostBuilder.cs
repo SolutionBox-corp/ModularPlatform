@@ -3,6 +3,7 @@ using ModularPlatform.Billing;
 using ModularPlatform.Files;
 using ModularPlatform.Gdpr;
 using ModularPlatform.Identity;
+using ModularPlatform.Marketing;
 using ModularPlatform.Messaging;
 using ModularPlatform.Notifications;
 using ModularPlatform.Operations;
@@ -38,6 +39,7 @@ public static class MigrationHostBuilder
             typeof(GdprModule).Assembly,
             typeof(OperationsModule).Assembly,
             typeof(FilesModule).Assembly,
+            typeof(MarketingModule).Assembly,
             typeof(TenancyModule).Assembly);
         foreach (var module in discovered)
         {

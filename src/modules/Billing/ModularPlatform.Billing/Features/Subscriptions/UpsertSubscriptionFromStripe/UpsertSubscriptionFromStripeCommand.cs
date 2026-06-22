@@ -21,6 +21,7 @@ internal sealed record UpsertSubscriptionFromStripeCommand(string StripeSubscrip
 internal sealed class UpsertSubscriptionFromStripeHandler(
     IDbContextOutbox<BillingDbContext> outbox,
     IStripeGateway gateway,
+    IRealtimePublisher realtime,
     IClock clock)
     : ICommandHandler<UpsertSubscriptionFromStripeCommand, Unit>
 {
@@ -57,13 +58,16 @@ internal sealed class UpsertSubscriptionFromStripeHandler(
         subscription.CurrentPeriodEnd = state.CurrentPeriodEnd;
         subscription.CancelAtPeriodEnd = state.CancelAtPeriodEnd;
 
-        if (previousStatus != SubscriptionStatus.Active && subscription.Status == SubscriptionStatus.Active)
+        var activated = previousStatus != SubscriptionStatus.Active && subscription.Status == SubscriptionStatus.Active;
+        var canceled = previousStatus is not null and not SubscriptionStatus.Canceled
+                       && subscription.Status == SubscriptionStatus.Canceled;
+
+        if (activated)
         {
             await outbox.PublishAsync(new SubscriptionActivatedIntegrationEvent(
                 Guid.CreateVersion7(), clock.UtcNow, userId, subscription.PlanKey, subscription.CurrentPeriodEnd));
         }
-        else if (previousStatus is not null and not SubscriptionStatus.Canceled
-                 && subscription.Status == SubscriptionStatus.Canceled)
+        else if (canceled)
         {
             await outbox.PublishAsync(new SubscriptionCanceledIntegrationEvent(
                 Guid.CreateVersion7(), clock.UtcNow, userId, subscription.PlanKey));
@@ -76,7 +80,18 @@ internal sealed class UpsertSubscriptionFromStripeHandler(
         catch (DbUpdateException ex) when (ex is not DbUpdateConcurrencyException)
         {
             // Lost the UNIQUE(StripeSubscriptionId) creation race — the winner mirrored the same Stripe
-            // state (both read the object, not the event), so converging is a no-op.
+            // state (both read the object, not the event), so converging is a no-op. The winner already
+            // fired any realtime push for the transition; our rolled-back write must emit nothing.
+            return Unit.Value;
+        }
+
+        // Post-commit realtime nudge so the FE refreshes subscription state live (no polling). Non-transactional,
+        // so it MUST fire AFTER the commit — only an actual activation/cancellation transition that committed
+        // emits an event; the FE uses the event TYPE to invalidate its subscription query.
+        if (activated || canceled)
+        {
+            await realtime.PublishToUserAsync(
+                userId, "billing.subscription_changed", new { status = subscription.Status.ToString() }, ct);
         }
 
         return Unit.Value;

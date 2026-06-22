@@ -36,6 +36,10 @@ namespace ModularPlatform.Gdpr.Persistence.Migrations
                     b.Property<bool>("Granted")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("PolicyVersion")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
                     b.Property<DateTimeOffset>("RecordedAt")
                         .HasColumnType("timestamp with time zone");
 

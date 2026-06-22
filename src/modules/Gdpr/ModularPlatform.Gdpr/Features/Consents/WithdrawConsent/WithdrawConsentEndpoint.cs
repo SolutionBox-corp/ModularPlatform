@@ -18,7 +18,7 @@ internal static class WithdrawConsentEndpoint
                 CancellationToken ct) =>
             {
                 var userId = tenant.UserId ?? throw new UnauthorizedException("auth.required", "Authentication required.");
-                var result = await dispatcher.Send(new WithdrawConsentCommand(userId, request.ConsentType), ct);
+                var result = await dispatcher.Send(new WithdrawConsentCommand(userId, request.ConsentType, request.PolicyVersion), ct);
                 return Results.Ok(ApiResponse<WithdrawConsentResponse>.Ok(result));
             })
             .RequireAuthorization()

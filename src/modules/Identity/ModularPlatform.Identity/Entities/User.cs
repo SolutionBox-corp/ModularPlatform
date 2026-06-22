@@ -36,6 +36,12 @@ internal sealed class User : AuditableEntity, ITenantScoped, ISoftDeletable, IDa
     /// <summary>When set and in the future, login is rejected even with correct credentials (account lockout).</summary>
     public DateTimeOffset? LockoutEndUtc { get; set; }
 
+    /// <summary>Policy identifier of the terms version the user accepted at registration (GDPR Art. 7(1) provable consent). Not PII.</summary>
+    public string? AcceptedTermsVersion { get; set; }
+
+    /// <summary>When the user accepted the terms; null when no acceptance was recorded.</summary>
+    public DateTimeOffset? AcceptedTermsAt { get; set; }
+
     public DateTimeOffset? DeletedAt { get; set; }
 }
 
@@ -53,6 +59,7 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.Locale).HasMaxLength(8).IsRequired();
         builder.Property(u => u.FailedAccessCount).IsRequired().HasDefaultValue(0);
         builder.Property(u => u.LockoutEndUtc);
+        builder.Property(u => u.AcceptedTermsVersion).HasMaxLength(32);
         // Filtered: pre-backfill legacy rows hold '' until PiiEncryptionBackfill stamps their hash.
         builder.HasIndex(u => u.EmailHash).IsUnique().HasFilter("\"EmailHash\" <> ''");
     }

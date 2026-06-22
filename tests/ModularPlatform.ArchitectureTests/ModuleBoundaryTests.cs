@@ -26,6 +26,7 @@ public sealed class ModuleBoundaryTests
             typeof(ModularPlatform.Gdpr.Contracts.UserErasureRequested).Assembly,
             typeof(ModularPlatform.Operations.OperationsModule).Assembly,
             typeof(ModularPlatform.Files.FilesModule).Assembly,
+            typeof(ModularPlatform.Marketing.MarketingModule).Assembly,
             typeof(ModularPlatform.Tenancy.TenancyModule).Assembly,
             typeof(ModularPlatform.Tenancy.Contracts.TenantProvisionedIntegrationEvent).Assembly)
         .Build();

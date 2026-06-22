@@ -31,6 +31,9 @@ public static class PlatformPermissions
     /// <summary>Platform-admin: mint a tenant-scoped MACHINE principal (a non-user service token for edge agents / device gateways).</summary>
     public const string MachineTokensIssue = "platform.machine_tokens";
 
+    /// <summary>Platform-admin: list users across ALL tenants (cross-tenant read-only directory).</summary>
+    public const string PlatformUsersList = "platform.users.list";
+
     /// <summary>Every declared permission, discovered by reflection over the public string consts above.</summary>
     public static IReadOnlyList<string> All { get; } = typeof(PlatformPermissions)
         .GetFields(BindingFlags.Public | BindingFlags.Static)

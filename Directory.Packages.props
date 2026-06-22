@@ -19,6 +19,11 @@
     <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
   </ItemGroup>
 
+  <ItemGroup Label="AI (Microsoft.Extensions.AI + Anthropic — free)">
+    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.3.0" />
+    <PackageVersion Include="Anthropic.SDK" Version="5.10.0" />
+  </ItemGroup>
+
   <ItemGroup Label="Durable messaging (Wolverine — MIT, free)">
     <PackageVersion Include="WolverineFx" Version="6.5.1" />
     <PackageVersion Include="WolverineFx.Postgresql" Version="6.5.1" />
@@ -49,6 +54,11 @@
 
   <ItemGroup Label="Storage (S3-compatible: AWS S3 / MinIO / Cloudflare R2 — Apache-2.0)">
     <PackageVersion Include="AWSSDK.S3" Version="4.0.24.2" />
+  </ItemGroup>
+
+  <ItemGroup Label="Marketing — Google data sources (Apache-2.0, free official SDKs)">
+    <PackageVersion Include="Google.Apis.AnalyticsData.v1beta" Version="1.74.0.3608" />
+    <PackageVersion Include="Google.Apis.SearchConsole.v1" Version="1.74.0.3847" />
   </ItemGroup>
 
   <ItemGroup Label="Security">

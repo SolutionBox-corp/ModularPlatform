@@ -73,6 +73,8 @@ internal sealed class RegisterUserHandler(
             PasswordHash = passwordHasher.Hash(command.Password),
             DisplayName = command.DisplayName?.Trim(),
             Locale = "en",
+            AcceptedTermsVersion = command.AcceptedTermsVersion?.Trim(),
+            AcceptedTermsAt = string.IsNullOrWhiteSpace(command.AcceptedTermsVersion) ? null : clock.UtcNow,
         };
 
         db.Users.Add(user);

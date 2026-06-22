@@ -27,7 +27,8 @@ internal static class RegisterUserEndpoint
                 var joinTenantId = (http.Items["tenant"] as TenantInfo)?.Id;
                 var result = await dispatcher.Send(
                     new RegisterUserCommand(
-                        request.Email, request.Password, request.DisplayName, joinTenantId, request.InviteToken), ct);
+                        request.Email, request.Password, request.DisplayName, joinTenantId, request.InviteToken,
+                        request.AcceptedTermsVersion), ct);
                 // 201 with NO Location: there is no GET /identity/users/{id} (a user reads their own profile via
                 // /me, never by id), so we must not fabricate a Location to a route that does not exist.
                 return Results.Created((string?)null, ApiResponse<RegisterUserResponse>.Ok(result));

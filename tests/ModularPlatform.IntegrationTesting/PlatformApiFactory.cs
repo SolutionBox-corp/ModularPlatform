@@ -85,6 +85,9 @@ public sealed class PlatformApiFactory : IAsyncLifetime
             // Files module: use the local-disk storage provider with an isolated per-run temp root.
             builder.UseSetting("Storage:Provider", "local");
             builder.UseSetting("Storage:Local:RootPath", _storageRoot);
+            // Marketing: in-memory GA4/GSC + AI gateways — the pull → snapshot → analysis pipeline is assertable
+            // offline (no Google credentials, no Claude API key).
+            builder.UseSetting("Marketing:UseFakeGateways", "true");
             // Billing: in-memory Stripe gateway (the seam) — tests seed events/subscriptions through
             // FakeStripeGateway resolved from Services, so the FULL worker path is assertable offline.
             builder.UseSetting("Billing:Stripe:UseFakeGateway", "true");

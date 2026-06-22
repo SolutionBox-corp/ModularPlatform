@@ -15,7 +15,10 @@ namespace ModularPlatform.Billing.Features.Credits.ConfirmSpend;
 /// buckets soonest-to-expire (FIFO), keeps the invariant <c>available = posted - pending</c>, and publishes
 /// <see cref="CreditsSpentIntegrationEvent"/> atomically via the outbox. No raw SQL.
 /// </summary>
-internal sealed class ConfirmSpendHandler(IDbContextOutbox<BillingDbContext> outbox, IClock clock)
+internal sealed class ConfirmSpendHandler(
+    IDbContextOutbox<BillingDbContext> outbox,
+    IRealtimePublisher realtime,
+    IClock clock)
     : ICommandHandler<ConfirmSpendCommand, ConfirmSpendResponse>
 {
     public async Task<ConfirmSpendResponse> Handle(ConfirmSpendCommand command, CancellationToken ct)
@@ -119,6 +122,12 @@ internal sealed class ConfirmSpendHandler(IDbContextOutbox<BillingDbContext> out
 
             throw;
         }
+
+        // Post-commit realtime nudge so the FE refreshes the balance live (no polling). Non-transactional, so it
+        // MUST fire AFTER the commit — a rolled-back confirm must not emit a phantom event. The FE only uses the
+        // event TYPE to invalidate its credit query.
+        await realtime.PublishToUserAsync(
+            account.UserId, "billing.credits_changed", new { available = account.Available }, ct);
 
         return new ConfirmSpendResponse(account.Id, account.Posted, account.Available);
     }

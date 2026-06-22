@@ -70,6 +70,16 @@
   <data name="operation.not_found" xml:space="preserve"><value>Operace nebyla nalezena.</value></data>
   <data name="auth.required" xml:space="preserve"><value>Vyžadováno přihlášení.</value></data>
 
+  <data name="marketing.source_unknown" xml:space="preserve"><value>Neznámý marketingový zdroj.</value></data>
+  <data name="marketing.date_range_invalid" xml:space="preserve"><value>Počáteční datum musí být stejné nebo dřívější než koncové datum.</value></data>
+  <data name="marketing.vibe.message_required" xml:space="preserve"><value>Obsah zprávy je povinný.</value></data>
+  <data name="marketing.vibe.message_too_long" xml:space="preserve"><value>Zpráva je příliš dlouhá (max 4000 znaků).</value></data>
+  <data name="marketing.vibe.conversation_not_found" xml:space="preserve"><value>Konverzace nebyla nalezena.</value></data>
+  <data name="marketing.pull_not_found" xml:space="preserve"><value>Stažení dat nebylo nalezeno.</value></data>
+  <data name="marketing.source_not_supported" xml:space="preserve"><value>Tento marketingový zdroj zatím není podporován.</value></data>
+  <data name="marketing.pull_failed" xml:space="preserve"><value>Stažení marketingových dat selhalo.</value></data>
+  <data name="marketing.analysis_not_found" xml:space="preserve"><value>Analýza nebyla nalezena.</value></data>
+
   <data name="credit.insufficient_balance" xml:space="preserve"><value>Nedostatečný zůstatek kreditů.</value></data>
   <data name="credit.account_not_found" xml:space="preserve"><value>Kreditní účet nenalezen.</value></data>
   <data name="credit.reservation_not_found" xml:space="preserve"><value>Rezervace kreditů nenalezena.</value></data>
@@ -98,6 +108,7 @@
   <data name="gdpr.consent.user_id.required" xml:space="preserve"><value>ID uživatele je povinné.</value></data>
   <data name="gdpr.consent.type.required" xml:space="preserve"><value>Typ souhlasu je povinný.</value></data>
   <data name="gdpr.consent.type.too_long" xml:space="preserve"><value>Typ souhlasu je příliš dlouhý.</value></data>
+  <data name="gdpr.consent.policy_version.too_long" xml:space="preserve"><value>Verze zásad je příliš dlouhá.</value></data>
 
   <data name="file.not_found" xml:space="preserve"><value>Soubor nenalezen.</value></data>
   <data name="file.empty" xml:space="preserve"><value>Soubor je prázdný.</value></data>

@@ -20,6 +20,7 @@ internal sealed class WithdrawConsentHandler(GdprDbContext db, IClock clock)
             ConsentType = command.ConsentType.Trim(),
             Granted = false,
             RecordedAt = clock.UtcNow,
+            PolicyVersion = command.PolicyVersion?.Trim(),
         };
 
         db.ConsentRecords.Add(record);

@@ -20,6 +20,7 @@ internal sealed class GrantConsentHandler(GdprDbContext db, IClock clock)
             ConsentType = command.ConsentType.Trim(),
             Granted = true,
             RecordedAt = clock.UtcNow,
+            PolicyVersion = command.PolicyVersion?.Trim(),
         };
 
         db.ConsentRecords.Add(record);

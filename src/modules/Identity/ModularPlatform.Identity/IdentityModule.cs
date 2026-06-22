@@ -13,6 +13,8 @@ using ModularPlatform.Identity.Features.Admin.AssignRole;
 using ModularPlatform.Identity.Features.Admin.IssueMachineToken;
 using ModularPlatform.Identity.Features.Admin.RevokeRole;
 using ModularPlatform.Identity.Features.Audit.GetUserAuditTrail;
+using ModularPlatform.Identity.Features.PlatformAdmin.GetPlatformUserAudit;
+using ModularPlatform.Identity.Features.PlatformAdmin.ListPlatformUsers;
 using ModularPlatform.Identity.Features.Auth.Login;
 using ModularPlatform.Identity.Features.Auth.Logout;
 using ModularPlatform.Identity.Features.Auth.RefreshToken;
@@ -74,6 +76,8 @@ public sealed class IdentityModule : IModule
         endpoints.MapRevokeRole();
         endpoints.MapIssueMachineToken();
         endpoints.MapGetUserAuditTrail();
+        endpoints.MapListPlatformUsers();
+        endpoints.MapGetPlatformUserAudit();
     }
 
     public void ConfigureMessaging(WolverineOptions options)

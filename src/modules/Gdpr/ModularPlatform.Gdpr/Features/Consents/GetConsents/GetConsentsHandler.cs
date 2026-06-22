@@ -22,7 +22,7 @@ internal sealed class GetConsentsHandler(IReadDbContextFactory<GdprDbContext> re
             .Where(c => c.UserId == query.UserId)
             .OrderByDescending(c => c.RecordedAt)
             .Take(500)
-            .Select(c => new ConsentResponse(c.Id, c.ConsentType, c.Granted, c.RecordedAt))
+            .Select(c => new ConsentResponse(c.Id, c.ConsentType, c.Granted, c.RecordedAt, c.PolicyVersion))
             .ToListAsync(ct);
     }
 }

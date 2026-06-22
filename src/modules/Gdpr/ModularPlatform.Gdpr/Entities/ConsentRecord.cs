@@ -16,6 +16,12 @@ internal sealed class ConsentRecord : Entity, IUserOwned, ITenantScoped
     public string ConsentType { get; set; } = string.Empty;
     public bool Granted { get; set; }
     public DateTimeOffset RecordedAt { get; set; }
+
+    /// <summary>
+    /// The policy/document version this consent state applies to — proves WHAT the subject consented to.
+    /// Nullable so historical rows recorded before this column existed stay NULL.
+    /// </summary>
+    public string? PolicyVersion { get; set; }
 }
 
 internal sealed class ConsentRecordConfiguration : IEntityTypeConfiguration<ConsentRecord>
@@ -25,6 +31,7 @@ internal sealed class ConsentRecordConfiguration : IEntityTypeConfiguration<Cons
         builder.ToTable("consent_records");
         builder.HasKey(c => c.Id);
         builder.Property(c => c.ConsentType).HasMaxLength(128).IsRequired();
+        builder.Property(c => c.PolicyVersion).HasMaxLength(32);
         builder.HasIndex(c => new { c.UserId, c.ConsentType });
     }
 }

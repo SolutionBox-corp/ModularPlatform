@@ -5,6 +5,7 @@ using ModularPlatform.Cqrs.Behaviors;
 using ModularPlatform.Files;
 using ModularPlatform.Gdpr;
 using ModularPlatform.Identity;
+using ModularPlatform.Marketing;
 using ModularPlatform.Messaging;
 using ModularPlatform.Notifications;
 using ModularPlatform.Operations;
@@ -50,6 +51,7 @@ public static class JobsHostBuilder
             // Files has no cron jobs today, but the Jobs host loads the full module set (like every other host) so the
             // DI graph stays uniform and the host-boot test validates it — no special-case omission to drift on.
             typeof(FilesModule).Assembly,
+            typeof(MarketingModule).Assembly,
             typeof(TenancyModule).Assembly);
         foreach (var module in modules)
         {

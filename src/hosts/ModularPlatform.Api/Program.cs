@@ -4,6 +4,7 @@ using ModularPlatform.Billing;
 using ModularPlatform.Files;
 using ModularPlatform.Gdpr;
 using ModularPlatform.Identity;
+using ModularPlatform.Marketing;
 using ModularPlatform.Messaging;
 using ModularPlatform.Notifications;
 using ModularPlatform.Operations;
@@ -25,6 +26,7 @@ var modules = ModuleLoader.Discover(
     typeof(GdprModule).Assembly,
     typeof(OperationsModule).Assembly,
     typeof(FilesModule).Assembly,
+    typeof(MarketingModule).Assembly,
     // Tenancy LAST: it creates the `tenants` table that Identity's drop migration removes — discovery order is
     // migration-application order, so Identity (first) must drop before Tenancy (last) re-creates as its owner.
     typeof(TenancyModule).Assembly);
@@ -67,6 +69,10 @@ if (builder.Configuration.GetValue<bool>("RunMigrationsAtStartup"))
     await RlsBootstrapper.ApplyAsync(app.Services, writeConn, CancellationToken.None);
 }
 
+// NO CORS by design: the browser NEVER calls this API directly — the Next.js BFF
+// (/api/bff/*) proxies every /v1 request server-side, so there is no cross-origin browser
+// traffic to permit. CORS/origin trust lives at the BFF edge (frontend/lib/origins.ts).
+// Do NOT add a permissive CORS policy here; it would only widen the attack surface.
 app.UsePlatformWeb();
 
 // OpenAPI is a DEVELOPMENT convenience — the document enumerates every route and DTO shape, which is

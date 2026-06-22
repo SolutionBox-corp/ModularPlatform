@@ -1,0 +1,694 @@
+{
+  "account": {
+    "form": {
+      "description": "Údaje vašeho účtu.",
+      "displayName": {
+        "ariaLabel": "Zobrazované jméno",
+        "label": "Zobrazované jméno",
+        "inputHint": "Nenastaveno"
+      },
+      "email": {
+        "ariaLabel": "E-mailová adresa",
+        "label": "E-mail"
+      },
+      "locale": {
+        "ariaLabel": "Jazyk",
+        "hint": "Jazyk změníte přepínačem jazyka v horní liště.",
+        "label": "Jazyk"
+      },
+      "readOnlyNotice": "Úprava profilu zatím není dostupná. Pro změnu zobrazovaného jména nebo jazyka kontaktujte podporu.",
+      "title": "Profil"
+    },
+    "page": {
+      "heading": "Profil",
+      "metaTitle": "Profil — ModularPlatform",
+      "subtitle": "Informace o vašem účtu."
+    }
+  },
+  "app": {
+    "name": "ModularPlatform"
+  },
+  "auth": {
+    "acceptTerms": "Souhlasím s podmínkami a zásadami ochrany osobních údajů",
+    "brand": "ModularPlatform",
+    "dev": {
+      "failed": "Rychlé přihlášení selhalo pro {label}",
+      "heading": "Dev rychlé přihlášení",
+      "signedInAs": "Přihlášen jako {label}",
+      "signingIn": "Přihlašování…"
+    },
+    "displayName": "Zobrazované jméno",
+    "displayNameOptional": "(nepovinné)",
+    "email": "E-mail",
+    "expired": "Vaše relace vypršela. Přihlaste se prosím znovu.",
+    "haveAccount": "Už máte účet?",
+    "login": {
+      "heading": "Přihlásit se",
+      "metaTitle": "Přihlášení — ModularPlatform",
+      "submitting": "Přihlašování…",
+      "subtitle": "Pokračujte zadáním e-mailu a hesla.",
+      "success": "Vítejte zpět!",
+      "label": "Přihlásit se"
+    },
+    "noAccount": "Nemáte účet?",
+    "password": "Heslo",
+    "privacyLink": "zásadami ochrany osobních údajů",
+    "register": {
+      "heading": "Vytvořit účet",
+      "metaTitle": "Vytvořit účet — ModularPlatform",
+      "submitting": "Vytváření účtu…",
+      "subtitle": "Začněte s platformou ModularPlatform.",
+      "success": "Účet byl vytvořen! Vítejte.",
+      "label": "Vytvořit účet"
+    },
+    "termsConjunction": "a",
+    "termsLink": "podmínkami",
+    "termsPrefix": "Souhlasím s",
+    "validation": {
+      "acceptTerms": "Musíte souhlasit s podmínkami a zásadami ochrany osobních údajů",
+      "emailInvalid": "Zadejte platný e-mail",
+      "emailRequired": "E-mail je povinný",
+      "passwordMax": "Heslo je příliš dlouhé",
+      "passwordMin": "Heslo musí mít alespoň 8 znaků",
+      "passwordRequired": "Heslo je povinné"
+    }
+  },
+  "billing": {
+    "balance": {
+      "columns": {
+        "category": "Kategorie",
+        "credits": "Kredity",
+        "note": "Poznámka"
+      },
+      "description": "Autoritativní projekce zůstatku z účetní knihy.",
+      "emptyDescription": "Váš kreditní účet se zde objeví po prvním dobití.",
+      "emptyTitle": "Žádná data o zůstatku",
+      "heading": "Stav kreditů",
+      "rows": {
+        "available": "K dispozici",
+        "availableNote": "Připraveno k utracení (připsané minus aktivní rezervace).",
+        "held": "Rezervováno / čeká",
+        "heldNote": "Rezervováno probíhajícími operacemi; uvolní se po potvrzení nebo expiraci.",
+        "posted": "Připsáno",
+        "postedNote": "Celkový počet kreditů kdy připsaných na tento účet."
+      }
+    },
+    "buyCredits": {
+      "description": "Jednorázové dobití zpracované bezpečně přes Stripe.",
+      "heading": "Koupit kredity"
+    },
+    "checkout": {
+      "invalidRedirect": "Platba selhala: neplatná přesměrovací URL.",
+      "unexpectedRedirect": "Platba selhala: neočekávaný cíl přesměrování."
+    },
+    "creditCard": {
+      "description": "Dostupný zůstatek",
+      "manage": "Spravovat platby",
+      "noAccount": "Zatím žádný účet.",
+      "ofPosted": "z <amount></amount> připsaných",
+      "title": "Kredity"
+    },
+    "header": {
+      "description": "Spravujte své kredity, předplatné a nastavení plateb.",
+      "title": "Platby"
+    },
+    "metaTitle": "Platby — ModularPlatform",
+    "package": {
+      "buyNow": "Koupit",
+      "creditsExpireIn": "<amount></amount> kreditů · expirují za {days} d",
+      "creditsNoExpiry": "<amount></amount> kreditů · bez expirace",
+      "oneTimePayment": "jednorázová platba",
+      "redirecting": "Přesměrovávám…"
+    },
+    "packages": {
+      "emptyDescription": "Kreditní balíčky se zde objeví po nastavení.",
+      "emptyTitle": "Žádné balíčky nejsou k dispozici"
+    },
+    "promo": {
+      "amountOffSuffix": "sleva",
+      "apply": "Použít",
+      "checking": "Ověřuji…",
+      "clear": "Vymazat",
+      "description": "Máte slevový kód? Ověřte si ho zde před zaplacením.",
+      "discountApplied": "sleva uplatněna",
+      "heading": "Slevový kód",
+      "invalid": "Neplatný nebo expirovaný slevový kód.",
+      "label": "Slevový kód",
+      "percentOff": "sleva {percent} %",
+      "inputHint": "ZADEJTE KÓD",
+      "validation": {
+        "required": "Zadejte slevový kód.",
+        "tooLong": "Kód je příliš dlouhý."
+      }
+    },
+    "subscriptionCard": {
+      "cancelPlan": "Zrušit plán",
+      "cancelling": "Ruším…",
+      "cancels": "Ruší se",
+      "cancelsAtPeriodEnd": "Ruší se na konci období",
+      "description": "Aktuální plán",
+      "none": "Žádné aktivní předplatné.",
+      "renews": "Obnoví se",
+      "title": "Předplatné",
+      "viewPlans": "Zobrazit plány"
+    }
+  },
+  "common": {
+    "all": "Vše",
+    "cancel": "Zrušit",
+    "confirm": "Potvrdit",
+    "delete": "Smazat",
+    "empty": "Zatím tu nic není",
+    "loading": "Načítání…",
+    "retry": "Zkusit znovu",
+    "save": "Uložit",
+    "search": "Hledat"
+  },
+  "files": {
+    "dropzone": {
+      "ariaLabel": "Nahrát soubor — přetáhněte sem nebo klikněte pro výběr",
+      "hint": "{types} — až {maxMb} MB",
+      "progressLabel": "Průběh nahrávání",
+      "prompt": "Přetáhněte sem soubor nebo klikněte pro výběr",
+      "uploadSuccess": "Soubor „{name}“ byl úspěšně nahrán.",
+      "uploading": "Nahrávání…"
+    },
+    "metaTitle": "Soubory — ModularPlatform",
+    "page": {
+      "description": "Nahrávejte a spravujte své soubory. Každý soubor je soukromý a patří jen k vašemu účtu.",
+      "heading": "Soubory",
+      "yourFiles": "Vaše soubory"
+    },
+    "table": {
+      "download": "Stáhnout {name}",
+      "emptyDescription": "Nahrajte soubor pomocí pole pro nahrávání výše.",
+      "emptyTitle": "Zatím žádné soubory",
+      "name": "Název",
+      "size": "Velikost",
+      "type": "Typ",
+      "uploaded": "Nahráno"
+    },
+    "validation": {
+      "tooLarge": "Soubor je příliš velký. Maximální velikost je {maxMb} MB.",
+      "typeNotAllowed": "Typ souboru „{type}“ není povolen. Povolené typy: {types}.",
+      "unknownType": "neznámý"
+    }
+  },
+  "identityAdmin": {
+    "audit": {
+      "columns": {
+        "action": "Akce",
+        "changedFields": "Změněná pole",
+        "timestamp": "Časové razítko"
+      },
+      "empty": {
+        "description": "Pro tohoto uživatele zatím nebyly zaznamenány žádné auditní události modulu Identity.",
+        "tableDescription": "Pro tohoto uživatele nebyly zaznamenány žádné auditní události modulu Identity.",
+        "title": "Žádné auditní záznamy"
+      },
+      "erasedValue": "[vymazáno]",
+      "hiddenHint": "Auditní stopa je skrytá — vyžaduje oprávnění <code>audit.read</code>.",
+      "nullValue": "null",
+      "title": "Auditní stopa modulu Identity"
+    },
+    "lookup": {
+      "description": "Zadejte ID uživatele pro správu rolí a zobrazení auditní stopy.",
+      "invalidId": "Zadejte platné UUID uživatele (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx).",
+      "lookUp": "Vyhledat",
+      "noListHint": "Backend nemá endpoint pro výpis uživatelů — vyhledávejte pouze podle ID.",
+      "noPermissions": "Nemáte žádná oprávnění pro správu identit.",
+      "title": "Vyhledání uživatele",
+      "userIdLabel": "ID uživatele"
+    },
+    "metadata": {
+      "title": "Správa identit — ModularPlatform"
+    },
+    "page": {
+      "description": "Spravujte role uživatelů a procházejte auditní stopu modulu Identity.",
+      "heading": "Správa identit"
+    },
+    "roleManagement": {
+      "title": "Správa rolí"
+    },
+    "roleManager": {
+      "assign": "Přiřadit",
+      "assignHint": "Zadejte název existující role. Aby se změna projevila, musí se uživatel znovu přihlásit.",
+      "assignLabel": "Přiřadit roli",
+      "assignPlaceholder": "např. admin",
+      "currentRoles": "Aktuální role",
+      "noPermission": "Nemáte oprávnění <code>identity.manage_roles</code>.",
+      "noRoles": "Nejsou přiřazeny žádné role.",
+      "revokeAria": "Odebrat roli {role}"
+    }
+  },
+  "legal": {
+    "backToSignIn": "← Zpět na přihlášení",
+    "draftBanner": "Tento český překlad je pracovní verze poskytnutá pro vaše pohodlí. Právně závazným zněním tohoto dokumentu je anglická verze; v případě jakéhokoli rozporu má přednost anglická verze.",
+    "lastUpdated": "Naposledy aktualizováno: {date}",
+    "privacy": {
+      "lastUpdatedDate": "20. června 2026",
+      "metaTitle": "Zásady ochrany osobních údajů — ModularPlatform",
+      "sections": {
+        "changes": {
+          "body": "Tyto zásady můžeme čas od času aktualizovat. O podstatných změnách vás budeme informovat prostřednictvím platformy nebo e-mailem dříve, než nabudou účinnosti. Datum „Naposledy aktualizováno“ v horní části odráží nejnovější revizi.",
+          "heading": "10. Změny těchto zásad"
+        },
+        "cookies": {
+          "body": "Používáme nezbytně nutné cookies k udržení vaší přihlášené relace (cookie iron-session). S vaším souhlasem nastavujeme také analytické cookies pro měření toho, jak platformu používáte, a marketingové cookies pro záznam vašich preferencí souhlasu. Své volby ohledně cookies můžete kdykoli spravovat prostřednictvím odkazu na nastavení cookies v patičce.",
+          "heading": "5. Soubory cookie"
+        },
+        "dataWeCollect": {
+          "body": "Shromažďujeme údaje, které nám přímo poskytnete (jméno, e-mail, hash hesla, zobrazované jméno), údaje vzniklé vaším používáním služby (auditní záznamy, fakturační záznamy, historii oznámení, soubory, které nahrajete) a s vaším souhlasem také analytická data (zobrazení stránek, používání funkcí) a marketingová data (záznamy o prokliku u komunikace, kterou odesíláme).",
+          "heading": "2. Jaké údaje shromažďujeme"
+        },
+        "howWeUse": {
+          "body": "Vaše údaje používáme k provozu a zlepšování platformy, k zasílání transakčních oznámení (aktivita účtu, fakturační potvrzení), k plnění zákonných povinností a — s vaším souhlasem — k analýze vzorců používání a zasílání marketingových sdělení. Vaše osobní údaje neprodáváme třetím stranám.",
+          "heading": "4. Jak vaše údaje používáme"
+        },
+        "legalBasis": {
+          "body": "Vaše osobní údaje zpracováváme na následujících základech: plnění smlouvy (poskytování služby, ke které jste se zaregistrovali), zákonná povinnost (uchovávání auditu, AML), oprávněný zájem (bezpečnostní monitoring, prevence podvodů) a souhlas (analytika, marketing, sdílení s třetími stranami — kdykoli je můžete změnit v nastavení Soukromí).",
+          "heading": "3. Právní základ zpracování"
+        },
+        "processors": {
+          "body": "Pro zpracování plateb používáme Stripe (podléhá zásadám ochrany osobních údajů společnosti Stripe). Pokud to váš tenant povolí, můžeme sdílet data s dalšími zpracovateli uvedenými v nastavení platformy. Se všemi sub-zpracovateli uzavíráme smlouvy o zpracování osobních údajů a požadujeme, aby uplatňovali rovnocennou ochranu.",
+          "heading": "9. Zpracovatelé třetích stran"
+        },
+        "retention": {
+          "body": "Vaše osobní údaje uchováváme po dobu, kdy je váš účet aktivní. Auditní a fakturační záznamy uchováváme po minimální dobu vyžadovanou platnými právními předpisy (zpravidla 7–10 let) i po smazání účtu; osobní identifikátory v těchto záznamech jsou při výmazu anonymizovány. Veškerá ostatní data jsou smazána do 30 dnů od zrušení účtu.",
+          "heading": "6. Doba uchování údajů"
+        },
+        "security": {
+          "body": "Hesla jsou hashována pomocí Argon2. Citlivá pole osobních údajů jsou šifrována v klidu (AES-GCM) pod klíči pro jednotlivé subjekty. Při přenosu je vynucováno TLS. Přístup k osobním údajům je omezen na subjekt údajů a administrátory platformy prostřednictvím oprávnění založených na rolích a row-level security v Postgresu.",
+          "heading": "8. Zabezpečení"
+        },
+        "whoWeAre": {
+          "body": "ModularPlatform je SaaS platforma provozovaná jako správce osobních údajů podle obecného nařízení o ochraně osobních údajů (GDPR). Odkazy na „my“, „nás“ nebo „naše“ znamenají provozovatele platformy. Máte-li dotazy k těmto zásadám, kontaktujte nás prostřednictvím podpory ve vašem přehledu účtu.",
+          "heading": "1. Kdo jsme"
+        },
+        "yourRights": {
+          "body": "Podle GDPR máte právo na přístup k osobním údajům, jejich opravu, výmaz, omezení zpracování a přenositelnost, a právo vznést námitku proti zpracování. Většinu práv můžete uplatnit přímo na stránce nastavení Soukromí. Chcete-li si stáhnout všechny údaje, které o vás uchováváme, použijte tlačítko „Stáhnout moje data“. Chcete-li trvale smazat svůj účet a vymazat osobní údaje, použijte volbu „Smazat můj účet“ — tím se kryptograficky skartuje váš šifrovací klíč, takže uložená data se stanou trvale neobnovitelnými.",
+          "heading": "7. Vaše práva"
+        }
+      },
+      "title": "Zásady ochrany osobních údajů"
+    },
+    "terms": {
+      "lastUpdatedDate": "20. června 2026",
+      "metaTitle": "Podmínky služby — ModularPlatform",
+      "sections": {
+        "acceptableUse": {
+          "body": "Zavazujete se, že platformu nebudete používat k přenosu nezákonného obsahu, k pokusům o obcházení bezpečnostních prvků, ke zpětné analýze (reverse engineering) jakékoli součásti služby ani k narušování dostupnosti služby pro ostatní uživatele.",
+          "heading": "4. Přípustné použití"
+        },
+        "acceptance": {
+          "body": "Vytvořením účtu nebo používáním platformy ModularPlatform souhlasíte s těmito Podmínkami služby a s našimi <privacyLink>Zásadami ochrany osobních údajů</privacyLink>. Pokud nesouhlasíte, službu nepoužívejte.",
+          "heading": "1. Přijetí podmínek"
+        },
+        "accounts": {
+          "body": "Odpovídáte za zachování důvěrnosti svých přihlašovacích údajů a za veškerou činnost, ke které dojde pod vaším účtem. Jakékoli neoprávněné použití nám musíte neprodleně oznámit. Můžeme pozastavit účty, které porušují tyto podmínky nebo u nichž se domníváme, že byly kompromitovány.",
+          "heading": "3. Účty a zabezpečení"
+        },
+        "billing": {
+          "body": "Nákupy kreditů zpracovává Stripe a jsou nevratné, pokud to nevyžadují platné právní předpisy. Nevyužité kredity propadají podle podmínek plánu zobrazených ve vašem fakturačním přehledu.",
+          "heading": "6. Fakturace a kredity"
+        },
+        "changes": {
+          "body": "Tyto podmínky můžeme čas od času aktualizovat. O podstatných změnách vás budeme informovat prostřednictvím platformy nebo e-mailem. Pokračování v používání po datu účinnosti znamená přijetí upravených podmínek.",
+          "heading": "9. Změny těchto podmínek"
+        },
+        "description": {
+          "body": "ModularPlatform je víceklientská (multi-tenant) SaaS platforma, která prostřednictvím modulární architektury poskytuje správu identit, fakturaci, ukládání souborů, oznámení a nástroje pro GDPR. Přístup k jednotlivým modulům závisí na oprávněních (entitlements) přidělených vašemu tenantovi.",
+          "heading": "2. Popis služby"
+        },
+        "governingLaw": {
+          "body": "Tyto podmínky se řídí právem České republiky. Spory budou řešeny u soudů České republiky, pokud kogentní právní předpisy na ochranu spotřebitele ve vaší jurisdikci nestanoví jinak.",
+          "heading": "10. Rozhodné právo"
+        },
+        "intellectualProperty": {
+          "body": "Veškerý software platformy a dokumentace jsou výhradním vlastnictvím ModularPlatform a jejích poskytovatelů licencí. Vaše data zůstávají vaše; udělujete nám omezenou licenci k jejich zpracování výhradně za účelem poskytování služby.",
+          "heading": "5. Duševní vlastnictví"
+        },
+        "liability": {
+          "body": "V maximálním rozsahu povoleném zákonem neodpovídá ModularPlatform za žádné nepřímé, náhodné nebo následné škody vzniklé z vašeho používání služby. Naše celková odpovědnost vůči vám nepřekročí částky, které jste nám uhradili za dvanáct měsíců předcházejících uplatnění nároku.",
+          "heading": "8. Omezení odpovědnosti"
+        },
+        "termination": {
+          "body": "Svůj účet můžete kdykoli smazat na stránce nastavení Soukromí. Můžeme ukončit nebo pozastavit přístup za porušení těchto podmínek. Při ukončení jsou vaše data vymazána v souladu s našimi Zásadami ochrany osobních údajů a platnými povinnostmi dle GDPR.",
+          "heading": "7. Ukončení"
+        }
+      },
+      "title": "Podmínky služby"
+    }
+  },
+  "marketing": {
+    "metaTitle": "Marketing — ModularPlatform",
+    "page": {
+      "heading": "Marketing",
+      "description": "Stáhněte si analytická data, prohlédněte si AI poznatky a popovídejte si s vibe asistentem."
+    },
+    "pulls": {
+      "heading": "Stahování dat",
+      "description": "Stáhněte nejnovější metriky z připojeného zdroje.",
+      "sourceLabel": "Zdroj",
+      "sourcePlaceholder": "Vyberte zdroj",
+      "sourceGa4": "Google Analytics 4",
+      "sourceGsc": "Search Console",
+      "trigger": "Stáhnout data",
+      "triggering": "Spouštím…",
+      "triggered": "Stahování dat bylo spuštěno.",
+      "recent": "Poslední stahování",
+      "empty": "Zatím žádné stahování dat. Spusťte ho výše."
+    },
+    "snapshots": {
+      "heading": "Snímky metrik",
+      "description": "Metriky zachycené při vašich posledních stahováních dat.",
+      "table": {
+        "metric": "Metrika",
+        "source": "Zdroj",
+        "value": "Hodnota",
+        "recorded": "Zaznamenáno",
+        "emptyTitle": "Zatím žádné snímky",
+        "emptyDescription": "Spusťte stahování dat pro získání snímků metrik."
+      }
+    },
+    "analyses": {
+      "heading": "AI analýzy",
+      "description": "Poznatky vygenerované AI z vašich marketingových dat.",
+      "emptyTitle": "Zatím žádné analýzy",
+      "emptyDescription": "Analýzy se zde objeví, jakmile budou vaše data zpracována."
+    },
+    "vibeChat": {
+      "heading": "Vibe asistent",
+      "description": "Popovídejte si s AI asistentem o svých marketingových datech.",
+      "newConversation": "Nová konverzace",
+      "noConversations": "Zatím žádné konverzace.",
+      "emptyThread": "Vyberte konverzaci nebo začněte novou.",
+      "loading": "Načítám…",
+      "deleteConversation": "Smazat konverzaci",
+      "deleted": "Konverzace byla smazána.",
+      "startPrompt": "Zeptejte se asistenta na cokoli ohledně vašich marketingových dat.",
+      "assistantThinking": "Asistent pracuje…",
+      "streamError": "Odpověď asistenta selhala. Zkuste to prosím znovu.",
+      "sending": "Odesílám…",
+      "toolTrace": "Volání nástrojů",
+      "inputLabel": "Zpráva",
+      "inputPlaceholder": "Napište zprávu…",
+      "send": "Odeslat"
+    },
+    "validation": {
+      "sourceRequired": "Vyberte zdroj dat.",
+      "messageRequired": "Zadejte zprávu.",
+      "messageTooLong": "Zpráva je příliš dlouhá (max 4000 znaků)."
+    }
+  },
+  "nav": {
+    "account": "Účet",
+    "admin": "Administrace",
+    "audit": "Audit",
+    "billing": "Fakturace",
+    "dashboard": "Přehled",
+    "files": "Soubory",
+    "marketing": "Marketing",
+    "notifications": "Oznámení",
+    "platformFleet": "Flotila",
+    "platformTenants": "Nájemci",
+    "privacy": "Soukromí",
+    "profile": "Profil",
+    "signOut": "Odhlásit se",
+    "users": "Uživatelé"
+  },
+  "notifications": {
+    "badge": {
+      "new": "Nové"
+    },
+    "empty": {
+      "feedDescription": "Máte vše přečteno — zatím žádná oznámení.",
+      "recentDescription": "Máte vše přečteno.",
+      "title": "Žádná oznámení"
+    },
+    "markRead": {
+      "ariaLabel": "Označit „{title}“ jako přečtené"
+    },
+    "page": {
+      "description": "Vaše nedávná aktivita a systémové zprávy.",
+      "heading": "Oznámení",
+      "metaTitle": "Oznámení — ModularPlatform"
+    },
+    "recent": {
+      "subtitle": "Nedávná aktivita",
+      "title": "Oznámení",
+      "viewAll": "Zobrazit vše"
+    }
+  },
+  "platform": {
+    "audit": {
+      "description": "Prozkoumejte auditní záznamy uživatele napříč tenanty. Osobní údaje se zobrazují, dokud subjekt není vymazán, poté se zobrazí <mono>[erased]</mono>.",
+      "heading": "Audit",
+      "lookup": {
+        "description": "Zadejte ID uživatele pro prozkoumání jeho auditních záznamů napříč tenanty, nebo je otevřete ze seznamu uživatelů.",
+        "heading": "Vyhledání uživatele",
+        "invalid": "Zadejte platné UUID uživatele (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx).",
+        "label": "ID uživatele",
+        "inputHint": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+        "submit": "Vyhledat"
+      },
+      "trail": {
+        "heading": "Auditní záznamy"
+      }
+    },
+    "billingCard": {
+      "description": "Fakturace provozovatele SaaS",
+      "empty": "Žádná fakturační data.",
+      "off": "vyp",
+      "on": "zap",
+      "title": "Plán platformy"
+    },
+    "entitlementEditor": {
+      "description": "Zadejte UUID tenanta pro přepínání jeho oprávnění modulů.",
+      "heading": "Editor oprávnění tenanta",
+      "idLabel": "ID tenanta (UUID)",
+      "moduleEntitlements": "Oprávnění modulů",
+      "note": "Koncový bod pro seznam tenantů ani pro načtení podle ID zatím neexistuje — použijte ID z odpovědi při vytvoření. Stav přepínače odráží vaše akce v této relaci, nikoli uloženou hodnotu.",
+      "open": "Otevřít",
+      "inputHint": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+      "tenantIdLabel": "ID tenanta"
+    },
+    "entitlements": {
+      "disableLabel": "Vypnout {module}",
+      "empty": "Nejsou k dispozici žádná data o oprávněních.",
+      "enableLabel": "Zapnout {module}",
+      "modules": {
+        "billing": "Fakturace",
+        "files": "Soubory",
+        "gdpr": "GDPR / Soukromí",
+        "marketing": "Marketing",
+        "notifications": "Oznámení",
+        "operations": "Operace"
+      }
+    },
+    "forbidden": {
+      "area": "Nemáte přístup do oblasti správy platformy.",
+      "audit": "Nemáte oprávnění číst auditní záznamy.",
+      "users": "Nemáte oprávnění zobrazit seznam uživatelů platformy."
+    },
+    "inviteDialog": {
+      "copied": "Token pozvánky byl zkopírován do schránky.",
+      "copyAria": "Kopírovat token",
+      "daysLabel": "Platnost (dny)",
+      "descriptionFallback": "Vygenerujte jednorázovou pozvánku, aby se nový člen mohl připojit do tohoto pracovního prostoru. Nešifrovaný token se zobrazí pouze jednou — zkopírujte jej před zavřením.",
+      "descriptionNamed": "Vygenerujte jednorázovou pozvánku, aby se nový člen mohl připojit do <tenant></tenant>. Nešifrovaný token se zobrazí pouze jednou — zkopírujte jej před zavřením.",
+      "expires": "Vyprší {date}",
+      "submit": "Vytvořit token",
+      "submitting": "Vytváření…",
+      "title": "Vytvořit token pozvánky",
+      "tokenAria": "Token pozvánky",
+      "tokenLabel": "Token pozvánky",
+      "trigger": "Vytvořit pozvánku"
+    },
+    "meta": {
+      "auditTitle": "Audit — Správa platformy",
+      "overviewTitle": "Platforma — ModularPlatform",
+      "tenantDetailTitle": "Detail tenanta — Správa platformy",
+      "tenantsTitle": "Tenanti — Správa platformy",
+      "usersTitle": "Uživatelé — Správa platformy"
+    },
+    "overview": {
+      "description": "Vytvářejte tenanty, spravujte oprávnění modulů a sledujte fakturaci na úrovni platformy.",
+      "heading": "Správa platformy"
+    },
+    "provisionDialog": {
+      "description": "Vytvoří nový pracovní prostor s výchozími oprávněními modulů (billing, notifications, files, operations, gdpr).",
+      "nameLabel": "Název organizace",
+      "namePlaceholder": "Acme Corp",
+      "subdomainLabel": "Subdoména",
+      "subdomainPlaceholder": "acme",
+      "submit": "Vytvořit",
+      "submitting": "Vytváření…",
+      "title": "Vytvořit nového tenanta",
+      "trigger": "Vytvořit tenanta"
+    },
+    "tenantDetail": {
+      "back": "Všichni tenanti",
+      "entitlements": {
+        "description": "Zapínejte a vypínejte jednotlivé moduly pro tohoto tenanta. Změny jsou účinné okamžitě (kontrola oprávnění čte živá data).",
+        "heading": "Oprávnění modulů",
+        "unknownState": "Aktuální stav zapnutí není znám — koncový bod GET /tenant/admin/tenants/'{'id'}' zatím neexistuje. Přepnutí odešle PUT; přepínač odráží vaši akci, nikoli uloženou hodnotu."
+      },
+      "heading": "Detail tenanta",
+      "invite": {
+        "description": "Vygenerujte jednorázovou pozvánku, aby se nový člen mohl připojit do tohoto pracovního prostoru.",
+        "heading": "Pozvánka"
+      }
+    },
+    "tenants": {
+      "description": "Vytvářejte nové tenanty a spravujte jejich oprávnění modulů. K otevření editoru oprávnění použijte ID tenanta z odpovědi při vytvoření.",
+      "heading": "Tenanti"
+    },
+    "users": {
+      "description": "Adresář uživatelů napříč tenanty. Auditní záznamy uživatele otevřete pomocí akce v řádku.",
+      "heading": "Uživatelé",
+      "table": {
+        "created": "Vytvořeno",
+        "email": "E-mail",
+        "emptyDescription": "Aktuálnímu filtru neodpovídají žádní uživatelé.",
+        "emptyTitle": "Žádní uživatelé",
+        "name": "Jméno",
+        "tenant": "Tenant",
+        "viewAudit": "Zobrazit auditní záznamy pro {email}"
+      }
+    },
+    "validation": {
+      "daysMax": "Maximálně 90 dní",
+      "daysMin": "Minimálně 1 den",
+      "daysNumber": "Musí být číslo",
+      "daysWhole": "Musí být celé číslo",
+      "nameMax": "Název musí mít nejvýše 256 znaků",
+      "nameRequired": "Název je povinný",
+      "subdomainMax": "Subdoména musí mít nejvýše 63 znaků",
+      "subdomainPattern": "Subdoména musí obsahovat malá písmena, číslice a pomlčky (bez úvodní/koncové pomlčky)",
+      "subdomainRequired": "Subdoména je povinná"
+    }
+  },
+  "privacy": {
+    "consents": {
+      "description": "Určete, jak používáme vaše data. Změny se projeví okamžitě.",
+      "heading": "Předvolby souhlasů",
+      "toast": {
+        "granted": "Souhlas udělen.",
+        "withdrawn": "Souhlas odvolán."
+      },
+      "types": {
+        "analytics": {
+          "description": "Umožněte nám sbírat data o používání pro zlepšování platformy.",
+          "label": "Analytika a vylepšování"
+        },
+        "marketingEmails": {
+          "description": "Dostávejte netransakční marketingové e-maily, jako jsou novinky o produktu, tipy a propagační nabídky. Nezbytné e-maily (účet, zabezpečení a uvítací e-mail) se odesílají vždy bez ohledu na toto nastavení.",
+          "label": "Novinky o produktu a nabídky"
+        },
+        "thirdPartySharing": {
+          "description": "Sdílejte svá data s důvěryhodnými partnery pro poskytování služeb.",
+          "label": "Sdílení s třetími stranami"
+        }
+      }
+    },
+    "erase": {
+      "description": "Trvale vymažte svůj účet a všechny související osobní údaje. Tuto akci nelze vrátit zpět (GDPR čl. 17).",
+      "dialog": {
+        "confirmHint": "Napište přesně: {phrase}",
+        "confirmLabel": "Pro potvrzení níže napište <strong>{phrase}</strong>:",
+        "description": "Tato akce je <strong>nevratná</strong>. Všechny osobní údaje budou vymazány ze všech modulů. Auditní záznamy budou anonymizovány a váš šifrovací klíč bude zničen, čímž se uložená data stanou trvale neobnovitelnými.",
+        "erasing": "Mažu…",
+        "submit": "Trvale smazat můj účet",
+        "title": "Trvale smazat účet",
+        "trigger": "Smazat můj účet",
+        "whatWillBeErased": "Co bude vymazáno: váš profil, souhlasy, historie oznámení, fakturační záznamy a veškeré soubory, které vlastníte. Tuto akci nelze vrátit zpět."
+      },
+      "heading": "Smazat účet",
+      "toast": {
+        "queued": "Vymazání účtu bylo zařazeno do fronty. Budete odhlášeni."
+      }
+    },
+    "export": {
+      "body": "Stáhněte si kopii všech osobních údajů, které o vás uchováváme. Export zahrnuje váš profil, souhlasy, oznámení, historii plateb a veškerá další data spojená s vaším účtem.",
+      "description": "Stáhněte si strojově čitelnou kopii všech osobních údajů, které o vás uchováváme (GDPR čl. 20).",
+      "download": "Stáhnout moje data",
+      "downloaded": "Staženo",
+      "heading": "Export vašich dat",
+      "preparing": "Připravuji export…",
+      "toast": {
+        "ready": "Export vašich dat je připraven a byl stažen."
+      }
+    },
+    "header": {
+      "description": "Spravujte své souhlasy a uplatněte svá práva k osobním údajům.",
+      "title": "Soukromí a data"
+    },
+    "metadata": {
+      "title": "Soukromí — ModularPlatform"
+    }
+  },
+  "realtime": {
+    "closed": "Offline",
+    "connecting": "Připojování…",
+    "open": "Živě"
+  },
+  "shell": {
+    "appShell": {
+      "signedOut": "Odhlášeno.",
+      "signingOut": "Odhlašování…",
+      "skipToContent": "Přeskočit na obsah",
+      "userMenu": "Nabídka uživatele"
+    },
+    "dashboard": {
+      "actions": {
+        "topUpCredits": "Dobít kredity",
+        "uploadFile": "Nahrát soubor",
+        "viewAuditTrail": "Zobrazit auditní záznam"
+      },
+      "metaTitle": "Přehled — ModularPlatform",
+      "quickActions": "Rychlé akce",
+      "subtitle": "Zde je přehled vašeho pracovního prostoru.",
+      "welcome": "Vítejte zpět",
+      "welcomeNamed": "Vítejte zpět, {name}"
+    },
+    "dataTable": {
+      "emptyDescription": "Žádné položky k zobrazení.",
+      "emptyTitle": "Zatím tu nic není"
+    },
+    "error": {
+      "tryAgain": "Zkusit znovu"
+    },
+    "localeToggle": {
+      "switchLanguage": "Přepnout jazyk"
+    },
+    "notFound": {
+      "description": "Stránka, kterou hledáte, neexistuje nebo byla přesunuta.",
+      "goToDashboard": "Přejít na přehled",
+      "heading": "Stránka nenalezena",
+      "metaTitle": "Stránka nenalezena — ModularPlatform"
+    },
+    "operationStatus": {
+      "inProgress": "Operace probíhá",
+      "status": {
+        "cancelled": "Zrušeno",
+        "completed": "Dokončeno",
+        "failed": "Selhalo",
+        "pending": "Čeká",
+        "running": "Probíhá"
+      }
+    },
+    "problemDetails": {
+      "title": "Chyba"
+    },
+    "realtimeIndicator": {
+      "label": "Živě: {status}"
+    },
+    "themeToggle": {
+      "darkMode": "Tmavý režim",
+      "lightMode": "Světlý režim",
+      "switchToDark": "Přepnout na tmavý režim",
+      "switchToLight": "Přepnout na světlý režim"
+    }
+  }
+}

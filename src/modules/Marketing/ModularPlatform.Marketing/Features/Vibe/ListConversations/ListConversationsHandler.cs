@@ -1,0 +1,25 @@
+using Microsoft.EntityFrameworkCore;
+using ModularPlatform.Cqrs;
+using ModularPlatform.Marketing.Persistence;
+using ModularPlatform.Persistence;
+
+namespace ModularPlatform.Marketing.Features.Vibe.ListConversations;
+
+/// <summary>
+/// Lists the caller's vibe-chat conversations, newest first. Owner-scoped by the explicit <c>WHERE UserId</c> and RLS;
+/// the soft-delete query filter on the entity hides deleted threads automatically.
+/// </summary>
+internal sealed class ListConversationsHandler(IReadDbContextFactory<MarketingDbContext> readDb)
+    : IQueryHandler<ListConversationsQuery, IReadOnlyList<ConversationListItem>>
+{
+    public async Task<IReadOnlyList<ConversationListItem>> Handle(ListConversationsQuery query, CancellationToken ct)
+    {
+        await using var db = readDb.Create();
+
+        return await db.VibeConversations
+            .Where(c => c.UserId == query.UserId)
+            .OrderByDescending(c => c.CreatedAt)
+            .Select(c => new ConversationListItem(c.Id, c.Title, c.CreatedAt))
+            .ToListAsync(ct);
+    }
+}
