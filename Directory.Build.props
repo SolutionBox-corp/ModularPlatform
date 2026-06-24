@@ -8,6 +8,23 @@
     <LangVersion>latest</LangVersion>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- .NET 10 SDK drive-enumerating-wildcard bug: the default recursive item globs (**/*.cs, **/*.resx) get
+         FALSE-POSITIVE flagged as "drive-enumerating" on some Linux filesystems (overlay + native ext4 bind-mount),
+         so MSBuild skips expansion and leaks the literal pattern to csc → CS2001/CS2021/MSB3552. The
+         MSBUILDFAILONDRIVEENUMERATINGWILDCARD=0 env var does NOT reliably suppress it. Deterministic fix: disable
+         the implicit globs and enumerate sources with Directory::GetFiles property functions, which return CONCRETE
+         file paths (no wildcard for the detector to flag). Resx: only ModularPlatform.Web has any, included explicitly. -->
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
   </PropertyGroup>
+
+  <!-- Wildcard-free replacement for the SDK's default `<Compile Include="**/*.cs">`. GetFiles returns concrete
+       paths; the Remove lines drop any stale generated sources under obj/ or bin/ (the SDK re-adds the fresh
+       GlobalUsings/AssemblyInfo via build-time targets, independent of EnableDefaultCompileItems). -->
+  <ItemGroup Condition="'$(MSBuildProjectExtension)' == '.csproj'">
+    <Compile Include="$([System.IO.Directory]::GetFiles('$(MSBuildProjectDirectory)', '*.cs', System.IO.SearchOption.AllDirectories))" />
+    <Compile Remove="$([System.IO.Directory]::GetFiles('$(MSBuildProjectDirectory)/obj', '*.cs', System.IO.SearchOption.AllDirectories))" Condition="Exists('$(MSBuildProjectDirectory)/obj')" />
+    <Compile Remove="$([System.IO.Directory]::GetFiles('$(MSBuildProjectDirectory)/bin', '*.cs', System.IO.SearchOption.AllDirectories))" Condition="Exists('$(MSBuildProjectDirectory)/bin')" />
+  </ItemGroup>
 
 </Project>

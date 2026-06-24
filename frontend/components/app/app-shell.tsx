@@ -31,14 +31,14 @@ import { RealtimeIndicator } from "@/components/app/realtime-indicator";
 import { ThemeToggle } from "@/components/app/theme-toggle";
 import { LocaleToggle } from "@/components/app/locale-toggle";
 import { AppNav } from "@/features/entitlements/components/app-nav";
-import type { NavItem } from "@/features/entitlements/nav";
 import { logoutAction } from "@/features/auth/actions";
 import type { SessionUser } from "@/lib/auth/session";
 
 interface AppShellProps {
   children: ReactNode;
   user: SessionUser;
-  navItems?: NavItem[];
+  /** Which nav set the sidebar renders ("platform" = admin console). Serializable — see AppNav. */
+  navVariant?: "tenant" | "platform";
 }
 
 function userInitials(user: SessionUser): string {
@@ -51,7 +51,7 @@ function userInitials(user: SessionUser): string {
     .toUpperCase();
 }
 
-export function AppShell({ children, user, navItems }: AppShellProps) {
+export function AppShell({ children, user, navVariant }: AppShellProps) {
   const t = useTranslations("nav");
   const tShell = useTranslations("shell");
   const router = useRouter();
@@ -88,7 +88,7 @@ export function AppShell({ children, user, navItems }: AppShellProps) {
         </SidebarHeader>
 
         <SidebarContent>
-          <AppNav permissions={user.permissions} items={navItems} />
+          <AppNav permissions={user.permissions} variant={navVariant} />
         </SidebarContent>
 
         <SidebarFooter>

@@ -11,4 +11,12 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Explicit because the default resx glob is disabled in Directory.Build.props (.NET 10 Linux publish bug).
+         Manifest names stay ModularPlatform.Web.Localization.SharedResource(.cs) so IStringLocalizer<SharedResource>
+         and the Czech satellite assembly resolve exactly as with the default glob. -->
+    <EmbeddedResource Include="Localization\SharedResource.resx" />
+    <EmbeddedResource Include="Localization\SharedResource.cs.resx" />
+  </ItemGroup>
+
 </Project>

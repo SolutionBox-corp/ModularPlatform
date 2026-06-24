@@ -4,7 +4,6 @@ import { getSession, isAuthenticated } from "@/lib/auth/session";
 import { RealtimeProvider } from "@/lib/realtime/realtime-provider";
 import { AppShell } from "@/components/app/app-shell";
 import { ADMIN_TENANT, TENANT_HEADER } from "@/lib/tenant";
-import { PLATFORM_NAV_ITEMS } from "@/features/entitlements/nav";
 import { ProblemDetails } from "@/components/app/problem-details";
 import { ApiError } from "@/lib/api/types";
 import { getTranslations } from "next-intl/server";
@@ -49,7 +48,7 @@ export default async function PlatformLayout({ children }: { children: ReactNode
 
   return (
     <RealtimeProvider>
-      <AppShell user={user} navItems={PLATFORM_NAV_ITEMS}>
+      <AppShell user={user} navVariant="platform">
         {children}
       </AppShell>
     </RealtimeProvider>

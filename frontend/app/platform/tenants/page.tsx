@@ -17,8 +17,9 @@ export default async function TenantsPage() {
   const t = await getTranslations("platform");
   const queryClient = getQueryClient();
 
-  // Prefetch the platform billing status (shows operator's own plan).
+  // Prefetch the platform billing status (operator's own plan) + the first page of tenants for the table.
   void queryClient.prefetchQuery(platformQueries.billingStatus());
+  void queryClient.prefetchQuery(platformQueries.tenants());
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>

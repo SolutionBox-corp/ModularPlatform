@@ -13,25 +13,19 @@ import {
 import { EntitlementToggles } from "./entitlement-toggles";
 import { CreateInviteDialog } from "./create-invite-dialog";
 import { PlatformBillingCard } from "./platform-billing-card";
+import { useTenantDetail } from "@/features/platform/hooks";
 
 interface TenantDetailContentProps {
   tenantId: string;
 }
 
 /**
- * Renders the full detail view for a tenant UUID.
- *
- * LIMITATION: The backend does not expose GET /tenant/admin/tenants/{id} or a
- * cross-tenant entitlement read. This page provides:
- *   - A direct entitlement editor (PUT still works by ID regardless of context).
- *   - The platform billing status card (token-scoped, shows the admin's own tenant).
- *   - Invite creation for the given tenant ID.
- *
- * When the backend adds a GET-by-id endpoint, replace the static header and
- * feed the response into the EntitlementToggles modules prop.
+ * Full detail view for a tenant UUID. Loads the registry row + PERSISTED entitlements via
+ * GET /tenant/admin/tenants/{id} so the entitlement switches reflect the real DB state.
  */
 export function TenantDetailContent({ tenantId }: TenantDetailContentProps) {
   const t = useTranslations("platform");
+  const { data: detail, isLoading } = useTenantDetail(tenantId);
   return (
     <div className="space-y-6">
       {/* Back link */}
@@ -51,9 +45,11 @@ export function TenantDetailContent({ tenantId }: TenantDetailContentProps) {
           </span>
           <div>
             <h1 className="text-xl font-semibold tracking-tight">
-              {t("tenantDetail.heading")}
+              {detail?.name ?? t("tenantDetail.heading")}
             </h1>
-            <p className="text-xs font-mono text-muted-foreground">{tenantId}</p>
+            <p className="text-xs font-mono text-muted-foreground">
+              {detail ? `${detail.subdomain} · ${tenantId}` : tenantId}
+            </p>
           </div>
         </div>
 
@@ -75,18 +71,11 @@ export function TenantDetailContent({ tenantId }: TenantDetailContentProps) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {/* No GET-by-id endpoint exists yet. Render the default module set
-                so the admin can toggle entitlements. The PUT works by tenantId
-                regardless; current enabled state is unknown (shown as off). */}
             <EntitlementToggles
               tenantId={tenantId}
-              modules={undefined}
-              isLoading={false}
-              fallbackToDefaults
+              modules={detail?.modules}
+              isLoading={isLoading}
             />
-            <p className="mt-3 text-xs text-muted-foreground">
-              {t("tenantDetail.entitlements.unknownState")}
-            </p>
           </CardContent>
         </Card>
 

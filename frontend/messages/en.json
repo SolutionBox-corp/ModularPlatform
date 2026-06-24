@@ -415,7 +415,8 @@
     "privacy": "Privacy",
     "profile": "Profile",
     "signOut": "Sign out",
-    "users": "Users"
+    "users": "Users",
+    "platformProducts": "Products"
   },
   "notifications": {
     "badge": {
@@ -510,7 +511,8 @@
       "overviewTitle": "Platform — ModularPlatform",
       "tenantDetailTitle": "Tenant detail — Platform Admin",
       "tenantsTitle": "Tenants — Platform Admin",
-      "usersTitle": "Users — Platform Admin"
+      "usersTitle": "Users — Platform Admin",
+      "productsTitle": "Products — Platform Admin"
     },
     "overview": {
       "description": "Provision tenants, manage module entitlements, and monitor platform-plane billing.",
@@ -541,8 +543,17 @@
       }
     },
     "tenants": {
-      "description": "Provision new tenants and manage their module entitlements. Use the tenant ID from the provision response to open the entitlement editor.",
-      "heading": "Tenants"
+      "description": "Provision new tenants and manage their module entitlements. Select a tenant to edit its modules.",
+      "heading": "Tenants",
+      "table": {
+        "name": "Name",
+        "subdomain": "Subdomain",
+        "status": "Status",
+        "created": "Created",
+        "manage": "Manage",
+        "emptyTitle": "No tenants yet",
+        "emptyDescription": "Provision your first tenant to get started."
+      }
     },
     "users": {
       "description": "Cross-tenant user directory. Open a user’s audit trail from the row action.",
@@ -567,6 +578,38 @@
       "subdomainMax": "Subdomain must be 63 characters or fewer",
       "subdomainPattern": "Subdomain must be lowercase alphanumeric with hyphens (no leading/trailing hyphen)",
       "subdomainRequired": "Subdomain is required"
+    },
+    "products": {
+      "heading": "Products",
+      "description": "Manage the global credit-package catalogue offered to tenants.",
+      "newPackage": "New package",
+      "edit": "Edit",
+      "active": "Active",
+      "inactive": "Inactive",
+      "table": {
+        "name": "Name",
+        "credits": "Credits",
+        "price": "Price",
+        "expiry": "Expiry",
+        "status": "Status",
+        "emptyTitle": "No packages yet",
+        "emptyDescription": "Create your first credit package."
+      },
+      "dialog": {
+        "createTitle": "New package",
+        "editTitle": "Edit package",
+        "description": "Credit packages are offered to tenants for purchase.",
+        "name": "Name",
+        "credits": "Credits",
+        "price": "Price",
+        "currency": "Currency",
+        "expiry": "Credit expiry (days)",
+        "expiryHint": "never",
+        "stripePriceId": "Stripe price ID",
+        "active": "Active (purchasable)",
+        "save": "Save",
+        "saving": "Saving…"
+      }
     }
   },
   "privacy": {

@@ -10,21 +10,27 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { entitlementQueries, isModuleEnabled } from "@/features/entitlements/api";
-import { NAV_ITEMS, type NavItem } from "@/features/entitlements/nav";
+import { NAV_ITEMS, PLATFORM_NAV_ITEMS } from "@/features/entitlements/nav";
 import { cn } from "@/lib/utils";
 
 interface AppNavProps {
   /** Permissions from the server session (already in the token). */
   permissions: string[];
-  /** Override nav items (e.g. for platform admin). Defaults to NAV_ITEMS. */
-  items?: NavItem[];
+  /**
+   * Which nav set to render. "platform" = the admin-console nav. Passed as a serializable string (NOT the
+   * nav array) because the items carry Lucide icon COMPONENTS — handing functions from a Server Component to
+   * this Client Component crashes RSC ("Functions cannot be passed directly to Client Components"). Icons stay
+   * client-side here.
+   */
+  variant?: "tenant" | "platform";
 }
 
-export function AppNav({ permissions, items = NAV_ITEMS }: AppNavProps) {
+export function AppNav({ permissions, variant = "tenant" }: AppNavProps) {
   const pathname = usePathname();
   const t = useTranslations("nav");
   const { data: entitlements } = useQuery(entitlementQueries.me());
 
+  const items = variant === "platform" ? PLATFORM_NAV_ITEMS : NAV_ITEMS;
   const visibleItems = items.filter((item) => {
     if (item.moduleKey && !isModuleEnabled(entitlements, item.moduleKey)) {
       return false;

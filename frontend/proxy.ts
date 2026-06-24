@@ -31,8 +31,12 @@ export function proxy(request: NextRequest): NextResponse {
   let rewriteTo: URL | null = null;
   if (hostClass.kind === "admin") {
     requestHeaders.set(TENANT_HEADER, ADMIN_TENANT);
-    // Rewrite the admin host's root paths into the internal /platform segment.
-    if (!isPlatformPath) {
+    // The (auth) route group lives at the ROOT (/login, /register) — NOT under /platform. They must stay
+    // reachable on the admin host, otherwise the platform layout's redirect("/login") gets rewritten to
+    // /platform/login (which doesn't exist) → 404, and the admin can never sign in to the console.
+    const isAuthPath = url.pathname === "/login" || url.pathname === "/register";
+    // Rewrite the admin host's other root paths into the internal /platform segment.
+    if (!isPlatformPath && !isAuthPath) {
       rewriteTo = new URL(`/platform${url.pathname === "/" ? "" : url.pathname}${url.search}`, url);
     }
   } else {
@@ -88,7 +92,10 @@ function buildCsp(nonce: string, isDev: boolean): string {
   // asset requests to https and break CSS/JS loading). Production only.
   if (!isDev) {
     directives.push(`upgrade-insecure-requests`);
-    directives.push(`require-trusted-types-for 'script'`);
+    // NOTE: `require-trusted-types-for 'script'` was removed — Next.js 16's client chunk loader sets
+    // script.src / innerHTML without a Trusted Types policy, so enforcing TT blocks all client JS in
+    // production (TrustedHTML/TrustedScriptURL errors → blank "Something went wrong" page). The nonce +
+    // 'strict-dynamic' script-src already constrains script execution; TT is an extra layer Next can't satisfy yet.
   }
   return directives.join("; ");
 }

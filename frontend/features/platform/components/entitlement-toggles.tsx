@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
@@ -18,67 +18,42 @@ const KNOWN_MODULE_KEYS = [
   "marketing",
 ] as const;
 
-/**
- * Default-entitled modules seeded on every fresh tenant (mirrors TenantProvisioning.DefaultEntitledModules).
- * Used as a static fallback when no GET-by-tenant-id endpoint is available.
- */
-const DEFAULT_MODULE_KEYS = [
-  "billing",
-  "notifications",
-  "files",
-  "operations",
-  "gdpr",
-];
-
 interface EntitlementTogglesProps {
   tenantId: string;
+  /** The tenant's PERSISTED entitlements (from GET /tenant/admin/tenants/{id}). Undefined while loading. */
   modules: PlatformBillingModuleView[] | undefined;
   isLoading?: boolean;
-  /**
-   * When true and modules is undefined, renders the default module set with
-   * unknown enabled state (displayed as off). Admin can toggle to set them
-   * explicitly. Switch state is optimistic (reflects last action, not DB value).
-   */
-  fallbackToDefaults?: boolean;
-}
-
-interface ModuleToggleState {
-  key: string;
-  enabled: boolean;
-  tier: string | null;
 }
 
 /**
- * Renders a Switch per module key. Toggles call PUT /tenant/admin/tenants/{id}/entitlements/{key}.
- * Maintains optimistic local state so the switch does not snap back.
+ * One Switch per known module. The base position is the PERSISTED entitlement; a toggle applies an optimistic
+ * override and fires PUT /tenant/admin/tenants/{id}/entitlements/{key}, reverting the override on error. Overrides
+ * are cleared whenever the selected tenant changes so they never bleed across tenants.
  */
 export function EntitlementToggles({
   tenantId,
   modules,
   isLoading = false,
-  fallbackToDefaults = false,
 }: EntitlementTogglesProps) {
   const t = useTranslations("platform");
   const mutation = useSetEntitlement();
+  const [overrides, setOverrides] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    setOverrides({});
+  }, [tenantId]);
+
+  const persisted = new Map((modules ?? []).map((m) => [m.key, m]));
 
   const moduleLabel = (key: string): string =>
     (KNOWN_MODULE_KEYS as readonly string[]).includes(key)
       ? t(`entitlements.modules.${key}`)
       : key;
 
-  // Build initial state from props or fallback defaults.
-  const initialModules: ModuleToggleState[] =
-    modules?.map((m) => ({ key: m.key, enabled: m.enabled, tier: m.tier })) ??
-    (fallbackToDefaults
-      ? DEFAULT_MODULE_KEYS.map((key) => ({ key, enabled: false, tier: null }))
-      : []);
-
-  const [localState, setLocalState] = useState<ModuleToggleState[]>(initialModules);
-
   if (isLoading) {
     return (
       <div className="space-y-3">
-        {Array.from({ length: 5 }).map((_, i) => (
+        {Array.from({ length: KNOWN_MODULE_KEYS.length }).map((_, i) => (
           <div key={i} className="flex items-center justify-between py-2">
             <Skeleton className="h-4 w-28" />
             <Skeleton className="h-5 w-8 rounded-full" />
@@ -88,59 +63,54 @@ export function EntitlementToggles({
     );
   }
 
-  if (localState.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground py-4">
-        {t("entitlements.empty")}
-      </p>
-    );
-  }
-
   function handleToggle(key: string, checked: boolean, tier: string | null) {
-    // Optimistic update.
-    setLocalState((prev) =>
-      prev.map((m) => (m.key === key ? { ...m, enabled: checked } : m)),
-    );
-
-    void mutation.mutateAsync({ tenantId, moduleKey: key, enabled: checked, tier }).catch(() => {
-      // Revert on error.
-      setLocalState((prev) =>
-        prev.map((m) => (m.key === key ? { ...m, enabled: !checked } : m)),
-      );
-    });
+    setOverrides((prev) => ({ ...prev, [key]: checked }));
+    void mutation
+      .mutateAsync({ tenantId, moduleKey: key, enabled: checked, tier })
+      .catch(() => {
+        // Revert the optimistic override back to the persisted value.
+        setOverrides((prev) => {
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        });
+      });
   }
 
   return (
     <ul className="space-y-1" role="list">
-      {localState.map((mod) => {
-        const label = moduleLabel(mod.key);
+      {KNOWN_MODULE_KEYS.map((key) => {
+        const row = persisted.get(key);
+        const enabled = overrides[key] ?? row?.enabled ?? false;
+        const tier = row?.tier ?? null;
+        const label = moduleLabel(key);
         const isPending =
-          mutation.isPending && mutation.variables?.moduleKey === mod.key;
+          mutation.isPending && mutation.variables?.moduleKey === key;
 
         return (
           <li
-            key={mod.key}
+            key={key}
             className="flex items-center justify-between rounded-lg px-3 py-2.5 hover:bg-muted/40 transition-colors"
           >
             <div className="flex items-center gap-2.5 min-w-0">
               <span className="text-sm font-medium truncate">{label}</span>
-              {mod.tier && (
+              {tier && (
                 <Badge variant="secondary" className="text-xs shrink-0">
-                  {mod.tier}
+                  {tier}
                 </Badge>
               )}
             </div>
 
             <Switch
-              checked={mod.enabled}
+              checked={enabled}
               disabled={isPending}
               aria-label={
-                mod.enabled
+                enabled
                   ? t("entitlements.disableLabel", { module: label })
                   : t("entitlements.enableLabel", { module: label })
               }
               onCheckedChange={(checked) => {
-                handleToggle(mod.key, checked, mod.tier);
+                handleToggle(key, checked, tier);
               }}
             />
           </li>

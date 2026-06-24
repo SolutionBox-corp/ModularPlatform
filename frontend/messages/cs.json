@@ -415,7 +415,8 @@
     "privacy": "Soukromí",
     "profile": "Profil",
     "signOut": "Odhlásit se",
-    "users": "Uživatelé"
+    "users": "Uživatelé",
+    "platformProducts": "Produkty"
   },
   "notifications": {
     "badge": {
@@ -510,7 +511,8 @@
       "overviewTitle": "Platforma — ModularPlatform",
       "tenantDetailTitle": "Detail tenanta — Správa platformy",
       "tenantsTitle": "Tenanti — Správa platformy",
-      "usersTitle": "Uživatelé — Správa platformy"
+      "usersTitle": "Uživatelé — Správa platformy",
+      "productsTitle": "Produkty — Platform Admin"
     },
     "overview": {
       "description": "Vytvářejte tenanty, spravujte oprávnění modulů a sledujte fakturaci na úrovni platformy.",
@@ -541,8 +543,17 @@
       }
     },
     "tenants": {
-      "description": "Vytvářejte nové tenanty a spravujte jejich oprávnění modulů. K otevření editoru oprávnění použijte ID tenanta z odpovědi při vytvoření.",
-      "heading": "Tenanti"
+      "description": "Vytvářejte tenanty a spravujte jejich moduly. Vyberte tenanta pro úpravu modulů.",
+      "heading": "Tenanti",
+      "table": {
+        "name": "Název",
+        "subdomain": "Subdoména",
+        "status": "Stav",
+        "created": "Vytvořeno",
+        "manage": "Spravovat",
+        "emptyTitle": "Zatím žádní tenanti",
+        "emptyDescription": "Začněte vytvořením prvního tenanta."
+      }
     },
     "users": {
       "description": "Adresář uživatelů napříč tenanty. Auditní záznamy uživatele otevřete pomocí akce v řádku.",
@@ -567,6 +578,38 @@
       "subdomainMax": "Subdoména musí mít nejvýše 63 znaků",
       "subdomainPattern": "Subdoména musí obsahovat malá písmena, číslice a pomlčky (bez úvodní/koncové pomlčky)",
       "subdomainRequired": "Subdoména je povinná"
+    },
+    "products": {
+      "heading": "Produkty",
+      "description": "Spravujte globální katalog kreditových balíčků nabízených tenantům.",
+      "newPackage": "Nový balíček",
+      "edit": "Upravit",
+      "active": "Aktivní",
+      "inactive": "Neaktivní",
+      "table": {
+        "name": "Název",
+        "credits": "Kredity",
+        "price": "Cena",
+        "expiry": "Expirace",
+        "status": "Stav",
+        "emptyTitle": "Zatím žádné balíčky",
+        "emptyDescription": "Vytvořte první kreditový balíček."
+      },
+      "dialog": {
+        "createTitle": "Nový balíček",
+        "editTitle": "Upravit balíček",
+        "description": "Kreditové balíčky se nabízejí tenantům k nákupu.",
+        "name": "Název",
+        "credits": "Kredity",
+        "price": "Cena",
+        "currency": "Měna",
+        "expiry": "Expirace kreditů (dny)",
+        "expiryHint": "nikdy",
+        "stripePriceId": "Stripe price ID",
+        "active": "Aktivní (k nákupu)",
+        "save": "Uložit",
+        "saving": "Ukládám…"
+      }
     }
   },
   "privacy": {

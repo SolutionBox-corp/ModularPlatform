@@ -1,0 +1,14 @@
+# Build context for frontend/Dockerfile. Exclude installed deps + build output (rebuilt in-image),
+# test artifacts, and any local secrets.
+node_modules
+.next
+out
+build
+coverage
+test-results
+playwright-report
+playwright/.cache
+e2e/.auth
+.env*
+*.pem
+.DS_Store

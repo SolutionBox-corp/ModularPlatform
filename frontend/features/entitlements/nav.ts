@@ -10,6 +10,7 @@ import {
   UsersIcon,
   ScrollTextIcon,
   TrendingUpIcon,
+  PackageIcon,
 } from "lucide-react";
 
 export interface NavItem {
@@ -82,6 +83,13 @@ export const PLATFORM_NAV_ITEMS: NavItem[] = [
     labelKey: "platformTenants",
     icon: BuildingIcon,
     permission: "platform.tenants.manage",
+  },
+  {
+    key: "platformProducts",
+    href: "/platform/products",
+    labelKey: "platformProducts",
+    icon: PackageIcon,
+    permission: "billing.manage",
   },
   {
     key: "platformUsers",
