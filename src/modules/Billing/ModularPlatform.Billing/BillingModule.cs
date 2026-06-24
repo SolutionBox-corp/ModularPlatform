@@ -17,6 +17,7 @@ using ModularPlatform.Billing.Payments;
 using ModularPlatform.Payments;
 using ModularPlatform.Secrets;
 using ModularPlatform.Billing.Features.Packages.CreateCreditPackage;
+using ModularPlatform.Billing.Features.Packages.ListAdminCreditPackages;
 using ModularPlatform.Billing.Features.Packages.ListCreditPackages;
 using ModularPlatform.Billing.Features.Packages.PurchaseCreditPackage;
 using ModularPlatform.Billing.Features.Packages.UpdateCreditPackage;
@@ -109,6 +110,7 @@ public sealed class BillingModule : IModule
         endpoints.MapStripeWebhook();
         endpoints.MapTenantWebhook();
         endpoints.MapListCreditPackages();
+        endpoints.MapListAdminCreditPackages();
         endpoints.MapPurchaseCreditPackage();
         endpoints.MapGetCreditPurchase();
         endpoints.MapCreateCreditPackage();

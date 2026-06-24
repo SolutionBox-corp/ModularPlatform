@@ -1,0 +1,130 @@
+# ModularPlatform — production compose for solutionbox2 (mp.solutionbox.cz).
+# DB = HOST PostgreSQL 15 (reached via host.docker.internal; pg_hba already allows docker subnets).
+# Redis is intentionally omitted (single-instance: Api realtime falls back to in-memory, BFF refresh
+# coalesces in-process). nginx (host) terminates TLS and proxies ONLY to `web` (127.0.0.1:16010).
+# All secrets come from the gitignored .env beside this file (chmod 600). See docs/deploy-solutionbox2.md.
+name: modularplatform
+
+# The four .NET hosts are baked from a pre-published output dir (artifacts/<HOST_PROJECT>/) — see
+# docs/deploy/build-images.sh, which publishes via a bind-mounted SDK to dodge the overlay glob bug.
+# Always run build-images.sh (NOT a bare `docker compose build`) so the artifacts exist first.
+x-dotnet-build: &dotnet-build
+  context: .
+  dockerfile: Dockerfile.runtime
+
+services:
+  # Dedicated Postgres (isolated instance — NOT the shared host PG). Its superuser is scoped to THIS instance,
+  # so RLS bootstrapping works and no other service's data is reachable. Backed up daily by docs/deploy/pg-backup.sh.
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: modularplatform
+      POSTGRES_USER: postgres
+      # POSTGRES_PASSWORD comes from .env
+    env_file: .env
+    volumes:
+      - mp-pgdata:/var/lib/postgresql/data
+    networks: [mp]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d modularplatform"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  # One-shot: applies every module's migrations + bootstraps RLS, then exits 0. Gates the long-lived hosts.
+  migrator:
+    build:
+      <<: *dotnet-build
+      args:
+        HOST_PROJECT: ModularPlatform.MigrationService
+    image: mp-migrator
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [mp]
+    restart: "no"
+
+  api:
+    build:
+      <<: *dotnet-build
+      args:
+        HOST_PROJECT: ModularPlatform.Api
+    image: mp-api
+    env_file: .env
+    environment:
+      ASPNETCORE_URLS: "http://+:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+    networks: [mp]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/ready || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  worker:
+    build:
+      <<: *dotnet-build
+      args:
+        HOST_PROJECT: ModularPlatform.Worker
+    image: mp-worker
+    env_file: .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+    networks: [mp]
+    restart: unless-stopped
+
+  jobs:
+    build:
+      <<: *dotnet-build
+      args:
+        HOST_PROJECT: ModularPlatform.Jobs
+    image: mp-jobs
+    env_file: .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+    networks: [mp]
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: mp-web
+    env_file: .env
+    environment:
+      PORT: "3000"
+    ports:
+      - "127.0.0.1:16013:3000"
+    depends_on:
+      api:
+        condition: service_started
+    networks: [mp]
+    restart: unless-stopped
+
+volumes:
+  mp-pgdata:
+    name: modularplatform-pgdata
+
+networks:
+  mp:
+    name: modularplatform
+    driver: bridge
+    # No fixed subnet — the server already has many docker networks in 172.x and a pinned /16 collides
+    # ("Pool overlaps"). Docker auto-assigns a free private subnet; the Api trusts the whole docker-private
+    # range for forwarded headers (.env ForwardedHeaders__KnownNetworks) — safe because the Api only ever
+    # receives traffic from the `web` BFF on this network, never directly from the internet.

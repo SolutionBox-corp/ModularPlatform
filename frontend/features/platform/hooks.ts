@@ -8,7 +8,12 @@ import {
   provisionTenant,
   setEntitlement,
   createTenantInvite,
+  createCreditPackage,
+  updateCreditPackage,
   type ListPlatformUsersParams,
+  type ListPlatformTenantsParams,
+  type CreatePackageInput,
+  type UpdatePackageInput,
 } from "./api";
 
 export function usePlatformBillingStatus() {
@@ -17,6 +22,15 @@ export function usePlatformBillingStatus() {
 
 export function useListPlatformUsers(params: ListPlatformUsersParams = {}) {
   return useQuery(platformQueries.users(params));
+}
+
+export function useListPlatformTenants(params: ListPlatformTenantsParams = {}) {
+  return useQuery(platformQueries.tenants(params));
+}
+
+/** One tenant's registry row + persisted entitlements. An empty id keeps the query disabled. */
+export function useTenantDetail(tenantId: string) {
+  return useQuery(platformQueries.tenantById(tenantId));
 }
 
 export function usePlatformUserAudit(userId: string) {
@@ -57,5 +71,36 @@ export function useCreateTenantInvite() {
   return useMutation({
     mutationFn: createTenantInvite,
     // No invalidation needed — invite token is shown once and not cached.
+  });
+}
+
+export function useAdminPackages() {
+  return useQuery(platformQueries.adminPackages());
+}
+
+export function useCreatePackage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreatePackageInput) => createCreditPackage(input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: [...queryRoots.admin, "platform", "packages"],
+      });
+      toast.success("Package created.");
+    },
+  });
+}
+
+export function useUpdatePackage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: UpdatePackageInput }) =>
+      updateCreditPackage(id, input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: [...queryRoots.admin, "platform", "packages"],
+      });
+      toast.success("Package updated.");
+    },
   });
 }

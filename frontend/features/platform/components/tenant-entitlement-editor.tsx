@@ -16,29 +16,34 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { EntitlementToggles } from "./entitlement-toggles";
 import { CreateInviteDialog } from "./create-invite-dialog";
+import { useTenantDetail } from "@/features/platform/hooks";
+
+interface TenantEntitlementEditorProps {
+  /** Controlled active tenant id (e.g. the row selected in the tenants table). */
+  tenantId?: string | null;
+  onTenantChange?: (id: string) => void;
+}
 
 /**
- * Entitlement editor that operates on an admin-entered tenant UUID.
- *
- * LIMITATION: No GET /tenant/admin/tenants/{id} or cross-tenant entitlement
- * read endpoint exists on the backend. This component therefore shows the
- * default module set with unknown enabled state (displayed as off) and lets
- * the admin fire PUT /tenant/admin/tenants/{id}/entitlements/{key} directly.
- * The switch position reflects the last action taken in this session, not the
- * persisted value.
- *
- * When a backend read endpoint is added, replace the `fallbackToDefaults` prop
- * with a `useQuery` that fetches the live entitlement snapshot.
+ * Entitlement editor for one tenant. The active tenant comes EITHER from the controlled `tenantId` prop (selected
+ * in the table) OR from the manual UUID input. It loads the tenant's PERSISTED entitlements via
+ * GET /tenant/admin/tenants/{id} so the switches reflect the real DB state (no longer write-blind).
  */
-export function TenantEntitlementEditor() {
+export function TenantEntitlementEditor({
+  tenantId: controlledId,
+  onTenantChange,
+}: TenantEntitlementEditorProps = {}) {
   const t = useTranslations("platform");
   const [inputId, setInputId] = useState("");
-  const [activeTenantId, setActiveTenantId] = useState<string | null>(null);
+  const [internalId, setInternalId] = useState<string | null>(null);
+  const activeTenantId = controlledId ?? internalId;
+  const { data: detail, isLoading } = useTenantDetail(activeTenantId ?? "");
 
   function handleLookup() {
     const id = inputId.trim();
     if (!id) return;
-    setActiveTenantId(id);
+    setInternalId(id);
+    onTenantChange?.(id);
   }
 
   return (
@@ -49,10 +54,6 @@ export function TenantEntitlementEditor() {
         </CardTitle>
         <CardDescription className="text-xs">
           {t("entitlementEditor.description")}
-          <br />
-          <span className="text-muted-foreground/70">
-            {t("entitlementEditor.note")}
-          </span>
         </CardDescription>
       </CardHeader>
 
@@ -90,11 +91,14 @@ export function TenantEntitlementEditor() {
             <Separator />
 
             <div className="flex items-center justify-between">
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-0.5">
                   {t("entitlementEditor.tenantIdLabel")}
                 </p>
-                <p className="text-xs font-mono text-foreground break-all">
+                <p className="text-sm font-medium truncate">
+                  {detail?.name ?? activeTenantId}
+                </p>
+                <p className="text-xs font-mono text-muted-foreground break-all">
                   {activeTenantId}
                 </p>
               </div>
@@ -109,9 +113,8 @@ export function TenantEntitlementEditor() {
               </p>
               <EntitlementToggles
                 tenantId={activeTenantId}
-                modules={undefined}
-                isLoading={false}
-                fallbackToDefaults
+                modules={detail?.modules}
+                isLoading={isLoading}
               />
             </div>
           </>

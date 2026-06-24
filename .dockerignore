@@ -1,0 +1,21 @@
+# Build context for Dockerfile.host (the .NET hosts). Keep it lean and free of the frontend
+# (which has its own build context ./frontend) and anything not needed to `dotnet publish` a host.
+**/bin/
+**/obj/
+.git/
+.github/
+.vs/
+.idea/
+frontend/
+tests/
+docs/
+.claude/
+.orchestrator/
+graphify-out/
+*.md
+*.png
+*.yml
+*.user
+.DS_Store
+.env
+*.env

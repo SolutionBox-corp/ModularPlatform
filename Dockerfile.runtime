@@ -1,0 +1,17 @@
+# syntax=docker/dockerfile:1
+# THIN runtime image for a .NET host. It does NOT compile — it COPYs an already-published output dir
+# (produced by docs/deploy/build-images.sh via a bind-mounted `dotnet publish`). This deliberately avoids
+# compiling source INSIDE a Docker image layer: on overlay filesystems the .NET 10 SDK false-positives the
+# default recursive globs (**/*.cs, **/*.resx) as "drive-enumerating" and leaks the literal pattern to csc
+# (CS2001/CS2021/MSB3552). A bind-mounted publish does not hit that; copying the resulting DLLs is glob-free.
+ARG HOST_PROJECT
+FROM mcr.microsoft.com/dotnet/aspnet:10.0
+ARG HOST_PROJECT
+WORKDIR /app
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+ENV ASSEMBLY=${HOST_PROJECT}.dll
+# The published output for this host (build-images.sh writes artifacts/<key>/ per host).
+COPY artifacts/${HOST_PROJECT}/ ./
+ENTRYPOINT ["sh", "-c", "exec dotnet \"$ASSEMBLY\""]

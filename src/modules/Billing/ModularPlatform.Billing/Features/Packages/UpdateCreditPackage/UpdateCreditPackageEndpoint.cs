@@ -22,9 +22,10 @@ internal static class UpdateCreditPackageEndpoint
                     request.BucketExpiryDays, request.Active, request.StripePriceId), ct);
                 return Results.Ok(ApiResponse<UpdateCreditPackageResponse>.Ok(result));
             })
+            // Permission-gated only (see CreateCreditPackage): catalogue management is billing.manage, not a
+            // per-tenant feature entitlement, so the SYSTEM platform admin can manage the global catalogue.
             .RequireAuthorization()
             .RequirePermission(PlatformPermissions.BillingManage)
-            .RequireModule("billing")
             .WithTags("Billing")
             .WithName("UpdateCreditPackage");
     }

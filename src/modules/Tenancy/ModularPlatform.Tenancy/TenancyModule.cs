@@ -10,6 +10,8 @@ using ModularPlatform.Secrets;
 using ModularPlatform.Payments;
 using ModularPlatform.Tenancy.Features.Admin.CreateTenantInvite;
 using ModularPlatform.Tenancy.Features.Admin.GetPlatformBillingStatus;
+using ModularPlatform.Tenancy.Features.Admin.GetTenant;
+using ModularPlatform.Tenancy.Features.Admin.ListTenants;
 using ModularPlatform.Tenancy.Features.Admin.ProvisionTenant;
 using ModularPlatform.Tenancy.Features.Admin.SetEntitlement;
 using ModularPlatform.Tenancy.Features.Entitlements.GetMyEntitlements;
@@ -64,6 +66,8 @@ public sealed class TenancyModule : IModule
         endpoints.MapCreateTenantInvite();
         endpoints.MapGetPlatformBillingStatus();
         endpoints.MapCreatePlatformCheckout();
+        endpoints.MapListTenants();
+        endpoints.MapGetTenant();
     }
 
     public void ConfigureMessaging(WolverineOptions options)
