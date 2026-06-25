@@ -233,7 +233,7 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC13 Platform admin listuje usery
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented + Verified 2026-06-25 — EC061 a EC063 overuje `Platform_user_list_requires_permission_and_returns_limited_page`; EC064 a soft-delete guard overuje `Platform_user_list_filters_by_tenant_and_hides_soft_deleted_users`; EC062 je implementovane v explicitnim `Features/PlatformAdmin/ListPlatformUsers` handleru pres `IgnoreQueryFilters()` + znovu pridany `DeletedAt == null`; EC065 je implementovane explicitnim structured logem `Platform user list accessed tenantId={TenantId} limit={Limit} offset={Offset}` bez PII.
 
 **Pouzijes:** `GET /identity/platform/users`.
 

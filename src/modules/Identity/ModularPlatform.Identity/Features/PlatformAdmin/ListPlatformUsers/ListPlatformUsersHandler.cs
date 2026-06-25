@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Identity.Entities;
 using ModularPlatform.Identity.Persistence;
@@ -12,7 +13,9 @@ namespace ModularPlatform.Identity.Features.PlatformAdmin.ListPlatformUsers;
 /// drops BOTH, so the soft-delete guard (<c>DeletedAt == null</c>) is re-added explicitly. The optional
 /// <c>TenantId</c> narrows to a single tenant via the shadow <c>TenantId</c> property.
 /// </summary>
-internal sealed class ListPlatformUsersHandler(IReadDbContextFactory<IdentityDbContext> readFactory)
+internal sealed class ListPlatformUsersHandler(
+    IReadDbContextFactory<IdentityDbContext> readFactory,
+    ILogger<ListPlatformUsersHandler> logger)
     : IQueryHandler<ListPlatformUsersQuery, PlatformUsersResponse>
 {
     public async Task<PlatformUsersResponse> Handle(ListPlatformUsersQuery query, CancellationToken ct)
@@ -21,6 +24,9 @@ internal sealed class ListPlatformUsersHandler(IReadDbContextFactory<IdentityDbC
 
         var limit = Math.Clamp(query.Limit, 1, 200);
         var offset = Math.Max(query.Offset, 0);
+        logger.LogInformation(
+            "Platform user list accessed tenantId={TenantId} limit={Limit} offset={Offset}",
+            query.TenantId, limit, offset);
 
         var filtered = db.Users
             .IgnoreQueryFilters()
