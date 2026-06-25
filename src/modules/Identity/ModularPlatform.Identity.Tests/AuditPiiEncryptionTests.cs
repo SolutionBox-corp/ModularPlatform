@@ -94,6 +94,30 @@ public sealed class AuditPiiEncryptionTests(PlatformApiFactory fixture)
         platformAudit.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
+    [Fact]
+    public async Task Platform_audit_requires_platform_permission_and_keeps_erased_pii_unreadable()
+    {
+        var email = $"platform-audit-{Guid.CreateVersion7():N}@example.com";
+        var (userId, userToken) = await fixture.RegisterAndLoginAsync(email, Password);
+
+        var forbidden = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, $"/v1/identity/platform/users/{userId}/audit", userToken));
+        forbidden.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        var platformToken = await AdminTokenAsync();
+        (await GetPlatformCreateAuditEntryAsync(platformToken, userId))
+            .GetProperty("values").GetProperty("Email").GetString().ShouldBe(email);
+
+        var erase = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Post, "/v1/gdpr/me/erase", userToken));
+        erase.EnsureSuccessStatusCode();
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM subject_keys WHERE \"UserId\" = '{userId}' AND \"WrappedDek\" IS NULL", 1);
+
+        (await GetPlatformCreateAuditEntryAsync(platformToken, userId))
+            .GetProperty("values").GetProperty("Email").GetString().ShouldBe("[erased]");
+    }
+
     /// <summary>Fetches the user's tenant-scoped audit trail and returns the single Create entry.</summary>
     private async Task<JsonElement> GetCreateAuditEntryAsync(string adminToken, Guid userId)
     {
@@ -131,5 +155,16 @@ public sealed class AuditPiiEncryptionTests(PlatformApiFactory fixture)
             "/v1/identity/auth/login", new { email, password = Password });
         login.EnsureSuccessStatusCode();
         return (await PlatformApiFactory.ReadData(login)).GetProperty("accessToken").GetString()!;
+    }
+
+    private async Task<JsonElement> GetPlatformCreateAuditEntryAsync(string platformToken, Guid userId)
+    {
+        var response = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, $"/v1/identity/platform/users/{userId}/audit", platformToken));
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var data = await PlatformApiFactory.ReadData(response);
+        return data.GetProperty("entries").EnumerateArray()
+            .First(e => e.GetProperty("action").GetString() == "Create");
     }
 }

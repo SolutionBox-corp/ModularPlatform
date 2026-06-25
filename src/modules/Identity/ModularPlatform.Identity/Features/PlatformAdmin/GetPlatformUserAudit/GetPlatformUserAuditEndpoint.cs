@@ -27,7 +27,10 @@ internal static class GetPlatformUserAuditEndpoint
                 var trail = await dispatcher.Query(new GetUserAuditTrailQuery(userId, CrossTenant: true), ct);
                 return Results.Ok(ApiResponse<UserAuditTrailResponse>.Ok(trail));
             })
-            .RequirePermission(PlatformPermissions.AuditRead)
+            .RequireAuthorization(policy => policy
+                .RequireAuthenticatedUser()
+                .RequireClaim(AuthorizationClaims.Permission, PlatformPermissions.AuditRead)
+                .RequireClaim(AuthorizationClaims.Permission, PlatformPermissions.PlatformUsersList))
             .WithTags("Identity")
             .WithName("GetPlatformUserAudit");
     }
