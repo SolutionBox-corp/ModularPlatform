@@ -66,6 +66,8 @@
   <data name="user.password.too_short" xml:space="preserve"><value>Heslo je příliš krátké.</value></data>
   <data name="user.password.too_long" xml:space="preserve"><value>Heslo je příliš dlouhé.</value></data>
   <data name="user.display_name.too_long" xml:space="preserve"><value>Zobrazované jméno je příliš dlouhé.</value></data>
+  <data name="user.locale.required" xml:space="preserve"><value>Jazyk je povinný.</value></data>
+  <data name="user.locale.unsupported" xml:space="preserve"><value>Tento jazyk není podporován.</value></data>
   <data name="role.not_found" xml:space="preserve"><value>Role nebyla nalezena.</value></data>
   <data name="operation.not_found" xml:space="preserve"><value>Operace nebyla nalezena.</value></data>
   <data name="auth.required" xml:space="preserve"><value>Vyžadováno přihlášení.</value></data>

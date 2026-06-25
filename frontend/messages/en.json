@@ -5,18 +5,23 @@
       "displayName": {
         "ariaLabel": "Display name",
         "label": "Display name",
-        "inputHint": "Not set"
+        "inputHint": "Not set",
+        "tooLong": "Display name must be 128 characters or fewer."
       },
       "email": {
         "ariaLabel": "Email address",
-        "label": "Email"
+        "label": "Email",
+        "readOnlyHint": "Changing your email requires a verified email-change flow (coming soon)."
       },
       "locale": {
         "ariaLabel": "Locale",
-        "hint": "Change your language using the locale toggle in the top bar.",
-        "label": "Locale"
+        "hint": "Sets your language preference; the app reloads in the new language when you save.",
+        "label": "Language"
       },
-      "readOnlyNotice": "Profile editing is not yet available. Contact support to update your display name or locale preference.",
+      "save": "Save changes",
+      "saving": "Saving...",
+      "saved": "Profile updated.",
+      "saveError": "Could not save your profile. Please try again.",
       "title": "Profile"
     },
     "page": {

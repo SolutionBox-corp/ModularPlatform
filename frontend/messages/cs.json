@@ -5,18 +5,23 @@
       "displayName": {
         "ariaLabel": "Zobrazované jméno",
         "label": "Zobrazované jméno",
-        "inputHint": "Nenastaveno"
+        "inputHint": "Nenastaveno",
+        "tooLong": "Zobrazované jméno smí mít nejvýše 128 znaků."
       },
       "email": {
         "ariaLabel": "E-mailová adresa",
-        "label": "E-mail"
+        "label": "E-mail",
+        "readOnlyHint": "Změna e-mailu vyžaduje ověřený proces změny e-mailu (již brzy)."
       },
       "locale": {
         "ariaLabel": "Jazyk",
-        "hint": "Jazyk změníte přepínačem jazyka v horní liště.",
+        "hint": "Nastaví váš preferovaný jazyk; po uložení se aplikace načte v novém jazyce.",
         "label": "Jazyk"
       },
-      "readOnlyNotice": "Úprava profilu zatím není dostupná. Pro změnu zobrazovaného jména nebo jazyka kontaktujte podporu.",
+      "save": "Uložit změny",
+      "saving": "Ukládání...",
+      "saved": "Profil aktualizován.",
+      "saveError": "Profil se nepodařilo uložit. Zkuste to prosím znovu.",
       "title": "Profil"
     },
     "page": {

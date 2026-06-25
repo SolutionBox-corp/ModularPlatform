@@ -20,9 +20,18 @@ export const accountQueries = {
     }),
 };
 
-/**
- * NOTE: No profile UPDATE endpoint exists in the backend (Identity module has no
- * UpdateProfile / PatchProfile slice under Features/Users as of this build). The
- * form is therefore read-only for all fields. Wire up a mutation here once
- * PATCH /v1/identity/users/me (or equivalent) is added to the backend.
- */
+/** Body for PATCH /v1/identity/users/me (UpdateProfileRequest.cs). */
+export interface UpdateProfileRequest {
+  displayName: string | null;
+  locale: string;
+}
+
+/** PATCH /v1/identity/users/me - update the caller's own display name + locale. */
+export function updateProfile(
+  body: UpdateProfileRequest,
+): Promise<UserProfileResponse> {
+  return apiFetch<UserProfileResponse>("identity/users/me", {
+    method: "PATCH",
+    body,
+  });
+}
