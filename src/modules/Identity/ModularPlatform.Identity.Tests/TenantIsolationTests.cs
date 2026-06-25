@@ -71,6 +71,35 @@ public sealed class TenantIsolationTests(PlatformApiFactory fixture)
         data.GetProperty("id").GetGuid().ShouldBe(userA);
     }
 
+    [Fact]
+    public async Task My_profile_ignores_any_client_supplied_user_id()
+    {
+        var (userA, accessA) = await fixture.RegisterAndLoginAsync($"tiso-query-a-{Guid.CreateVersion7():N}@example.com", "Sup3rSecret!");
+        var (userB, _) = await fixture.RegisterAndLoginAsync($"tiso-query-b-{Guid.CreateVersion7():N}@example.com", "Sup3rSecret!");
+
+        var response = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, $"/v1/identity/users/me?userId={userB}", accessA));
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var data = await PlatformApiFactory.ReadData(response);
+        data.GetProperty("id").GetGuid().ShouldBe(userA,
+            "the /me endpoint must take the subject from the token, never from route/query/body input");
+    }
+
+    [Fact]
+    public async Task My_profile_is_not_returned_after_the_account_is_soft_deleted()
+    {
+        var (userId, accessToken) = await fixture.RegisterAndLoginAsync($"tiso-deleted-{Guid.CreateVersion7():N}@example.com", "Sup3rSecret!");
+
+        await fixture.ExecuteSqlAsync(
+            $"UPDATE users SET \"DeletedAt\" = now() WHERE \"Id\" = '{userId}'");
+
+        var response = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/identity/users/me", accessToken));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
     /// <summary>
     /// There is no HTTP route that accepts a foreign user/tenant id (identity always comes from the token, never a
     /// route/body id — an IDOR guard), so cross-tenant read is not even expressible. An anonymous caller — a
