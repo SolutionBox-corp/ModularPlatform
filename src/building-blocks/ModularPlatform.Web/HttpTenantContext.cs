@@ -16,7 +16,9 @@ public sealed class HttpTenantContext(IHttpContextAccessor accessor) : ITenantCo
 
     public Guid? TenantId => ParseGuid(User?.FindFirstValue(TenantClaim));
 
-    public Guid? UserId => ParseGuid(User?.FindFirstValue(ClaimTypes.NameIdentifier) ?? User?.FindFirstValue("sub"));
+    public Guid? UserId => User?.HasClaim(AuthorizationClaims.Role, AuthorizationClaims.MachineRole) == true
+        ? null
+        : ParseGuid(User?.FindFirstValue(ClaimTypes.NameIdentifier) ?? User?.FindFirstValue("sub"));
 
     /// <summary>
     /// System ONLY when there is no HTTP context at all — i.e. background work running inside the Api process

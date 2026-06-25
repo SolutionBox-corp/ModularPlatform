@@ -1,12 +1,14 @@
 using Microsoft.Extensions.DependencyInjection;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
+using ModularPlatform.Identity.Entities;
+using ModularPlatform.Identity.Persistence;
 using ModularPlatform.Identity.Security;
 using ModularPlatform.Web;
 
 namespace ModularPlatform.Identity.Features.Admin.IssueMachineToken;
 
-internal sealed class IssueMachineTokenHandler(ITokenIssuer tokenIssuer, IServiceProvider services)
+internal sealed class IssueMachineTokenHandler(ITokenIssuer tokenIssuer, IServiceProvider services, IdentityDbContext db)
     : ICommandHandler<IssueMachineTokenCommand, IssueMachineTokenResponse>
 {
     /// <summary>The role that marks a token as a machine (service) principal rather than a human user.</summary>
@@ -23,16 +25,24 @@ internal sealed class IssueMachineTokenHandler(ITokenIssuer tokenIssuer, IServic
             throw new NotFoundException("tenant.not_found", "Workspace not found.");
         }
 
-        // A synthetic, non-user subject. No email PII — a stable label only.
+        // A synthetic, non-user subject. No user subject/email claims are emitted.
         var machineId = Guid.CreateVersion7();
-        var label = $"machine:{command.Name.Trim()}";
+        var name = command.Name.Trim();
 
-        var access = tokenIssuer.IssueAccessToken(
-            userId: machineId,
+        var access = tokenIssuer.IssueMachineAccessToken(
+            machineId: machineId,
             tenantId: command.TenantId,
-            email: label,
-            roles: [MachineRole],
+            name: name,
             permissions: []);
+
+        db.MachineTokenIssuances.Add(new MachineTokenIssuance
+        {
+            TargetTenantId = command.TenantId,
+            MachineSubjectId = machineId,
+            Name = name,
+            ExpiresAt = access.ExpiresAt,
+        });
+        await db.SaveChangesAsync(ct);
 
         return new IssueMachineTokenResponse(access.Value, access.ExpiresAt);
     }

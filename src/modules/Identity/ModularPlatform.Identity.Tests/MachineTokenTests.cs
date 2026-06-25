@@ -48,11 +48,47 @@ public sealed class MachineTokenTests(PlatformApiFactory fixture)
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var data = await PlatformApiFactory.ReadData(response);
         var machineToken = data.GetProperty("accessToken").GetString()!;
+        var expiresAt = data.GetProperty("expiresAt").GetDateTimeOffset();
 
         var claims = DecodeJwt(machineToken);
+        var machineSubjectId = Guid.Parse(claims.GetProperty("machine_id").GetString()!);
         claims.GetProperty("tenant_id").GetString().ShouldBe(tenantId.ToString());
         // The 'role' claim carries "machine" (single value serializes as a string).
         claims.GetProperty("role").GetString().ShouldBe("machine");
+        claims.TryGetProperty("permission", out _).ShouldBeFalse();
+        claims.GetProperty("sub").GetString().ShouldBe(machineSubjectId.ToString());
+        claims.TryGetProperty("email", out _).ShouldBeFalse();
+        claims.GetProperty("machine_name").GetString().ShouldBe("door-agent-1");
+        expiresAt.ShouldBeGreaterThan(DateTimeOffset.UtcNow);
+
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM users WHERE \"Id\" = '{machineSubjectId}'"))
+            .ShouldBe(0);
+        await fixture.WaitForCountAsync(
+            "SELECT count(*)::bigint FROM machine_token_issuances " +
+            $"WHERE \"MachineSubjectId\" = '{machineSubjectId}' AND \"TargetTenantId\" = '{tenantId}' " +
+            "AND \"Name\" = 'door-agent-1'",
+            1);
+        await fixture.WaitForCountAsync(
+            "SELECT count(*)::bigint FROM identity_audit_entries " +
+            "WHERE \"EntityType\" = 'MachineTokenIssuance' AND \"Action\" = 'Create' " +
+            $"AND \"EntityId\" = (SELECT \"Id\"::text FROM machine_token_issuances WHERE \"MachineSubjectId\" = '{machineSubjectId}')",
+            1);
+
+        var persistedValues = await fixture.ScalarAsync<string>(
+            "SELECT coalesce(string_agg(row_to_json(i)::text, ''), '') FROM machine_token_issuances i " +
+            $"WHERE \"MachineSubjectId\" = '{machineSubjectId}'");
+        persistedValues.ShouldNotContain(machineToken);
+
+        var auditValues = await fixture.ScalarAsync<string>(
+            "SELECT coalesce(string_agg(\"NewValues\"::text, ''), '') FROM identity_audit_entries " +
+            "WHERE \"EntityType\" = 'MachineTokenIssuance'");
+        auditValues.ShouldNotContain(machineToken);
+
+        var humanOnly = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/identity/users/me/change-password", machineToken,
+            new { currentPassword = "irrelevant", newPassword = "N3wSup3rSecret!" }));
+        humanOnly.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
 
     [Fact]

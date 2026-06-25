@@ -48,7 +48,7 @@ public static class EndpointAuthorizationExtensions
         where TBuilder : IEndpointConventionBuilder =>
         builder.RequireAuthorization(policy => policy
             .RequireAuthenticatedUser()
-            .RequireAssertion(ctx => !ctx.User.IsInRole(AuthorizationClaims.MachineRole)));
+            .RequireAssertion(ctx => !ctx.User.HasClaim(AuthorizationClaims.Role, AuthorizationClaims.MachineRole)));
 
     /// <summary>
     /// Gates an endpoint on the current tenant having <paramref name="moduleKey"/> entitled. Unlike permissions

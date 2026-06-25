@@ -17,6 +17,8 @@ internal interface ITokenIssuer
     AccessToken IssueAccessToken(
         Guid userId, Guid? tenantId, string email,
         IReadOnlyCollection<string> roles, IReadOnlyCollection<string> permissions);
+    AccessToken IssueMachineAccessToken(
+        Guid machineId, Guid tenantId, string name, IReadOnlyCollection<string> permissions);
     RefreshTokenValue CreateRefreshToken();
     string HashRefreshToken(string raw);
 }
@@ -48,6 +50,37 @@ internal sealed class JwtTokenIssuer(IOptions<JwtOptions> options, IClock clock)
         // Authorization snapshot: one claim per role + per permission. Endpoints gate on these (no per-request
         // DB hit). RequireRole matches "role" (RoleClaimType); RequirePermission matches "permission".
         claims.AddRange(roles.Select(role => new Claim(AuthorizationClaims.Role, role)));
+        claims.AddRange(permissions.Select(permission => new Claim(AuthorizationClaims.Permission, permission)));
+
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwt.SigningKey));
+        var descriptor = new SecurityTokenDescriptor
+        {
+            Issuer = _jwt.Issuer,
+            Audience = _jwt.Audience,
+            Subject = new ClaimsIdentity(claims),
+            Expires = expires.UtcDateTime,
+            SigningCredentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256),
+        };
+
+        var token = new JsonWebTokenHandler().CreateToken(descriptor);
+        return new AccessToken(token, expires);
+    }
+
+    public AccessToken IssueMachineAccessToken(
+        Guid machineId, Guid tenantId, string name, IReadOnlyCollection<string> permissions)
+    {
+        var now = clock.UtcNow;
+        var expires = now.AddMinutes(_jwt.AccessTokenMinutes);
+
+        var claims = new List<Claim>
+        {
+            new("machine_id", machineId.ToString()),
+            new("machine_name", name),
+            new(JwtRegisteredClaimNames.Sub, machineId.ToString()),
+            new(HttpTenantContext.TenantClaim, tenantId.ToString()),
+            new(JwtRegisteredClaimNames.Jti, Guid.CreateVersion7().ToString()),
+            new(AuthorizationClaims.Role, AuthorizationClaims.MachineRole),
+        };
         claims.AddRange(permissions.Select(permission => new Claim(AuthorizationClaims.Permission, permission)));
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwt.SigningKey));
