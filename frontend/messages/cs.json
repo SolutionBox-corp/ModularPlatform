@@ -24,6 +24,22 @@
       "saveError": "Profil se nepodařilo uložit. Zkuste to prosím znovu.",
       "title": "Profil"
     },
+    "password": {
+      "title": "Heslo",
+      "description": "Změňte si heslo. Z bezpečnostních důvodů budou poté odhlášena všechna přihlášení.",
+      "current": "Aktuální heslo",
+      "new": "Nové heslo",
+      "confirm": "Potvrďte nové heslo",
+      "submit": "Změnit heslo",
+      "saving": "Měním...",
+      "changed": "Heslo změněno. Přihlaste se prosím znovu.",
+      "error": "Heslo se nepodařilo změnit. Zkuste to prosím znovu.",
+      "currentRequired": "Zadejte aktuální heslo.",
+      "currentInvalid": "Aktuální heslo není správné.",
+      "tooShort": "Nové heslo musí mít alespoň 8 znaků.",
+      "tooLong": "Nové heslo je příliš dlouhé.",
+      "mismatch": "Hesla se neshodují."
+    },
     "page": {
       "heading": "Profil",
       "metaTitle": "Profil — ModularPlatform",

@@ -68,6 +68,9 @@
   <data name="user.display_name.too_long" xml:space="preserve"><value>Display name is too long.</value></data>
   <data name="user.locale.required" xml:space="preserve"><value>Locale is required.</value></data>
   <data name="user.locale.unsupported" xml:space="preserve"><value>This language is not supported.</value></data>
+  <data name="user.current_password.required" xml:space="preserve"><value>Current password is required.</value></data>
+  <data name="user.current_password_invalid" xml:space="preserve"><value>The current password is incorrect.</value></data>
+  <data name="user.password_unchanged" xml:space="preserve"><value>The new password must differ from the current one.</value></data>
   <data name="role.not_found" xml:space="preserve"><value>Role not found.</value></data>
   <data name="operation.not_found" xml:space="preserve"><value>Operation not found.</value></data>
   <data name="auth.required" xml:space="preserve"><value>Authentication required.</value></data>

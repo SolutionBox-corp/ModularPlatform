@@ -3,6 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { getQueryClient } from "@/lib/api/query-client";
 import { accountQueries } from "@/features/account/api";
 import { ProfileForm } from "@/features/account/components/profile-form";
+import { ChangePasswordForm } from "@/features/account/components/change-password-form";
 import type { Metadata } from "next";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -32,6 +33,7 @@ export default async function ProfilePage() {
         </div>
 
         <ProfileForm />
+        <ChangePasswordForm />
       </div>
     </HydrationBoundary>
   );

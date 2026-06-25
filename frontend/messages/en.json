@@ -24,6 +24,22 @@
       "saveError": "Could not save your profile. Please try again.",
       "title": "Profile"
     },
+    "password": {
+      "title": "Password",
+      "description": "Change your password. For your security, all sessions are signed out afterwards.",
+      "current": "Current password",
+      "new": "New password",
+      "confirm": "Confirm new password",
+      "submit": "Change password",
+      "saving": "Changing...",
+      "changed": "Password changed. Please sign in again.",
+      "error": "Could not change your password. Please try again.",
+      "currentRequired": "Enter your current password.",
+      "currentInvalid": "The current password is incorrect.",
+      "tooShort": "New password must be at least 8 characters.",
+      "tooLong": "New password is too long.",
+      "mismatch": "The passwords do not match."
+    },
     "page": {
       "heading": "Profile",
       "metaTitle": "Profile — ModularPlatform",
