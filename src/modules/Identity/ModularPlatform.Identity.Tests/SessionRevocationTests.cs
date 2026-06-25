@@ -23,7 +23,7 @@ public sealed class SessionRevocationTests(PlatformApiFactory fixture)
     [Fact]
     public async Task Refresh_is_rejected_when_the_account_is_soft_deleted()
     {
-        var (userId, _, refreshToken) = await RegisterLoginAsync();
+        var (userId, _, refreshToken, _) = await RegisterLoginAsync();
 
         // Soft-delete the account directly (isolates the refresh-path guard from the async erasure flow).
         await fixture.ExecuteSqlAsync(
@@ -37,9 +37,24 @@ public sealed class SessionRevocationTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Login_is_rejected_when_the_account_is_soft_deleted()
+    {
+        var (userId, _, _, email) = await RegisterLoginAsync();
+
+        await fixture.ExecuteSqlAsync(
+            $"UPDATE users SET \"DeletedAt\" = now() WHERE \"Id\" = '{userId}'");
+
+        var login = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/login",
+            new { email, password = Password });
+
+        login.StatusCode.ShouldBe(HttpStatusCode.Unauthorized,
+            "a soft-deleted account must not be able to mint a new access token");
+    }
+
+    [Fact]
     public async Task Erasure_revokes_all_of_the_subjects_refresh_tokens()
     {
-        var (userId, accessToken, refreshToken) = await RegisterLoginAsync();
+        var (userId, accessToken, refreshToken, _) = await RegisterLoginAsync();
 
         // Trigger erasure through the real HTTP route (subject = the authenticated user).
         var erase = await fixture.Client.SendAsync(
@@ -63,7 +78,7 @@ public sealed class SessionRevocationTests(PlatformApiFactory fixture)
     [Fact]
     public async Task Logout_revokes_the_session_family()
     {
-        var (_, accessToken, refreshToken) = await RegisterLoginAsync();
+        var (_, accessToken, refreshToken, _) = await RegisterLoginAsync();
 
         var logout = await fixture.Client.SendAsync(fixture.Authed(
             HttpMethod.Post, "/v1/identity/auth/logout", accessToken, new { refreshToken }));
@@ -74,7 +89,7 @@ public sealed class SessionRevocationTests(PlatformApiFactory fixture)
         refresh.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
-    private async Task<(Guid UserId, string AccessToken, string RefreshToken)> RegisterLoginAsync()
+    private async Task<(Guid UserId, string AccessToken, string RefreshToken, string Email)> RegisterLoginAsync()
     {
         var email = $"sess-{Guid.CreateVersion7():N}@example.com";
         var register = await fixture.Client.PostAsJsonAsync("/v1/identity/users",
@@ -86,6 +101,6 @@ public sealed class SessionRevocationTests(PlatformApiFactory fixture)
             new { email, password = Password });
         login.EnsureSuccessStatusCode();
         var data = await PlatformApiFactory.ReadData(login);
-        return (userId, data.GetProperty("accessToken").GetString()!, data.GetProperty("refreshToken").GetString()!);
+        return (userId, data.GetProperty("accessToken").GetString()!, data.GetProperty("refreshToken").GetString()!, email);
     }
 }
