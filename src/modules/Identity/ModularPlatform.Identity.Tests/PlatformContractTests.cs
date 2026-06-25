@@ -95,6 +95,29 @@ public sealed class PlatformContractTests(PlatformApiFactory fixture)
         }
     }
 
+    [Fact]
+    public async Task Register_endpoint_uses_the_auth_rate_limit_policy()
+    {
+        using var lowLimit = fixture.CreateHost(
+            ("RateLimiting:GlobalPermitsPerMinute", "100"),
+            ("RateLimiting:AuthPermitsPerMinute", "2"));
+        using var client = lowLimit.CreateClient();
+
+        var statuses = new List<HttpStatusCode>();
+        for (var i = 0; i < 8; i++)
+        {
+            var response = await client.PostAsJsonAsync("/v1/identity/users", new
+            {
+                email = $"rl-register-{Guid.CreateVersion7():N}@t.io",
+                password = "Sup3r-Secret-Pw!",
+                displayName = "Rate Limited Registration",
+            });
+            statuses.Add(response.StatusCode);
+        }
+
+        statuses.ShouldContain(HttpStatusCode.TooManyRequests);
+    }
+
     // PL-10: every response carries the baseline security headers (SecurityHeadersMiddleware).
     [Fact]
     public async Task PL10_security_headers_present_on_every_response()

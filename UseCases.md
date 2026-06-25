@@ -17,7 +17,7 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC01 Registrace usera
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented + Verified 2026-06-25 — EC001/EC002 overuje `Duplicate_email_registration_is_conflict_and_creates_exactly_one_user`, EC003 overuje `Register_endpoint_uses_the_auth_rate_limit_policy`, EC004 overuje `Registration_does_not_store_the_plaintext_email_in_the_tenant_name`, EC005 overuji `Registering_a_user_provisions_a_credit_account_via_the_event` a `Register_creates_welcome_notification_after_seeder_has_seeded_the_template`.
 
 **Pouzijes:** `POST /identity/users`.
 
@@ -2048,4 +2048,3 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 - EC558 contracts/core boundary violation.
 - EC559 event wire name drift.
 - EC560 test pokryje happy path i edge path.
-
