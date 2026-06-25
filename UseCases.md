@@ -53,7 +53,7 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC03 Refresh session
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented + Verified 2026-06-25 — EC011 overuje `Refresh_reuse_revokes_whole_family_and_is_audited`, EC012 overuje `Parallel_refresh_with_same_token_yields_one_winner_no_server_error`, EC013 overuji `Refresh_is_rejected_when_the_account_is_soft_deleted` a `Erasure_revokes_all_of_the_subjects_refresh_tokens`, EC014 overuje `Refreshed_token_carries_role_changes_while_the_old_access_token_stays_a_snapshot`, EC015 je implementovane ve frontend BFF flow `refreshSession`/`clearSession` + browser `apiFetch` 401 redirect.
 
 **Pouzijes:** `POST /identity/auth/refresh`.
 

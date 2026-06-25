@@ -49,6 +49,33 @@ public sealed class AuthzTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Refreshed_token_carries_role_changes_while_the_old_access_token_stays_a_snapshot()
+    {
+        var normalEmail = $"refresh-claims-{Guid.CreateVersion7():N}@x.com";
+        var (normalId, accessToken, refreshToken) = await RegisterLoginWithTokensAsync(normalEmail);
+        var adminToken = await EnsureAdminTokenAsync();
+
+        ClaimValues(accessToken, "permission").ShouldNotContain("identity.manage_roles");
+
+        var granted = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, $"/v1/identity/admin/users/{normalId}/roles", adminToken, new { role = "admin" }));
+        granted.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var oldSnapshotStillForbidden = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, $"/v1/identity/admin/users/{normalId}/roles", accessToken, new { role = "admin" }));
+        oldSnapshotStillForbidden.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        var refresh = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/refresh", new { refreshToken });
+        refresh.EnsureSuccessStatusCode();
+        var refreshedAccessToken = (await PlatformApiFactory.ReadData(refresh)).GetProperty("accessToken").GetString()!;
+
+        ClaimValues(refreshedAccessToken, "permission").ShouldContain("identity.manage_roles");
+        var refreshedTokenAllows = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, $"/v1/identity/admin/users/{normalId}/roles", refreshedAccessToken, new { role = "admin" }));
+        refreshedTokenAllows.StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    [Fact]
     public async Task Concurrent_identical_role_grants_are_idempotent_not_a_500()
     {
         var email = $"user-{Guid.CreateVersion7():N}@x.com";
@@ -66,9 +93,29 @@ public sealed class AuthzTests(PlatformApiFactory fixture)
 
     private async Task<string> LoginAsync(string email, string password)
     {
+        var (accessToken, _) = await LoginWithTokensAsync(email, password);
+        return accessToken;
+    }
+
+    private async Task<(Guid UserId, string AccessToken, string RefreshToken)> RegisterLoginWithTokensAsync(string email)
+    {
+        var register = await fixture.Client.PostAsJsonAsync(
+            "/v1/identity/users", new { email, password = Password });
+        register.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var userId = (await PlatformApiFactory.ReadData(register)).GetProperty("userId").GetGuid();
+
+        var (accessToken, refreshToken) = await LoginWithTokensAsync(email, Password);
+        return (userId, accessToken, refreshToken);
+    }
+
+    private async Task<(string AccessToken, string RefreshToken)> LoginWithTokensAsync(
+        string email,
+        string password)
+    {
         var login = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/login", new { email, password });
         login.EnsureSuccessStatusCode();
-        return (await PlatformApiFactory.ReadData(login)).GetProperty("accessToken").GetString()!;
+        var data = await PlatformApiFactory.ReadData(login);
+        return (data.GetProperty("accessToken").GetString()!, data.GetProperty("refreshToken").GetString()!);
     }
 
     /// <summary>
