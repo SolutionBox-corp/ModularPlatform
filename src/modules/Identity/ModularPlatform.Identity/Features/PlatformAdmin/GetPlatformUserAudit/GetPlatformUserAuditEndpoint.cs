@@ -24,7 +24,7 @@ internal static class GetPlatformUserAuditEndpoint
                 IDispatcher dispatcher,
                 CancellationToken ct) =>
             {
-                var trail = await dispatcher.Query(new GetUserAuditTrailQuery(userId), ct);
+                var trail = await dispatcher.Query(new GetUserAuditTrailQuery(userId, CrossTenant: true), ct);
                 return Results.Ok(ApiResponse<UserAuditTrailResponse>.Ok(trail));
             })
             .RequirePermission(PlatformPermissions.AuditRead)

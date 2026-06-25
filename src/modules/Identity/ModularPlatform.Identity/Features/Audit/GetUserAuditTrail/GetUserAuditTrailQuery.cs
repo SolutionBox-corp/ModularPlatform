@@ -3,7 +3,7 @@ using ModularPlatform.Cqrs;
 namespace ModularPlatform.Identity.Features.Audit.GetUserAuditTrail;
 
 /// <summary>Admin forensics: a user's Identity audit trail with personal-data values decrypted (until erasure).</summary>
-public sealed record GetUserAuditTrailQuery(Guid UserId) : IQuery<UserAuditTrailResponse>;
+public sealed record GetUserAuditTrailQuery(Guid UserId, bool CrossTenant = false) : IQuery<UserAuditTrailResponse>;
 
 public sealed record UserAuditTrailResponse(IReadOnlyList<AuditTrailEntryResponse> Entries);
 

@@ -4,6 +4,7 @@ using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Identity.Persistence;
 using ModularPlatform.Persistence;
+using ModularPlatform.Web;
 
 namespace ModularPlatform.Identity.Features.Audit.GetUserAuditTrail;
 
@@ -14,12 +15,25 @@ namespace ModularPlatform.Identity.Features.Audit.GetUserAuditTrail;
 /// </summary>
 internal sealed class GetUserAuditTrailHandler(
     IReadDbContextFactory<IdentityDbContext> readFactory,
-    IPersonalDataProtector protector)
+    IPersonalDataProtector protector,
+    ITenantContext tenant)
     : IQueryHandler<GetUserAuditTrailQuery, UserAuditTrailResponse>
 {
     public async Task<UserAuditTrailResponse> Handle(GetUserAuditTrailQuery query, CancellationToken ct)
     {
         await using var db = readFactory.Create();
+
+        if (!query.CrossTenant)
+        {
+            if (tenant.TenantId is not { } tenantId
+                || !await db.Users
+                    .IgnoreQueryFilters()
+                    .AnyAsync(u => u.Id == query.UserId
+                                   && EF.Property<Guid?>(u, "TenantId") == tenantId, ct))
+            {
+                throw new NotFoundException("user.not_found", "User not found.");
+            }
+        }
 
         var entityId = query.UserId.ToString();
         var rows = await db.AuditEntries
