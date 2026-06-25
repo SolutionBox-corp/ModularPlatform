@@ -115,6 +115,69 @@ public sealed class AuthzTests(PlatformApiFactory fixture)
         (await unknownRole.Content.ReadAsStringAsync()).ShouldContain("role.not_found");
     }
 
+    [Fact]
+    public async Task Revoke_role_is_idempotent_and_removes_permission_only_from_new_tokens()
+    {
+        var email = $"revoke-role-{Guid.CreateVersion7():N}@x.com";
+        var (userId, _) = await fixture.RegisterAndLoginAsync(email, Password);
+        var adminToken = await EnsureAdminTokenAsync();
+
+        var missingAssignment = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Delete, $"/v1/identity/admin/users/{userId}/roles/admin", adminToken));
+        missingAssignment.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var grant = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, $"/v1/identity/admin/users/{userId}/roles", adminToken, new { role = "admin" }));
+        grant.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var tokenWithRole = await LoginAsync(email, Password);
+        ClaimValues(tokenWithRole, "permission").ShouldContain("identity.manage_roles");
+
+        var revoke = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Delete, $"/v1/identity/admin/users/{userId}/roles/admin", adminToken));
+        revoke.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var staleTokenStillAllowed = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, $"/v1/identity/admin/users/{userId}/roles", tokenWithRole, new { role = "admin" }));
+        staleTokenStillAllowed.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var revokeAgain = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Delete, $"/v1/identity/admin/users/{userId}/roles/admin", adminToken));
+        revokeAgain.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var freshTokenAfterRevoke = await LoginAsync(email, Password);
+        ClaimValues(freshTokenAfterRevoke, "permission").ShouldNotContain("identity.manage_roles");
+
+        var freshTokenForbidden = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, $"/v1/identity/admin/users/{userId}/roles", freshTokenAfterRevoke, new { role = "admin" }));
+        freshTokenForbidden.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Revoke_role_is_a_tracked_delete_that_writes_audit()
+    {
+        var email = $"revoke-audit-{Guid.CreateVersion7():N}@x.com";
+        var (userId, _) = await fixture.RegisterAndLoginAsync(email, Password);
+        var adminToken = await EnsureAdminTokenAsync();
+
+        var grant = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, $"/v1/identity/admin/users/{userId}/roles", adminToken, new { role = "admin" }));
+        grant.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var assignmentId = await fixture.ScalarAsync<Guid>(
+            $"SELECT \"Id\" FROM user_roles WHERE \"UserId\" = '{userId}'");
+
+        var revoke = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Delete, $"/v1/identity/admin/users/{userId}/roles/admin", adminToken));
+        revoke.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        await fixture.WaitForCountAsync(
+            "SELECT count(*)::bigint FROM identity_audit_entries " +
+            "WHERE \"EntityType\" = 'UserRole' AND \"Action\" = 'Delete' " +
+            $"AND \"EntityId\" = '{assignmentId}'",
+            1);
+    }
+
     private async Task<string> LoginAsync(string email, string password)
     {
         var (accessToken, _) = await LoginWithTokensAsync(email, password);
