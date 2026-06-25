@@ -89,6 +89,41 @@ public sealed class SessionRevocationTests(PlatformApiFactory fixture)
         refresh.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
+    [Fact]
+    public async Task Logout_with_another_users_refresh_token_is_a_silent_noop()
+    {
+        var (_, accessTokenA, _, _) = await RegisterLoginAsync();
+        var (_, _, refreshTokenB, _) = await RegisterLoginAsync();
+
+        var logout = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/identity/auth/logout", accessTokenA, new { refreshToken = refreshTokenB }));
+        logout.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var refreshB = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/refresh", new { refreshToken = refreshTokenB });
+        refreshB.StatusCode.ShouldBe(HttpStatusCode.OK,
+            "a caller must not be able to revoke another user's refresh token family");
+    }
+
+    [Fact]
+    public async Task Logout_with_an_unknown_refresh_token_is_a_silent_success()
+    {
+        var (_, accessToken, _, _) = await RegisterLoginAsync();
+
+        var logout = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/identity/auth/logout", accessToken, new { refreshToken = "not-a-real-refresh-token" }));
+
+        logout.StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task Logout_without_authentication_is_rejected()
+    {
+        var logout = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/logout",
+            new { refreshToken = "anything" });
+
+        logout.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
     private async Task<(Guid UserId, string AccessToken, string RefreshToken, string Email)> RegisterLoginAsync()
     {
         var email = $"sess-{Guid.CreateVersion7():N}@example.com";
