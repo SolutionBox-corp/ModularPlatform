@@ -91,6 +91,30 @@ public sealed class AuthzTests(PlatformApiFactory fixture)
         grants.ShouldAllBe(r => r.StatusCode == HttpStatusCode.OK);
     }
 
+    [Fact]
+    public async Task Assign_role_returns_not_found_for_unknown_user_or_role()
+    {
+        var adminToken = await EnsureAdminTokenAsync();
+
+        var unknownUser = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post,
+            $"/v1/identity/admin/users/{Guid.CreateVersion7()}/roles",
+            adminToken,
+            new { role = "admin" }));
+        unknownUser.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await unknownUser.Content.ReadAsStringAsync()).ShouldContain("user.not_found");
+
+        var (userId, _) = await fixture.RegisterAndLoginAsync(
+            $"assign-missing-role-{Guid.CreateVersion7():N}@x.com", Password);
+        var unknownRole = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post,
+            $"/v1/identity/admin/users/{userId}/roles",
+            adminToken,
+            new { role = "missing-role" }));
+        unknownRole.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await unknownRole.Content.ReadAsStringAsync()).ShouldContain("role.not_found");
+    }
+
     private async Task<string> LoginAsync(string email, string password)
     {
         var (accessToken, _) = await LoginWithTokensAsync(email, password);
