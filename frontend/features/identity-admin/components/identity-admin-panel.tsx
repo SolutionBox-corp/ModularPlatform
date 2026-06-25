@@ -32,14 +32,9 @@ interface IdentityAdminPanelProps {
  *
  * The backend has no list-users endpoint, so this panel lets an admin look up
  * a user by their ID (UUID). After a valid ID is entered:
- *  - RoleManager shows and lets the admin assign / revoke roles.
+ *  - RoleManager fetches and shows the user's CURRENT roles (GET
+ *    /identity/admin/users/{id}) and lets the admin assign / revoke them.
  *  - AuditTrailTable shows the user's Identity audit trail (gated by audit.read).
- *
- * Gap: there is no GET /identity/admin/users/{id} endpoint that returns the
- * user's current roles/profile. RoleManager therefore starts with an empty
- * roles list — the admin can still assign or revoke (the backend is idempotent).
- * If a list-users or get-user admin endpoint is added in the future, wire it here
- * via `identityAdminQueries.user(userId)` and pre-populate `currentRoles`.
  */
 export function IdentityAdminPanel({
   canManageRoles,
@@ -149,7 +144,6 @@ export function IdentityAdminPanel({
               <CardContent>
                 <RoleManager
                   userId={selectedUserId}
-                  currentRoles={[]}
                   canManageRoles={canManageRoles}
                 />
               </CardContent>

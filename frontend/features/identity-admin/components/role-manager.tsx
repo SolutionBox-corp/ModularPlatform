@@ -1,40 +1,41 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { PlusIcon, XIcon, Loader2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { identityAdminQueries } from "@/features/identity-admin/api";
 import { useAssignRole, useRevokeRole } from "@/features/identity-admin/hooks";
 
 interface RoleManagerProps {
-  /** Target user ID. The current roles are passed in as a server-side snapshot
-   *  (the backend has no list-user endpoint, so the caller supplies them). */
+  /** Target user ID. Current roles are fetched live from GET /identity/admin/users/{id}. */
   userId: string;
-  /** Initial roles snapshot. Can be empty when looking up a new user. */
-  currentRoles: string[];
   /** Whether role mutation is permitted for the logged-in admin. */
   canManageRoles: boolean;
 }
 
 /**
  * Assign / revoke roles on a specific user.
- * - Shows the current role list as removable badges.
+ * - Fetches and shows the user's CURRENT role list (live) as removable badges -
+ *   the assign/revoke mutations invalidate the admin root, so roles refresh after a change.
  * - An inline text field lets the admin type a role name and assign it.
  * - Both actions are disabled when `canManageRoles` is false (UI mirrors the
  *   backend permission gate; the real gate is `identity.manage_roles`).
  */
-export function RoleManager({
-  userId,
-  currentRoles,
-  canManageRoles,
-}: RoleManagerProps) {
+export function RoleManager({ userId, canManageRoles }: RoleManagerProps) {
   const t = useTranslations("identityAdmin");
   const [newRole, setNewRole] = useState("");
   const assign = useAssignRole();
   const revoke = useRevokeRole();
+  const { data: detail, isLoading } = useQuery(
+    identityAdminQueries.userDetail(userId),
+  );
+  const currentRoles = detail?.roles ?? [];
 
   const handleAssign = () => {
     const trimmed = newRole.trim();
@@ -58,7 +59,12 @@ export function RoleManager({
         <p className="text-xs font-medium text-muted-foreground mb-2">
           {t("roleManager.currentRoles")}
         </p>
-        {currentRoles.length === 0 ? (
+        {isLoading ? (
+          <div className="flex gap-2">
+            <Skeleton className="h-5 w-16 rounded-full" />
+            <Skeleton className="h-5 w-20 rounded-full" />
+          </div>
+        ) : currentRoles.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t("roleManager.noRoles")}</p>
         ) : (
           <div className="flex flex-wrap gap-2">

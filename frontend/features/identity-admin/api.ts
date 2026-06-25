@@ -17,6 +17,17 @@ export interface UserAuditTrailResponse {
   entries: AuditTrailEntryResponse[];
 }
 
+/** GET /v1/identity/admin/users/{userId} - a user's profile + CURRENT role names.
+ *  email/displayName surface the literal "[erased]" for a GDPR-erased subject. */
+export interface UserDetailResponse {
+  id: string;
+  email: string;
+  displayName: string | null;
+  roles: string[];
+  isLocked: boolean;
+  createdAt: string;
+}
+
 // ---------------------------------------------------------------------------
 // Query factories
 // ---------------------------------------------------------------------------
@@ -33,6 +44,19 @@ export const identityAdminQueries = {
         apiFetch<UserAuditTrailResponse>(
           `identity/admin/users/${userId}/audit`,
         ),
+      enabled: userId.trim().length > 0,
+      staleTime: 30_000,
+    }),
+
+  /**
+   * GET /v1/identity/admin/users/{userId} - profile + current roles.
+   * Requires permission: identity.manage_roles. 404 when the user is unknown/erased.
+   */
+  userDetail: (userId: string) =>
+    queryOptions({
+      queryKey: [...queryRoots.admin, "identity", "user", userId],
+      queryFn: () =>
+        apiFetch<UserDetailResponse>(`identity/admin/users/${userId}`),
       enabled: userId.trim().length > 0,
       staleTime: 30_000,
     }),

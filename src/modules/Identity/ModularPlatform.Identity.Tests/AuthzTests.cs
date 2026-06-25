@@ -178,6 +178,66 @@ public sealed class AuthzTests(PlatformApiFactory fixture)
             1);
     }
 
+    [Fact]
+    public async Task Get_user_detail_requires_permission_and_returns_projected_current_roles()
+    {
+        var email = $"detail-{Guid.CreateVersion7():N}@x.com";
+        var (userId, normalToken) = await fixture.RegisterAndLoginAsync(email, Password);
+
+        var forbidden = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, $"/v1/identity/admin/users/{userId}", normalToken));
+        forbidden.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        var adminToken = await EnsureAdminTokenAsync();
+        var grant = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, $"/v1/identity/admin/users/{userId}/roles", adminToken, new { role = "admin" }));
+        grant.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var tenantAdminToken = await LoginAsync(email, Password);
+        var detail = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, $"/v1/identity/admin/users/{userId}", tenantAdminToken));
+        detail.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var data = await PlatformApiFactory.ReadData(detail);
+        data.GetProperty("id").GetGuid().ShouldBe(userId);
+        data.GetProperty("email").GetString().ShouldBe(email);
+        data.GetProperty("isLocked").GetBoolean().ShouldBeFalse();
+        data.GetProperty("createdAt").GetDateTimeOffset().ShouldNotBe(default);
+        data.GetProperty("roles").EnumerateArray().Select(r => r.GetString()).ShouldContain("admin");
+    }
+
+    [Fact]
+    public async Task Get_user_detail_is_tenant_scoped_and_hides_soft_deleted_users()
+    {
+        var tenantAdminEmail = $"tenant-admin-{Guid.CreateVersion7():N}@x.com";
+        var otherTenantEmail = $"other-tenant-{Guid.CreateVersion7():N}@x.com";
+        var deletedEmail = $"deleted-detail-{Guid.CreateVersion7():N}@x.com";
+        var (tenantAdminId, _) = await fixture.RegisterAndLoginAsync(tenantAdminEmail, Password);
+        var (otherTenantUserId, _) = await fixture.RegisterAndLoginAsync(otherTenantEmail, Password);
+        var (deletedUserId, _) = await fixture.RegisterAndLoginAsync(deletedEmail, Password);
+        var platformAdminToken = await EnsureAdminTokenAsync();
+
+        foreach (var userId in new[] { tenantAdminId, deletedUserId })
+        {
+            var grant = await fixture.Client.SendAsync(fixture.Authed(
+                HttpMethod.Post, $"/v1/identity/admin/users/{userId}/roles", platformAdminToken, new { role = "admin" }));
+            grant.StatusCode.ShouldBe(HttpStatusCode.OK);
+        }
+
+        var tenantAdminToken = await LoginAsync(tenantAdminEmail, Password);
+        var crossTenant = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, $"/v1/identity/admin/users/{otherTenantUserId}", tenantAdminToken));
+        crossTenant.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
+        var deletedUserToken = await LoginAsync(deletedEmail, Password);
+        await fixture.ExecuteSqlAsync(
+            $"UPDATE users SET \"DeletedAt\" = now() WHERE \"Id\" = '{deletedUserId}'");
+
+        var deleted = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, $"/v1/identity/admin/users/{deletedUserId}", deletedUserToken));
+        deleted.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
     private async Task<string> LoginAsync(string email, string password)
     {
         var (accessToken, _) = await LoginWithTokensAsync(email, password);
