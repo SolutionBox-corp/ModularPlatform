@@ -3480,21 +3480,79 @@ internal sealed class ReconcileCrmImportsHandler(CrmDbContext db, IClock clock)
 
 ### UC101 Novy modul
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Repo pravidlo hotove; CRM modul se dela jako standardni trio a registruje se do vsech hostu.
 
-**Pouzijes:** trio `Core`, `Contracts`, `Tests`.
+**Pouzijes:** trio `ModularPlatform.Crm`, `ModularPlatform.Crm.Contracts`, `ModularPlatform.Crm.Tests`, `IModule`, `PlatformDbContext`, host registrations, architecture tests.
 
-**Co se stane:** Modul se registruje do Api, Worker, Jobs, Migration hostu a architecture tests.
+**Co se stane:** CRM je samostatny produktovy modul nad platformou. Core obsahuje interní domenu a vertical slices, Contracts obsahuje public integration events/DTOs, Tests overi slice + boundary. Modul se nacte ve vsech hostech: Api, Worker, Jobs, MigrationService.
 
-**Napises v CRM:** `CrmModule`, `CrmDbContext`, vertical slices, contracts.
+**Mentalni model:** modul nepridavas jako slozku s nahodnymi services. Pridavas izolovanou bounded context jednotku. Vse, co ostatni smi videt, je v Contracts. Vse, co je implementace, je internal v Core.
+
+**Struktura:**
+
+```text
+src/modules/Crm/
+  ModularPlatform.Crm/
+    CrmModule.cs
+    Persistence/CrmDbContext.cs
+    Entities/Contact.cs
+    Features/Contacts/CreateContact/...
+    Messaging/...
+    Jobs/...
+    Gdpr/...
+  ModularPlatform.Crm.Contracts/
+    IntegrationEvents.cs
+  ModularPlatform.Crm.Tests/
+```
+
+**CrmModule:** registruje CQRS, validators, DbContext/read DbContext, endpoints, messaging handlers, jobs a migrace.
+
+```csharp
+public sealed class CrmModule : IModule
+{
+    public string Name => "Crm";
+
+    public void RegisterServices(IServiceCollection services, IConfiguration configuration)
+    {
+        var assembly = typeof(CrmModule).Assembly;
+        services.AddCqrs(assembly);
+        services.AddValidatorsFromAssembly(assembly, includeInternalTypes: true);
+        services.AddModuleDbContext<CrmDbContext>(Name, configuration.GetConnectionString("Write")!);
+        services.AddModuleReadDbContext<CrmDbContext>(configuration.GetConnectionString("Read")!);
+        services.AddScoped<IExportPersonalData, CrmPersonalDataExporter>();
+        services.AddScoped<IErasePersonalData, CrmPersonalDataEraser>();
+    }
+}
+```
+
+**DbContext:** dedi z `PlatformDbContext`, ma `ModuleName`, `DbSet`s a ctor `(DbContextOptions<CrmDbContext>, ITenantContext)`.
+
+```csharp
+internal sealed class CrmDbContext(DbContextOptions<CrmDbContext> options, ITenantContext tenant)
+    : PlatformDbContext(options, tenant)
+{
+    protected override string ModuleName => "Crm";
+    public DbSet<Contact> Contacts => Set<Contact>();
+}
+```
+
+**Host registration:** pridej assembly/csproj reference do `Api`, `Worker`, `Jobs`, `MigrationService`; pridej module do host boot test args; pridej assembly do ArchitectureTests. Bez toho endpoint muze fungovat lokalne, ale Worker/Jobs/Migration se rozbiji.
+
+**Contracts:** jen public integration events/DTOs. Zadny EF entity, DbContext, handler, validator ani Core reference.
+
+**Migrations:** generuj migraci pro `CrmDbContext`; aplikuj jen local/Testcontainers/per-branch DB, nikdy shared staging/prod.
+
+**Tests:** slice tests pro hlavni CRUD, cross-module event tests, GDPR export/erase, architecture boundary, host boot, migrations smoke.
+
+**Nepouzijes:** Core typy public jen kvuli pohodli, services misto command/query slices, hardcoded `/v1` v module endpoints, raw SQL, cross-module joins, module jen pro druhy payment/storage provider.
 
 **EC:**
 
-- EC501 Core internal.
-- EC502 Contracts nesmi referencovat Core.
-- EC503 host registration ve vsech hostech.
-- EC504 migrations pres admin connection.
-- EC505 architecture tests pro boundary.
+- EC501 Core internal → entities/handlers/dbcontext zustavaji internal; verejne jsou jen Contracts.
+- EC502 Contracts nesmi referencovat Core → Contracts reference jen Cqrs/abstractions nutne pro DTO/event marker.
+- EC503 host registration ve vsech hostech → Api/Worker/Jobs/Migration + HostBootTests, jinak cast flow nebezi.
+- EC504 migrations pres admin connection → `PlatformMigrator`/MigrationService, nikdy runtime RLS role ani shared DB direct.
+- EC505 architecture tests pro boundary → pridat CRM assembly do architecture test loaderu a wire-name snapshot pro nove eventy.
 
 ## Frontend a platform building blocks
 
