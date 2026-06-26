@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using ModularPlatform.Billing.Features.Stripe.ReconcileStripe;
+using ModularPlatform.Billing.Features.Subscriptions.UpsertSubscriptionFromStripe;
 using ModularPlatform.Billing.Stripe;
 using ModularPlatform.Cqrs;
 using ModularPlatform.IntegrationTesting;
@@ -99,8 +100,93 @@ public sealed class StripeReconcileTests(PlatformApiFactory fixture)
             $"SELECT count(*)::bigint FROM credit_entries WHERE \"IdempotencyKey\" = 'purchase:{purchaseId}'")).ShouldBe(0);
     }
 
+    [Fact]
+    public async Task Subscription_drift_is_corrected_from_live_stripe_state()
+    {
+        var (userId, _) = await fixture.RegisterAndLoginAsync($"drift-{Guid.CreateVersion7():N}@test.io", Password);
+        var subscriptionId = await MirrorSubscriptionAsync(userId, "active", cancelAtPeriodEnd: false);
+        var livePeriodEnd = DateTimeOffset.UtcNow.AddDays(7);
+
+        Fake.SeedSubscription(new StripeSubscriptionState(
+            subscriptionId,
+            Status: "past_due",
+            CustomerId: "cus_drift",
+            CurrentPeriodEnd: livePeriodEnd,
+            CancelAtPeriodEnd: true,
+            Metadata: new Dictionary<string, string> { ["user_id"] = userId.ToString(), ["plan_key"] = "pro" }));
+
+        var result = await DispatchReconcileAsync();
+
+        result.SubscriptionDriftsFixed.ShouldBeGreaterThanOrEqualTo(1);
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM subscriptions WHERE \"StripeSubscriptionId\" = '{subscriptionId}' AND \"Status\" = 'PastDue' AND \"CancelAtPeriodEnd\" = true",
+            1);
+    }
+
+    [Fact]
+    public async Task Provider_errors_are_isolated_per_subscription()
+    {
+        var (brokenUserId, _) = await fixture.RegisterAndLoginAsync($"drift-fail-{Guid.CreateVersion7():N}@test.io", Password);
+        var brokenSubscriptionId = await MirrorSubscriptionAsync(brokenUserId, "active", cancelAtPeriodEnd: false);
+        Fake.SeedSubscription(new StripeSubscriptionState(
+            brokenSubscriptionId,
+            Status: "past_due",
+            CustomerId: "cus_down",
+            CurrentPeriodEnd: DateTimeOffset.UtcNow.AddDays(3),
+            CancelAtPeriodEnd: true,
+            Metadata: new Dictionary<string, string> { ["user_id"] = brokenUserId.ToString(), ["plan_key"] = "pro" }));
+
+        var (fixedUserId, _) = await fixture.RegisterAndLoginAsync($"drift-fix-{Guid.CreateVersion7():N}@test.io", Password);
+        var fixedSubscriptionId = await MirrorSubscriptionAsync(fixedUserId, "active", cancelAtPeriodEnd: false);
+        Fake.SeedSubscription(new StripeSubscriptionState(
+            fixedSubscriptionId,
+            Status: "past_due",
+            CustomerId: "cus_fixed",
+            CurrentPeriodEnd: DateTimeOffset.UtcNow.AddDays(4),
+            CancelAtPeriodEnd: true,
+            Metadata: new Dictionary<string, string> { ["user_id"] = fixedUserId.ToString(), ["plan_key"] = "pro" }));
+
+        Fake.FailNextSubscriptionLookup();
+
+        await DispatchReconcileAsync();
+
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM subscriptions WHERE \"StripeSubscriptionId\" = '{fixedSubscriptionId}' AND \"Status\" = 'PastDue'",
+            1);
+    }
+
+    [Fact]
+    public async Task Stuck_purchase_reconcile_pass_is_capped_per_run()
+    {
+        var before = Fake.CheckoutSessionStatusLookupCount;
+
+        for (var i = 0; i < 205; i++)
+        {
+            await SeedStuckSagaAsync(Guid.CreateVersion7(), creditAmount: 1, status: "Abandoned");
+        }
+
+        await DispatchReconcileAsync();
+
+        var checkedSessions = Fake.CheckoutSessionStatusLookupCount - before;
+        checkedSessions.ShouldBe(200);
+    }
+
     private const string Password = "S3cure!pass";
     private FakeStripeGateway Fake => (FakeStripeGateway)fixture.Services.GetRequiredService<IStripeGateway>();
+
+    private async Task<string> MirrorSubscriptionAsync(Guid userId, string stripeStatus, bool cancelAtPeriodEnd)
+    {
+        var subscriptionId = $"sub_{Guid.CreateVersion7():N}";
+        Fake.SeedSubscription(new StripeSubscriptionState(
+            subscriptionId,
+            Status: stripeStatus,
+            CustomerId: $"cus_{Guid.CreateVersion7():N}",
+            CurrentPeriodEnd: DateTimeOffset.UtcNow.AddMonths(1),
+            CancelAtPeriodEnd: cancelAtPeriodEnd,
+            Metadata: new Dictionary<string, string> { ["user_id"] = userId.ToString(), ["plan_key"] = "pro" }));
+        await DispatchAsync(new UpsertSubscriptionFromStripeCommand(subscriptionId));
+        return subscriptionId;
+    }
 
     private async Task<(Guid PurchaseId, string SessionId)> SeedStuckSagaAsync(Guid userId, long creditAmount, string status)
     {
@@ -116,10 +202,15 @@ public sealed class StripeReconcileTests(PlatformApiFactory fixture)
         return (purchaseId, sessionId);
     }
 
-    private async Task DispatchReconcileAsync()
+    private async Task<ReconcileStripeResponse> DispatchReconcileAsync()
+    {
+        return await DispatchAsync(new ReconcileStripeCommand());
+    }
+
+    private async Task<TResponse> DispatchAsync<TResponse>(ICommand<TResponse> command)
     {
         await using var scope = fixture.Services.CreateAsyncScope();
         var dispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
-        await dispatcher.Send(new ReconcileStripeCommand());
+        return await dispatcher.Send(command);
     }
 }

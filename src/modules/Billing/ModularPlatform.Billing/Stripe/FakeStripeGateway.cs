@@ -19,6 +19,8 @@ internal sealed class FakeStripeGateway : IStripeGateway
     private readonly ConcurrentQueue<CheckoutSessionSpec> _createdSessions = new();
     private int _failNextBillingPortalSession;
     private int _failNextPromotionCodeLookup;
+    private int _failNextSubscriptionLookup;
+    private int _checkoutSessionStatusLookupCount;
     private int _sessionCounter;
 
     public void SeedEvent(Event stripeEvent) => _events[stripeEvent.Id] = stripeEvent;
@@ -32,11 +34,16 @@ internal sealed class FakeStripeGateway : IStripeGateway
 
     public IReadOnlyCollection<CheckoutSessionSpec> CreatedSessions => [.. _createdSessions];
 
+    public int CheckoutSessionStatusLookupCount => Volatile.Read(ref _checkoutSessionStatusLookupCount);
+
     public void FailNextBillingPortalSession() =>
         Interlocked.Exchange(ref _failNextBillingPortalSession, 1);
 
     public void FailNextPromotionCodeLookup() =>
         Interlocked.Exchange(ref _failNextPromotionCodeLookup, 1);
+
+    public void FailNextSubscriptionLookup() =>
+        Interlocked.Exchange(ref _failNextSubscriptionLookup, 1);
 
     public Task<Event> GetEventAsync(string eventId, CancellationToken ct) =>
         _events.TryGetValue(eventId, out var stripeEvent)
@@ -57,8 +64,15 @@ internal sealed class FakeStripeGateway : IStripeGateway
         return Task.FromResult(new CheckoutSessionRef(id, $"https://checkout.stripe.test/{id}"));
     }
 
-    public Task<StripeSubscriptionState?> GetSubscriptionAsync(string subscriptionId, CancellationToken ct) =>
-        Task.FromResult(_subscriptions.TryGetValue(subscriptionId, out var state) ? state : null);
+    public Task<StripeSubscriptionState?> GetSubscriptionAsync(string subscriptionId, CancellationToken ct)
+    {
+        if (Interlocked.Exchange(ref _failNextSubscriptionLookup, 0) == 1)
+        {
+            throw new StripeException("Subscription lookup unavailable");
+        }
+
+        return Task.FromResult(_subscriptions.TryGetValue(subscriptionId, out var state) ? state : null);
+    }
 
     public Task CancelSubscriptionAsync(string subscriptionId, bool atPeriodEnd, CancellationToken ct)
     {
@@ -93,5 +107,11 @@ internal sealed class FakeStripeGateway : IStripeGateway
     }
 
     public Task<string?> GetCheckoutSessionPaymentStatusAsync(string sessionId, CancellationToken ct) =>
-        Task.FromResult(_sessionPaymentStatus.TryGetValue(sessionId, out var status) ? status : null);
+        Task.FromResult(GetCheckoutSessionPaymentStatus(sessionId));
+
+    private string? GetCheckoutSessionPaymentStatus(string sessionId)
+    {
+        Interlocked.Increment(ref _checkoutSessionStatusLookupCount);
+        return _sessionPaymentStatus.TryGetValue(sessionId, out var status) ? status : null;
+    }
 }

@@ -822,21 +822,21 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC45 Stripe reconcile
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented + tested — `StripeReconcileTests`.
 
 **Pouzijes:** `BillingStripeReconcileJob`.
 
-**Co se stane:** Jobs host requeue stuck Stripe events a opravuje subscription drift.
+**Co se stane:** Jobs host pusti `ReconcileStripeCommand`, ktery requeue stuck Stripe events, opravuje subscription drift podle live Stripe state a znovu grantuje prokazatelne zaplacene stuck purchases.
 
-**Napises v CRM:** vlastni reconcile pro CRM externi systemy.
+**Napises v CRM:** pro vlastni CRM externi systemy kopiruj pattern: capped sweep, per-item try/catch, provider je source of truth, oprava jde pres stejne commandy jako normalni webhook.
 
 **EC:**
 
-- EC221 stuck `stripe_events`.
-- EC222 subscription drift.
-- EC223 provider API down.
-- EC224 cap per run.
-- EC225 warning metrics/logs.
+- EC221 stuck `stripe_events` → `ProcessedAt IS NULL` a starsi nez 30 min se znovu publikuji pres outbox jako `ProcessStripeEventMessage`.
+- EC222 subscription drift → lokalni non-canceled subscription se porovna s live provider stavem; pri driftu Stripe vyhrava a bezi `UpsertSubscriptionFromStripeCommand`.
+- EC223 provider API down → chyba jednoho Stripe lookupu se zaloguje jako warning, sweep pokracuje dalsimi subscriptions/purchases.
+- EC224 cap per run → stuck events 200, subscriptions 500, stuck purchases 200; run nikdy nezkusi nekonecny backlog najednou.
+- EC225 warning metrics/logs → cap reached a drift se loguji warningem, drift inkrementuje `platform.billing.stripe_drift`.
 
 ### UC46 Expirace kreditu
 
