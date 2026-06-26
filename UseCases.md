@@ -570,7 +570,7 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC31 Confirm spend
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented — overeno `ConfirmSpendTests`, `BillingLedgerTests`, `LedgerLifecycleTests`, `CreditBalanceTests`.
 
 **Pouzijes:** `POST /billing/credits/reservations/confirm`.
 
@@ -580,11 +580,11 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 **EC:**
 
-- EC151 duplicate confirm je idempotentni.
-- EC152 hold not found nebo released.
-- EC153 bucket draw musi zachovat invariant.
-- EC154 worker retry nesmi utratit dvakrat.
-- EC155 confirm se nesmi volat pred skutecnym uspechem.
+- EC151 duplicate confirm je idempotentni → concurrent confirm zapise jen jeden `Spend`.
+- EC152 hold not found nebo released → unknown reservation je 404, released/expired/non-active hold je 422 bez spendu.
+- EC153 bucket draw musi zachovat invariant → confirm kresli buckets FIFO a drzi `available = posted - pending`.
+- EC154 worker retry nesmi utratit dvakrat → `spend:{reservationId}` idempotency key + xmin retry.
+- EC155 confirm se nesmi volat pred skutecnym uspechem → CRM/worker vola confirm az po uspesne externi akci; jinak vola release.
 
 ### UC32 Release hold
 
