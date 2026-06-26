@@ -12,9 +12,9 @@ namespace ModularPlatform.Billing.Features.Packages.ListAdminCreditPackages;
 /// </summary>
 internal sealed class ListAdminCreditPackagesHandler(
     IReadDbContextFactory<BillingDbContext> readFactory, ITenantContext tenant)
-    : IQueryHandler<ListAdminCreditPackagesQuery, IReadOnlyList<AdminCreditPackageResponse>>
+    : IQueryHandler<ListAdminCreditPackagesQuery, PagedResponse<AdminCreditPackageResponse>>
 {
-    public async Task<IReadOnlyList<AdminCreditPackageResponse>> Handle(
+    public async Task<PagedResponse<AdminCreditPackageResponse>> Handle(
         ListAdminCreditPackagesQuery query, CancellationToken ct)
     {
         await using var db = readFactory.Create();
@@ -23,8 +23,10 @@ internal sealed class ListAdminCreditPackagesHandler(
         return await db.CreditPackages
             .Where(p => p.TenantId == tenantId || p.TenantId == null)
             .OrderBy(p => p.Price)
+            .ThenBy(p => p.Name)
+            .ThenBy(p => p.Id)
             .Select(p => new AdminCreditPackageResponse(
                 p.Id, p.Name, p.CreditAmount, p.Price, p.Currency, p.BucketExpiryDays, p.Active, p.StripePriceId))
-            .ToListAsync(ct);
+            .ToPagedResponseAsync(query.Page, ct);
     }
 }

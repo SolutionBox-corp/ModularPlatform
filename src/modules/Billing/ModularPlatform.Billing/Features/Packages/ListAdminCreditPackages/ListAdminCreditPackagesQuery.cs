@@ -7,7 +7,7 @@ namespace ModularPlatform.Billing.Features.Packages.ListAdminCreditPackages;
 /// <c>ListCreditPackages</c> returns only purchasable/active rows). Scope is the caller's own tenant + the
 /// platform-global rows; for the SYSTEM platform admin (no tenant) that resolves to the global catalogue.
 /// </summary>
-public sealed record ListAdminCreditPackagesQuery : IQuery<IReadOnlyList<AdminCreditPackageResponse>>;
+public sealed record ListAdminCreditPackagesQuery(PageRequest Page) : IQuery<PagedResponse<AdminCreditPackageResponse>>;
 
 public sealed record AdminCreditPackageResponse(
     Guid Id,

@@ -624,7 +624,7 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC34 Admin package list
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented — `AdminPackageCatalogueTests` overuji permission, disabled rows, paging metadata, stabilni order a oddeleni public/admin listu.
 
 **Pouzijes:** `GET /billing/admin/packages`.
 
@@ -634,11 +634,11 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 **EC:**
 
-- EC166 admin permission.
-- EC167 include disabled.
-- EC168 paging/order.
-- EC169 audit admin change.
-- EC170 oddelit admin list a public list.
+- EC166 admin permission → endpoint vyzaduje `billing.manage`, bez nej vraci 403.
+- EC167 include disabled → admin list vraci i `active=false` packages.
+- EC168 paging/order → `page/pageSize` vraci `PagedResponse`, order je `Price`, potom `Name`, potom `Id`.
+- EC169 audit admin change → admin create/update package jde pres audited `CreditPackage` entitu; zmena katalogu je domenova mutace, ne read side effect listu.
+- EC170 oddelit admin list a public list → admin list vidi disabled, public `GET /billing/packages` vraci jen aktivni purchasable packages.
 
 ### UC35 Create package
 

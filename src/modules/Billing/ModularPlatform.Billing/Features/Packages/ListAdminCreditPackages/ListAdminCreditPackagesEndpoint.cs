@@ -16,10 +16,15 @@ internal static class ListAdminCreditPackagesEndpoint
 {
     public static void MapListAdminCreditPackages(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/billing/admin/packages", async (IDispatcher dispatcher, CancellationToken ct) =>
+        app.MapGet("/billing/admin/packages", async (
+                int? page,
+                int? pageSize,
+                IDispatcher dispatcher,
+                CancellationToken ct) =>
             {
-                var result = await dispatcher.Query(new ListAdminCreditPackagesQuery(), ct);
-                return Results.Ok(ApiResponse<IReadOnlyList<AdminCreditPackageResponse>>.Ok(result));
+                var result = await dispatcher.Query(
+                    new ListAdminCreditPackagesQuery(new PageRequest(page, pageSize)), ct);
+                return Results.Ok(ApiResponse<PagedResponse<AdminCreditPackageResponse>>.Ok(result));
             })
             .RequireAuthorization()
             .RequirePermission(PlatformPermissions.BillingManage)
