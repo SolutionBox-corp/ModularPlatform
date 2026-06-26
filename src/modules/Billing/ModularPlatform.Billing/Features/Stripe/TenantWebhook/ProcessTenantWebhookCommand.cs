@@ -6,6 +6,7 @@ using ModularPlatform.Billing.Sagas;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Payments;
 using ModularPlatform.Persistence;
+using Stripe;
 using Wolverine.EntityFrameworkCore;
 
 namespace ModularPlatform.Billing.Features.Stripe.TenantWebhook;
@@ -59,9 +60,10 @@ internal sealed class ProcessTenantWebhookHandler(
             snapshot = await gateway.VerifyNotificationAsync(
                 new NotificationContext(command.RawBody, command.SignatureHeader, command.Query), ct);
         }
-        catch (PaymentGatewayUnavailableException)
+        catch (Exception ex) when (ex is PaymentGatewayUnavailableException or StripeException or InvalidOperationException)
         {
-            // Unknown/inactive tenant gateway — acknowledge (200) and ignore; never act on an unverifiable notification.
+            // Unknown/inactive tenant gateway, bad signature, or malformed notification — acknowledge and ignore; never
+            // act on an unverifiable notification.
             return Unit.Value;
         }
 

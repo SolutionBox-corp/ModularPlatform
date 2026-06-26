@@ -462,7 +462,7 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC25 Tenant payment webhook
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented — overeno `TenantWebhookTests`; webhook je anonymni provider callback, ale handler veri/re-fetchuje pres tenant gateway.
 
 **Pouzijes:** `POST /billing/webhooks/{provider}/{tenantId}/{token?}`.
 
@@ -472,11 +472,11 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 **EC:**
 
-- EC121 spatny token nebo signature.
-- EC122 duplicate webhook.
-- EC123 unknown tenant.
-- EC124 out-of-order event.
-- EC125 handler musi byt idempotentni.
+- EC121 spatny token nebo signature → GoPay token mismatch a Stripe bad signature se acknowledge+ignore, nic se neprovede.
+- EC122 duplicate webhook → stejny paid webhook nevytvori druhy ledger entry.
+- EC123 unknown tenant → 200 OK a ignore, zadny fallback na jinou gateway.
+- EC124 out-of-order event → unpaid webhook nic negrantuje; pozdejsi paid webhook purchase dokonci.
+- EC125 handler musi byt idempotentni → grant jde pres `CreditPurchaseSaga` a ledger idempotency key `purchase:{id}`.
 
 ### UC26 Stripe platform webhook
 
