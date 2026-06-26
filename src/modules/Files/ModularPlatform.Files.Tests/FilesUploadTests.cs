@@ -94,6 +94,28 @@ public sealed class FilesUploadTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Upload_uses_server_generated_storage_key_not_the_client_filename()
+    {
+        var (userId, token) = await fixture.RegisterAndLoginAsync(
+            $"key-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+
+        var upload = await UploadAsync(
+            token,
+            "../crm/contracts/q4.txt",
+            "text/plain",
+            Encoding.UTF8.GetBytes("contract body"));
+        upload.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var fileId = (await PlatformApiFactory.ReadData(upload)).GetProperty("id").GetGuid();
+
+        var storageKey = await fixture.ScalarAsync<string>(
+            $"SELECT \"StorageKey\" FROM file_objects WHERE \"Id\" = '{fileId}'");
+
+        storageKey.ShouldBe($"{userId:N}/{fileId:N}");
+        storageKey.ShouldNotContain("..");
+        storageKey.ShouldNotContain("q4.txt");
+    }
+
+    [Fact]
     public async Task Gdpr_erasure_deletes_the_users_files_and_metadata()
     {
         var (userId, token) = await fixture.RegisterAndLoginAsync($"gdpr-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");

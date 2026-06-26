@@ -1109,21 +1109,43 @@ await dispatcher.Send(new SendNotificationCommand(
 
 ### UC57 Upload souboru
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented + tested — `FilesUploadTests` pokryva roundtrip, allowlist, size cap, owner scope a server-generated storage key.
 
 **Pouzijes:** `POST /files`.
 
-**Co se stane:** Files ulozi blob pres `IFileStorage` a metadata do `file_objects`.
+**Co se stane:** Frontend posle multipart `file` na `POST /files`. Endpoint vezme usera z tokenu, otevre stream a posle `UploadFileCommand`. Handler vygeneruje nove `fileId`, z nej serverovy `StorageKey = {userId:N}/{fileId:N}`, ulozi bytes pres `IFileStorage.PutAsync(...)` a potom ulozi metadata do `file_objects`. Response vrati `id`, `fileName`, `contentType`, `size` a `Location: /v1/files/{id}`.
 
-**Napises v CRM:** po uploadu ulozis `FileObjectId` k dealu/kontaktu.
+**Napises v CRM:** po uploadu neukladas bytes ani storage key. CRM si ulozi jen `FileObjectId` do vlastni join entity, napr. `DealAttachment(DealId, FileObjectId, UploadedByUserId)`. Kdyz user klikne download, CRM pouzije `/files/{fileId}` nebo vlastni endpoint, ktery si overi CRM permission a pak odkazuje na Files.
+
+**Vzor frontendu:**
+
+```ts
+const body = new FormData();
+body.append("file", file);
+
+await api.post("/v1/files", body);
+```
+
+**Vzor CRM vazby:**
+
+```csharp
+await dispatcher.Send(new AttachFileToDealCommand(
+    dealId,
+    uploadResponse.Id,
+    tenant.UserId!.Value), ct);
+```
+
+**Co si pohlidas:** frontend validace velikosti/typu je jen UX. Backend validator je autorita. `file.FileName` je jen display name, nikdy storage path.
+
+**Nepouzijes:** zadny direct write do S3/local disk z CRM, zadny storage key z client filename, zadne cross-module join na `file_objects`.
 
 **EC:**
 
-- EC281 file > 10 MB.
-- EC282 disallowed content type.
-- EC283 client filename nesmi byt storage key.
-- EC284 blob upload uspeje, metadata failne -> cleanup/reconcile gap.
-- EC285 frontend validace je jen UX, backend je autorita.
+- EC281 file > 10 MB → endpoint ma request-size limit a validator vrati 400/413; metadata se neulozi.
+- EC282 disallowed content type → `FileUploadPolicy.AllowedContentTypes` je deny-by-default allowlist; backend odmita `application/x-msdownload`.
+- EC283 client filename nesmi byt storage key → storage key je `{userId:N}/{fileId:N}`; test uploaduje `../crm/contracts/q4.txt` a key neobsahuje filename ani `..`.
+- EC284 blob upload uspeje, metadata failne -> cleanup/reconcile gap → handler po `SaveChanges` failure dela best-effort `storage.DeleteAsync(storageKey)` a loguje cleanup error. Pokud cleanup taky selze, zustane orphan blob; to je future reconcile job, ne CRM logika.
+- EC285 frontend validace je jen UX, backend je autorita → i kdyz frontend nezkontroluje typ/velikost, validator a request cap to zastavi server-side.
 
 ### UC58 List moje soubory
 
