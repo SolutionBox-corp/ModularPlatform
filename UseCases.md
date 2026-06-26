@@ -1149,21 +1149,42 @@ await dispatcher.Send(new AttachFileToDealCommand(
 
 ### UC58 List moje soubory
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented + tested — `FilesUploadTests.List_is_paged_and_owner_scoped` a `List_search_filters_by_filename_and_deleted_files_disappear`.
 
 **Pouzijes:** `GET /files`.
 
-**Co se stane:** Files vrati owner-scoped paged list.
+**Co se stane:** Files vrati metadata souboru pro prihlaseneho usera: `id`, `fileName`, `contentType`, `size`, `createdAt`. Handler pouziva read DbContext, filtruje `UserId == token user`, radi nejnovsi prvni a vraci `PagedResponse`. Kdyz posles `search`, filtruje se case-insensitive podle `FileName`; bytes se nikdy necitaji.
 
-**Napises v CRM:** vlastni list attachmentu pres CRM join entity.
+**Napises v CRM:** CRM si udela vlastni list attachmentu z CRM tabulky, napr. `DealAttachment`, kde ma `DealId` a `FileObjectId`. Files `GET /files` je obecny "moje soubory" list, ne CRM attachment list. Pro deal detail nejdriv over CRM permission na deal a az potom zobraz file ids prirazene k dealu.
+
+**Vzor frontendu:**
+
+```ts
+const files = await api.get("/v1/files", {
+  params: { page: 1, pageSize: 20, search: query || undefined },
+});
+```
+
+**Vzor CRM query:**
+
+```csharp
+var attachments = await db.DealAttachments
+    .Where(x => x.DealId == dealId && x.UserId == tenant.UserId)
+    .OrderByDescending(x => x.CreatedAt)
+    .ToListAsync(ct);
+```
+
+**Co si pohlidas:** `GET /files` neni admin endpoint. Neexistuje parametr `userId`. Kdyz CRM potrebuje "soubory na dealu", patri to do CRM modelu jako vazba na `FileObjectId`.
+
+**Nepouzijes:** cross-module JOIN na `file_objects`, route/body user id, ani frontend filtrovani jako security.
 
 **EC:**
 
-- EC286 paging.
-- EC287 search/filter stale.
-- EC288 owner scope.
-- EC289 deleted files.
-- EC290 CRM nema listovat cizi user files.
+- EC286 paging → `PageRequest`/`PagedResponse`, testuje se `pageSize=2`.
+- EC287 search/filter stale → search jde na server pres `ILIKE`, po zmene/delete je potreba invalidovat frontend cache.
+- EC288 owner scope → handler ma explicitni `WHERE UserId == query.UserId` a tabulka je `IUserOwned`/RLS.
+- EC289 deleted files → po `DELETE /files/{id}` metadata zmizi a list/search uz soubor nevrati.
+- EC290 CRM nema listovat cizi user files → CRM listuje svoje join rows a Files download/list jeste samostatne overi owner scope.
 
 ### UC59 Download souboru
 

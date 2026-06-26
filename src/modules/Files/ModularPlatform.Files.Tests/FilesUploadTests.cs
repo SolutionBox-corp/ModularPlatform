@@ -68,6 +68,38 @@ public sealed class FilesUploadTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task List_search_filters_by_filename_and_deleted_files_disappear()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync(
+            $"list-search-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+
+        var contract = await UploadAsync(
+            token, "Q4-CONTRACT.txt", "text/plain", Encoding.UTF8.GetBytes("contract"));
+        var invoice = await UploadAsync(
+            token, "invoice.txt", "text/plain", Encoding.UTF8.GetBytes("invoice"));
+        await UploadAsync(token, "notes.txt", "text/plain", Encoding.UTF8.GetBytes("notes"));
+        contract.StatusCode.ShouldBe(HttpStatusCode.Created);
+        invoice.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var contractId = (await PlatformApiFactory.ReadData(contract)).GetProperty("id").GetGuid();
+
+        var search = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/files?search=contract", token));
+        search.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var searchData = await PlatformApiFactory.ReadData(search);
+        searchData.GetProperty("totalCount").GetInt64().ShouldBe(1);
+        searchData.GetProperty("items")[0].GetProperty("fileName").GetString().ShouldBe("Q4-CONTRACT.txt");
+
+        var delete = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Delete, $"/v1/files/{contractId}", token));
+        delete.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        var afterDelete = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/files?search=contract", token));
+        afterDelete.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PlatformApiFactory.ReadData(afterDelete)).GetProperty("totalCount").GetInt64().ShouldBe(0);
+    }
+
+    [Fact]
     public async Task A_different_user_cannot_download_another_users_file()
     {
         var (_, owner) = await fixture.RegisterAndLoginAsync($"owner-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
