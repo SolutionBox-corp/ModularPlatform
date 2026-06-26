@@ -3815,21 +3815,82 @@ export function useDeleteContact() {
 
 ### UC105 Form validation
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Frontend pattern existuje v Auth/Account/Files; CRM schema ma zrcadlit backend validator, ale backend zustava autorita.
 
-**Pouzijes:** Zod + react-hook-form.
+**Pouzijes:** `frontend/features/crm/schema.ts`, Zod, `react-hook-form`, `zodResolver`, `setError`, `ProblemDetails`, `toDisplayMessage`.
 
-**Co se stane:** Frontend validuje pro UX, backend je autorita.
+**Co se stane:** Frontend chytne zjevne chyby hned: prazdny nazev firmy, spatny email, prilis dlouhy note, chybejici consent. Backend stejne validuje znovu pres FluentValidation a vraci RFC9457 problem. Kdyz backend vrati field errors, formular je prepise na konkretni pole.
 
-**Napises v CRM:** schema mirrorujici backend validator.
+**Mentalni model:** Frontend schema je UX kopie backend pravidel, ne security boundary. Pokud se frontend a backend rozjedou, backend vyhrava.
+
+**Napises v CRM:** schema soubor vedle feature. Error message muze byt i18n key, kterou komponenta prelozi.
+
+```ts
+import { z } from "zod";
+
+export const createContactSchema = z.object({
+  companyName: z.string().trim().min(1, { message: "companyNameRequired" }).max(200, {
+    message: "companyNameTooLong",
+  }),
+  email: z
+    .string()
+    .trim()
+    .optional()
+    .refine((v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), {
+      message: "emailInvalid",
+    }),
+  phone: z.string().trim().max(64, { message: "phoneTooLong" }).optional(),
+  note: z.string().trim().max(2000, { message: "noteTooLong" }).optional(),
+});
+
+export type CreateContactValues = z.infer<typeof createContactSchema>;
+```
+
+**Ve formulari:** pouzij `useForm`, `zodResolver`, `noValidate`, `aria-invalid`, `aria-describedby`, `disabled={mutation.isPending}`.
+
+```tsx
+const form = useForm<CreateContactValues>({
+  resolver: zodResolver(createContactSchema),
+  defaultValues: { companyName: "", email: "", phone: "", note: "" },
+});
+
+const createContact = useCreateContact();
+
+function onSubmit(values: CreateContactValues) {
+  createContact.mutate(values, {
+    onError: (error) => {
+      if (isApiError(error) && error.fieldErrors) {
+        for (const [field, messages] of Object.entries(error.fieldErrors)) {
+          const key = field[0].toLowerCase() + field.slice(1);
+          form.setError(key as keyof CreateContactValues, {
+            message: messages[0] ?? "invalid",
+          });
+        }
+        return;
+      }
+      setServerError(error);
+    },
+  });
+}
+```
+
+**Trim/normalizace:** stringy trimuj uz ve schematu, ale nezahazuj semantiku. Prazdny optional email posli jako `undefined`/`null` podle backend requestu, ne jako `"   "`.
+
+**Backend parity:** kdyz backend validator rika `MaxLength(200)`, frontend ma mit stejny limit. Kdyz backend prida nove pravidlo, UC/form schema se musi aktualizovat ve stejnem PR.
+
+**Server error mapping:** `fieldErrors` mapuj case-insensitive, protoze backend muze vratit `CompanyName` a formular drzi `companyName`. Neznama pole dej do `ProblemDetails`, neignoruj je tise.
+
+**Accessibility:** kazdy field error ma svoje `id`, input ma `aria-describedby`; po submit erroru nech browser/focus jit na prvni invalid field nebo ho nastav explicitne.
+
+**Nepouzijes:** validaci jen ve frontend komponentach, duplicitu pravidel v kazdem formulari, hardcoded ceske/anglicke texty v Zod schematu, ignorovani backend field errors.
 
 **EC:**
 
-- EC521 frontend schema drift.
-- EC522 backend validation error mapping.
-- EC523 empty/trim normalization.
-- EC524 locale/i18n messages.
-- EC525 accessibility error focus.
+- EC521 frontend schema drift → schema musi zrcadlit backend validator; zmena validace = zmena obou stran.
+- EC522 backend validation error mapping → `ApiError.fieldErrors` mapuj do `setError`, ne jen generic toast.
+- EC523 empty/trim normalization → trimuj a prazdne optional hodnoty posilej jako `undefined/null`.
+- EC524 locale/i18n messages → schema vraci i18n keys nebo pouziva `useTranslations`; zadne hardcoded UI texty.
+- EC525 accessibility error focus → `aria-invalid`, `aria-describedby`, viditelna chyba a focus na prvni invalid field.
 
 ### UC106 Cache invalidace po mutaci
 
