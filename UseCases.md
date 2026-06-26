@@ -3115,21 +3115,82 @@ await outbox.SaveChangesAndFlushMessagesAsync();
 
 ### UC95 Reaguj na event
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Base pattern hotovy v Billing/Notifications/Marketing; CRM ma kopirovat public handler -> internal command.
 
-**Pouzijes:** public Wolverine handler + internal command.
+**Pouzijes:** public Wolverine handler, `IDispatcher`, internal command, `IModule.ConfigureMessaging`, idempotency key/unique constraint.
 
-**Co se stane:** Worker spusti handler, handler dispatchne command.
+**Co se stane:** Jiny modul publikuje integration event, Worker ho doruci do CRM handleru. Handler sam nedela business logiku; jen prelozi event na internal CRM command. Command provede projekci, notifikaci, import, billing reaction nebo jiny side effect.
 
-**Napises v CRM:** `public sealed class SomethingHappenedHandler`.
+**Mentalni model:** Wolverine skenuje public handler typy. Handler je adapter mezi public contractem a internim CRM slice. Business logika zustava testovatelna v command handleru a ma vlastni idempotenci.
+
+**Handler:** musi byt public a jeho `Handle(...)` podpis ma pouzivat public typy. Event typ je z ciziho `*.Contracts`.
+
+```csharp
+public sealed class UserRegisteredForCrmHandler
+{
+    public Task Handle(UserRegisteredIntegrationEvent message, IDispatcher dispatcher, CancellationToken ct) =>
+        dispatcher.Send(new CreateCrmUserSnapshotCommand(
+            message.UserId,
+            message.TenantId,
+            message.EventId), ct);
+}
+```
+
+**Internal command:** tady je skutecna logika. Uloz si `EventId` nebo business unique key, aby retry neudelal duplicitu.
+
+```csharp
+internal sealed record CreateCrmUserSnapshotCommand(
+    Guid UserId,
+    Guid TenantId,
+    Guid SourceEventId) : ICommand;
+
+internal sealed class CreateCrmUserSnapshotHandler(CrmDbContext db)
+    : ICommandHandler<CreateCrmUserSnapshotCommand>
+{
+    public async Task<Unit> Handle(CreateCrmUserSnapshotCommand command, CancellationToken ct)
+    {
+        if (await db.UserSnapshots.AnyAsync(x => x.SourceEventId == command.SourceEventId, ct))
+        {
+            return Unit.Value;
+        }
+
+        db.UserSnapshots.Add(new CrmUserSnapshot
+        {
+            UserId = command.UserId,
+            TenantId = command.TenantId,
+            SourceEventId = command.SourceEventId,
+        });
+
+        await db.SaveChangesAsync(ct);
+        return Unit.Value;
+    }
+}
+```
+
+**Register messaging:** v `CrmModule.ConfigureMessaging` explicitne include handler type, jinak ho Wolverine nemusi najit podle modulove konfigurace.
+
+```csharp
+public void ConfigureMessaging(WolverineOptions options)
+{
+    options.Discovery.IncludeType<UserRegisteredForCrmHandler>();
+}
+```
+
+**Retry:** handler muze bezet znovu kvuli retry kombinovane obalky nebo worker restartu. Kazdy side effect musi byt idempotentni: unique index, idempotency key, upsert-like logic nebo "if already terminal, return".
+
+**Ordering:** nepredpokladej, ze eventy jdou po sobe. Kdyz stav zalezi na realite owner modulu, dotahni live DTO pres query contract.
+
+**Testy k CRM:** event doruceni spusti handler, handler dispatchne command, opakovany event nevytvori duplicitu, handler je public a registrovany, failed command jde do retry/DLQ.
+
+**Nepouzijes:** internal/private Wolverine handler, business logiku primo v handleru, handler bez idempotence, reliance na event ordering, ani direct reference na cizi Core.
 
 **EC:**
 
-- EC471 handler musi byt public.
-- EC472 handler musi byt v `ConfigureMessaging`.
-- EC473 business logika patri do internal commandu.
-- EC474 retry spusti handler znovu.
-- EC475 idempotency key nebo unique constraint.
+- EC471 handler musi byt public → Wolverine skenuje exported types; internal handler se nemusi spustit.
+- EC472 handler musi byt v `ConfigureMessaging` → include type explicitne v modulu.
+- EC473 business logika patri do internal commandu → handler je jen adapter event -> command.
+- EC474 retry spusti handler znovu → pocitej s duplicitnim dorucenim a reorderem.
+- EC475 idempotency key nebo unique constraint → kazdy side effect z eventu musi byt exactly-once z pohledu domeny.
 
 ### UC96 Lokalni projekce cizich dat
 
