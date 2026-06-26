@@ -17,7 +17,7 @@ internal static class SendNotificationEndpoint
                 CancellationToken ct) =>
             {
                 await dispatcher.Send(new SendNotificationCommand(
-                    request.UserId, request.TemplateKey, request.Channels, request.Data), ct);
+                    request.UserId, request.TemplateKey, request.Channels, request.Data, request.IdempotencyKey), ct);
                 return Results.Ok(ApiResponse<Unit>.Ok(Unit.Value));
             })
             // Sending to an arbitrary UserId is a system/admin operation — gate it on a permission so a normal

@@ -134,6 +134,38 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
         item.GetProperty("title").GetString().ShouldBe("Hello Ada");
     }
 
+    [Fact]
+    public async Task SendNotification_with_idempotency_key_is_exactly_once_over_http()
+    {
+        var (recipientId, adminToken) = await AdminTokenAsync();
+
+        var templateKey = $"nt-dedup-{Guid.CreateVersion7():N}";
+        var idempotencyKey = $"notification:{Guid.CreateVersion7():N}";
+        await fixture.ExecuteSqlAsync(
+            $"INSERT INTO notification_templates (\"Id\", \"Key\", \"Locale\", \"Subject\", \"Body\") " +
+            $"VALUES ('{Guid.CreateVersion7()}', '{templateKey}', 'en', 'Dedup', 'Body')");
+
+        async Task<HttpResponseMessage> Send() => await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/notifications/send", adminToken, new
+            {
+                userId = recipientId,
+                templateKey,
+                channels = new[] { "inapp" },
+                data = new Dictionary<string, string>(),
+                idempotencyKey,
+            }));
+
+        var first = await Send();
+        var second = await Send();
+
+        first.StatusCode.ShouldBe(HttpStatusCode.OK);
+        second.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var rows = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM notifications WHERE \"IdempotencyKey\" = '{idempotencyKey}'");
+        rows.ShouldBe(1);
+    }
+
     // NT-4 — GetMyNotifications(unreadOnly=true) + MarkNotificationRead round-trip. Seed a template, send an
     // in-app notification to the user, GET unreadOnly=true returns it, mark it read, GET unreadOnly=true no
     // longer returns it. The user reads/marks their OWN feed (identity from the token, RLS-scoped).

@@ -21,4 +21,5 @@ public sealed record SendNotificationRequest(
     Guid UserId,
     string TemplateKey,
     string[] Channels,
-    Dictionary<string, string> Data);
+    Dictionary<string, string> Data,
+    string? IdempotencyKey = null);

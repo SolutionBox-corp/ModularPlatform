@@ -878,21 +878,21 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC48 Poslat notifikaci
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented + tested — `NotificationsIntegrationTests`.
 
 **Pouzijes:** `POST /notifications/send` nebo `SendNotificationCommand`.
 
-**Co se stane:** Notifications ulozi in-app notifikaci a/nebo zaradi email/push delivery.
+**Co se stane:** Notifications vyrenderuje template, ulozi in-app feed row a email/push prida do Wolverine outboxu.
 
-**Napises v CRM:** command/event s recipientem, template key, daty a idempotency key.
+**Napises v CRM:** command/event s recipientem, template key, daty a `idempotencyKey`. Pres HTTP posilej jen opravneny/admin caller; bezny user si nema posilat notifikace cizim userum.
 
 **EC:**
 
-- EC236 missing template.
-- EC237 invalid channel.
-- EC238 duplicate send retry.
-- EC239 recipient z tokenu nebo validni target.
-- EC240 publish realtime az po commitu.
+- EC236 missing template → handler vraci 404 `notification.template_not_found`; welcome handler tuhle chybu bere jako non-fatal.
+- EC237 invalid channel → validator povoli jen `email`, `push`, `inapp`, jinak `notification.channel.invalid`.
+- EC238 duplicate send retry → `IdempotencyKey` ma UNIQUE index; opakovany keyed send vrati OK a nevytvori druhou row/email/push.
+- EC239 recipient z tokenu nebo validni target → HTTP endpoint vyzaduje `notifications.send`; RLS dovoli row jen pro vlastniho usera, cross-user send dela worker/system command.
+- EC240 publish realtime az po commitu → email/push jsou v transakcnim outboxu, realtime `notification` event se publikuje az po uspesnem `SaveChangesAndFlushMessagesAsync`.
 
 ### UC49 Zobrazit moje notifikace
 
