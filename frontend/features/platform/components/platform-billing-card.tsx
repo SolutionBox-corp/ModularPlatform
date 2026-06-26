@@ -40,6 +40,19 @@ export function PlatformBillingCard() {
               <span className="text-base font-semibold capitalize">
                 {data.plan}
               </span>
+              <Badge variant={data.checkoutReady ? "default" : "secondary"}>
+                {data.checkoutReady
+                  ? t("billingCard.on")
+                  : t("billingCard.off")}
+              </Badge>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {data.provider && (
+                <span className="capitalize">{data.provider}</span>
+              )}
+              {data.actionRequired && (
+                <span className="ml-2 font-mono">{data.actionRequired}</span>
+              )}
             </div>
             <ul className="space-y-1" role="list">
               {data.modules.map((mod) => (

@@ -38,7 +38,27 @@ public sealed class PlatformBillingStatusTests(PlatformApiFactory fixture)
 
         var data = await PlatformApiFactory.ReadData(response);
         data.GetProperty("plan").GetString().ShouldBe("free");
+        data.GetProperty("provider").GetString().ShouldBe("fake");
+        data.GetProperty("checkoutReady").GetBoolean().ShouldBeTrue();
+        data.GetProperty("actionRequired").ValueKind.ShouldBe(System.Text.Json.JsonValueKind.Null);
         data.GetProperty("modules").EnumerateArray().ShouldNotBeEmpty();
+    }
+
+    [Fact]
+    public async Task Status_reports_action_required_when_platform_payment_config_is_missing()
+    {
+        var admin = await AdminTokenAsync();
+        using var host = fixture.CreateHost(("Platform:Payments:Provider", ""));
+        using var client = host.CreateClient();
+
+        var response = await client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/tenant/admin/platform-billing", admin));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var data = await PlatformApiFactory.ReadData(response);
+        data.GetProperty("checkoutReady").GetBoolean().ShouldBeFalse();
+        data.GetProperty("provider").ValueKind.ShouldBe(System.Text.Json.JsonValueKind.Null);
+        data.GetProperty("actionRequired").GetString().ShouldBe("payment.gateway_not_configured");
     }
 
     [Fact]

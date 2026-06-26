@@ -387,7 +387,7 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC21 Platform billing status
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented — overeno `PlatformBillingStatusTests` a frontend `PlatformBillingCard`.
 
 **Pouzijes:** `GET /tenant/admin/platform-billing`.
 
@@ -397,11 +397,11 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 **EC:**
 
-- EC101 missing platform payment config.
-- EC102 provider down.
-- EC103 UI musi ukazat actionable stav.
-- EC104 platform-plane billing a tenant-plane billing nejsou totez.
-- EC105 nespoustet checkout naslepo bez statusu.
+- EC101 missing platform payment config: status vrati `checkoutReady=false` a `actionRequired`.
+- EC102 provider down: status neprovadi checkout; provider problem mapuje na `checkoutReady=false`.
+- EC103 UI musi ukazat actionable stav: `PlatformBillingCard` zobrazuje ready/off stav a `actionRequired`.
+- EC104 platform-plane billing a tenant-plane billing nejsou totez: status pouziva `PaymentPlane.Platform`.
+- EC105 nespoustet checkout naslepo bez statusu: frontend ma cist status pred povolenim checkout akce.
 
 ### UC22 Platform checkout
 

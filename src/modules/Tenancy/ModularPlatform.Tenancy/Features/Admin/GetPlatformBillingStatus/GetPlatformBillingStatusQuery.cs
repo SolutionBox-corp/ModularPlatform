@@ -19,7 +19,10 @@ public sealed record GetPlatformBillingStatusQuery : IQuery<PlatformBillingStatu
 public sealed record PlatformBillingStatusView(
     Guid TenantId,
     string Plan,
-    IReadOnlyList<PlatformBillingModuleView> Modules);
+    IReadOnlyList<PlatformBillingModuleView> Modules,
+    string? Provider,
+    bool CheckoutReady,
+    string? ActionRequired);
 
 /// <summary>One entitled module contributing to the tenant's platform-plane plan.</summary>
 public sealed record PlatformBillingModuleView(string Key, bool Enabled, string? Tier);

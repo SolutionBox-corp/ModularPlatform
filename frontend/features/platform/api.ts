@@ -53,6 +53,9 @@ export interface PlatformBillingStatusView {
   tenantId: string;
   plan: string;
   modules: PlatformBillingModuleView[];
+  provider: string | null;
+  checkoutReady: boolean;
+  actionRequired: string | null;
 }
 
 /** A row of GET /v1/tenant/admin/tenants (cross-tenant registry list). */
