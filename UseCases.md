@@ -4184,21 +4184,79 @@ return (
 
 ### UC110 i18n error codes
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Backend ma `SharedResource.resx`/`SharedResource.cs.resx`; frontend ma `error-map.ts` pro safe display.
 
-**Pouzijes:** `SharedResource.resx` a `SharedResource.cs.resx`.
+**Pouzijes:** `src/building-blocks/ModularPlatform.Web/Localization/SharedResource.resx`, `SharedResource.cs.resx`, `frontend/lib/errors/error-map.ts`, FluentValidation `.WithErrorCode(...)`.
 
-**Co se stane:** Backend error code ma EN/CZ text.
+**Co se stane:** Handler/validator vrati stable `errorCode` jako `crm.contact_not_found`. Global exception middleware podle `Accept-Language` najde text v resx a posle ho v ProblemDetails. Frontend si stejny code umi namapovat na bezpecny text, pokud potrebuje vlastni fallback.
 
-**Napises v CRM:** nove error codes do obou resx.
+**Mentalni model:** Error code je API kontrakt. Text se muze zmenit, code ne. Code musi byt kratky, dotted, lowercase a domenovy.
+
+**Backend throw:** v handleru nepises lokalizovany text jako finalni UI. Pises error code + fallback detail.
+
+```csharp
+throw new NotFoundException(
+    "crm.contact_not_found",
+    "CRM contact was not found.");
+
+throw new BusinessRuleException(
+    "crm.contact_has_open_deals",
+    "Contact cannot be deleted while it has open deals.");
+```
+
+**Backend validator:** validator pouziva stejny naming. Field error code musi sedet s resx klicem.
+
+```csharp
+RuleFor(x => x.CompanyName)
+    .NotEmpty()
+    .WithErrorCode("crm.company_name_required")
+    .MaximumLength(200)
+    .WithErrorCode("crm.company_name_too_long");
+```
+
+**SharedResource EN/CZ:** kazdy novy code pridej do obou souboru.
+
+```xml
+<!-- SharedResource.resx -->
+<data name="crm.contact_not_found" xml:space="preserve">
+  <value>CRM contact was not found.</value>
+</data>
+
+<!-- SharedResource.cs.resx -->
+<data name="crm.contact_not_found" xml:space="preserve">
+  <value>CRM kontakt nebyl nalezen.</value>
+</data>
+```
+
+**Frontend fallback katalog:** pokud CRM UI ukazuje chybu pres `toDisplayMessage`, pridej code i do `error-map.ts`. Pokud spolehas na backend localized `detail`, porad je dobre mit nejcastejsi CRM chyby ve frontend katalogu.
+
+```ts
+const CATALOG: Catalog = {
+  // ...
+  "crm.contact_not_found": {
+    en: "CRM contact was not found.",
+    cs: "CRM kontakt nebyl nalezen.",
+  },
+  "crm.contact_has_open_deals": {
+    en: "Close or move open deals before deleting this contact.",
+    cs: "Pred smazanim kontaktu uzavrete nebo presunte otevrene obchody.",
+  },
+};
+```
+
+**Validation text ve formulari:** frontend Zod schema muze vracet keys jako `companyNameRequired`; backend vraci API codes jako `crm.company_name_required`. Pri server error mappingu zobraz backend code/detail, ne vlastni odhad.
+
+**Locale fallback:** kdyz chybi preklad, middleware/fallback muze vratit code nebo default detail. To je signal, ze chybi resx key; neopravuj to hardcodem ve formulari.
+
+**Nepouzijes:** vety jako error code, ceske texty v handleru, rozdilne klice pro backend a frontend bez duvodu, klientsky preklad raw exception message.
 
 **EC:**
 
-- EC546 missing resx key.
-- EC547 client hardcoded message.
-- EC548 wrong locale fallback.
-- EC549 validation error code mismatch.
-- EC550 tests/smoke pro lokalizaci.
+- EC546 missing resx key → pridej EN i CS resx, jinak user uvidi fallback/code.
+- EC547 client hardcoded message → text patri do resx/messages/error-map, ne primo do komponenty.
+- EC548 wrong locale fallback → `Accept-Language` z BFF/browseru musi byt predan backendu; fallback nesmi ukazat internals.
+- EC549 validation error code mismatch → `.WithErrorCode(...)` musi odpovidat resx a formularovemu mappingu.
+- EC550 tests/smoke pro lokalizaci → smoke pro EN/CS ProblemDetails aspon pro jednu CRM business chybu.
 
 ### UC111 Migrace modulu
 
