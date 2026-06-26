@@ -3628,21 +3628,106 @@ export default async function CrmPage() {
 
 ### UC103 Frontend API file
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Frontend pattern existuje v `features/marketing/api.ts`, `features/files/api.ts`; CRM ma mit stejny centralizovany API soubor.
 
-**Pouzijes:** `features/crm/api.ts`.
+**Pouzijes:** `frontend/features/crm/api.ts`, `apiFetch`, `queryOptions`, `queryRoots`, TypeScript response/request typy.
 
-**Co se stane:** Typy request/response a `apiFetch` calls jsou na jednom miste.
+**Co se stane:** Vsechny CRM endpoint paths, request/response typy, query factories a mutation functions jsou na jednom miste. Komponenty a hooky uz jen importuji `crmQueries`, `createContact`, `startImport`, `sendCrmMessage`.
 
-**Napises v CRM:** queryOptions a mutation functions.
+**Mentalni model:** `api.ts` je frontend contract mirror backend recordu. Kdyz se zmeni C# response shape, upravis tady typ. Komponenty nesmi skladat URL stringy nebo volat `fetch` primo.
+
+```ts
+import { queryOptions } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/api/client";
+import { queryRoots } from "@/lib/api/query-keys";
+
+export interface CrmPaged<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}
+
+export interface ContactListItem {
+  id: string;
+  displayName: string;
+  companyName: string | null;
+  stage: string;
+  updatedAt: string | null;
+}
+
+export interface ContactDetail extends ContactListItem {
+  email: string | null;
+  notes: string | null;
+}
+
+export interface CreateContactRequest {
+  displayName: string;
+  email?: string;
+  companyName?: string;
+}
+
+export interface CreateContactResponse {
+  contactId: string;
+}
+```
+
+**Query factories:** query key musi byt stabilni a obsahovat vsechny filtry/paging parametry.
+
+```ts
+export const crmQueries = {
+  contacts: (page = 1, pageSize = 20, search?: string) =>
+    queryOptions({
+      queryKey: [...queryRoots.crm, "contacts", page, pageSize, search ?? null],
+      queryFn: () => {
+        const sp = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+        if (search) sp.set("search", search);
+        return apiFetch<CrmPaged<ContactListItem>>(`crm/contacts?${sp.toString()}`);
+      },
+      staleTime: 30_000,
+    }),
+
+  contact: (id: string) =>
+    queryOptions({
+      queryKey: [...queryRoots.crm, "contacts", id],
+      queryFn: () => apiFetch<ContactDetail>(`crm/contacts/${id}`),
+      staleTime: 30_000,
+    }),
+};
+```
+
+**Mutation functions:** bez React hook logiky; jen volani API.
+
+```ts
+export function createContact(body: CreateContactRequest): Promise<CreateContactResponse> {
+  return apiFetch<CreateContactResponse>("crm/contacts", {
+    method: "POST",
+    body,
+  });
+}
+
+export function deleteContact(contactId: string): Promise<void> {
+  return apiFetch<void>(`crm/contacts/${contactId}`, { method: "DELETE" });
+}
+```
+
+**BFF path:** neposilej `/v1`. `apiFetch("crm/contacts")` jde pres `/api/bff/crm/contacts`; BFF/backend resi `/v1`.
+
+**404 mapping:** API file jen hazi `ApiError`. Rozhodnuti, jestli 404 znamena empty state, missing detail nebo redirect, patri do hooku/komponenty podle use case.
+
+**Abort/cancel:** dlouhe listy/search/detail query musi prijmout signal, pokud ho TanStack predava pres queryFn context. Pro streaming pouzij samostatnou funkci podle marketing `streamMessage`.
+
+**Testy k CRM:** typecheck, query key obsahuje filtry, api path bez `/v1`, mutation pouziva spravnou method/body, komponenty nepouzivaji raw fetch.
+
+**Nepouzijes:** `fetch("/v1/...")` v komponentach, duplicitu typů v kazdem panelu, hardcoded query keys mimo `api.ts`, response `any`, ani preklad erroru v API vrstve.
 
 **EC:**
 
-- EC511 endpoint path bez `/v1`, pokud BFF/apiFetch prefixuje.
-- EC512 response type drift.
-- EC513 404 empty state vs real error.
-- EC514 abort/cancel pro long fetch.
-- EC515 no fetch directly in component.
+- EC511 endpoint path bez `/v1`, pokud BFF/apiFetch prefixuje → pouzij `crm/...`, ne `/v1/crm/...`.
+- EC512 response type drift → typy mirroruji C# records; pri backend zmene uprav `api.ts` a typecheck.
+- EC513 404 empty state vs real error → `api.ts` jen hazi `ApiError`; interpretace patri do UI/hooku.
+- EC514 abort/cancel pro long fetch → queryFn ma umet `signal`, streaming ma vlastni abort signal.
+- EC515 no fetch directly in component → komponenty volaji hooks/mutations, ne `fetch` nebo `apiFetch` primo.
 
 ### UC104 Frontend hooks
 
