@@ -331,7 +331,7 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC18 Tenant detail
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented — overeno `PlatformAdminTests`.
 
 **Pouzijes:** `GET /tenant/admin/tenants/{tenantId}`.
 
@@ -341,11 +341,11 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 **EC:**
 
-- EC086 tenant not found -> 404.
-- EC087 platform-admin scope.
-- EC088 detail neni CRM config source.
-- EC089 zobrazit entitlements jasne.
-- EC090 CRM nesmi prepisovat tenant metadata.
+- EC086 tenant not found -> 404: chybejici tenant vraci `tenant.not_found`.
+- EC087 platform-admin scope: bez `platform.tenants.manage` vraci endpoint 403.
+- EC088 detail neni CRM config source: jde o platform-admin registry detail, CRM si drzi vlastni CRM config.
+- EC089 zobrazit entitlements jasne: detail vraci `modules[]` s `key`, `enabled`, `tier` z persisted entitlements.
+- EC090 CRM nesmi prepisovat tenant metadata: CRM nesaha na `tenants`; pouziva jen `TenantId` jako referenci.
 
 ### UC19 Zapnout nebo vypnout modul tenantovi
 

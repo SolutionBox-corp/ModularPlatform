@@ -157,4 +157,48 @@ public sealed class PlatformAdminTests(PlatformApiFactory fixture)
         names.ShouldNotContain("modules");
         names.ShouldNotContain("entitlements");
     }
+
+    [Fact]
+    public async Task Tenant_detail_is_platform_admin_only_returns_404_for_missing_tenant_and_shows_persisted_entitlements()
+    {
+        var admin = await AdminTokenAsync();
+        var (_, userToken) = await fixture.RegisterAndLoginAsync($"plain-detail-{Guid.CreateVersion7():N}@x.com", Password);
+        var subdomain = $"detail-{Guid.CreateVersion7():N}".Substring(0, 30);
+
+        var provision = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/tenant/admin/tenants", admin, new { name = "Detail", subdomain }));
+        provision.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var tenantId = (await PlatformApiFactory.ReadData(provision)).GetProperty("tenantId").GetGuid();
+
+        var forbidden = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, $"/v1/tenant/admin/tenants/{tenantId}", userToken));
+        forbidden.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        var missing = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, $"/v1/tenant/admin/tenants/{Guid.CreateVersion7()}", admin));
+        missing.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
+        var detail = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, $"/v1/tenant/admin/tenants/{tenantId}", admin));
+        detail.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var data = await PlatformApiFactory.ReadData(detail);
+        data.GetProperty("tenantId").GetGuid().ShouldBe(tenantId);
+        data.GetProperty("subdomain").GetString().ShouldBe(subdomain);
+        ModuleEnabled(data, "billing").ShouldBeTrue();
+
+        var disable = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Put, $"/v1/tenant/admin/tenants/{tenantId}/entitlements/billing", admin,
+            new { enabled = false, tier = (string?)null }));
+        disable.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var afterToggle = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, $"/v1/tenant/admin/tenants/{tenantId}", admin));
+        afterToggle.StatusCode.ShouldBe(HttpStatusCode.OK);
+        ModuleEnabled(await PlatformApiFactory.ReadData(afterToggle), "billing").ShouldBeFalse();
+    }
+
+    private static bool ModuleEnabled(JsonElement tenantDetail, string moduleKey) =>
+        tenantDetail.GetProperty("modules").EnumerateArray()
+            .Any(m => string.Equals(m.GetProperty("key").GetString(), moduleKey, StringComparison.Ordinal)
+                && m.GetProperty("enabled").GetBoolean());
 }
