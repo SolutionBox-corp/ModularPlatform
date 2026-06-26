@@ -1582,21 +1582,34 @@ internal sealed class CrmReconcileJob(IDispatcher dispatcher) : IJob
 
 ### UC68 Messaging health
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented + tested — `MessagingHealthEvaluationTests` a `JobFailureMetricsTests`.
 
 **Pouzijes:** `MessagingHealthJob`.
 
-**Co se stane:** Platform sleduje pending outgoing/incoming/dead letters.
+**Co se stane:** Jobs host pravidelne spousti `MessagingHealthJob`. Job se pta Wolverine pres `IMessageStore.Admin.FetchCountsAsync()`, ne pres SQL nad internimi tabulkami. Aktualizuje OTel gauges `platform.messaging.dead_letters`, `platform.messaging.incoming_pending`, `platform.messaging.outgoing_pending` a zaloguje warning, kdyz existuje DLQ nebo pending count prekroci `Messaging:StuckThreshold`.
 
-**Napises v CRM:** vlastni domenu reconcile, pokud stuck run potrebuje opravu.
+**Napises v CRM:** vlastni domenu reconcile, pokud stuck run potrebuje opravu. Messaging health rekne "neco je v DLQ / outbox se zasekl", ale CRM musi umet rict "ktery import/run je v nekonzistentnim stavu a jak ho opravit".
+
+**Vzor CRM reakce:**
+
+```csharp
+internal sealed class ReconcileCrmCommandHandler
+{
+    // Najdi stuck CrmRuns, over externi stav, znovu enqueue praci nebo oznac Failed.
+}
+```
+
+**Co si pohlidas:** `Outgoing` je outbox backlog. `Scheduled` nejsou stuck messages; to jsou treba saga timeouts do budoucna. Dead-letter neni recovery mechanismus, jen signal pro operatora/reconcile.
+
+**Nepouzijes:** raw SQL do `wolverine_*` tabulek, business opravu primo v `MessagingHealthJob`, ani alert bez runbooku.
 
 **EC:**
 
-- EC336 DLQ neni business recovery.
-- EC337 alert bez akce nestaci.
-- EC338 stuck threshold.
-- EC339 no raw SQL do Wolverine tables.
-- EC340 metrics musi mit jasny owner.
+- EC336 DLQ neni business recovery → DLQ signalizuje problem, domenovy reconcile musi vedet co opravit.
+- EC337 alert bez akce nestaci → k alertu patri runbook: inspect, replay, nebo spustit domenovy reconcile.
+- EC338 stuck threshold → `Messaging:StuckThreshold`, default 100.
+- EC339 no raw SQL do Wolverine tables → pouzij `IMessageStore.Admin.FetchCountsAsync()`.
+- EC340 metrics musi mit jasny owner → `platform.messaging.*` vlastni platform/Jops host; CRM vlastni `crm.*` stuck/import metrics.
 
 ### UC69 Realtime stream
 
