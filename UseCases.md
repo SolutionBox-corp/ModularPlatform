@@ -2991,21 +2991,66 @@ var balance = await dispatcher.Query(new GetCreditBalanceForUserQuery(userId), c
 
 ### UC93 Spust cizi akci hned
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Architekturni pravidlo hotove; pro nove cross-module commands vytvor public command contract v owner modulu.
 
-**Pouzijes:** public command contract.
+**Pouzijes:** `*.Contracts` command DTO, `IDispatcher.Send(...)`, owner modul handler, idempotency key, jasne hranice transakce.
 
-**Co se stane:** CRM zavola `dispatcher.Send(...)` a ceka vysledek.
+**Co se stane:** CRM chce spustit akci, kterou vlastni jiny modul: poslat notifikaci, rezervovat kredity, validovat promo kod, vytvorit checkout. CRM nema kopirovat business logiku. Zavola command vlastneneho modulu a pouzije jeho vysledek.
 
-**Napises v CRM:** command orchestration, ne copy-paste business logiky.
+**Mentalni model:** command patri modulu, ktery vlastni invariant. Billing vi, jak korektne rezervovat kredity. Notifications vi, jak dedupovat send a rozdelit email/push/in-app pres outbox. CRM jen orchestruje "co potrebuju udelat", neimplementuje cizi pravidla.
+
+**Priklad notifikace:** CRM po vytvoreni dealu chce poslat in-app/email.
+
+```csharp
+await dispatcher.Send(new SendNotificationCommand(
+    UserId: ownerUserId,
+    TemplateKey: "crm_deal_created",
+    Channels: ["inapp", "email"],
+    Data: new Dictionary<string, string>
+    {
+        ["dealName"] = deal.Name,
+        ["email"] = ownerEmail,
+        ["locale"] = "cs",
+    },
+    IdempotencyKey: $"crm-deal-created:{deal.Id}"), ct);
+```
+
+**Priklad credits pro AI akci:** CRM agent chce spotrebovat kredity. Neodecitas balance sam. Zavolas Billing reserve, spustis akci, potom confirm nebo release.
+
+```csharp
+var hold = await dispatcher.Send(
+    new ReserveCreditsCommand(userId, amount: estimatedCredits, HoldMinutes: 15), ct);
+
+try
+{
+    var result = await crmAgent.RunAsync(command, ct);
+    await SaveAssistantResultAsync(result, ct);
+    await dispatcher.Send(new ConfirmSpendCommand(userId, hold.ReservationId), ct);
+}
+catch
+{
+    await dispatcher.Send(new ReleaseHoldCommand(userId, hold.ReservationId), CancellationToken.None);
+    throw;
+}
+```
+
+**Transakcni hranice:** `dispatcher.Send` do ciziho modulu neni jedna DB transakce s CRM save, pokud nepises vse ve stejnem DbContextu/outboxu (coz pres moduly nedelas). Pokud potrebujes atomicke "uloz CRM stav a oznam/uctuj", pouzij outbox/event nebo saga a idempotency. Necekave pady resis retry/reconciliation.
+
+**Kdy command nedavat sync:** dlouha prace, externi API, AI, email delivery nebo polling workflow patri do workeru/operation/eventu. Sync command je pro kratke rozhodnuti nebo okamzitou rezervaci.
+
+**Validace:** nech ji v owner modulu. CRM si muze predvalidovat UX, ale finalni validation/error code musi vratit command owner.
+
+**Testy k CRM:** over, ze CRM vola command s idempotency key, neprepocitava billing/notification rules; insufficient credits propadne jako business error; provider/worker failure release/compensate; duplicate retry nevytvori dvojitou notifikaci/debit.
+
+**Nepouzijes:** cizi DbContext, copy-paste command handleru, rucni update billing balance, inline SMTP/push v CRM, vice-modulovou "transakci" pres nahodne `SaveChanges`.
 
 **EC:**
 
-- EC461 command musi byt vlastneny cilovym modulem.
-- EC462 idempotency pro penize/notifikace.
-- EC463 validation v cilovem modulu.
-- EC464 transakce pres vice modulu neni automaticka.
-- EC465 dlouha prace nepatri do sync commandu.
+- EC461 command musi byt vlastneny cilovym modulem → CRM orchestrace ano, cizi invariant zustava v owner handleru.
+- EC462 idempotency pro penize/notifikace → pouzij stabilni key (`crm-action:{entityId}`), jinak retry muze poslat/debitovat dvakrat.
+- EC463 validation v cilovem modulu → owner modul vraci svoje error codes; CRM je jen preda/namapuje.
+- EC464 transakce pres vice modulu neni automaticka → pro multi-step flow pouzij outbox/sagu/compensaci.
+- EC465 dlouha prace nepatri do sync commandu → externi API/AI/email delivery dej do durable workeru nebo operation status flow.
 
 ### UC94 Oznám fakt ostatnim
 
