@@ -103,6 +103,18 @@ internal sealed class StripeGateway(IOptions<StripeOptions> options) : IStripeGa
         }
     }
 
+    public async Task<string> CreateBillingPortalSessionAsync(string customerId, string returnUrl, CancellationToken ct)
+    {
+        var session = await new global::Stripe.BillingPortal.SessionService(_client.Value).CreateAsync(
+            new global::Stripe.BillingPortal.SessionCreateOptions
+            {
+                Customer = customerId,
+                ReturnUrl = returnUrl,
+            },
+            cancellationToken: ct);
+        return session.Url;
+    }
+
     public async Task<PromotionCodeState?> FindActivePromotionCodeAsync(string code, CancellationToken ct)
     {
         var list = await new PromotionCodeService(_client.Value).ListAsync(

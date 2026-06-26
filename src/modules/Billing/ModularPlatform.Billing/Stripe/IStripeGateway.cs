@@ -20,6 +20,13 @@ internal interface IStripeGateway
 
     Task CancelSubscriptionAsync(string subscriptionId, bool atPeriodEnd, CancellationToken ct);
 
+    /// <summary>
+    /// Creates a Stripe Customer Portal session for <paramref name="customerId"/> and returns its hosted URL. The
+    /// portal is where a customer manages payment methods and views/downloads past invoices &amp; receipts — Stripe
+    /// hosts it, so the platform never touches card data. Returns the URL to redirect the browser to.
+    /// </summary>
+    Task<string> CreateBillingPortalSessionAsync(string customerId, string returnUrl, CancellationToken ct);
+
     /// <summary>Active promotion code lookup by customer-facing code, or null when unknown/inactive.</summary>
     Task<PromotionCodeState?> FindActivePromotionCodeAsync(string code, CancellationToken ct);
 

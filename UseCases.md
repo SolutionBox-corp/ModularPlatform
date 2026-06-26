@@ -786,21 +786,21 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC43 Billing portal
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented + tested — `BillingPortalTests`.
 
 **Pouzijes:** `POST /billing/portal`.
 
-**Co se stane:** Billing vytvori provider portal session.
+**Co se stane:** Billing najde Stripe customer id z posledniho subscription zaznamu uzivatele a vytvori hosted Customer Portal session.
 
-**Napises v CRM:** redirect.
+**Napises v CRM:** zavolas endpoint bez body, vezmes `data.url` a udelas browser redirect. CRM nikdy neposila `customerId` ani nesklada Stripe portal URL samo.
 
 **EC:**
 
-- EC211 missing customer id.
-- EC212 provider down.
-- EC213 return URL validation.
-- EC214 portal session expired.
-- EC215 CRM nevytvari portal session samo.
+- EC211 missing customer id → uzivatel jeste nema provider customer id, endpoint vraci 422 `billing.no_billing_account`.
+- EC212 provider down → Stripe vyjimka se prelozi na domenovou 422 `billing.portal.provider_failed`, nepropadne jako 500.
+- EC213 return URL validation → `Billing:Stripe:SuccessUrl` musi byt absolutni `http(s)` URL, jinak 422 `billing.portal.invalid_return_url`.
+- EC214 portal session expired → URL je kratkodoba provider session; pri expiraci CRM znovu zavola `POST /billing/portal` a dostane novou URL.
+- EC215 CRM nevytvari portal session samo → customer id se bere ze serverove DB podle tokenu, request nema body a nejde podvrhnout cizi customer id.
 
 ### UC44 Promo code
 

@@ -142,6 +142,9 @@
   <data name="billing.subscription.already_active" xml:space="preserve"><value>Uživatel už má aktivní předplatné.</value></data>
   <data name="billing.subscription.not_found" xml:space="preserve"><value>Žádné aktivní předplatné.</value></data>
   <data name="billing.subscription.provider_failed" xml:space="preserve"><value>Poskytovatel předplatného požadavek odmítl.</value></data>
+  <data name="billing.no_billing_account" xml:space="preserve"><value>Zatím nemáte fakturační účet. Nejprve si předplaťte nebo kupte kredity.</value></data>
+  <data name="billing.portal.invalid_return_url" xml:space="preserve"><value>Návratová URL billing portálu není správně nastavená.</value></data>
+  <data name="billing.portal.provider_failed" xml:space="preserve"><value>Poskytovatel billing portálu požadavek odmítl.</value></data>
   <data name="billing.subscription.plan_key.required" xml:space="preserve"><value>Klíč plánu je povinný.</value></data>
   <data name="billing.subscription.plan_key.too_long" xml:space="preserve"><value>Klíč plánu je příliš dlouhý.</value></data>
 </root>

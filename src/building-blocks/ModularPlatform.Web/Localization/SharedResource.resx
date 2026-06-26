@@ -142,6 +142,9 @@
   <data name="billing.subscription.already_active" xml:space="preserve"><value>The user already has an active subscription.</value></data>
   <data name="billing.subscription.not_found" xml:space="preserve"><value>No active subscription.</value></data>
   <data name="billing.subscription.provider_failed" xml:space="preserve"><value>The subscription provider rejected the request.</value></data>
+  <data name="billing.no_billing_account" xml:space="preserve"><value>No billing account yet. Subscribe or buy credits first.</value></data>
+  <data name="billing.portal.invalid_return_url" xml:space="preserve"><value>Billing portal return URL is not configured correctly.</value></data>
+  <data name="billing.portal.provider_failed" xml:space="preserve"><value>The billing portal provider rejected the request.</value></data>
   <data name="billing.subscription.plan_key.required" xml:space="preserve"><value>A plan key is required.</value></data>
   <data name="billing.subscription.plan_key.too_long" xml:space="preserve"><value>The plan key is too long.</value></data>
 </root>

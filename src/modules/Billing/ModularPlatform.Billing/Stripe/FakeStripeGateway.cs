@@ -17,6 +17,7 @@ internal sealed class FakeStripeGateway : IStripeGateway
     private readonly ConcurrentDictionary<string, PromotionCodeState> _promotionCodes = new();
     private readonly ConcurrentDictionary<string, string> _sessionPaymentStatus = new();
     private readonly ConcurrentQueue<CheckoutSessionSpec> _createdSessions = new();
+    private int _failNextBillingPortalSession;
     private int _sessionCounter;
 
     public void SeedEvent(Event stripeEvent) => _events[stripeEvent.Id] = stripeEvent;
@@ -29,6 +30,9 @@ internal sealed class FakeStripeGateway : IStripeGateway
     public void SeedPromotionCode(PromotionCodeState state) => _promotionCodes[state.Code] = state;
 
     public IReadOnlyCollection<CheckoutSessionSpec> CreatedSessions => [.. _createdSessions];
+
+    public void FailNextBillingPortalSession() =>
+        Interlocked.Exchange(ref _failNextBillingPortalSession, 1);
 
     public Task<Event> GetEventAsync(string eventId, CancellationToken ct) =>
         _events.TryGetValue(eventId, out var stripeEvent)
@@ -61,6 +65,17 @@ internal sealed class FakeStripeGateway : IStripeGateway
                 ? existing with { CancelAtPeriodEnd = true }
                 : existing with { Status = "canceled" });
         return Task.CompletedTask;
+    }
+
+    public Task<string> CreateBillingPortalSessionAsync(string customerId, string returnUrl, CancellationToken ct)
+    {
+        if (Interlocked.Exchange(ref _failNextBillingPortalSession, 0) == 1)
+        {
+            throw new StripeException("Portal unavailable");
+        }
+
+        return Task.FromResult(
+            $"https://billing.stripe.test/portal/{customerId}?return_url={Uri.EscapeDataString(returnUrl)}");
     }
 
     public Task<PromotionCodeState?> FindActivePromotionCodeAsync(string code, CancellationToken ct) =>
