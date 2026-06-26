@@ -4335,18 +4335,75 @@ dotnet run --project src/hosts/ModularPlatform.MigrationService
 
 ### UC112 Testy noveho flow
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Test harness existuje; CRM nesmi zakladat vlastni Testcontainers fixture.
 
-**Pouzijes:** `tests/ModularPlatform.IntegrationTesting` a architecture tests.
+**Pouzijes:** `tests/ModularPlatform.IntegrationTesting/PlatformApiFactory`, module test projekt `src/modules/Crm/ModularPlatform.Crm.Tests`, `HostBootTests`, `ModuleBoundaryTests`, `MessageWireIdentityTests`, `ErrorCodeLocalizationTests`.
 
-**Co se stane:** Testy bootuji realne hosty a overuji boundaries.
+**Co se stane:** CRM testy bootuji realny API host s realnym Postgres Testcontainerem pres sdileny `PlatformApiFactory`. Testuji dispatcher, DbContext, RLS, audit, Wolverine wiring, outbox/inbox a endpointy stejnou cestou jako produkce.
 
-**Napises v CRM:** slice/integration tests, boundary tests podle potreby.
+**Mentalni model:** Netestuj jen handler jako izolovanou tridu, kdyz flow zavisi na tenant/user contextu, credits, outboxu nebo RLS. Platforma ma test harness presne proto, aby tyto veci nesly obejit.
+
+**CRM test projekt:** reference na CRM Core, CRM Contracts a `ModularPlatform.IntegrationTesting`. Pouzij collection fixture podle existujicich module tests.
+
+```csharp
+public sealed class CrmContactTests(PlatformApiFactory factory)
+    : IClassFixture<PlatformApiFactory>
+{
+    [Fact]
+    public async Task Create_contact_stamps_owner_and_returns_detail()
+    {
+        var (_, token) = await factory.RegisterAndLoginAsync(
+            "crm-user@test.local",
+            "Password123!");
+
+        using var request = factory.Authed(
+            HttpMethod.Post,
+            "/v1/crm/contacts",
+            token,
+            new { companyName = "Acme", email = "buyer@acme.test" });
+
+        var response = await factory.Client.SendAsync(request);
+
+        response.EnsureSuccessStatusCode();
+        var data = await PlatformApiFactory.ReadData(response);
+        data.GetProperty("contactId").GetGuid().ShouldNotBe(Guid.Empty);
+    }
+}
+```
+
+**Test matrix pro CRM:** minimum pro novy flow:
+- create/list/detail happy path;
+- 401 bez tokenu;
+- 403 bez permission, pokud endpoint permission ma;
+- 404 foreign id / deleted id bez IDOR leak;
+- validation error code;
+- tenant/user isolation pres RLS;
+- idempotency u drahych side effectu;
+- credit insufficient path, pokud flow plati tokeny;
+- notification/file/operation side effect, pokud flow pouziva jiny modul;
+- event handler idempotency, pokud CRM publikuje nebo konzumuje event.
+
+**RLS test:** pokud CRM entita implementuje `IUserOwned`, over, ze cizi user ji neprecte ani pres runtime RLS role.
+
+```csharp
+var visible = await factory.ScalarAsUserAsync<long>(
+    otherUserId,
+    "select count(*) from crm_contacts where id = '...'");
+visible.ShouldBe(0);
+```
+
+**Host boot:** po pridani CRM modulu ho pridej do Api/Worker/Jobs/Migration composers a do `HostBootTests.BootArgs()`. Kdyz zapomenes Worker/Jobs/Migration, HostBootTests to maji chytit.
+
+**Architecture tests:** pridej CRM assemblies do `ModuleBoundaryTests`. Pokud CRM prida `IIntegrationEvent` v `*.Contracts`, pridej jeho full name do `MessageWireIdentityTests.FrozenWireNames`.
+
+**Error localization:** kazdy novy thrown code nebo `.WithErrorCode(...)` musi projit `ErrorCodeLocalizationTests`: EN i CS resx.
+
+**Nepouzijes:** druhy Testcontainer fixture, mockovani platformovych invariant pro integration flow, test jen happy path, testy s raw SQL misto API pro business assert, skip architecture tests po pridani modulu.
 
 **EC:**
 
-- EC556 nepsat druhy Testcontainers fixture.
-- EC557 host registration chybi -> HostBootTests fail.
-- EC558 contracts/core boundary violation.
-- EC559 event wire name drift.
-- EC560 test pokryje happy path i edge path.
+- EC556 nepsat druhy Testcontainers fixture → pouzij `PlatformApiFactory`; jeden host/DB per test process.
+- EC557 host registration chybi -> HostBootTests fail → CRM registruj ve Worker/Jobs/Migration a BootArgs.
+- EC558 contracts/core boundary violation → CRM Core internal, cross-module jen pres `*.Contracts`; pridej do ModuleBoundaryTests.
+- EC559 event wire name drift → novy CRM integration event pridej do `FrozenWireNames`, rename je breaking change.
+- EC560 test pokryje happy path i edge path → minimum happy + auth + permission + validation + RLS + side-effect failure.
