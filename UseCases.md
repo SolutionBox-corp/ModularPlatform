@@ -2116,21 +2116,83 @@ internal sealed class CrmRetentionSweepHandler(CrmDbContext db, IClock clock)
 
 ### UC79 Spustit data pull
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implementovany kanonicky Marketing 202 pattern; CRM import/sync ho ma kopirovat.
 
-**Pouzijes:** `POST /marketing/pulls`.
+**Pouzijes:** `POST /marketing/pulls`, `IDbContextOutbox`, durable `RunDataPull`, worker handler, gateway porty (`IGa4Gateway`, `IGscGateway`).
 
-**Co se stane:** Marketing ulozi pull a worker taha GA/GSC data pres gateway porty.
+**Co se stane:** HTTP request jen prijme praci, ulozi `DataPull` ve stavu `Pending`, publikuje durable work message pres outbox a vrati `202 Accepted + Location`. Externi GA/GSC API se nevola v requestu. Worker pozdeji zmeni stav `Pending -> Running -> Completed/Failed`, ulozi snapshots a po commitu posle realtime invalidaci.
 
-**Napises v CRM:** pro CRM import kopiruj pull/status/worker pattern.
+**Mentalni model:** tohle je vzor pro jakykoliv CRM import z HubSpotu, CSV enrich, lead sync nebo externi scoring. User klikne "spustit", backend zalozi jednotku prace a UI polluje status. Vse pomale, retryovatelne a nespolehlive bezi ve Workeru.
+
+**Endpoint:** owner ber z tokenu, defaultni datumy/casove okno pocitej pres `IClock`, vrat `202` a `Location` na status endpoint.
+
+```csharp
+app.MapPost("/crm/imports", async (
+        StartCrmImportRequest request,
+        ITenantContext tenant,
+        IDispatcher dispatcher,
+        LinkGenerator links,
+        HttpContext http,
+        CancellationToken ct) =>
+    {
+        var userId = tenant.UserId
+            ?? throw new UnauthorizedException("auth.required", "Authentication required.");
+
+        var result = await dispatcher.Send(
+            new StartCrmImportCommand(userId, request.Source, request.FileId), ct);
+
+        var location = links.GetPathByName(http, "GetCrmImportStatus", new { importId = result.ImportId })
+            ?? $"/crm/imports/{result.ImportId}";
+
+        return Results.Accepted(location, ApiResponse<StartCrmImportResponse>.Ok(result));
+    })
+    .RequireAuthorization()
+    .RequireModule("crm");
+```
+
+**Accept handler:** uloz `Pending` radek a durable message v jedne outbox transakci. Kdyz ulozeni projde, message existuje. Kdyz ulozeni spadne, message nevznikne.
+
+```csharp
+var import = new CrmImport
+{
+    UserId = command.UserId,
+    Source = command.Source,
+    Status = ImportStatus.Pending,
+    ParamsJson = JsonSerializer.Serialize(new { command.FileId }),
+};
+
+outbox.DbContext.Imports.Add(import);
+await outbox.PublishAsync(new RunCrmImport(import.Id));
+await outbox.SaveChangesAndFlushMessagesAsync();
+
+return new StartCrmImportResponse(import.Id);
+```
+
+**Worker shell:** public Wolverine handler ma byt tenky. Jen prelozi durable message na interni command, aby business logika zustala ve vertical slice.
+
+```csharp
+public sealed class RunCrmImportHandler
+{
+    public Task Handle(RunCrmImport message, IDispatcher dispatcher, CancellationToken ct) =>
+        dispatcher.Send(new ExecuteCrmImportCommand(message.ImportId), ct);
+}
+```
+
+**Execute handler:** nacti import, ignoruj terminalni stavy, nastav `Running`, volej gateway port, uloz vysledek, nastav `Completed`. Pri exception nastav terminalni `Failed` + error code, at UI nepolluje donekonecna.
+
+**Duplicate/idempotency:** pokud user rychle klikne dvakrat a import nemuze bezet dvakrat, pridej idempotency key/unique index podle `UserId + Source + FileId + Period`. Pokud duplicitni import je povoleny, nech to explicitne ve specu.
+
+**Testy k CRM:** test `202 + Location`, worker dokonci import, status prejde do terminal state, owner scoping vraci cizimu userovi 404, unsupported source je validation error, gateway exception skonci jako `Failed`.
+
+**Nepouzijes:** externi API call v endpointu, fire-and-forget `Task.Run`, vlastni background thread, handler direct call, ani request body `userId`.
 
 **EC:**
 
-- EC391 external API down.
-- EC392 credentials missing.
-- EC393 duplicate pull.
-- EC394 rate limit.
-- EC395 worker retry and status.
+- EC391 external API down → execute handler chyti exception, zaloguje ji a nastavi `Failed` s obecným error codem; real detail zustava v logu.
+- EC392 credentials missing → gateway port failne jako config chyba; status nesmi zustat `Running`.
+- EC393 duplicate pull → rozhodni idempotency key; bud vrat existujici pending import, nebo povol novy import jako samostatnou praci.
+- EC394 rate limit → gateway/worker retry patri do Workeru; HTTP accept porad vraci rychle `202`.
+- EC395 worker retry and status → redelivery nesmi znovu spustit terminalni `Completed/Failed` import; terminalni stav je finalni.
 
 ### UC80 Get pull status
 
