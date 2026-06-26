@@ -3309,21 +3309,47 @@ var result = await bus.InvokeAsync<LeadScoreResult>(
 
 ### UC98 Vice subscriberu na jeden event
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Base pravidla popsana ve Wolverine setupu; CRM subscribery musi byt idempotentni a order-independent.
 
-**Pouzijes:** Wolverine durable handlers.
+**Pouzijes:** Wolverine durable handlers, inbox dedup, idempotency keys, optional `MultipleHandlerBehavior.Separated` rozhodnuti.
 
-**Co se stane:** Jeden event muze mit vice handleru.
+**Co se stane:** Jeden event, napr. `UserRegisteredIntegrationEvent` nebo `DealCreatedIntegrationEvent`, muze poslouchat vic modulu. Kazdy subscriber ma vlastni side effect: Billing provisionuje ucet, Notifications posle welcome, CRM vytvori snapshot. Wolverine event doruci durable; retry muze zopakovat cely handler set podle aktualniho behavioru.
 
-**Napises v CRM:** kazdy handler order-independent a idempotentni.
+**Mentalni model:** event bus neni choreografie v pevnem poradi. Handler nesmi rikat "pockam, az Notifications uz poslaly email" nebo "Billing handler urcite bezi pred CRM". Pokud neco potrebujes, dotahni live stav pres query contract nebo si udelej vlastni idempotentni projekci.
+
+**CRM handler:** kazdy handler dela jednu vec a je bezpecny pri redelivery.
+
+```csharp
+public sealed class DealCreatedAnalyticsHandler
+{
+    public Task Handle(DealCreatedIntegrationEvent message, IDispatcher dispatcher, CancellationToken ct) =>
+        dispatcher.Send(new RecordDealCreatedMetricCommand(message.DealId, message.EventId), ct);
+}
+
+public sealed class DealCreatedNotificationHandler
+{
+    public Task Handle(DealCreatedIntegrationEvent message, IDispatcher dispatcher, CancellationToken ct) =>
+        dispatcher.Send(new SendDealCreatedNotificationCommand(message.DealId, message.EventId), ct);
+}
+```
+
+**Idempotency:** oba commandy maji vlastni unique key/source event id. Kdyz se event zpracuje znovu, metrics se nezapise dvakrat a notification se neposle dvakrat.
+
+**Combined vs separated:** v aktualnim base neni `MultipleHandlerBehavior` prepnute na separated jako defaultni produktove rozhodnuti. Pocitej, ze chyba jednoho handleru muze retryovat i ostatni handlery pro stejnou obalku. Pokud potrebujes izolovane DLQ/retry per subscriber, je to explicitni architekturni zmena, ne lokalni hack.
+
+**Commutative state:** navrhuj reakce tak, aby nezalezely na poradi: "ensure snapshot exists", "set latest known status if event newer", "insert if sourceEventId not seen". Ne "increment counter bez dedupu" nebo "predpokladam, ze predchozi event uz prisel".
+
+**Testy k CRM:** dva subscriberi na stejny event projdou, retry jednoho nezduplikuje side effects druheho, out-of-order event neprepise novejsi stav, failed subscriber jde do retry/DLQ viditelne.
+
+**Nepouzijes:** handler A zavisly na side effectu handleru B, global ordering predpoklady, non-idempotent increment bez source key, catch-and-swallow exception jen aby retry nebyl.
 
 **EC:**
 
-- EC486 retry muze zopakovat vice handleru.
-- EC487 handler A nesmi spolehat na handler B.
-- EC488 dead-letter blokuje side-effect podle behavior.
-- EC489 no global ordering.
-- EC490 commutative state changes preferovat.
+- EC486 retry muze zopakovat vice handleru → vsechny side effects musi byt idempotentni, nejen ten ktery spadl.
+- EC487 handler A nesmi spolehat na handler B → sdileny stav dotahni pres query/projekci, ne pres poradi handleru.
+- EC488 dead-letter blokuje side-effect podle behavior → pri combined behavioru muze chyba jednoho subscriberu ovlivnit celou obalku; isolated retry vyzaduje explicitni separated decision.
+- EC489 no global ordering → ruzne eventy se mohou zpracovat paralelne a mimo poradi.
+- EC490 commutative state changes preferovat → upsert/ensure/set-if-newer je bezpecnejsi nez order-dependent increment.
 
 ### UC99 Event s minimem PII
 
