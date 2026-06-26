@@ -678,7 +678,7 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC37 Purchase package checkout
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented — `PurchaseCreditPackageTests` + existujici `BillingCommerceTests` overuji disabled/not found, duplicate click, gateway unavailable, timeout a confirmed-webhook grant.
 
 **Pouzijes:** `POST /billing/packages/{packageId}/checkout`.
 
@@ -688,11 +688,11 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 **EC:**
 
-- EC181 package disabled/not found.
-- EC182 duplicate checkout click.
-- EC183 provider unavailable.
-- EC184 saga timeout.
-- EC185 kredit se grantuje az po confirmed webhooku.
+- EC181 package disabled/not found → unknown package vraci 404, inactive package vraci `billing.package_inactive`.
+- EC182 duplicate checkout click → bez client idempotency key backend zalozi dve oddelene pending purchases; FE musi button disableovat. Bez confirmed webhooku se nic nepripise.
+- EC183 provider unavailable → tenant bez payment gateway configu dostane `payment.gateway_not_configured`.
+- EC184 saga timeout → `CreditPurchaseTimeout` presune pending purchase na `Abandoned`; late confirmation stale muze grantnout.
+- EC185 kredit se grantuje az po confirmed webhooku → checkout pouze vytvori provider session + pending saga; ledger entry vznikne az po paid webhooku.
 
 ### UC38 Purchase status
 
