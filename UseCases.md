@@ -1840,21 +1840,34 @@ if (!await consentReader.HasActiveConsentAsync(userId, "crm.marketing", ct))
 
 ### UC74 Get consents
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented + tested — `Get_consents_has_empty_state_is_owner_scoped_and_returns_policy_version` a consent round-trip tests.
 
 **Pouzijes:** `GET /gdpr/me/consents`.
 
-**Co se stane:** Frontend zobrazi consent centrum.
+**Co se stane:** Endpoint vrati append-only consent historii prihlaseneho usera, newest first, capped na 500 poslednich zaznamu. Response obsahuje `id`, `consentType`, `granted`, `recordedAt`, `policyVersion`. Prazdna historie je `[]`.
 
-**Napises v CRM:** nic, jen guardy pro CRM features podle consentu.
+**Napises v CRM:** nic do backendu, pokud jen zobrazujes consent center. CRM feature guardy cti aktualni stav tak, ze vezmes newest row pro dany `consentType`.
+
+**Vzor frontendu:**
+
+```ts
+const history = await api.get("/v1/gdpr/me/consents");
+const currentMarketing = history.data
+  .filter((x) => x.consentType === "crm.marketing")
+  .sort((a, b) => Date.parse(b.recordedAt) - Date.parse(a.recordedAt))[0];
+```
+
+**Co si pohlidas:** legal text a lokalizace nejsou v response; response nese `policyVersion`. UI si podle consent key + locale + policyVersion nacte spravny text z vlastniho content/config layeru.
+
+**Nepouzijes:** `GET /gdpr/users/{id}/consents`, frontend-only owner filter, ani unsupported consent key jako duvod pro cteni cizi historie.
 
 **EC:**
 
-- EC366 empty state.
-- EC367 locale/legal text.
-- EC368 stale query.
-- EC369 owner scope.
-- EC370 unsupported consent key.
+- EC366 empty state → vraci `[]`, ne 404.
+- EC367 locale/legal text → legal text je content/config; consent record drzi `policyVersion`.
+- EC368 stale query → po grant/withdraw invaliduj `gdpr.consents`.
+- EC369 owner scope → subject je token user, test overuje cizi consent se nevrati.
+- EC370 unsupported consent key → base nema whitelist; UI muze neznamy key ignorovat nebo zobrazit fallback.
 
 ### UC75 PII v CRM datech
 

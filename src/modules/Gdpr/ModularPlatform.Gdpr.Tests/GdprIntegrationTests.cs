@@ -226,6 +226,41 @@ public sealed class GdprIntegrationTests(PlatformApiFactory fixture)
         historyRows.ShouldBe(2);
     }
 
+    [Fact]
+    public async Task Get_consents_has_empty_state_is_owner_scoped_and_returns_policy_version()
+    {
+        var (_, accessToken) = await fixture.RegisterAndLoginAsync(
+            $"consent-empty-{Guid.CreateVersion7():N}@example.com", Password);
+
+        var empty = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/gdpr/me/consents", accessToken));
+        empty.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PlatformApiFactory.ReadData(empty)).GetArrayLength().ShouldBe(0);
+
+        var otherConsentType = $"other-{Guid.CreateVersion7():N}";
+        var (_, otherToken) = await fixture.RegisterAndLoginAsync(
+            $"consent-other-{Guid.CreateVersion7():N}@example.com", Password);
+        await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Post, "/v1/gdpr/consents/grant", otherToken,
+            new { consentType = otherConsentType, policyVersion = "2026-06" }));
+
+        var stillEmpty = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/gdpr/me/consents", accessToken));
+        stillEmpty.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PlatformApiFactory.ReadData(stillEmpty)).GetArrayLength().ShouldBe(0);
+
+        var ownConsentType = $"own-{Guid.CreateVersion7():N}";
+        await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Post, "/v1/gdpr/consents/grant", accessToken,
+            new { consentType = ownConsentType, policyVersion = "2026-06" }));
+
+        var own = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/gdpr/me/consents", accessToken));
+        own.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var rows = await PlatformApiFactory.ReadData(own);
+        rows.GetArrayLength().ShouldBe(1);
+        rows[0].GetProperty("consentType").GetString().ShouldBe(ownConsentType);
+        rows[0].GetProperty("policyVersion").GetString().ShouldBe("2026-06");
+    }
+
     // GD-6 — the consent log participates in its OWN export + erasure (was a gap: consent history survived erasure
     // with the real UserId and was absent from the Art. 15 export). Export now includes a "Gdpr.Consents" section;
     // erasure DELETES the subject's consent rows (no AML/tax retention obligation, unlike the credit ledger).
