@@ -4,8 +4,10 @@ using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using ModularPlatform.Billing.Features.Credits.ExpireCredits;
 using ModularPlatform.Billing.Features.Credits.ReserveCredits;
+using ModularPlatform.Billing.Jobs;
 using ModularPlatform.Cqrs;
 using ModularPlatform.IntegrationTesting;
+using Quartz;
 using Shouldly;
 
 namespace ModularPlatform.Billing.Tests;
@@ -223,7 +225,10 @@ public sealed class LedgerLifecycleTests(PlatformApiFactory fixture)
 
         // Trigger the sweep the same way the Jobs host does: dispatch ExpireCreditsCommand (no HTTP route exists).
         // A manual DI scope has no HttpContext, so HttpTenantContext.IsSystem == true -> RLS bypassed, all accounts swept.
-        await DispatchExpireSweepAsync();
+        var firstSweep = await DispatchExpireSweepAsync();
+        firstSweep.ExpiredHolds.ShouldBeGreaterThanOrEqualTo(1);
+        firstSweep.ExpiredBuckets.ShouldBeGreaterThanOrEqualTo(1);
+        firstSweep.ExpiredCredits.ShouldBeGreaterThanOrEqualTo(100);
 
         var afterSweep = await ProjectionAsync(userId);
         // Lapsed hold released: pending 50 -> 0, available += 50. Expired bucket destroyed: posted -= 100, available -= 100.
@@ -245,10 +250,19 @@ public sealed class LedgerLifecycleTests(PlatformApiFactory fixture)
         var expiryEntries = await fixture.ScalarAsync<long>(
             $"SELECT count(*)::bigint FROM credit_entries WHERE \"AccountId\" = '{accountId}' AND \"Type\" = 'Expiry'");
         expiryEntries.ShouldBe(1);
+        var expiryBucketKeyCount = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_entries WHERE \"IdempotencyKey\" = 'expire-bucket:{doomedBucketId}'");
+        expiryBucketKeyCount.ShouldBe(1);
+        var expiryHoldKeyCount = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_entries WHERE \"IdempotencyKey\" = 'expire-hold:{reservationId}'");
+        expiryHoldKeyCount.ShouldBe(1);
 
         // Idempotent: running the sweep again does NOT double-apply (UNIQUE expire-hold/expire-bucket keys; the
         // hold is no longer Active and the bucket Remaining is 0, so neither is picked up again).
-        await DispatchExpireSweepAsync();
+        var secondSweep = await DispatchExpireSweepAsync();
+        secondSweep.ExpiredHolds.ShouldBe(0);
+        secondSweep.ExpiredBuckets.ShouldBe(0);
+        secondSweep.ExpiredCredits.ShouldBe(0);
 
         var afterSecondSweep = await ProjectionAsync(userId);
         afterSecondSweep.Posted.ShouldBe(100);
@@ -340,16 +354,24 @@ public sealed class LedgerLifecycleTests(PlatformApiFactory fixture)
         projection.Pending.ShouldBe(100);
     }
 
+    [Fact]
+    public void Expire_credits_job_is_a_non_overlapping_scheduler_adapter()
+    {
+        typeof(BillingExpireCreditsJob)
+            .GetCustomAttributes(typeof(DisallowConcurrentExecutionAttribute), inherit: false)
+            .Length.ShouldBe(1);
+    }
+
     /// <summary>
     /// Dispatches the credit-expiry sweep command directly — there is NO HTTP endpoint for it (it is only
     /// triggered by <c>BillingExpireCreditsJob</c> in the Jobs host). A manual DI scope created off the Api host
     /// has no HttpContext, so <c>HttpTenantContext.IsSystem</c> is true and the data connection runs as a system
     /// principal (RLS bypassed) — exactly the Jobs-host execution context. The command sweeps every account.
     /// </summary>
-    private async Task DispatchExpireSweepAsync()
+    private async Task<ExpireCreditsResponse> DispatchExpireSweepAsync()
     {
         await using var scope = fixture.Services.CreateAsyncScope();
         var dispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
-        await dispatcher.Send(new ExpireCreditsCommand());
+        return await dispatcher.Send(new ExpireCreditsCommand());
     }
 }

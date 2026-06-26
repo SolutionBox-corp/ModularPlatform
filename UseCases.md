@@ -840,21 +840,21 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC46 Expirace kreditu
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented + tested — `LedgerLifecycleTests`.
 
 **Pouzijes:** `BillingExpireCreditsJob`.
 
-**Co se stane:** Jobs host materializuje expirace bucketu/holdu.
+**Co se stane:** Jobs host dispatchne `ExpireCreditsCommand`, ktery materializuje expirovane holdy a bucket zmeny do ledgeru a projekce uctu.
 
-**Napises v CRM:** nic.
+**Napises v CRM:** nic. CRM nikdy neupravuje bucket remaining ani hold status; jen cte balance/ledger.
 
 **EC:**
 
-- EC226 expired buckets.
-- EC227 hold overlapping bucket.
-- EC228 idempotency key per expiration.
-- EC229 UTC cron.
-- EC230 CRM nesmi upravovat bucket remaining.
+- EC226 expired buckets → bucket s volnym `Remaining` po `ExpiresAt` dostane `Expiry` ledger entry a snizi `Posted`/`Available`.
+- EC227 hold overlapping bucket → kdyz bucket kryje aktivni rezervaci, sweep ho preskoci, aby nesrazil balance pod nulu.
+- EC228 idempotency key per expiration → ledger pouziva `expire-hold:{holdId}` a `expire-bucket:{bucketId}`, opakovany sweep je no-op.
+- EC229 UTC cron → `BillingModule.RegisterJobs` nastavuje Quartz cron pres `InTimeZone(TimeZoneInfo.Utc)` a job ma `DisallowConcurrentExecution`.
+- EC230 CRM nesmi upravovat bucket remaining → zmena bucketu jde jen pres Billing commandy; CRM nema endpoint ani tabulkovy zapis na bucket remaining.
 
 ### UC47 Provision credit account
 
