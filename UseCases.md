@@ -3256,21 +3256,56 @@ await db.SaveChangesAsync(ct);
 
 ### UC97 Kratky request-response pres bus
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Blueprint/opatrny pattern; v base neni hlavni produkcni priklad, preferuj `IDispatcher` nebo Operations 202 flow.
 
-**Pouzijes:** `IMessageBus.InvokeAsync<T>`.
+**Pouzijes:** `IMessageBus.InvokeAsync<T>` jen pro kratkou worker-side praci s jasnym timeoutem.
 
-**Co se stane:** Pro kratkou worker praci muzes ziskat response.
+**Co se stane:** CRM posle message pres Wolverine bus a ceka na response. Hodi se jen pro rychlou izolovanou praci, ktera opravdu musi bezet pres bus, ale nepotrebuje user-facing status page. Pokud to muze trvat, padat na provideru, retryovat minuty nebo menit vic stavu, pouzij UC63/UC79 Operations/202 pattern.
 
-**Napises v CRM:** jen kdyz prace neni dlouha a nepotrebuje status page.
+**Mentalni model:** `InvokeAsync<T>` je request-response pres messaging, ne nahrada HTTP endpointu ani workflow enginu. User stale ceka. Timeout musi byt ocekavany stav, ne bug.
+
+**Priklad:** CRM chce rychle spocitat izolovanou worker-side validaci, ktera nema externi API a typicky trva <1s.
+
+```csharp
+public sealed record ScoreLeadNow(Guid LeadId, Guid UserId);
+public sealed record LeadScoreResult(int Score, string Reason);
+
+public sealed class ScoreLeadNowHandler
+{
+    public Task<LeadScoreResult> Handle(ScoreLeadNow message, CancellationToken ct)
+    {
+        // kratka CPU/DB prace, zadne dlouhe externi API
+        return Task.FromResult(new LeadScoreResult(82, "High engagement"));
+    }
+}
+```
+
+```csharp
+using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
+
+var result = await bus.InvokeAsync<LeadScoreResult>(
+    new ScoreLeadNow(leadId, userId),
+    linked.Token);
+```
+
+**Kdy to nepouzit:** AI odpoved, import, file processing, Stripe/Google API, email/push delivery, polling stav, multi-step business workflow. Tam user dostane `202 + Location` a status endpoint.
+
+**Idempotency:** i kratka prace muze byt retried. Pokud ma side effect, dej idempotency key nebo ji predelej na command/outbox/operation. Nejbezpecnejsi `InvokeAsync` handler je pure/read-only.
+
+**UX:** pri timeoutu vrat userovi jasnou chybu nebo prejdi na async flow. Nenech frontend viset na spinneru bez moznosti retry.
+
+**Testy k CRM:** happy path vrati response, timeout vrati predvidatelnou chybu, handler retry nezdvoji side effect, dlouha prace ma samostatny 202 test misto Invoke.
+
+**Nepouzijes:** long-running workflow, externi provider call bez statusu, side effect bez idempotence, nekonecny timeout, ani `InvokeAsync` pro komunikaci, kterou umi normalni dispatcher query/command.
 
 **EC:**
 
-- EC481 timeout.
-- EC482 dlouha prace musi jit do Operations.
-- EC483 idempotency.
-- EC484 retry semantics.
-- EC485 user feedback pri timeoutu.
+- EC481 timeout → nastav kratky timeout a mapuj ho na user-facing error nebo fallback async flow.
+- EC482 dlouha prace musi jit do Operations → vse nad par sekund patri do 202/status patternu.
+- EC483 idempotency → side effect v invoke handleru potrebuje idempotency key; idealne invoke nema side effects.
+- EC484 retry semantics → message handler muze bezet znovu; nepocitej s exactly-once bez domenove ochrany.
+- EC485 user feedback pri timeoutu → UI musi vedet, jestli ma retry nebo jestli byla zalozena async operace.
 
 ### UC98 Vice subscriberu na jeden event
 
