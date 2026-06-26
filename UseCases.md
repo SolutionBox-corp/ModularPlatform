@@ -1287,21 +1287,80 @@ queryClient.invalidateQueries({ queryKey: ["deal", dealId, "attachments"] });
 
 ### UC62 Pripojit file k CRM entite
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Blueprint for CRM module — base nema CRM modul, implementuje se v novem CRM Core podle tohoto vzoru.
 
 **Pouzijes:** Files upload + CRM join table.
 
-**Co se stane:** CRM ma `DealAttachment(DealId, FileObjectId, UserId)`.
+**Co se stane:** Files modul vlastni blob a metadata souboru. CRM modul vlastni jen vazbu mezi CRM entitou a file id, napr. `DealAttachment(DealId, FileObjectId, UserId, CreatedAt)`. Upload probiha pres `POST /files`, response vrati `FileObjectId`. CRM potom zavola `AttachFileToDealCommand`, ktery overi, ze deal patri userovi/tenantovi, a ulozi vazbu. CRM nikdy necita `file_objects` tabulku primo.
 
-**Napises v CRM:** command `AttachFileToDealCommand`.
+**Napises v CRM:** command `AttachFileToDealCommand` + validator + endpoint. Entity ma unique index `(DealId, FileObjectId)`, aby double-click nevytvoril duplicitni attachment.
+
+**Vzor entity:**
+
+```csharp
+internal sealed class DealAttachment : AuditableEntity, IUserOwned
+{
+    public Guid DealId { get; set; }
+    public Guid FileObjectId { get; set; }
+    public Guid UserId { get; set; }
+}
+```
+
+**Vzor commandu:**
+
+```csharp
+public sealed record AttachFileToDealCommand(
+    Guid DealId,
+    Guid FileObjectId,
+    Guid UserId) : ICommand<DealAttachmentResponse>;
+```
+
+**Vzor handleru:**
+
+```csharp
+var deal = await db.Deals
+    .Where(x => x.Id == command.DealId && x.UserId == command.UserId)
+    .FirstOrDefaultAsync(ct)
+    ?? throw new NotFoundException("crm.deal_not_found", "Deal not found.");
+
+db.DealAttachments.Add(new DealAttachment
+{
+    DealId = deal.Id,
+    FileObjectId = command.FileObjectId,
+    UserId = command.UserId,
+});
+
+try
+{
+    await db.SaveChangesAsync(ct);
+}
+catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+{
+    // Idempotent double-click: return existing attachment.
+}
+```
+
+**Jak overis file access:** v prvni verzi CRM ulozi jen id a spoleha na Files endpoint, ktery pri downloadu znovu overi owner scope. Pokud potrebujes overit uz pri attachi, nepristupuj na Files Core ani DB; pouzij verejny endpoint/query kontrakt, pokud pro to v base vznikne. Do te doby attach autorizuj pres deal ownership a user-owned file download zustava final guard.
+
+**Frontend flow:**
+
+```ts
+const uploaded = await uploadFile(file);
+await api.post(`/v1/crm/deals/${dealId}/attachments`, {
+  fileObjectId: uploaded.id,
+});
+invalidateDealAttachments(dealId);
+```
+
+**Nepouzijes:** navigation property na FileObject, cross-module JOIN, storage key v CRM, ani `fileUserId` z request body.
 
 **EC:**
 
-- EC306 deal foreign user -> 404.
-- EC307 file foreign user -> 404.
-- EC308 duplicate attachment.
-- EC309 deal deleted.
-- EC310 GDPR erase musi odstranit i vazby nebo anonymizovat metadata.
+- EC306 deal foreign user -> 404 → command hleda deal pres `DealId && UserId/TenantId`; cizi deal se tvari jako neexistujici.
+- EC307 file foreign user -> 404 → finalni guard je Files download/list owner scope; pro eager validation nepristupuj na Files DB, dopln verejny Files query/endpoint.
+- EC308 duplicate attachment → unique index `(DealId, FileObjectId)` + catch unique violation = idempotentni double-click.
+- EC309 deal deleted → attach command vrati `crm.deal_not_found`; list attachmentu ma filtrovat jen existujici/aktivni deal.
+- EC310 GDPR erase musi odstranit i vazby nebo anonymizovat metadata → CRM `IErasePersonalData` smaze/anonymizuje `DealAttachment` rows pro subjecta; Files eraser smaze samotne soubory subjecta.
 
 ## Operations, Worker, Jobs, Realtime
 
