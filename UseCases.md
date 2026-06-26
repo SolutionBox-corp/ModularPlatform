@@ -2196,21 +2196,77 @@ public sealed class RunCrmImportHandler
 
 ### UC80 Get pull status
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implementovano v Marketing; CRM import/status endpoint ma kopirovat stejny read pattern.
 
-**Pouzijes:** `GET /marketing/pulls/{dataPullId}`.
+**Pouzijes:** `GET /marketing/pulls/{dataPullId}`, `IReadDbContextFactory`, owner `UserId` z tokenu, `PullStatusResponse`.
 
-**Co se stane:** Frontend polluje stav data pullu.
+**Co se stane:** Frontend po `202 Accepted` vola status endpoint, dokud stav neni terminalni. Response nese `Id`, `Source`, `Status`, `ErrorCode`, `CompletedAt`. Backend status jen cte; nespousti praci znovu.
 
-**Napises v CRM:** status endpoint pro vlastni import/AI run.
+**Mentalni model:** `GET status` je pravda pro UI. `Pending/Running` znamena "cekam, polluj dal". `Completed` znamena "hotovo, invaliduj list/snapshots/detail". `Failed` znamena "terminalni chyba, ukaz bezpecnou hlasku podle `ErrorCode`". Cizi nebo neexistujici id je vzdy 404, ne 403, aby se nedaly enumerovat ids.
+
+**Napises v CRM:** query record musi mit `ImportId` i `UserId`. `UserId` bere endpoint z `ITenantContext`, nikdy z route/body.
+
+```csharp
+public sealed record GetCrmImportStatusQuery(Guid ImportId, Guid UserId)
+    : IQuery<CrmImportStatusResponse>;
+
+public sealed record CrmImportStatusResponse(
+    Guid Id,
+    string Source,
+    string Status,
+    string? ErrorCode,
+    DateTimeOffset? CompletedAt);
+```
+
+```csharp
+var import = await db.Imports
+    .Where(x => x.Id == query.ImportId && x.UserId == query.UserId)
+    .FirstOrDefaultAsync(ct)
+    ?? throw new NotFoundException("crm.import_not_found", "Import not found.");
+
+return new CrmImportStatusResponse(
+    import.Id,
+    import.Source,
+    import.Status.ToString(),
+    import.ErrorCode,
+    import.CompletedAt);
+```
+
+**Endpoint:** zustava tenky, jen vezme usera z tokenu a zavola query.
+
+```csharp
+app.MapGet("/crm/imports/{importId:guid}", async (
+        Guid importId,
+        ITenantContext tenant,
+        IDispatcher dispatcher,
+        CancellationToken ct) =>
+    {
+        var userId = tenant.UserId
+            ?? throw new UnauthorizedException("auth.required", "Authentication required.");
+
+        var result = await dispatcher.Query(new GetCrmImportStatusQuery(importId, userId), ct);
+        return Results.Ok(ApiResponse<CrmImportStatusResponse>.Ok(result));
+    })
+    .RequireAuthorization()
+    .RequireModule("crm")
+    .WithName("GetCrmImportStatus");
+```
+
+**Frontend polling:** po startu polluj kratce rychleji, pak backoff. Polling ukonci pri `Completed` nebo `Failed`. Na `Completed` invaliduj/importni data; na `Failed` zobraz lokalizovanou chybu podle `ErrorCode` a nech tlacitko "Retry" spustit novy import, ne znovu volat status.
+
+**Stuck processing:** status endpoint nema sam opravovat stuck joby. Pokud import visi dlouho v `Running`, UI muze ukazat "trva dele nez obvykle" a backend ma mit reconciliation/job nebo retry politiku ve Workeru.
+
+**Testy k CRM:** owner dostane `200`, cizi user dostane `404`, neexistujici id `404`, failed import vraci `ErrorCode`, polling test pocka az worker prejde do terminal state.
+
+**Nepouzijes:** status endpoint jako trigger worku, klientsky `userId`, 403 pro foreign id, nekonecny polling bez backoffu, ani raw exception text v response.
 
 **EC:**
 
-- EC396 foreign pull -> 404.
-- EC397 not found.
-- EC398 stuck processing.
-- EC399 failed with reason.
-- EC400 frontend polling backoff.
+- EC396 foreign pull -> 404 → filtruj `Id && UserId`, aby cizi id vypadalo stejne jako neexistujici.
+- EC397 not found → `NotFoundException("crm.import_not_found", ...)`, ne `null` response.
+- EC398 stuck processing → UI ma timeout/backoff; oprava stuck stavu patri do worker/reconciliation logiky, ne do GET endpointu.
+- EC399 failed with reason → response nese stabilni `ErrorCode`, ne stacktrace ani provider message.
+- EC400 frontend polling backoff → polluj jen po startu/status obrazovce, zastav na terminalnim stavu a invaliduj cache.
 
 ### UC81 List pulls
 
