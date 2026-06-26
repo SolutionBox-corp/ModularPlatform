@@ -750,7 +750,7 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC41 My subscription
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented — `MySubscriptionTests` overuji empty state, `PastDue`, `CancelAtPeriodEnd` a cteni reconciliovaneho mirroru.
 
 **Pouzijes:** `GET /billing/subscriptions/me`.
 
@@ -760,11 +760,11 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 **EC:**
 
-- EC201 no subscription -> empty state.
-- EC202 past_due state.
-- EC203 cancel at period end.
-- EC204 stale webhook state resi reconcile.
-- EC205 no CRM-local subscription copy.
+- EC201 no subscription -> empty state → endpoint vraci 404 `billing.subscription.not_found`.
+- EC202 past_due state → Stripe `past_due/unpaid/paused` se mapuje na `PastDue`.
+- EC203 cancel at period end → response nese `cancelAtPeriodEnd`.
+- EC204 stale webhook state resi reconcile → lokalni mirror se aktualizuje pres `UpsertSubscriptionFromStripeCommand`/reconcile ze Stripe object state.
+- EC205 no CRM-local subscription copy → CRM cte `/billing/subscriptions/me`, nedrzi vlastni subscription tabulku.
 
 ### UC42 Cancel subscription
 
