@@ -3404,21 +3404,79 @@ public sealed record DealWonIntegrationEvent(
 
 ### UC100 Module jobs
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Base pattern hotovy v Billing/GDPR/Identity; CRM ma kopirovat thin Quartz job -> command.
 
-**Pouzijes:** `IModule.RegisterJobs`.
+**Pouzijes:** `IModule.RegisterJobs`, Quartz `IJob`, `IDispatcher`, UTC cron config, `[DisallowConcurrentExecution]`.
 
-**Co se stane:** Modul registruje Quartz job.
+**Co se stane:** Jobs host pri startu projde moduly a zavola `RegisterJobs`. CRM si tam zaregistruje cron job pro veci jako retention sweep, import reconciliation, stale operation cleanup nebo projection repair. Job sam nic nepocita; jen dispatchne command.
 
-**Napises v CRM:** job class, ktera jen dispatchne command.
+**Mentalni model:** Quartz je scheduler, ne business layer. Vsechna logika je v command handleru, aby sla spustit i z testu/manual admin flow a aby mela stejne validation/idempotency pravidla.
+
+**Job class:** tenka adapter trida.
+
+```csharp
+[DisallowConcurrentExecution]
+internal sealed class CrmReconcileImportsJob(IDispatcher dispatcher) : IJob
+{
+    public Task Execute(IJobExecutionContext context) =>
+        dispatcher.Send(new ReconcileCrmImportsCommand(), context.CancellationToken);
+}
+```
+
+**RegisterJobs:** cron ber z configu a nastav UTC timezone.
+
+```csharp
+public void RegisterJobs(IServiceCollectionQuartzConfigurator quartz, IConfiguration configuration)
+{
+    var cron = configuration["Modules:Crm:Jobs:ReconcileImportsCron"] ?? "0 0 */6 * * ?";
+    var key = new JobKey("crm-reconcile-imports");
+
+    quartz.AddJob<CrmReconcileImportsJob>(key);
+    quartz.AddTrigger(trigger => trigger.ForJob(key)
+        .WithCronSchedule(cron, x => x.InTimeZone(TimeZoneInfo.Utc)));
+}
+```
+
+**Command handler:** musi byt idempotentni a mit cap per run. Job muze bezet znovu po restartu nebo po rucnim triggeru.
+
+```csharp
+internal sealed class ReconcileCrmImportsHandler(CrmDbContext db, IClock clock)
+    : ICommandHandler<ReconcileCrmImportsCommand, ReconcileCrmImportsResponse>
+{
+    public async Task<ReconcileCrmImportsResponse> Handle(ReconcileCrmImportsCommand command, CancellationToken ct)
+    {
+        var cutoff = clock.UtcNow.AddMinutes(-30);
+        var stuck = await db.Imports
+            .Where(x => x.Status == ImportStatus.Running && x.UpdatedAt < cutoff)
+            .OrderBy(x => x.UpdatedAt)
+            .Take(100)
+            .ToListAsync(ct);
+
+        foreach (var import in stuck)
+        {
+            import.Status = ImportStatus.Failed;
+            import.ErrorCode = "crm.import_stuck";
+        }
+
+        await db.SaveChangesAsync(ct);
+        return new ReconcileCrmImportsResponse(stuck.Count);
+    }
+}
+```
+
+**DI graph:** pokud job potrebuje HTTP-only service (`HttpContext`, current request user, scoped frontend session), je navrh spatne. Jobs host bezi bez requestu, casto system context.
+
+**Testy k CRM:** Jobs host boot test musi projit, command idempotency test, cap per run test, UTC cron config test/smoke, no-overlap pokud job muze trvat dele.
+
+**Nepouzijes:** business logiku primo v `IJob`, local time cron, job bez capu, HTTP context v jobu, raw SQL sweep, ani job pro durable event work, ktere patri do Workeru.
 
 **EC:**
 
-- EC496 cron UTC.
-- EC497 job DI graph musi bootnout v Jobs hostu.
-- EC498 command idempotentni.
-- EC499 cap per run.
-- EC500 no HTTP-only dependency in job.
+- EC496 cron UTC → `.WithCronSchedule(cron, x => x.InTimeZone(TimeZoneInfo.Utc))`.
+- EC497 job DI graph musi bootnout v Jobs hostu → pridat modul do Jobs hostu a host boot test.
+- EC498 command idempotentni → opakovany run nesmi zdvojit side effects.
+- EC499 cap per run → `Take(100)`/batch cap, aby jeden sweep nesezral DB.
+- EC500 no HTTP-only dependency in job → zadny `HttpContext`, request user ani frontend session; pouzij system-safe services.
 
 ### UC101 Novy modul
 
