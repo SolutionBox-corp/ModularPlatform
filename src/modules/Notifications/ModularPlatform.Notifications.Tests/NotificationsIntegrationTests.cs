@@ -333,6 +333,57 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
         (await PlatformApiFactory.ReadData(bobUnread)).GetProperty("count").GetInt64().ShouldBeGreaterThanOrEqualTo(1);
     }
 
+    [Fact]
+    public async Task Mark_all_read_is_owner_scoped_idempotent_and_does_not_hide_new_notifications()
+    {
+        var (aliceId, aliceToken) = await fixture.RegisterAndLoginAsync(
+            $"all-alice-{Guid.CreateVersion7():N}@example.com", Password);
+        var (bobId, _) = await fixture.RegisterAndLoginAsync(
+            $"all-bob-{Guid.CreateVersion7():N}@example.com", Password);
+
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM notifications WHERE \"UserId\" = '{aliceId}' AND \"TemplateKey\" = 'welcome'",
+            1);
+        await fixture.ExecuteSqlAsync($"UPDATE notifications SET \"ReadAt\" = now() WHERE \"UserId\" = '{aliceId}'");
+
+        var empty = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Post, "/v1/notifications/me/read-all", aliceToken));
+        empty.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PlatformApiFactory.ReadData(empty)).GetProperty("marked").GetInt32().ShouldBe(0);
+
+        var aliceOne = $"all-alice-1-{Guid.CreateVersion7():N}";
+        var aliceTwo = $"all-alice-2-{Guid.CreateVersion7():N}";
+        var aliceNew = $"all-alice-new-{Guid.CreateVersion7():N}";
+        var bobTemplate = $"all-bob-{Guid.CreateVersion7():N}";
+        await SeedTemplateAsync(aliceOne, "A1");
+        await SeedTemplateAsync(aliceTwo, "A2");
+        await SeedTemplateAsync(aliceNew, "A3");
+        await SeedTemplateAsync(bobTemplate, "B");
+
+        await SendDirectAsync(aliceId, aliceOne);
+        await SendDirectAsync(aliceId, aliceTwo);
+        await SendDirectAsync(bobId, bobTemplate);
+
+        var markAll = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Post, "/v1/notifications/me/read-all", aliceToken));
+        markAll.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PlatformApiFactory.ReadData(markAll)).GetProperty("marked").GetInt32().ShouldBe(2);
+
+        var retry = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Post, "/v1/notifications/me/read-all", aliceToken));
+        retry.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PlatformApiFactory.ReadData(retry)).GetProperty("marked").GetInt32().ShouldBe(0);
+
+        await SendDirectAsync(aliceId, aliceNew);
+        var aliceUnread = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/notifications/me/unread-count", aliceToken));
+        (await PlatformApiFactory.ReadData(aliceUnread)).GetProperty("count").GetInt64().ShouldBe(1);
+
+        var bobRowsStillUnread = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM notifications WHERE \"UserId\" = '{bobId}' AND \"TemplateKey\" = '{bobTemplate}' AND \"ReadAt\" IS NULL");
+        bobRowsStillUnread.ShouldBe(1);
+    }
+
     // A notification's PII (Title/Body) is crypto-shredded in the audit trail: the live row keeps the rendered
     // text, but notifications_audit_entries stores it as a penc:v2: envelope — never the plaintext.
     [Fact]

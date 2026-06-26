@@ -950,21 +950,21 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC52 Mark all read
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented + tested — `NotificationsIntegrationTests`.
 
 **Pouzijes:** `POST /notifications/me/read-all`.
 
-**Co se stane:** Notifications oznaci vsechny moje notifikace jako prectene.
+**Co se stane:** Notifications atomicky nastavi `ReadAt` na vsech mych unread notifikacich.
 
-**Napises v CRM:** button disable behem pending.
+**Napises v CRM:** button disable behem pending, po OK invaliduj feed i unread-count.
 
 **EC:**
 
-- EC256 empty feed.
-- EC257 concurrent new notification.
-- EC258 stale unread count.
-- EC259 bulk update audit caveat podle implementace.
-- EC260 retry nesmi rozbit stav.
+- EC256 empty feed → endpoint vrati OK a `marked=0`.
+- EC257 concurrent new notification → bulk update oznaci jen radky splnujici `ReadAt == null` v okamziku update; nova pozdejsi notifikace zustane unread.
+- EC258 stale unread count → po OK refetch unread-count, jinak badge zustane stary.
+- EC259 bulk update audit caveat podle implementace → `ExecuteUpdate` bypassuje audit/xmin; je to zamerne pro read-flag flip.
+- EC260 retry nesmi rozbit stav → druhy POST je no-op s `marked=0`.
 
 ### UC53 Welcome notification
 
