@@ -660,7 +660,7 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC36 Update package
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented — `UpdateCreditPackageTests` overuji not found/foreign scope, historical purchase snapshot, public disable, concurrency a audit.
 
 **Pouzijes:** `PUT /billing/admin/packages/{packageId}`.
 
@@ -670,11 +670,11 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 **EC:**
 
-- EC176 not found.
-- EC177 zmena ceny nesmi prepsat historicke purchases.
-- EC178 disabled package zmizi z public listu.
-- EC179 concurrent update.
-- EC180 audit change.
+- EC176 not found → neznamy nebo cizi tenant package vraci 404 bez existence leaku.
+- EC177 zmena ceny nesmi prepsat historicke purchases → checkout zalozi snapshot v `credit_purchase_sagas`; pozdejsi update package ho nemeni.
+- EC178 disabled package zmizi z public listu → `active=false` se v admin listu drzi, public `GET /billing/packages` ho nevrati.
+- EC179 concurrent update → tracked save + xmin/concurrency retry serializuje paralelni update bez 500.
+- EC180 audit change → update jde pres tracked `CreditPackage` a pise `billing_audit_entries`.
 
 ### UC37 Purchase package checkout
 
