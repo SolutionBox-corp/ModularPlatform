@@ -588,7 +588,7 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC32 Release hold
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented — overeno `ReleaseHoldTests`, `LedgerLifecycleTests`, `CreditBalanceTests`.
 
 **Pouzijes:** `POST /billing/credits/reservations/release`.
 
@@ -598,11 +598,11 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 **EC:**
 
-- EC156 duplicate release je idempotentni.
-- EC157 release po confirm nesmi vratit kredit.
-- EC158 kazda failure vetev musi release resit.
-- EC159 stuck `Reserved` stav potrebuje reconcile.
-- EC160 UI refetchuje balance po release.
+- EC156 duplicate release je idempotentni → opakovany release vraci 200 a neprida druhy `Release` entry.
+- EC157 release po confirm nesmi vratit kredit → confirmed hold se jen nahlasi jako uz resolved, bez obnovy available.
+- EC158 kazda failure vetev musi release resit → CRM failure/retry branch vola `ReleaseHoldCommand`.
+- EC159 stuck `Reserved` stav potrebuje reconcile → expiry sweep materializuje lapsed active holds jako `Expired` a vrati availability.
+- EC160 UI refetchuje balance po release → handler po commit publikuje `billing.credits_changed`.
 
 ### UC33 Public packages
 
