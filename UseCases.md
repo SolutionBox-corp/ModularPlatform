@@ -2452,21 +2452,55 @@ return await db.CrmAnalyses
 
 ### UC84 Get analysis
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implementovano v Marketing; CRM detail analysis ma kopirovat owner-scoped read pattern.
 
-**Pouzijes:** `GET /marketing/analyses/{analysisId}`.
+**Pouzijes:** `GET /marketing/analyses/{analysisId}`, `IReadDbContextFactory`, `NotFoundException`, owner `UserId` z tokenu.
 
-**Co se stane:** Marketing vrati detail analysis.
+**Co se stane:** Backend vrati jeden ulozeny AI insight vcetne detailniho `InsightsJson`, vazby na data pull/import a `AnalyzedAt`. Cizi nebo neexistujici analysis id vraci 404. GET nic negeneruje a nevola AI.
 
-**Napises v CRM:** detail endpoint pro CRM AI result.
+**Mentalni model:** list analysis je rychly prehled, detail analysis je plny dokument. Tady muze byt delsi JSON pro UI sekce, actions, risks, citations/reference na snapshots. Pokud detail neni hotovy, nedelej polovicni magii v GET; stav hotovosti patri do run/status modelu.
+
+**Query pattern:** query dostane `AnalysisId` a `UserId`. UserId vzdy z tokenu.
+
+```csharp
+public sealed record GetCrmAnalysisQuery(Guid AnalysisId, Guid UserId)
+    : IQuery<CrmAnalysisDetail>;
+```
+
+```csharp
+var analysis = await db.CrmAnalyses
+    .Where(x => x.Id == query.AnalysisId && x.UserId == query.UserId)
+    .FirstOrDefaultAsync(ct)
+    ?? throw new NotFoundException("crm.analysis_not_found", "Analysis not found.");
+
+return new CrmAnalysisDetail(
+    analysis.Id,
+    analysis.AnalysisType,
+    analysis.Summary,
+    analysis.InsightsJson,
+    analysis.ImportId,
+    analysis.AnalyzedAt);
+```
+
+**Response shape:** pro detail vrat `InsightsJson`, ale listu ho nedavej. Do detailu pridej source/import/schema metadata, aby UI dokazalo rict "tento insight vznikl z importu X v case Y".
+
+**Partial result:** jestli AI umi streamovat nebo skladat vystup po castech, modeluj to jako `Status = Running/Completed/Failed` na analysis runu. Detail endpoint pro hotovy analysis nema skladat polovinu z cache a polovinu z workeru.
+
+**PII redaction:** AI output muze obsahovat PII ze vstupu. Bud ho oznac jako `[PersonalData]`/encrypted podle UC75, nebo zajisti, ze CRM `IErasePersonalData` analysis smaze/anonymizuje. Neposilej raw prompt/output do klienta, pokud obsahuje interní data nebo tajemstvi.
+
+**Frontend cache:** detail invaliduj po `marketing.pull_completed`/CRM realtime eventu, po retry a po GDPR erasure. Stary cached insight muze jinak ukazat PII nebo zastarale doporuceni.
+
+**Testy k CRM:** owner detail 200, foreign id 404, missing id 404, detail obsahuje `InsightsJson`, list detail JSON neobsahuje, erased user data se nevrati.
+
+**Nepouzijes:** AI call v GET detailu, 403 pro foreign id, raw exception/prompt text, partial response bez statusu, ani dlouhodobou frontend cache bez invalidace.
 
 **EC:**
 
-- EC416 foreign analysis -> 404.
-- EC417 not found.
-- EC418 partial result.
-- EC419 PII redaction.
-- EC420 stale cache.
+- EC416 foreign analysis -> 404 → filtruj `Id && UserId`, aby nebyla enumerace cizich analysis ids.
+- EC417 not found → `NotFoundException("crm.analysis_not_found", ...)`, ne prazdny objekt.
+- EC418 partial result → rozlis hotovy analysis detail od running analysis runu; GET detail nema vracet napul hotovy JSON bez statusu.
+- EC419 PII redaction → AI output s PII musi byt encrypted/anonymizovatelny nebo mazany v CRM eraseru.
+- EC420 stale cache → invaliduj detail po novem insightu, retry, import refreshi a GDPR erasure.
 
 ### UC85 Start vibe conversation
 
