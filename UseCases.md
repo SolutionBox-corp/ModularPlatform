@@ -2643,21 +2643,61 @@ await realtime.PublishToUserAsync(command.UserId, "crm.message_ready",
 
 ### UC87 Stream vibe message
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implementovano v Marketing jako UX varianta vedle durable 202 path; CRM ho pouzij jen kdyz token-by-token UX opravdu dava smysl.
 
-**Pouzijes:** `POST /marketing/vibe/conversations/{id}/messages/stream`.
+**Pouzijes:** `POST /marketing/vibe/conversations/{id}/messages/stream`, SSE `ServerSentEvents`, `BeginStreamMessageCommand`, `CompleteStreamMessageCommand`, `IVibeAgentGateway.RunTurnStreamingAsync`.
 
-**Co se stane:** UX muze streamovat odpoved, ale stav se stale musi ulozit.
+**Co se stane:** Backend nejdriv overi ownera a ulozi user message. Teprve potom otevre SSE stream a posila assistant delty. Behem streamu sklada full text. Po dokonceni nebo disconnectu ulozi assistant message do DB, aby to, co user videl, nezustalo jen v browseru.
 
-**Napises v CRM:** streaming jen pokud opravdu zlepsi UX.
+**Mentalni model:** streaming je UX transport, ne zdroj pravdy. Pravda je porad messages tabulka. Kdyz se klient odpoji, refresh detailu musi ukazat aspon ulozeny partial text nebo jasny failed state. Pokud nepotrebujes token-by-token efekt, pouzij UC86 durable async path.
+
+**Begin command:** uloz user turn pred otevrenim streamu. Diky tomu 404/validation chyby prijdou jako normalni RFC 9457 response, ne jako rozbity SSE uprostred.
+
+```csharp
+var begin = await dispatcher.Send(
+    new BeginCrmStreamMessageCommand(conversationId, userId, request.Content), ct);
+```
+
+**Stream:** endpoint vola gateway streaming API, posila `delta` eventy a akumuluje full text.
+
+```csharp
+await foreach (var delta in gateway.RunTurnStreamingAsync(userId, history, ct))
+{
+    fullText.Append(delta);
+    yield return new SseItem<string>(delta, "delta");
+}
+```
+
+**Persist po streamu:** uloz assistant turn ve `finally` s disconnect-tolerant tokenem. Nepouzivej request aborted token pro final save, jinak se pri zavrenem tabu odpoved ztrati.
+
+```csharp
+finally
+{
+    var text = fullText.ToString();
+    if (text.Length > 0)
+    {
+        await dispatcher.Send(
+            new CompleteCrmStreamMessageCommand(conversationId, userId, text),
+            CancellationToken.None);
+    }
+}
+```
+
+**Credits/tokeny:** streaming je slozitejsi pro presne uctovani, protoze realne usage muze byt znamy az na konci. Rezervuj odhad pred gateway call, po final save confirmni podle skutecne usage, pri timeoutu/disconnectu release nebo confirmni jen vygenerovanou cast podle policy. Tuhle policy popis ve specu.
+
+**Kdy streaming nepouzit:** kdyz odpoved spousti business side effect, zapisuje CRM data, vola nastroje nebo musi byt retryovatelna. Tam je durable worker path bezpecnejsi; stream muze byt jen progress UI nad durable operaci.
+
+**Testy k CRM:** disconnect ulozi partial assistant message, provider timeout nevytvori phantom done, ownership 404 pred streamem, final `[DONE]` prijde po persistu, refresh conversation ukaze ulozeny vysledek.
+
+**Nepouzijes:** business pravdu jen v SSE eventech, save po streamu s request cancellation tokenem, tool side effects jen v request streamu, ani streaming jako nahradu durable workflow pro kriticke akce.
 
 **EC:**
 
-- EC431 stream disconnect.
-- EC432 response partial.
-- EC433 provider timeout.
-- EC434 persistence after stream failure.
-- EC435 no business truth only in stream.
+- EC431 stream disconnect → `finally` ulozi partial text s `CancellationToken.None`, pokud uz nejake delty prisly.
+- EC432 response partial → partial message musi byt oznacena nebo aspon bezpecne zobrazitelna po refreshi; UI nesmi tvrdit, ze je kompletni, pokud done neprisel.
+- EC433 provider timeout → ukonci stream chybou/failed stavem a vyres credits release/partial confirm podle policy.
+- EC434 persistence after stream failure → user message je ulozena pred streamem; assistant partial/failure se ulozi po streamu, aby thread nebyl nekonzistentni.
+- EC435 no business truth only in stream → CRM zmeny, tool calls a platby musi byt v DB/ledgeru, ne jen v SSE delte.
 
 ### UC88 List conversations
 
