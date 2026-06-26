@@ -187,6 +187,42 @@ public sealed class FilesUploadTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Delete_is_owner_scoped_removes_metadata_and_second_delete_is_404()
+    {
+        var (_, ownerToken) = await fixture.RegisterAndLoginAsync(
+            $"delete-owner-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+        var upload = await UploadAsync(ownerToken, "delete-me.txt", "text/plain", Encoding.UTF8.GetBytes("body"));
+        upload.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var fileId = (await PlatformApiFactory.ReadData(upload)).GetProperty("id").GetGuid();
+
+        var (_, otherToken) = await fixture.RegisterAndLoginAsync(
+            $"delete-other-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+        var foreign = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Delete, $"/v1/files/{fileId}", otherToken));
+        foreign.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
+        var first = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Delete, $"/v1/files/{fileId}", ownerToken));
+        first.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        var second = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Delete, $"/v1/files/{fileId}", ownerToken));
+        second.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM file_objects WHERE \"Id\" = '{fileId}'")).ShouldBe(0);
+
+        var download = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, $"/v1/files/{fileId}", ownerToken));
+        download.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
+        var list = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/files?search=delete-me", ownerToken));
+        list.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PlatformApiFactory.ReadData(list)).GetProperty("totalCount").GetInt64().ShouldBe(0);
+    }
+
+    [Fact]
     public async Task Upload_location_header_is_versioned_and_points_at_the_download_route()
     {
         var (_, token) = await fixture.RegisterAndLoginAsync($"loc-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");

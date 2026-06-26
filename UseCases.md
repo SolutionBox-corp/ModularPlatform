@@ -1255,21 +1255,35 @@ queryClient.invalidateQueries({ queryKey: ["deal", dealId, "attachments"] });
 
 ### UC61 Delete souboru
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented + tested — `FilesUploadTests.Delete_is_owner_scoped_removes_metadata_and_second_delete_is_404` + delete visibility in list tests.
 
 **Pouzijes:** `DELETE /files/{fileId}`.
 
-**Co se stane:** Files smaze metadata a blob podle implementace.
+**Co se stane:** Endpoint vezme `fileId` z route a usera z tokenu. `DeleteFileHandler` najde jen soubor vlastneny userem. Nejdřív smaze blob pres `IFileStorage.DeleteAsync(storageKey)`, potom smaze metadata row `file_objects`. Kdyz blob delete selze, exception propadne ven a metadata zustanou, aby se dal problem dohledat a opravit.
 
-**Napises v CRM:** odstranis/deaktivujes vazbu `DealAttachment`.
+**Napises v CRM:** kdyz user odstrani soubor z dealu, vetsinou nema CRM hned mazat Files blob, ale odstranit/deaktivovat vazbu `DealAttachment`. Fyzicky `DELETE /files/{fileId}` volej jen kdyz ma user opravdu mazat svuj soubor z Files. Po uspesnem delete invaliduj CRM attachment list i `GET /files`.
+
+**Vzor frontendu:**
+
+```ts
+await api.delete(`/v1/files/${fileId}`);
+queryClient.invalidateQueries({ queryKey: ["files"] });
+queryClient.invalidateQueries({ queryKey: ["deal", dealId, "attachments"] });
+```
+
+**Vzor CRM:** `RemoveDealAttachmentCommand` ma smazat vazbu. `DeleteFileCommand` pouzij jen pro product akci "smazat soubor", ne pro "odebrat z dealu".
+
+**Co si pohlidas:** delete neni global admin delete. Cizi `fileId` je 404. Druhe smazani je taky 404, proto UI musi po uspesnem delete refreshnout cache.
+
+**Nepouzijes:** mazani blobu primym storage key z CRM, ponechani stale attachment row bez cleanupu, ani optimistic UI bez rollbacku.
 
 **EC:**
 
-- EC301 foreign id -> 404.
-- EC302 already deleted.
-- EC303 blob delete fails.
-- EC304 CRM vazba zustane orphan -> cleanup.
-- EC305 UI stale list.
+- EC301 foreign id -> 404 → handler filtruje `Id && UserId`; cizi id se tvari jako neexistujici.
+- EC302 already deleted → druhe `DELETE` vrati 404, proto frontend po prvnim 204 musi vyhodit item z cache.
+- EC303 blob delete fails → handler loguje a vyhodi provider exception; metadata row zustane jako dohledatelny problem.
+- EC304 CRM vazba zustane orphan -> cleanup → CRM ma vlastni vazbu deaktivovat/smazat, idealne v jedne CRM command transakci; Files nema znat CRM tabulky.
+- EC305 UI stale list → invaliduj `files` i CRM attachment query po 204.
 
 ### UC62 Pripojit file k CRM entite
 
