@@ -2752,21 +2752,48 @@ return await db.Conversations
 
 ### UC89 Get conversation
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implementovano v Marketing jako owner-scoped detail; CRM ma kopirovat pattern a pridat paging/windowing pro dlouhe thready.
 
-**Pouzijes:** `GET /marketing/vibe/conversations/{conversationId}`.
+**Pouzijes:** `GET /marketing/vibe/conversations/{conversationId}`, `IReadDbContextFactory`, explicitni `UserId` filter na conversation i messages.
 
-**Co se stane:** Marketing vrati messages a metadata.
+**Co se stane:** Backend vrati conversation metadata a messages serazene podle `CreatedAt`. Foreign, deleted nebo missing id je 404. GET jen cte; negeneruje assistant odpoved a neopravuje pending stav.
 
-**Napises v CRM:** detail conversation view.
+**Mentalni model:** detail threadu je UI pravda po refreshi. Vse, co user poslal nebo assistant vratil, musi byt v messages tabulce. Pokud stream/worker zapsal partial/failed stav, detail ho musi umet zobrazit.
+
+**CRM query:** nejdriv over conversation ownera, potom nacti messages se stejnym owner filtrem.
+
+```csharp
+var conversation = await db.Conversations
+    .Where(x => x.Id == query.ConversationId && x.UserId == query.UserId)
+    .Select(x => new { x.Id, x.Title, x.CreatedAt })
+    .FirstOrDefaultAsync(ct)
+    ?? throw new NotFoundException("crm.conversation_not_found", "Conversation not found.");
+
+var messages = await db.Messages
+    .Where(x => x.ConversationId == query.ConversationId && x.UserId == query.UserId)
+    .OrderBy(x => x.CreatedAt)
+    .Select(x => new CrmConversationMessage(
+        x.Id, x.Role, x.Content, x.Status, x.ToolCallsJson, x.CreatedAt))
+    .ToListAsync(ct);
+```
+
+**Large history:** Marketing vraci vsechny messages. CRM by mel pro dlouhe thready pridat message paging nebo `beforeMessageId/limit`. AI worker si muze nacte vlastni zkracenou/context history; UI detail nemusi tahat tisice zprav najednou.
+
+**Pending/failed assistant message:** pokud async UC86 uklada pending/failed status, detail ho musi vratit. UI pak po `message_ready` invaliduje detail a spinner zmizi.
+
+**PII/GDPR:** messages jsou user free text, takze jsou PII. Oznac je `[PersonalData]`/encrypted nebo je maze/anonymizuje `IErasePersonalData`. Po erasure detail nesmi z cache ukazat stare content.
+
+**Testy k CRM:** owner detail 200, foreign/missing/deleted 404, messages ordered asc, large history page/window funguje, pending/failed message se zobrazi, erased user data se nevrati.
+
+**Nepouzijes:** client-side owner filter, 403 pro foreign id, nekonecny unbounded message list v produkcnim CRM, AI call v GET detailu, ani tool call secrets v `ToolCallsJson`.
 
 **EC:**
 
-- EC441 foreign id.
-- EC442 not found.
-- EC443 large message history.
-- EC444 erased PII.
-- EC445 stale pending message.
+- EC441 foreign id → 404 pres `Id && UserId`, aby se nedaly enumerovat cizi thready.
+- EC442 not found → `NotFoundException("crm.conversation_not_found", ...)`, ne prazdny thread.
+- EC443 large message history → pridej paging/windowing pro messages, pokud thread muze narust.
+- EC444 erased PII → messages/content/tool traces musi projit GDPR erase/anonymizaci a frontend cache se cisti.
+- EC445 stale pending message → po realtime eventu nebo polling refreshi invaliduj detail; pending nesmi viset navzdy bez failed/timeout stavu.
 
 ### UC90 Delete conversation
 
