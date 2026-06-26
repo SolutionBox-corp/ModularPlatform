@@ -914,21 +914,21 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC50 Unread count
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented + tested — `NotificationsIntegrationTests`.
 
 **Pouzijes:** `GET /notifications/me/unread-count`.
 
-**Co se stane:** Frontend vidi pocet neprectenych.
+**Co se stane:** Frontend dostane owner-scoped pocet `ReadAt == null` notifikaci.
 
-**Napises v CRM:** jen badge v navigaci.
+**Napises v CRM:** jen badge v navigaci; nedrz druhy counter v CRM DB, vzdy refetchuj platform count.
 
 **EC:**
 
-- EC246 count stale po mark-read.
-- EC247 SSE event lost -> refetch fallback.
-- EC248 count owner-scoped.
-- EC249 loading skeleton.
-- EC250 neudrzovat druhy unread counter v CRM.
+- EC246 count stale po mark-read → po `mark-read`/`mark-all-read` invaliduj unread-count query; endpoint po read vraci nizsi count.
+- EC247 SSE event lost -> refetch fallback → realtime je UX hint, pravda je `GET /notifications/me/unread-count`.
+- EC248 count owner-scoped → query bere usera z tokenu; cizi notifikace count nezvysi.
+- EC249 loading skeleton → FE ukaze badge skeleton/placeholder, neukazuje stary count jako pravdu behem refetch.
+- EC250 neudrzovat druhy unread counter v CRM → CRM si count neuklada, maximum cache s invalidaci.
 
 ### UC51 Mark notification read
 

@@ -255,6 +255,44 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
             .ShouldBeFalse();
     }
 
+    [Fact]
+    public async Task Unread_count_is_owner_scoped_and_updates_after_mark_read()
+    {
+        var (aliceId, aliceToken) = await fixture.RegisterAndLoginAsync(
+            $"count-alice-{Guid.CreateVersion7():N}@example.com", Password);
+        var (bobId, _) = await fixture.RegisterAndLoginAsync(
+            $"count-bob-{Guid.CreateVersion7():N}@example.com", Password);
+
+        await fixture.ExecuteSqlAsync($"UPDATE notifications SET \"ReadAt\" = now() WHERE \"UserId\" = '{aliceId}'");
+
+        var aliceOne = $"count-alice-1-{Guid.CreateVersion7():N}";
+        var aliceTwo = $"count-alice-2-{Guid.CreateVersion7():N}";
+        var bobTemplate = $"count-bob-{Guid.CreateVersion7():N}";
+        await SeedTemplateAsync(aliceOne, "A1");
+        await SeedTemplateAsync(aliceTwo, "A2");
+        await SeedTemplateAsync(bobTemplate, "B");
+
+        await SendDirectAsync(aliceId, aliceOne);
+        await SendDirectAsync(aliceId, aliceTwo);
+        await SendDirectAsync(bobId, bobTemplate);
+
+        var before = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/notifications/me/unread-count", aliceToken));
+        before.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PlatformApiFactory.ReadData(before)).GetProperty("count").GetInt64().ShouldBe(2);
+
+        var notificationId = await fixture.ScalarAsync<Guid>(
+            $"SELECT \"Id\" FROM notifications WHERE \"UserId\" = '{aliceId}' AND \"TemplateKey\" = '{aliceOne}'");
+        var markRead = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Post, $"/v1/notifications/{notificationId}/read", aliceToken));
+        markRead.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var after = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/notifications/me/unread-count", aliceToken));
+        after.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PlatformApiFactory.ReadData(after)).GetProperty("count").GetInt64().ShouldBe(1);
+    }
+
     // A notification's PII (Title/Body) is crypto-shredded in the audit trail: the live row keeps the rendered
     // text, but notifications_audit_entries stores it as a penc:v2: envelope — never the plaintext.
     [Fact]
