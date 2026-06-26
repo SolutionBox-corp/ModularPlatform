@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using ModularPlatform.IntegrationTesting;
 using Shouldly;
 
@@ -96,5 +97,64 @@ public sealed class PlatformAdminTests(PlatformApiFactory fixture)
             new { name = "Nope", subdomain = $"nope-{Guid.CreateVersion7():N}".Substring(0, 20) }));
 
         response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Tenant_list_is_platform_admin_only_paged_and_contains_no_internal_registry_fields()
+    {
+        var admin = await AdminTokenAsync();
+        var (_, userToken) = await fixture.RegisterAndLoginAsync($"plain-list-{Guid.CreateVersion7():N}@x.com", Password);
+
+        var forbidden = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, "/v1/tenant/admin/tenants", userToken));
+        forbidden.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        for (var i = 0; i < 3; i++)
+        {
+            var subdomain = $"list-{i}-{Guid.CreateVersion7():N}".Substring(0, 30);
+            var provision = await fixture.Client.SendAsync(fixture.Authed(
+                HttpMethod.Post, "/v1/tenant/admin/tenants", admin, new { name = $"List {i}", subdomain }));
+            provision.StatusCode.ShouldBe(HttpStatusCode.OK);
+        }
+
+        var firstPage = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, "/v1/tenant/admin/tenants?limit=2&offset=0", admin));
+        firstPage.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var firstData = await PlatformApiFactory.ReadData(firstPage);
+
+        firstData.GetProperty("limit").GetInt32().ShouldBe(2);
+        firstData.GetProperty("offset").GetInt32().ShouldBe(0);
+        firstData.GetProperty("total").GetInt32().ShouldBeGreaterThanOrEqualTo(4);
+
+        var firstItems = firstData.GetProperty("items").EnumerateArray().ToArray();
+        firstItems.Length.ShouldBe(2);
+        AssertPublicTenantListShape(firstItems[0]);
+
+        var secondPage = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, "/v1/tenant/admin/tenants?limit=2&offset=2", admin));
+        secondPage.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var secondItems = (await PlatformApiFactory.ReadData(secondPage)).GetProperty("items").EnumerateArray().ToArray();
+        secondItems.Length.ShouldBe(2);
+
+        var firstIds = firstItems.Select(i => i.GetProperty("tenantId").GetGuid()).ToHashSet();
+        var secondIds = secondItems.Select(i => i.GetProperty("tenantId").GetGuid()).ToHashSet();
+        firstIds.Intersect(secondIds).ShouldBeEmpty();
+    }
+
+    private static void AssertPublicTenantListShape(JsonElement item)
+    {
+        var names = item.EnumerateObject().Select(p => p.Name).ToHashSet(StringComparer.Ordinal);
+
+        names.ShouldContain("tenantId");
+        names.ShouldContain("subdomain");
+        names.ShouldContain("name");
+        names.ShouldContain("status");
+        names.ShouldContain("placement");
+        names.ShouldContain("createdAt");
+
+        names.ShouldNotContain("dbDsnSecretRef");
+        names.ShouldNotContain("infraRevision");
+        names.ShouldNotContain("modules");
+        names.ShouldNotContain("entitlements");
     }
 }

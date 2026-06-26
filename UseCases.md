@@ -311,7 +311,7 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC17 Platform admin listuje tenanty
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented — overeno `PlatformAdminTests`.
 
 **Pouzijes:** `GET /tenant/admin/tenants`.
 
@@ -321,11 +321,13 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 **EC:**
 
-- EC081 paging a limit.
-- EC082 platform-admin only.
-- EC083 nepouzivat v beznem CRM tenant UI.
-- EC084 list nesmi leakovat citliva data.
-- EC085 stale list po provision nebo entitlement change.
+- EC081 paging a limit: endpoint vraci `limit`, `offset`, `total` a neprekryvajici se stranky.
+- EC082 platform-admin only: bez `platform.tenants.manage` vraci endpoint 403.
+- EC083 nepouzivat v beznem CRM tenant UI: je to platform-admin registry list, ne tenant CRM obrazovka.
+- EC084 list nesmi leakovat citliva data: response shape neobsahuje `dbDsnSecretRef`, `infraRevision`, moduly ani
+  entitlements.
+- EC085 stale list po provision nebo entitlement change: `useProvisionTenant` i `useSetEntitlement` invaliduji
+  `queryRoots.admin`.
 
 ### UC18 Tenant detail
 
