@@ -2797,21 +2797,47 @@ var messages = await db.Messages
 
 ### UC90 Delete conversation
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implementovano v Marketing jako soft delete; CRM ma kopirovat tracked soft-delete pattern.
 
-**Pouzijes:** `DELETE /marketing/vibe/conversations/{conversationId}`.
+**Pouzijes:** `DELETE /marketing/vibe/conversations/{conversationId}`, `ISoftDeletable`, tracked entity, `DeletedAt`, `IDbContextOutbox`.
 
-**Co se stane:** Conversation se smaze nebo soft-delete podle modulu.
+**Co se stane:** Backend najde conversation podle `Id && UserId`, nastavi `DeletedAt` a ulozi tracked entity. Query filter ji potom skryje z listu/detailu. Messages fyzicky zustavaji, aby retention/GDPR/export/audit mohly fungovat podle pravidel.
 
-**Napises v CRM:** delete mutation a invalidace list/detail.
+**Mentalni model:** delete ze sidebaru je UX akce, ne GDPR erasure. User chce schovat thread; platforma porad muze potrebovat historii pro audit, export nebo pozdejsi retention sweep. Fyzicky delete delej jen s jasnou retention policy.
+
+**Handler:** load pres owner filter, nastav `DeletedAt`, `SaveChanges`. Pouzij tracked write, ne `ExecuteUpdate`, aby audit zachytil delete akci.
+
+```csharp
+var conversation = await db.Conversations
+    .FirstOrDefaultAsync(x => x.Id == command.ConversationId
+                              && x.UserId == command.UserId, ct)
+    ?? throw new NotFoundException("crm.conversation_not_found", "Conversation not found.");
+
+conversation.DeletedAt = clock.UtcNow;
+await db.SaveChangesAsync(ct);
+```
+
+**Endpoint:** `204 NoContent`, owner z tokenu, `.RequireModule("crm")`.
+
+**Already deleted:** pokud query filter skryva deleted rows, opakovany delete vrati 404. To je OK a chrani enumeraci. Pokud UX potrebuje idempotentni 204, musi to byt explicitni produktove rozhodnuti.
+
+**Pending worker:** kdyz je zrovna rozpracovana assistant odpoved, worker muze po soft delete jeste dopsat assistant message. V CRM si vyber policy: bud worker pred save overi `DeletedAt == null` a skipne, nebo odpoved ulozi, ale thread zustane skryty. Pro UX je obvykle lepsi skipnout assistant reply do deleted threadu a release credits.
+
+**Frontend invalidace:** po delete invaliduj conversation list a detail. Pokud user je na detailu deleted threadu, redirect na list/empty state.
+
+**GDPR overlap:** GDPR erasure neni delete conversation. Erasure maze/anonymizuje PII pres `IErasePersonalData`; soft delete jen skryva thread.
+
+**Testy k CRM:** owner delete 204, foreign/missing/already-deleted 404, list thread nevraci, detail 404, audit row vznikne, pending worker policy je otestovana.
+
+**Nepouzijes:** hard delete jako default, delete bez owner filteru, `ExecuteUpdate` pro auditovany sidebar delete, mazani messages jen kvuli UI, ani GDPR erase logiku v delete endpointu.
 
 **EC:**
 
-- EC446 foreign id.
-- EC447 already deleted.
-- EC448 pending worker message.
-- EC449 stale list.
-- EC450 GDPR erase overlap.
+- EC446 foreign id → 404 pres `Id && UserId`, ne 403.
+- EC447 already deleted → typicky 404 kvuli query filteru; idempotentni 204 jen pokud to spec vyzaduje.
+- EC448 pending worker message → worker musi mit policy pro deleted thread: skip + release credits, nebo ulozit skryte; nenech phantom visible odpoved.
+- EC449 stale list → po 204 invaliduj list/detail cache a realtime/polling nesmi thread vratit zpet.
+- EC450 GDPR erase overlap → soft delete neni privacy erase; GDPR eraser stale musi messages anonymizovat/smazat podle UC77/UC91.
 
 ### UC91 Marketing GDPR
 
