@@ -425,7 +425,7 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC23 Nastavit tenant payment gateway
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented — overeno `PaymentGatewayConfigTests`.
 
 **Pouzijes:** `PUT /billing/payment-gateway`.
 
@@ -435,11 +435,12 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 **EC:**
 
-- EC111 jen opravneny admin.
-- EC112 secret se nesmi ulozit plaintext.
-- EC113 unsupported provider.
-- EC114 fake gateway jen v test/dev rezimu.
-- EC115 po zmene invalidovat billing config UI.
+- EC111 jen opravneny admin: bez `billing.manage` vraci endpoint 403.
+- EC112 secret se nesmi ulozit plaintext: Stripe key je ulozeny jako sealed ciphertext v `tenant_secrets`.
+- EC113 unsupported provider: neznamy provider vrati 422.
+- EC114 fake gateway jen v test/dev rezimu: Production host `fake` odmita.
+- EC115 po zmene invalidovat billing config UI: config UI zatim v repu neni; az vznikne, mutation musi invalidovat
+  `queryRoots.billing`.
 
 ### UC24 Vytvorit tenant checkout
 

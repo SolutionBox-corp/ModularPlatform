@@ -71,4 +71,33 @@ public sealed class PaymentGatewayConfigTests(PlatformApiFactory fixture)
 
         response.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
     }
+
+    [Fact]
+    public async Task A_non_admin_cannot_configure_the_tenant_gateway()
+    {
+        var (_, userToken) = await fixture.RegisterAndLoginAsync($"gateway-user-{Guid.CreateVersion7():N}@x.com", Password);
+
+        var response = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Put, "/v1/billing/payment-gateway", userToken,
+            new { provider = "fake", currency = "EUR", sandbox = false }));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Fake_gateway_is_rejected_in_production()
+    {
+        var (token, _) = await AdminAsync();
+        using var production = fixture.CreateHost(
+            ("environment", "Production"),
+            ("Billing:Stripe:UseFakeGateway", "false"),
+            ("ForwardedHeaders:KnownProxies:0", "10.0.0.5"));
+        using var client = production.CreateClient();
+
+        var response = await client.SendAsync(fixture.Authed(
+            HttpMethod.Put, "/v1/billing/payment-gateway", token,
+            new { provider = "fake", currency = "EUR", sandbox = false }));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+    }
 }
