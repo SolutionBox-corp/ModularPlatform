@@ -858,21 +858,21 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC47 Provision credit account
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented + tested — `CrossModuleEventTests`, `LedgerBackstopTests`.
 
 **Pouzijes:** Billing handler na `UserRegisteredIntegrationEvent`.
 
-**Co se stane:** Po registraci vznikne zero-balance credit account.
+**Co se stane:** Identity publikuje `UserRegisteredIntegrationEvent`; Billing public Wolverine handler dispatchne internal `EnsureCreditAccountCommand` a vytvori zero-balance credit account.
 
-**Napises v CRM:** kopiruj pattern pro svoje onboarding projekce.
+**Napises v CRM:** kopiruj pattern pro svoje onboarding projekce: public event handler bere jen contract event + `IDispatcher`, vsechna logika zustava v internal commandu.
 
 **EC:**
 
-- EC231 duplicate event.
-- EC232 worker retry.
-- EC233 account already exists.
-- EC234 multiple handlers on same event.
-- EC235 public handler dispatchuje internal command.
+- EC231 duplicate event → UNIQUE `CreditAccount.UserId` + handler no-op zajisti presne jeden ucet.
+- EC232 worker retry → opakovane zavolani public handleru je idempotentni a neprepise existujici balance.
+- EC233 account already exists → `EnsureCreditAccountCommand` nic nemeni, kdyz uz ucet existuje.
+- EC234 multiple handlers on same event → stejny registration event obslouzi Billing i Notifications; kazdy subscriber musi byt idempotentni.
+- EC235 public handler dispatchuje internal command → `ProvisionCreditAccountHandler` je public shell pro Wolverine, business logika je v internal `EnsureCreditAccountCommand`.
 
 ## Notifications
 
