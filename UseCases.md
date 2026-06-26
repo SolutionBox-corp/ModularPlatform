@@ -896,21 +896,21 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC49 Zobrazit moje notifikace
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented + tested — `NotificationsIntegrationTests`, `GdprIntegrationTests`.
 
 **Pouzijes:** `GET /notifications/me`.
 
-**Co se stane:** User vidi owner-scoped feed.
+**Co se stane:** User vidi owner-scoped, paged feed z `notifications`, newest first, volitelne jen unread.
 
-**Napises v CRM:** nic.
+**Napises v CRM:** nic specialniho; FE pouzije platform endpoint, invaliduje/refetchuje feed po mark-read nebo po realtime eventu.
 
 **EC:**
 
-- EC241 paging.
-- EC242 unread filter.
-- EC243 foreign notification hidden.
-- EC244 erased PII v title/body.
-- EC245 stale cache po mark-read.
+- EC241 paging → `page/pageSize` jde pres `PageRequest`, odpoved je `PagedResponse`.
+- EC242 unread filter → `unreadOnly=true` filtruje `ReadAt == null`.
+- EC243 foreign notification hidden → query bere `UserId` z tokenu a RLS drzi owner scope; cizi notifikace se ve feedu neobjevi.
+- EC244 erased PII v title/body → GDPR erasure nechava row, ale blankuje `Title`/`Body`; encrypted live columns po shredu nevraci plaintext.
+- EC245 stale cache po mark-read → po mark-read FE invaliduje feed/unread-count; pri ztracenem SSE ma fallback refetch.
 
 ### UC50 Unread count
 

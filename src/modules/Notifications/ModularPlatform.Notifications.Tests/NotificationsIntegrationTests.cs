@@ -2,7 +2,9 @@ using System.Net;
 using System.Net.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
 using ModularPlatform.Billing.Contracts;
+using ModularPlatform.Cqrs;
 using ModularPlatform.IntegrationTesting;
+using ModularPlatform.Notifications.Features.Notifications.SendNotification;
 using Shouldly;
 using Wolverine;
 
@@ -219,6 +221,40 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
             .ShouldBeFalse();
     }
 
+    [Fact]
+    public async Task My_notifications_feed_is_paged_and_owner_scoped()
+    {
+        var (aliceId, aliceToken) = await fixture.RegisterAndLoginAsync(
+            $"notif-alice-{Guid.CreateVersion7():N}@example.com", Password);
+        var (bobId, _) = await fixture.RegisterAndLoginAsync(
+            $"notif-bob-{Guid.CreateVersion7():N}@example.com", Password);
+
+        var alicePrefix = $"feed-alice-{Guid.CreateVersion7():N}";
+        var bobTemplate = $"feed-bob-{Guid.CreateVersion7():N}";
+        await SeedTemplateAsync($"{alicePrefix}-1", "A1");
+        await SeedTemplateAsync($"{alicePrefix}-2", "A2");
+        await SeedTemplateAsync($"{alicePrefix}-3", "A3");
+        await SeedTemplateAsync(bobTemplate, "B");
+
+        await SendDirectAsync(aliceId, $"{alicePrefix}-1");
+        await SendDirectAsync(aliceId, $"{alicePrefix}-2");
+        await SendDirectAsync(aliceId, $"{alicePrefix}-3");
+        await SendDirectAsync(bobId, bobTemplate);
+
+        var response = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/notifications/me?page=1&pageSize=2", aliceToken));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var data = await PlatformApiFactory.ReadData(response);
+        data.GetProperty("page").GetInt32().ShouldBe(1);
+        data.GetProperty("pageSize").GetInt32().ShouldBe(2);
+        data.GetProperty("items").GetArrayLength().ShouldBe(2);
+        data.GetProperty("totalCount").GetInt64().ShouldBeGreaterThanOrEqualTo(3);
+        data.GetProperty("items").EnumerateArray()
+            .Any(n => n.GetProperty("templateKey").GetString() == bobTemplate)
+            .ShouldBeFalse();
+    }
+
     // A notification's PII (Title/Body) is crypto-shredded in the audit trail: the live row keeps the rendered
     // text, but notifications_audit_entries stores it as a penc:v2: envelope — never the plaintext.
     [Fact]
@@ -323,5 +359,22 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
             $"SELECT \"Id\" FROM users WHERE \"EmailHash\" = '{PlatformApiFactory.EmailHashOf(PlatformApiFactory.AdminEmail)}'");
 
         return (adminId, token);
+    }
+
+    private Task SeedTemplateAsync(string key, string subject) =>
+        fixture.ExecuteSqlAsync(
+            $"INSERT INTO notification_templates (\"Id\", \"Key\", \"Locale\", \"Subject\", \"Body\") " +
+            $"VALUES ('{Guid.CreateVersion7()}', '{key}', 'en', '{subject}', 'Body')");
+
+    private async Task SendDirectAsync(Guid userId, string templateKey)
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var dispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
+        await dispatcher.Send(new SendNotificationCommand(
+            userId,
+            templateKey,
+            ["inapp"],
+            new Dictionary<string, string>(),
+            IdempotencyKey: $"direct:{templateKey}:{Guid.CreateVersion7():N}"));
     }
 }
