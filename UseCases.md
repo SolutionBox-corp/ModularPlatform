@@ -3984,21 +3984,60 @@ void queryClient.invalidateQueries({ queryKey: [...queryRoots.files, "list"] });
 
 ### UC107 Realtime frontend refresh
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Realtime provider existuje; CRM jen prida event names do centralni mapy.
 
-**Pouzijes:** SSE event map.
+**Pouzijes:** `frontend/lib/realtime/event-map.ts`, `RealtimeProvider`, `queryRoots.crm`, backend `IRealtimePublisher`.
 
-**Co se stane:** Event invaliduje query keys.
+**Co se stane:** Backend po commitu publikuje napr. `crm.contact_changed`, `crm.import_completed`, `crm.ai_message_ready`. Frontend event nepouzije jako zdroj dat. Jen podle event name invaliduje query keys a React Query si nacte aktualni stav z API.
 
-**Napises v CRM:** mapping `crm.*` eventu.
+**Mentalni model:** Realtime event rika "neco se zmenilo, refetchni si to". Nerika "tady mas kompletni novy stav".
+
+**Pridas query root:** pokud jeste neexistuje, pridej `crm` do `queryRoots`.
+
+```ts
+export const queryRoots = {
+  // ...
+  crm: ["crm"] as const,
+} as const;
+```
+
+**Pridas event mapu:** jeden event muze invalidovat vic obrazovek. Payload se pro invalidaci ignoruje, protoze source of truth je API.
+
+```ts
+export const eventTypeToQueryKeys: Record<string, QueryKey[]> = {
+  // ...
+  "crm.contact_changed": [[...queryRoots.crm, "contacts"], [...queryRoots.crm, "dashboard"]],
+  "crm.contact_deleted": [[...queryRoots.crm, "contacts"], [...queryRoots.crm, "dashboard"]],
+  "crm.import_completed": [[...queryRoots.crm, "imports"], [...queryRoots.crm, "contacts"]],
+  "crm.ai_message_ready": [[...queryRoots.crm, "conversations"]],
+};
+```
+
+**Backend publikuje po commitu:** realtime push patri az po uspesne ulozeni. Pokud akce bezi pres Worker, publish je ve worker handleru po `SaveChangesAndFlushMessagesAsync` / po dokonceni commandu, ne predem v HTTP endpointu.
+
+```csharp
+await realtime.PublishToUserAsync(
+    userId,
+    "crm.import_completed",
+    new { importId = command.ImportId },
+    ct);
+```
+
+**Kdy pouzit detail key:** pokud event payload spolehlive obsahuje `contactId`, muzes invalidovat i detail pres specializovany handler. Zakladni mapa je jednoducha a invaliduje prefixy; detail-optimalizaci pridej az kdyz je potreba.
+
+**Reconnect:** `RealtimeProvider` pouziva BFF `/api/bff/realtime/stream`, reconnect/backoff a Last-Event-ID resume. Komponenta nema otevirat vlastni `EventSource`.
+
+**Lost event:** realtime je UX refresh, ne business garance. Kdyz se event ztrati, dalsi manualni fetch, focus, polling statusu nebo navigace stale musi ukazat pravdu z API. Durable fakta zustavaji v modulech.
+
+**Nepouzijes:** vlastni WebSocket v CRM, vlastni EventSource v komponentach, UI state odvozene jen z event payloadu, publish pred DB commitem.
 
 **EC:**
 
-- EC531 SSE reconnect.
-- EC532 lost event.
-- EC533 event pred DB commit.
-- EC534 duplicate event.
-- EC535 query refetch je source of truth.
+- EC531 SSE reconnect → neresis v CRM komponentach; centralni provider reconnectuje a invaliduje po resume.
+- EC532 lost event → event neni source of truth; obrazovka musi umet refetch/poll/nacist stav z API.
+- EC533 event pred DB commit → zakazane; publish az po commit/dokonceni worker commandu.
+- EC534 duplicate event → harmless; `invalidateQueries` je idempotentni, handler nesmi menit lokalni state dvojmo.
+- EC535 query refetch je source of truth → po eventu vzdy refetchuj API, nepovazuj payload za finalni stav.
 
 ### UC108 Navigation guard
 
