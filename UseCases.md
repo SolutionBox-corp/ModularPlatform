@@ -1410,21 +1410,45 @@ internal sealed class StartCrmImportHandler(
 
 ### UC64 Get operation status
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented pattern + tested — `OperationsTests.Demo_operation_is_accepted_runs_on_the_worker_and_is_owner_scoped`, `Operation_status_is_owner_scoped_at_the_app_layer_even_when_rls_is_bypassed` a `A_terminal_operation_is_not_resurrected_by_a_duplicate_worker_transition`.
 
 **Pouzijes:** `GET /operations/{operationId}` nebo CRM status endpoint.
 
-**Co se stane:** Frontend polluje stav.
+**Co se stane:** Frontend polluje status endpoint. Handler cte jen operation vlastnenou token userem a vraci `Id`, `Type`, `Status`, `ResultJson`, `ErrorCode`, `ErrorDetail`, `CompletedAt`. `Pending/Running` znamena "polluj dal", `Succeeded/Failed` je terminal state.
 
-**Napises v CRM:** status DTO s `Pending/Processing/Completed/Failed`.
+**Napises v CRM:** pokud pouzijes obecny Operations modul, frontend vola `/operations/{operationId}`. Pokud potrebujes domenovy detail, udelej CRM endpoint `GET /crm/imports/{id}` nebo `GET /crm/runs/{id}`, ale drz stejny tvar: stav, result/error, completedAt.
+
+**Vzor frontendu polling:**
+
+```ts
+const status = await api.get(`/v1/operations/${operationId}`);
+if (status.data.status === "Pending" || status.data.status === "Running") {
+  scheduleNextPoll({ backoff: true });
+}
+```
+
+**Vzor CRM DTO:**
+
+```csharp
+public sealed record CrmRunStatusResponse(
+    Guid Id,
+    string Status,
+    string? ErrorCode,
+    string? ErrorDetail,
+    DateTimeOffset? CompletedAt);
+```
+
+**Co si pohlidas:** status endpoint nespousti praci znovu. Je to read-only query. Pokud worker spadne, status muze zustat `Running`; to resi UC67/UC68 monitoring/reconcile, ne frontend.
+
+**Nepouzijes:** global operation lookup bez `UserId`, frontend-only status state, ani polling bez stop podminky.
 
 **EC:**
 
-- EC316 foreign operation -> 404.
-- EC317 operation not found.
-- EC318 stuck processing.
-- EC319 terminal state guard.
-- EC320 frontend polling backoff.
+- EC316 foreign operation -> 404 → handler filtruje `OperationId && UserId`, cizi id je `operation.not_found`.
+- EC317 operation not found → stejny 404/error code, zadne info leak.
+- EC318 stuck processing → status muze zustat `Running`; monitoring/reconcile musi najit stuck run, UI ukaze pending/timeout stav.
+- EC319 terminal state guard → `IOperationStore` neprepisuje `Succeeded/Failed` zpet na `Running`.
+- EC320 frontend polling backoff → pouzij interval/backoff a zastav polling na terminal state.
 
 ### UC65 List moje operace
 
