@@ -552,7 +552,7 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC30 Reserve credits
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented — overeno `ReserveCreditsTests`, `LedgerLifecycleTests`, `BillingConcurrencyTests`, `CreditAmountBoundsTests`.
 
 **Pouzijes:** `POST /billing/credits/reservations` nebo command.
 
@@ -562,11 +562,11 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 **EC:**
 
-- EC146 insufficient credits -> business error.
-- EC147 concurrent reserve nesmi double-spend.
-- EC148 amount musi byt kladny.
-- EC149 hold muze expirovat.
-- EC150 CRM nesmi delat read-then-write balance.
+- EC146 insufficient credits -> business error → 422 `credit.insufficient_balance`, bez hold/ledger side effectu.
+- EC147 concurrent reserve nesmi double-spend → atomic EF `ExecuteUpdate` guard `WHERE Available >= amount`.
+- EC148 amount musi byt kladny → validator odmita `<= 0`, oversized a nekladne `holdMinutes`.
+- EC149 hold muze expirovat → expiry sweep prevede lapsed hold na `Expired` a vrati availability.
+- EC150 CRM nesmi delat read-then-write balance → CRM vola `ReserveCreditsCommand`/endpoint a uklada jen `ReservationId`.
 
 ### UC31 Confirm spend
 
