@@ -2928,21 +2928,66 @@ services.AddScoped<IErasePersonalData, CrmPersonalDataEraser>();
 
 ### UC92 Precti data z ciziho modulu
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Architekturni pravidlo hotove; pro nove cross-module reads vytvor public query contract v owner modulu.
 
-**Pouzijes:** public query contract.
+**Pouzijes:** `*.Contracts` DTO/query, `IDispatcher.Query(...)`, owner modul handler, zadny cizi DbContext/Core reference.
 
-**Co se stane:** CRM zavola `dispatcher.Query(...)`, cilovy modul vrati DTO.
+**Co se stane:** CRM potrebuje informaci, kterou vlastni jiny modul, napr. Billing credit balance, Tenancy entitlement nebo Identity user summary. CRM nesaha do cizi tabulky a neodkazuje cizi Core entity. Zavola public query contract, handler bezi v owner modulu a vrati DTO.
 
-**Napises v CRM:** zavolani query, zadny cizi DbContext.
+**Mentalni model:** data maji vlastnika. Ten vlastnik rozhoduje scope, permission, tenant/user filtr a shape DTO. CRM muze data pouzit, ale nesmi si je tajne joinovat z cizi DB. Pokud query contract chybi, nepras ho pres Core reference; nejdriv ho pridej do owner modulu.
+
+**Contract v owner modulu:** do `ModularPlatform.Billing.Contracts` nebo `Identity.Contracts` dej jen public recordy. Contracts nesmi referencovat Core.
+
+```csharp
+namespace ModularPlatform.Billing.Contracts;
+
+public sealed record GetCreditBalanceForUserQuery(Guid UserId)
+    : IQuery<CreditBalanceDto>;
+
+public sealed record CreditBalanceDto(long Available, long Pending, long Posted);
+```
+
+**Handler v owner modulu:** Billing implementuje handler ve svem Core a resi svoji logiku/scope. CRM nevi, jak ledger funguje.
+
+```csharp
+internal sealed class GetCreditBalanceForUserHandler(BillingDbContext db)
+    : IQueryHandler<GetCreditBalanceForUserQuery, CreditBalanceDto>
+{
+    public async Task<CreditBalanceDto> Handle(GetCreditBalanceForUserQuery query, CancellationToken ct)
+    {
+        var account = await db.CreditAccounts
+            .FirstOrDefaultAsync(x => x.UserId == query.UserId, ct)
+            ?? throw new NotFoundException("billing.account_not_found", "Credit account not found.");
+
+        return new CreditBalanceDto(account.Available, account.Pending, account.Posted);
+    }
+}
+```
+
+**Volani z CRM:** CRM dostane `IDispatcher` a zavola query. Pro current user pouzij `ITenantContext.UserId`, ne route/body user id.
+
+```csharp
+var userId = tenant.UserId
+    ?? throw new UnauthorizedException("auth.required", "Authentication required.");
+
+var balance = await dispatcher.Query(new GetCreditBalanceForUserQuery(userId), ct);
+```
+
+**Casto ctena data:** pokud CRM potrebuje data v kazdem listu nebo pro filtrovani/sort, query-per-row je spatne. Vytvor CRM read model/projekci a synchronizuj ji eventy z owner modulu. Query contract pouzij pro detail nebo jednotlive rozhodnuti.
+
+**Permissions/scope:** owner modul musi osetrit, kdo smi data cist. Kdyz query slouzi jen current userovi, nedelej obecne `GetAnyUser...` bez permission. Pokud je to admin query, vyzaduj permission v owner handleru/endpoint patternu.
+
+**Testy k CRM:** CRM handler vola dispatcher query, ne cizi DbContext; foreign/scope je osetren v owner modulu; architecture tests nesmi najit reference CRM Core -> Billing Core.
+
+**Nepouzijes:** cross-module JOIN, `BillingDbContext` v CRM, `using ModularPlatform.Billing.Entities`, kopii ledger vypoctu, public DTO vracejici EF entity, ani query ktera meni stav.
 
 **EC:**
 
-- EC456 query contract chybi -> nejdriv ho navrhni v owner modulu.
-- EC457 query nesmi mutovat.
-- EC458 DTO nesmi byt Core entity.
-- EC459 performance pro casty list.
-- EC460 permission/tenant scope musi resit owner modulu.
+- EC456 query contract chybi -> nejdriv ho navrhni v owner modulu `*.Contracts`; neber si cizi Core typy.
+- EC457 query nesmi mutovat → handler jen cte, nepise audit/outbox a nepublikuje eventy.
+- EC458 DTO nesmi byt Core entity → vrat record DTO, ne EF entity ani navigation graph.
+- EC459 performance pro casty list → pro high-volume list si udelej vlastni CRM projekci synchronizovanou eventy.
+- EC460 permission/tenant scope musi resit owner modulu → owner handler zna pravidla a nesmi spolehat na CRM filtr.
 
 ### UC93 Spust cizi akci hned
 
