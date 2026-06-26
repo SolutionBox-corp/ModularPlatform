@@ -2841,21 +2841,88 @@ await db.SaveChangesAsync(ct);
 
 ### UC91 Marketing GDPR
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implementovano a testovano v Marketing; CRM modul musi pridat stejne porty, jakmile drzi PII nebo user-owned data.
 
-**Pouzijes:** Marketing `IExportPersonalData` a `IErasePersonalData`.
+**Pouzijes:** `IExportPersonalData`, `IErasePersonalData`, `IReadDbContextFactory`, EF/LINQ, GDPR fan-out.
 
-**Co se stane:** Marketing data jsou v GDPR exportu/erase.
+**Co se stane:** GDPR modul nevi nic o CRM Core. Jen zavola vsechny registrovane exportery/erasery. Marketing exporter vraci sekce `pulls`, `snapshots`, `analyses`, `vibe_conversations`, `vibe_messages`. Marketing eraser maze vsechny subject-owned rows, protoze nema legal retention. CRM musi udelat stejne rozhodnuti pro svoje tabulky.
 
-**Napises v CRM:** stejne porty pro CRM PII.
+**Mentalni model:** kazdy modul je vlastnik svych dat, takze je vlastnik i GDPR export/erase. GDPR modul je orchestrator, ne cross-module reaper. Pokud CRM obsahuje kontakty, notes, AI chats, files vazby nebo importy, CRM samo rekne, co exportuje a co maze/anonymizuje.
+
+**Exporter:** read-only, owner filter, pojmenovane sekce. Nevracej provider raw payloady, secrets ani interni tool traces, pokud nejsou osobni data uzivatele k exportu.
+
+```csharp
+internal sealed class CrmPersonalDataExporter(IReadDbContextFactory<CrmDbContext> readFactory)
+    : IExportPersonalData
+{
+    public string ModuleName => "Crm";
+
+    public async Task<IReadOnlyDictionary<string, object?>> ExportAsync(Guid userId, CancellationToken ct)
+    {
+        await using var db = readFactory.Create();
+
+        var contacts = await db.Contacts
+            .Where(x => x.UserId == userId)
+            .Select(x => new { x.Id, x.DisplayName, x.Email, x.CreatedAt })
+            .ToListAsync(ct);
+
+        var conversations = await db.Conversations
+            .IgnoreQueryFilters()
+            .Where(x => x.UserId == userId)
+            .Select(x => new { x.Id, x.Title, x.DeletedAt, x.CreatedAt })
+            .ToListAsync(ct);
+
+        return new Dictionary<string, object?>
+        {
+            ["contacts"] = contacts,
+            ["conversations"] = conversations,
+        };
+    }
+}
+```
+
+**Eraser:** rozhodni per table: delete, anonymize, nebo retain legal row bez PII. Operace musi byt idempotentni, protoze fan-out muze retryovat.
+
+```csharp
+internal sealed class CrmPersonalDataEraser(CrmDbContext db) : IErasePersonalData
+{
+    public string ModuleName => "Crm";
+
+    public async Task EraseAsync(Guid userId, CancellationToken ct)
+    {
+        await db.Messages.Where(x => x.UserId == userId).ExecuteDeleteAsync(ct);
+        await db.Conversations.IgnoreQueryFilters().Where(x => x.UserId == userId).ExecuteDeleteAsync(ct);
+
+        await db.Contacts
+            .Where(x => x.UserId == userId)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(x => x.Email, string.Empty)
+                .SetProperty(x => x.EmailHash, string.Empty)
+                .SetProperty(x => x.DisplayName, "[erased]"), ct);
+    }
+}
+```
+
+**Registrace:** v `CrmModule.RegisterServices` pridej oba porty. Bez registrace GDPR fan-out CRM neuvidi.
+
+```csharp
+services.AddScoped<IExportPersonalData, CrmPersonalDataExporter>();
+services.AddScoped<IErasePersonalData, CrmPersonalDataEraser>();
+```
+
+**External provider data:** GDPR erase smaze/anonymizuje lokalni data. Pokud CRM synchronizuje HubSpot/Salesforce, external deletion je samostatna product/legal integrace; v base GDPR portu jasne rozlis "local copy" vs "remote provider".
+
+**Testy k CRM:** export obsahuje CRM sekci a konkretni seeded data, erase odstrani/anonymizuje vsechny CRM tables pro subjecta, soft-deleted rows nezustanou pres `IgnoreQueryFilters`, cizi user data zustanou, opakovany erase je no-op.
+
+**Nepouzijes:** GDPR modul sahajici primo do CRM DbContextu, exporter bez owner filteru, raw SQL, vynechani soft-deleted rows z erasure, ani tvrzeni "smazano" pro data zustavajici u external providera.
 
 **EC:**
 
-- EC451 exporter missing.
-- EC452 eraser missing.
-- EC453 external provider data vs local data.
-- EC454 delete vs anonymize.
-- EC455 tests pro export/erase.
+- EC451 exporter missing → GDPR export nebude mit CRM sekci; pridej `IExportPersonalData` a test.
+- EC452 eraser missing → erasure nesmaze CRM PII; pridej `IErasePersonalData` a test na nulove/anonymizovane rows.
+- EC453 external provider data vs local data → base smaze lokalni CRM copy; remote provider delete/resync musi byt explicitni integracni flow.
+- EC454 delete vs anonymize → temporary/user-owned chaty muzes delete; legal/business rows anonymizuj a ponech bez PII.
+- EC455 tests pro export/erase → seedni CRM data, zavolej `/gdpr/me/export` a `/gdpr/me/erase`, over export sekce i cleanup vcetne soft-deleted rows.
 
 ## Cross-module komunikace
 
