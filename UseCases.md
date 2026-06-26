@@ -1799,21 +1799,44 @@ var hasConsent = consents
 
 ### UC73 Withdraw consent
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented + tested — `GdprIntegrationTests.Consent_grant_then_withdraw_is_append_only_and_get_reflects_the_latest_state`.
 
 **Pouzijes:** `POST /gdpr/consents/withdraw`.
 
-**Co se stane:** GDPR ulozi withdrawal.
+**Co se stane:** GDPR prida novy append-only `ConsentRecord` s `Granted = false`. Stare grant rows zustanou jako historie. Aktualni stav je posledni zaznam pro dany `ConsentType`.
 
-**Napises v CRM:** prestanes delat akce vyzadujici consent.
+**Napises v CRM:** prestanes delat akce vyzadujici consent. Frontend invaliduje consent query a CRM background joby pred provedenim znovu prectou aktualni consent state.
+
+**Vzor requestu:**
+
+```http
+POST /v1/gdpr/consents/withdraw
+{
+  "consentType": "crm.marketing",
+  "policyVersion": "2026-06"
+}
+```
+
+**Vzor CRM checku v jobu:**
+
+```csharp
+if (!await consentReader.HasActiveConsentAsync(userId, "crm.marketing", ct))
+{
+    return Unit.Value;
+}
+```
+
+**Co si pohlidas:** withdrawal neni delete dat. Je to pravni/produktovy signal, ze dalsi zpracovani vyzadujici souhlas ma prestat. Data retention/erasure resi UC71.
+
+**Nepouzijes:** mazani vsech CRM dat pri withdraw, cache consentu bez expirace, ani background job spolehajici na stav nacteny pred hodinou.
 
 **EC:**
 
-- EC361 withdraw bez grant.
-- EC362 stale frontend.
-- EC363 background job musi znovu cist consent.
-- EC364 audit/export.
-- EC365 consent withdrawal neni delete vsech dat.
+- EC361 withdraw bez grant → validni append-only row `Granted=false`; current state je false.
+- EC362 stale frontend → po withdraw invaliduj consent center i feature guards.
+- EC363 background job musi znovu cist consent → pred kazdou consent-gated akcí znovu over current state.
+- EC364 audit/export → consent historie je exportovana v `Gdpr.Consents`.
+- EC365 consent withdrawal neni delete vsech dat → pouze zastavi dalsi zpracovani vyzadujici consent; erasure je samostatny flow.
 
 ### UC74 Get consents
 
