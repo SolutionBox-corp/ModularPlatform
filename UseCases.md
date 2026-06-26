@@ -4260,21 +4260,78 @@ const CATALOG: Catalog = {
 
 ### UC111 Migrace modulu
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Pattern existuje ve vsech modulech; CRM kopiruje `IdentityDbContextDesignTimeFactory` a `ApplyMigrationsAsync`.
 
-**Pouzijes:** EF migrations + `MigrationService`.
+**Pouzijes:** EF Core migrations, `IDesignTimeDbContextFactory<TContext>`, `PlatformMigrator.MigrateAsync<TContext>`, `MigrationService`, local/Testcontainers Postgres nebo per-branch DB clone.
 
-**Co se stane:** Modulove migrace bezi pres admin connection a RLS bootstrap.
+**Co se stane:** CRM schema zije ve vlastnim modulu: `src/modules/Crm/ModularPlatform.Crm/Persistence/Migrations`. MigrationService aplikuje vsechny moduly pres admin connection a potom RLS bootstrapper nastavi policies pro `IUserOwned` tabulky.
 
-**Napises v CRM:** migration, design-time factory, host registration.
+**Mentalni model:** Migration neni runtime data request. DDL bezi admin/owner connection; app runtime connection je RLS role a nema delat schema zmeny.
+
+**Design-time factory:** bez ni `dotnet ef migrations add` nepostavi `CrmDbContext`, protoze runtime ctor potrebuje `ITenantContext`.
+
+```csharp
+internal sealed class CrmDbContextDesignTimeFactory
+    : IDesignTimeDbContextFactory<CrmDbContext>
+{
+    public CrmDbContext CreateDbContext(string[] args)
+    {
+        var options = new DbContextOptionsBuilder<CrmDbContext>()
+            .UseNpgsql(
+                "Host=localhost;Database=modularplatform_design;Username=postgres;Password=postgres",
+                npg => npg.MigrationsHistoryTable("__ef_migrations_crm"))
+            .Options;
+
+        return new CrmDbContext(options, new SystemTenantContext());
+    }
+}
+```
+
+**Vygeneruj migration:** output-dir patri do modulu, ne do hostu.
+
+```bash
+dotnet ef migrations add InitialCrm \
+  --project src/modules/Crm/ModularPlatform.Crm/ModularPlatform.Crm.csproj \
+  --context CrmDbContext \
+  --output-dir Persistence/Migrations
+```
+
+**Module migration hook:** `CrmModule.ApplyMigrationsAsync` pouzije admin connection string a `PlatformMigrator`.
+
+```csharp
+public async Task ApplyMigrationsAsync(IServiceProvider services, CancellationToken ct)
+{
+    var config = services.GetRequiredService<IConfiguration>();
+    var adminConnectionString = config.GetConnectionString("Write")
+        ?? throw new InvalidOperationException("ConnectionStrings:Write is required.");
+
+    await PlatformMigrator.MigrateAsync<CrmDbContext>(
+        services,
+        adminConnectionString,
+        Name,
+        ct);
+}
+```
+
+**Apply locally:** pro lokalni DB pouzij MigrationService. Pro shared staging/prod nikdy nepoustej migration primo bez explicitniho schvaleni; pouzij per-branch clone.
+
+```bash
+dotnet run --project src/hosts/ModularPlatform.MigrationService
+```
+
+**RLS/tenant data:** kdyz entita implementuje `IUserOwned`, musi mit `Guid UserId`; RLS policy se nastavuje po migracich. Kdyz implementuje `ITenantScoped`, tenant stamping/filter resi platforma.
+
+**Snapshot review:** po migration se podivej, jestli EF nevygeneroval nechtene rename/drop. Rename obvykle EF vidi jako drop+create; to muze ztratit data.
+
+**Nepouzijes:** raw SQL migrations, runtime `app_rls` connection pro DDL, migrace v API requestu, shared staging DB pro experiment, spolecny migration history table pro vice modulu.
 
 **EC:**
 
-- EC551 nespoustet migraci proti shared DB.
-- EC552 runtime RLS role nema delat DDL.
-- EC553 missing design-time factory.
-- EC554 migration service DI graph fail.
-- EC555 raw SQL zakazany.
+- EC551 nespoustet migraci proti shared DB → migration nejdriv local/Testcontainers/per-branch clone, ne staging/prod.
+- EC552 runtime RLS role nema delat DDL → MigrationService/PlatformMigrator jede admin connection, runtime role jen data.
+- EC553 missing design-time factory → CRM musi mit `CrmDbContextDesignTimeFactory` se `SystemTenantContext`.
+- EC554 migration service DI graph fail → CRM modul registruj i do MigrationService host builderu a HostBootTests.
+- EC555 raw SQL zakazany → schema/model pres EF migrations; zadne `ExecuteSqlRaw` pro business schema.
 
 ### UC112 Testy noveho flow
 
