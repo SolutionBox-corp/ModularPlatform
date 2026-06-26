@@ -1,5 +1,6 @@
 using ModularPlatform.Billing.Stripe;
 using ModularPlatform.Cqrs;
+using Stripe;
 
 namespace ModularPlatform.Billing.Features.Coupons.ValidatePromoCode;
 
@@ -13,8 +14,24 @@ internal sealed class ValidatePromoCodeHandler(IStripeGateway gateway)
 {
     public async Task<PromoCodeResponse> Handle(ValidatePromoCodeQuery query, CancellationToken ct)
     {
-        var promo = await gateway.FindActivePromotionCodeAsync(query.Code, ct)
-            ?? throw new NotFoundException("billing.coupon.invalid", "Unknown or inactive promotion code.");
+        var code = query.Code.Trim();
+
+        PromotionCodeState? promo;
+        try
+        {
+            promo = await gateway.FindActivePromotionCodeAsync(code, ct);
+        }
+        catch (StripeException ex)
+        {
+            throw new BusinessRuleException(
+                "billing.coupon.provider_failed",
+                $"The promo-code provider rejected the request: {ex.Message}");
+        }
+
+        if (promo is null)
+        {
+            throw new NotFoundException("billing.coupon.invalid", "Unknown or inactive promotion code.");
+        }
 
         return new PromoCodeResponse(promo.Code, promo.PercentOff, promo.AmountOff, promo.Currency);
     }

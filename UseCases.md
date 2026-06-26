@@ -804,21 +804,21 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC44 Promo code
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented + tested — `PromoCodeTests`.
 
 **Pouzijes:** `GET /billing/promo-codes/{code}/validate`.
 
-**Co se stane:** Billing overi promo code.
+**Co se stane:** Billing normalizuje UI vstup, zepta se provideru na aktivni promo code a vrati discount shape pro nahled v UI.
 
-**Napises v CRM:** nic, jen UI input/debounce.
+**Napises v CRM:** input s debounce, po 200-500 ms volas validate endpoint. Vysledek je jen UX hint; pri checkoutu se stejne spolehas na provider validaci.
 
 **EC:**
 
-- EC216 invalid/expired code.
-- EC217 code not applicable.
-- EC218 provider rate limit.
-- EC219 frontend debounce.
-- EC220 checkout stejne validuje na backendu.
+- EC216 invalid/expired code → provider nic nevrati, endpoint vraci 404 `billing.coupon.invalid`.
+- EC217 code not applicable → pre-check to nebere jako pravdu pro konkretni kosik; finalni aplikovatelnost resi Stripe Checkout.
+- EC218 provider rate limit → Stripe vyjimka se prelozi na 422 `billing.coupon.provider_failed`, UI muze zkusit pozdeji.
+- EC219 frontend debounce → CRM nedela request na kazdy keypress; vola az po kratke pauze a rusi stare requesty.
+- EC220 checkout stejne validuje na backendu → subscription/package checkout posila `AllowPromotionCodes`, provider znovu overi code a discount math.
 
 ### UC45 Stripe reconcile
 

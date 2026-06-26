@@ -138,6 +138,7 @@
   <data name="billing.package.stripe_price.too_long" xml:space="preserve"><value>Stripe price id je příliš dlouhé.</value></data>
   <data name="billing.purchase_not_found" xml:space="preserve"><value>Nákup nenalezen.</value></data>
   <data name="billing.coupon.invalid" xml:space="preserve"><value>Neznámý nebo neaktivní slevový kód.</value></data>
+  <data name="billing.coupon.provider_failed" xml:space="preserve"><value>Poskytovatel promo kódů požadavek odmítl.</value></data>
   <data name="billing.subscription.plan_not_found" xml:space="preserve"><value>Neznámý předplatitelský plán.</value></data>
   <data name="billing.subscription.already_active" xml:space="preserve"><value>Uživatel už má aktivní předplatné.</value></data>
   <data name="billing.subscription.not_found" xml:space="preserve"><value>Žádné aktivní předplatné.</value></data>

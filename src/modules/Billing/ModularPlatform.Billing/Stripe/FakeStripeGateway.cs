@@ -18,6 +18,7 @@ internal sealed class FakeStripeGateway : IStripeGateway
     private readonly ConcurrentDictionary<string, string> _sessionPaymentStatus = new();
     private readonly ConcurrentQueue<CheckoutSessionSpec> _createdSessions = new();
     private int _failNextBillingPortalSession;
+    private int _failNextPromotionCodeLookup;
     private int _sessionCounter;
 
     public void SeedEvent(Event stripeEvent) => _events[stripeEvent.Id] = stripeEvent;
@@ -33,6 +34,9 @@ internal sealed class FakeStripeGateway : IStripeGateway
 
     public void FailNextBillingPortalSession() =>
         Interlocked.Exchange(ref _failNextBillingPortalSession, 1);
+
+    public void FailNextPromotionCodeLookup() =>
+        Interlocked.Exchange(ref _failNextPromotionCodeLookup, 1);
 
     public Task<Event> GetEventAsync(string eventId, CancellationToken ct) =>
         _events.TryGetValue(eventId, out var stripeEvent)
@@ -78,8 +82,15 @@ internal sealed class FakeStripeGateway : IStripeGateway
             $"https://billing.stripe.test/portal/{customerId}?return_url={Uri.EscapeDataString(returnUrl)}");
     }
 
-    public Task<PromotionCodeState?> FindActivePromotionCodeAsync(string code, CancellationToken ct) =>
-        Task.FromResult(_promotionCodes.TryGetValue(code, out var state) ? state : null);
+    public Task<PromotionCodeState?> FindActivePromotionCodeAsync(string code, CancellationToken ct)
+    {
+        if (Interlocked.Exchange(ref _failNextPromotionCodeLookup, 0) == 1)
+        {
+            throw new StripeException("Promotion code lookup rate-limited");
+        }
+
+        return Task.FromResult(_promotionCodes.TryGetValue(code, out var state) ? state : null);
+    }
 
     public Task<string?> GetCheckoutSessionPaymentStatusAsync(string sessionId, CancellationToken ct) =>
         Task.FromResult(_sessionPaymentStatus.TryGetValue(sessionId, out var status) ? status : null);

@@ -138,6 +138,7 @@
   <data name="billing.package.stripe_price.too_long" xml:space="preserve"><value>The Stripe price id is too long.</value></data>
   <data name="billing.purchase_not_found" xml:space="preserve"><value>Purchase not found.</value></data>
   <data name="billing.coupon.invalid" xml:space="preserve"><value>Unknown or inactive promotion code.</value></data>
+  <data name="billing.coupon.provider_failed" xml:space="preserve"><value>The promo-code provider rejected the request.</value></data>
   <data name="billing.subscription.plan_not_found" xml:space="preserve"><value>Unknown subscription plan.</value></data>
   <data name="billing.subscription.already_active" xml:space="preserve"><value>The user already has an active subscription.</value></data>
   <data name="billing.subscription.not_found" xml:space="preserve"><value>No active subscription.</value></data>
