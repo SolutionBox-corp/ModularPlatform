@@ -271,7 +271,8 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC15 Zjistit moje entitlements
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented — overeno testy `EntitlementsTests` + `EntitlementGuardCoverageTests` a frontend
+`pnpm typecheck`.
 
 **Pouzijes:** `GET /tenant/me/entitlements`.
 
@@ -281,11 +282,12 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 **EC:**
 
-- EC071 chybejici entitlement schova CRM menu.
-- EC072 backend stale blokuje endpoint, i kdyz UI menu nekdo obejde.
-- EC073 po admin zmene invaliduj entitlement cache.
-- EC074 menu guard neni security.
-- EC075 novy modul ma byt defaultne vypnuty, dokud neni entitlement.
+- EC071 chybejici entitlement schova CRM menu: frontend `isModuleEnabled` vraci false pro chybejici modul.
+- EC072 backend stale blokuje endpoint, i kdyz UI menu nekdo obejde: test vypne `billing` a primy call na
+  `/billing/packages` skonci 404.
+- EC073 po admin zmene invaliduj entitlement cache: `useSetEntitlement` invaliduje `queryRoots.entitlements`.
+- EC074 menu guard neni security: security je `.RequireModule(...)`, ne navigace.
+- EC075 novy modul ma byt defaultne vypnuty, dokud neni entitlement: test overuje, ze cerstvy tenant nema `crm`.
 
 ### UC16 Platform admin vytvori tenant
 

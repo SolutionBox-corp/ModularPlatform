@@ -46,6 +46,13 @@ public sealed class EntitlementGuardCoverageTests(PlatformApiFactory fixture)
                 continue;
             }
 
+            // Platform/admin catalogue operations are permission-gated control-plane endpoints, not tenant product
+            // usage. A platform admin must be able to manage the catalogue even when its own tenant is not entitled.
+            if (route.StartsWith("/v1/billing/admin/", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             checkedCount++;
 
             var marker = endpoint.Metadata.GetMetadata<ModuleEntitlementMetadata>();

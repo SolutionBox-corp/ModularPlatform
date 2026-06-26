@@ -60,6 +60,9 @@ export function useSetEntitlement() {
       void queryClient.invalidateQueries({
         queryKey: queryRoots.admin,
       });
+      void queryClient.invalidateQueries({
+        queryKey: queryRoots.entitlements,
+      });
       toast.success(
         `${variables.moduleKey} ${variables.enabled ? "enabled" : "disabled"}.`,
       );
