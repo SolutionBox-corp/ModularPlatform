@@ -3,6 +3,7 @@ using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Tenancy.Entities;
 using ModularPlatform.Tenancy.Persistence;
+using ModularPlatform.Tenancy.Services;
 using Wolverine.EntityFrameworkCore;
 
 namespace ModularPlatform.Tenancy.Features.Admin.SetEntitlement;
@@ -14,6 +15,11 @@ internal sealed class SetEntitlementHandler(IDbContextOutbox<TenancyDbContext> o
     {
         var db = outbox.DbContext;
         var moduleKey = command.ModuleKey.Trim().ToLowerInvariant();
+
+        if (!ProductModuleKeys.IsKnown(moduleKey))
+        {
+            throw new BusinessRuleException("tenant.module_unknown", "Unknown module key.");
+        }
 
         if (!await db.Tenants.AnyAsync(t => t.Id == command.TenantId, ct))
         {

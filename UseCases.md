@@ -349,7 +349,7 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC19 Zapnout nebo vypnout modul tenantovi
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented — overeno `PlatformAdminTests`, `EntitlementsTests` a frontend `useSetEntitlement`.
 
 **Pouzijes:** `PUT /tenant/admin/tenants/{tenantId}/entitlements/{moduleKey}`.
 
@@ -359,11 +359,12 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 **EC:**
 
-- EC091 preklep v module key.
-- EC092 vypnuti CRM nema mazat CRM data automaticky.
-- EC093 UI musi refetchnout entitlements.
-- EC094 backend guard je autorita.
-- EC095 zmena entitlementu musi byt auditovatelna.
+- EC091 preklep v module key: neznamy key vrati 422 `tenant.module_unknown` a neulozi typo radek.
+- EC092 vypnuti CRM nema mazat CRM data automaticky: entitlement toggle meni jen `tenant_entitlements`, ne data modulu.
+- EC093 UI musi refetchnout entitlements: `useSetEntitlement` invaliduje `queryRoots.admin` i
+  `queryRoots.entitlements`.
+- EC094 backend guard je autorita: `.RequireModule(...)` cte entitlement live a blokuje primy bypass.
+- EC095 zmena entitlementu musi byt auditovatelna: update `TenantEntitlement` zapisuje `tenancy_audit_entries`.
 
 ### UC20 Tenant invite
 

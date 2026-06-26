@@ -46,6 +46,35 @@ public sealed class PlatformAdminTests(PlatformApiFactory fixture)
         var enabled = await fixture.ScalarAsync<bool>(
             $"SELECT \"Enabled\" FROM tenant_entitlements WHERE \"TenantId\" = '{tenantId}' AND \"ModuleKey\" = 'billing'");
         enabled.ShouldBeFalse();
+
+        var entitlementId = await fixture.ScalarAsync<Guid>(
+            $"SELECT \"Id\" FROM tenant_entitlements WHERE \"TenantId\" = '{tenantId}' AND \"ModuleKey\" = 'billing'");
+        var auditRows = await fixture.ScalarAsync<long>(
+            "SELECT count(*)::bigint FROM tenancy_audit_entries " +
+            "WHERE \"EntityType\" = 'TenantEntitlement' AND \"Action\" = 'Update' " +
+            $"AND \"EntityId\" = '{entitlementId}'");
+        auditRows.ShouldBeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task Set_entitlement_rejects_unknown_module_keys_without_persisting_the_typo()
+    {
+        var admin = await AdminTokenAsync();
+        var subdomain = $"typo-{Guid.CreateVersion7():N}".Substring(0, 30);
+
+        var provision = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/tenant/admin/tenants", admin, new { name = "Typo", subdomain }));
+        provision.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var tenantId = (await PlatformApiFactory.ReadData(provision)).GetProperty("tenantId").GetGuid();
+
+        var typo = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Put, $"/v1/tenant/admin/tenants/{tenantId}/entitlements/crmm", admin,
+            new { enabled = true, tier = (string?)null }));
+        typo.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+
+        var persistedTypos = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM tenant_entitlements WHERE \"TenantId\" = '{tenantId}' AND \"ModuleKey\" = 'crmm'");
+        persistedTypos.ShouldBe(0);
     }
 
     [Fact]

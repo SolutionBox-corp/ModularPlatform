@@ -16,14 +16,6 @@ namespace ModularPlatform.Tenancy.Services;
 /// </summary>
 internal sealed class TenantProvisioning(IDbContextOutbox<TenancyDbContext> outbox, IClock clock) : ITenantProvisioning
 {
-    /// <summary>
-    /// Module keys a fresh tenant is entitled to by default (the product-facing modules; Identity/Tenancy are
-    /// infrastructure, always on, not gated). The platform-admin can later toggle these per tenant. The keys must
-    /// match the <c>.RequireModule("…")</c> keys on each module's endpoints.
-    /// </summary>
-    private static readonly string[] DefaultEntitledModules =
-        ["billing", "notifications", "files", "operations", "gdpr", "marketing"];
-
     public async Task<Guid> CreateAsync(string name, string? subdomain = null, CancellationToken ct = default)
     {
         var db = outbox.DbContext;
@@ -48,7 +40,9 @@ internal sealed class TenantProvisioning(IDbContextOutbox<TenancyDbContext> outb
 
         db.Tenants.Add(tenant);
 
-        foreach (var moduleKey in DefaultEntitledModules)
+        // Fresh tenants get only the default product modules; future modules such as CRM stay off until an admin grants
+        // their key explicitly.
+        foreach (var moduleKey in ProductModuleKeys.DefaultEntitled)
         {
             db.TenantEntitlements.Add(new TenantEntitlement
             {
