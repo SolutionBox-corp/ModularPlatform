@@ -498,7 +498,7 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC27 Credit balance
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented — overeno `CreditBalanceTests`, `LedgerBackstopTests`, `RlsTests`; response vraci `posted/pending/available`.
 
 **Pouzijes:** `GET /billing/credits/balance` nebo public query.
 
@@ -508,11 +508,11 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 **EC:**
 
-- EC131 chybejici account se ma provisionovat nebo vratit jasny error podle flow.
-- EC132 UI balance je orientacni, neni security.
-- EC133 po reserve/confirm/release invaliduj balance.
-- EC134 balance je user/tenant scoped.
-- EC135 CRM nepocita balance ručně z ledgeru.
+- EC131 chybejici account → registrace provisionuje zero account; primy query bez accountu vraci `credit.account_not_found`.
+- EC132 UI balance je orientacni, neni security → placene akce musi jit pres reserve/confirm/release, ne pres UI hodnotu.
+- EC133 po reserve/confirm/release invaliduj balance → endpoint vraci ulozenou projekci po kazde mutaci.
+- EC134 balance je user/tenant scoped → endpoint bere usera z tokenu; RLS brani cteni ciziho accountu.
+- EC135 CRM nepocita balance ručně z ledgeru → CRM vola `GET /billing/credits/balance` nebo Billing query.
 
 ### UC28 Credit ledger
 
