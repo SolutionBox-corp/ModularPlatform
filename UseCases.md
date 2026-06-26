@@ -696,7 +696,7 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC38 Purchase status
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented — `PurchaseStatusTests` overuji owner scope a stavy `Pending` → `Abandoned` → late `Completed`.
 
 **Pouzijes:** `GET /billing/purchases/{purchaseId}`.
 
@@ -706,11 +706,11 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 **EC:**
 
-- EC186 foreign purchase -> 404.
-- EC187 pending/confirmed/abandoned states.
-- EC188 late webhook after timeout.
-- EC189 frontend polling interval a loading.
-- EC190 CRM necita Billing DB.
+- EC186 foreign purchase -> 404 → endpoint filtruje podle `UserId` z tokenu.
+- EC187 pending/confirmed/abandoned states → status se cte ze saga row; `Pending`, `Abandoned`, `Completed`.
+- EC188 late webhook after timeout → pozdni `CreditPurchaseConfirmed` po `Abandoned` preklopi purchase na `Completed` a zachova penize.
+- EC189 frontend polling interval a loading → FE polluje `GET /billing/purchases/{purchaseId}`; pred materializaci saga row muze kratce dostat 404/loading.
+- EC190 CRM necita Billing DB → CRM pouziva endpoint/response, ne `credit_purchase_sagas` tabulku.
 
 ### UC39 Subscription plans
 
