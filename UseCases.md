@@ -1223,21 +1223,35 @@ window.open(`/v1/files/${fileObjectId}`, "_blank");
 
 ### UC60 Rename souboru
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented + tested — `FilesUploadTests.Rename_updates_display_name_only_and_keeps_storage_key_unchanged` a `Rename_validates_file_name_and_keeps_foreign_ids_hidden`.
 
 **Pouzijes:** `PATCH /files/{fileId}`.
 
-**Co se stane:** Files zmeni display filename metadata.
+**Co se stane:** Endpoint vezme `fileId` z route, `fileName` z body a usera z tokenu. `RenameFileHandler` najde soubor jen kdyz patri userovi, zmeni pouze `FileName` v metadata row a ulozi EF tracked entity. Blob ani `StorageKey` se nemení.
 
-**Napises v CRM:** po rename invaliduj attachments/list.
+**Napises v CRM:** pokud CRM zobrazuje attachmenty, po rename invaliduj CRM attachment list i obecny Files list. CRM nemeni `file_objects` napriamo; maximalne zavola Files endpoint a potom obnovi svoje view.
+
+**Vzor frontendu:**
+
+```ts
+await api.patch(`/v1/files/${fileId}`, { fileName: nextName });
+queryClient.invalidateQueries({ queryKey: ["files"] });
+queryClient.invalidateQueries({ queryKey: ["deal", dealId, "attachments"] });
+```
+
+**Vzor CRM:** kdyz chces rename z deal detailu, nejdriv over, ze user vidi deal a attachment patri k dealu. Potom zavolej `PATCH /files/{fileId}`. Neobchazej Files modul.
+
+**Co si pohlidas:** rename je display metadata, ne presun blobu. Kdyz user posle stejny nazev znovu, je to bezpecna idempotentni aktualizace.
+
+**Nepouzijes:** update `StorageKey`, direct update do `file_objects` z CRM, ani route/body user id.
 
 **EC:**
 
-- EC296 empty filename.
-- EC297 too long filename.
-- EC298 foreign id.
-- EC299 concurrent rename.
-- EC300 CRM nema prepisovat metadata napriamo.
+- EC296 empty filename → validator vraci `file.name.required`.
+- EC297 too long filename → limit 512 znaku, validator vraci `file.name.too_long`.
+- EC298 foreign id → handler hleda `Id && UserId`; cizi id je 404.
+- EC299 concurrent rename → jde o tracked EF write, tak funguje platform `xmin`/`ConcurrencyRetryBehavior`; posledni uspesny rename vyhraje, bez zmeny storage key.
+- EC300 CRM nema prepisovat metadata napriamo → CRM vola Files endpoint/slice, proto zustane audit, owner scope a validace na jednom miste.
 
 ### UC61 Delete souboru
 

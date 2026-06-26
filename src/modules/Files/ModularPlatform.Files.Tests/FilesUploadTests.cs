@@ -135,6 +135,58 @@ public sealed class FilesUploadTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Rename_updates_display_name_only_and_keeps_storage_key_unchanged()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync(
+            $"rename-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+        var upload = await UploadAsync(token, "old-name.txt", "text/plain", Encoding.UTF8.GetBytes("body"));
+        upload.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var fileId = (await PlatformApiFactory.ReadData(upload)).GetProperty("id").GetGuid();
+        var storageKeyBefore = await fixture.ScalarAsync<string>(
+            $"SELECT \"StorageKey\" FROM file_objects WHERE \"Id\" = '{fileId}'");
+
+        var rename = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Patch, $"/v1/files/{fileId}", token, new { fileName = "new-name.txt" }));
+
+        rename.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var data = await PlatformApiFactory.ReadData(rename);
+        data.GetProperty("fileName").GetString().ShouldBe("new-name.txt");
+
+        var row = await fixture.ScalarAsync<string>(
+            $"SELECT \"FileName\" FROM file_objects WHERE \"Id\" = '{fileId}'");
+        row.ShouldBe("new-name.txt");
+        var storageKeyAfter = await fixture.ScalarAsync<string>(
+            $"SELECT \"StorageKey\" FROM file_objects WHERE \"Id\" = '{fileId}'");
+        storageKeyAfter.ShouldBe(storageKeyBefore);
+    }
+
+    [Fact]
+    public async Task Rename_validates_file_name_and_keeps_foreign_ids_hidden()
+    {
+        var (_, ownerToken) = await fixture.RegisterAndLoginAsync(
+            $"rename-owner-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+        var upload = await UploadAsync(ownerToken, "owned.txt", "text/plain", Encoding.UTF8.GetBytes("body"));
+        upload.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var fileId = (await PlatformApiFactory.ReadData(upload)).GetProperty("id").GetGuid();
+
+        var empty = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Patch, $"/v1/files/{fileId}", ownerToken, new { fileName = "" }));
+        empty.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await empty.Content.ReadAsStringAsync()).ShouldContain("file.name.required");
+
+        var tooLong = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Patch, $"/v1/files/{fileId}", ownerToken, new { fileName = new string('x', 513) }));
+        tooLong.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await tooLong.Content.ReadAsStringAsync()).ShouldContain("file.name.too_long");
+
+        var (_, otherToken) = await fixture.RegisterAndLoginAsync(
+            $"rename-other-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+        var foreign = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Patch, $"/v1/files/{fileId}", otherToken, new { fileName = "stolen.txt" }));
+        foreign.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
     public async Task Upload_location_header_is_versioned_and_points_at_the_download_route()
     {
         var (_, token) = await fixture.RegisterAndLoginAsync($"loc-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
