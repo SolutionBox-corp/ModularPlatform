@@ -3894,21 +3894,93 @@ function onSubmit(values: CreateContactValues) {
 
 ### UC106 Cache invalidace po mutaci
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Frontend pattern existuje v Marketing/Files; CRM mutace musi vzdy rict, ktere query jsou po akci stare.
 
-**Pouzijes:** React Query `invalidateQueries`.
+**Pouzijes:** React Query `queryClient.invalidateQueries`, `queryRoots.crm`, feature query factory v `frontend/features/crm/api.ts`, hooky v `frontend/features/crm/hooks.ts`.
 
-**Co se stane:** Po create/update/delete se UI refetchne.
+**Co se stane:** Po create/update/delete se UI nehada, jestli se data zmenila. Mutace explicitne invaliduje listy, detail, counters a pripadne related roots. React Query pak refetchne aktualni data ze serveru a server rozhodne finalni sort/order/permissions.
 
-**Napises v CRM:** invalidace listu, detailu, countu a souvisejicich roots.
+**Mentalni model:** Kazda mutace ma otazku: "Ktere obrazovky by ted lhaly, kdyby zustaly z cache?" Ty query invaliduj.
+
+**Query keys:** pridej CRM root na jedno misto a vsechny CRM query stav z nej.
+
+```ts
+// frontend/lib/api/query-keys.ts
+export const queryRoots = {
+  // ...
+  crm: ["crm"] as const,
+} as const;
+
+// frontend/features/crm/api.ts
+export const crmQueries = {
+  contacts: (page = 1, pageSize = 20, search?: string) =>
+    queryOptions({
+      queryKey: [...queryRoots.crm, "contacts", { page, pageSize, search }],
+      queryFn: () => getContacts(page, pageSize, search),
+    }),
+  contact: (id: string) =>
+    queryOptions({
+      queryKey: [...queryRoots.crm, "contacts", id],
+      queryFn: () => getContact(id),
+    }),
+  dashboard: () =>
+    queryOptions({
+      queryKey: [...queryRoots.crm, "dashboard"],
+      queryFn: getCrmDashboard,
+    }),
+};
+```
+
+**Create contact:** invaliduj listy a dashboard. Detail noveho kontaktu bud nastav pres `setQueryData`, nebo nech detail refetchnout po navigaci.
+
+```ts
+onSuccess: (created) => {
+  toast.success(t("contacts.created"));
+  void queryClient.invalidateQueries({ queryKey: [...queryRoots.crm, "contacts"] });
+  void queryClient.invalidateQueries({ queryKey: [...queryRoots.crm, "dashboard"] });
+  queryClient.setQueryData([...queryRoots.crm, "contacts", created.contactId], created);
+}
+```
+
+**Update contact:** invaliduj detail i listy. Detail potrebuje nove hodnoty, list potrebuje jmeno/status/sort.
+
+```ts
+onSuccess: (_, variables) => {
+  void queryClient.invalidateQueries({
+    queryKey: [...queryRoots.crm, "contacts", variables.contactId],
+  });
+  void queryClient.invalidateQueries({ queryKey: [...queryRoots.crm, "contacts"] });
+}
+```
+
+**Delete contact:** invaliduj listy a odstran detail z cache, aby back navigation neukazal smazany zaznam.
+
+```ts
+onSuccess: (_, contactId) => {
+  void queryClient.invalidateQueries({ queryKey: [...queryRoots.crm, "contacts"] });
+  queryClient.removeQueries({ queryKey: [...queryRoots.crm, "contacts", contactId] });
+}
+```
+
+**Related roots:** kdyz CRM akce zmeni kreditovy stav, invaliduj Billing balance. Kdyz posle notifikaci, invaliduj notifications feed. Kdyz prida soubor k firme, invaliduj files list i CRM detail.
+
+```ts
+void queryClient.invalidateQueries({ queryKey: [...queryRoots.billing, "balance"] });
+void queryClient.invalidateQueries({ queryKey: [...queryRoots.notifications] });
+void queryClient.invalidateQueries({ queryKey: [...queryRoots.files, "list"] });
+```
+
+**Realtime + mutace:** mutace invaliduje okamzity stav po requestu. Realtime event invaliduje znovu, az worker dokonci async cast. To neni chyba; je to reconciliation mezi "request accepted" a "background work done".
+
+**Nepouzijes:** globalni `refetchQueries()` po vsem, manualni reload stranky, vlastni cache mimo React Query, query key stringy rozesete po komponentach.
 
 **EC:**
 
-- EC526 delete vypada nefunkcne kvuli stale cache.
-- EC527 create se nezobrazi kvuli sort/order.
-- EC528 related Billing/Notifications cache.
-- EC529 realtime plus mutation double-refetch.
-- EC530 stale detail po rename/delete.
+- EC526 delete vypada nefunkcne kvuli stale cache → po delete invaliduj list a `removeQueries` pro detail.
+- EC527 create se nezobrazi kvuli sort/order → invaliduj list root, ne jen aktualni stranku.
+- EC528 related Billing/Notifications cache → side effect v jinem modulu = invalidace jeho query rootu.
+- EC529 realtime plus mutation double-refetch → povolene; mutace refetchne accepted stav, SSE refetchne finalni stav.
+- EC530 stale detail po rename/delete → update invaliduje detail, delete detail z cache odstrani.
 
 ### UC107 Realtime frontend refresh
 
