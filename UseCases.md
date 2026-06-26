@@ -1758,21 +1758,44 @@ services.AddScoped<IErasePersonalData, CrmPersonalDataEraser>();
 
 ### UC72 Grant consent
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented + tested — `GdprIntegrationTests.Consent_grant_then_withdraw_is_append_only_and_get_reflects_the_latest_state` a consent export/erasure test.
 
 **Pouzijes:** `POST /gdpr/consents/grant`.
 
-**Co se stane:** GDPR ulozi consent record.
+**Co se stane:** Endpoint vezme usera z tokenu a ulozi novy append-only `ConsentRecord` s `Granted = true`, `ConsentType`, `RecordedAt`, volitelne `PolicyVersion`. Nic se neupdatuje; historie je audit trail. Aktualni stav pro consent key je posledni zaznam podle `RecordedAt`.
 
-**Napises v CRM:** ctes consent stav, nevytvaris paralelni consent table.
+**Napises v CRM:** ctes consent stav z GDPR endpointu nebo query, nevytvaris paralelni consent table. Pokud CRM potrebuje napr. marketing consent, ptej se na consent key typu `crm.marketing`.
+
+**Vzor requestu:**
+
+```http
+POST /v1/gdpr/consents/grant
+{
+  "consentType": "crm.marketing",
+  "policyVersion": "2026-06"
+}
+```
+
+**Vzor CRM guardu:**
+
+```csharp
+var hasConsent = consents
+    .Where(x => x.ConsentType == "crm.marketing")
+    .OrderByDescending(x => x.RecordedAt)
+    .FirstOrDefault()?.Granted == true;
+```
+
+**Co si pohlidas:** duplicate grant znamena dalsi historicky zaznam, ne chyba. Pokud produkt chce whitelist consent keys, dopln centralni registry/validator; soucasny base kontroluje jen non-empty/max length.
+
+**Nepouzijes:** vlastni CRM consent table, user id v body, ani prepis stare consent row.
 
 **EC:**
 
-- EC356 duplicate grant.
-- EC357 unknown consent key.
-- EC358 consent musi byt audit/export.
-- EC359 frontend stale consent state.
-- EC360 legal text/version.
+- EC356 duplicate grant → append-only historie; latest record je current state.
+- EC357 unknown consent key → base nema whitelist; pokud je potreba, pridej registry/validator pred produktovym pouzitim.
+- EC358 consent musi byt audit/export → `Gdpr.Consents` implementuje export a erasure.
+- EC359 frontend stale consent state → po grant invaliduj `gdpr.consents`/feature guards.
+- EC360 legal text/version → posilej `policyVersion`, aby bylo dohledatelne, s jakou verzi textu user souhlasil.
 
 ### UC73 Withdraw consent
 
