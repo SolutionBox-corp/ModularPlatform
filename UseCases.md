@@ -4041,21 +4041,79 @@ await realtime.PublishToUserAsync(
 
 ### UC108 Navigation guard
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Pattern existuje v tenant layoutu, `AppNav`, Marketing page a Files page.
 
-**Pouzijes:** entitlements + permissions.
+**Pouzijes:** `frontend/features/entitlements/nav.ts`, `AppNav`, `entitlementQueries.me()`, `isModuleEnabled`, session `user.permissions`, backend `.RequirePermission(...)`.
 
-**Co se stane:** UI skryje moduly a akce, ktere user nema.
+**Co se stane:** Sidebar ukaze CRM jen tenantovi, ktery ma CRM modul enabled. Akcni tlacitka ukazes jen userovi s permission. Ale deep link na `/crm` stale chranis na server page a backend endpoint je definitivni security boundary.
 
-**Napises v CRM:** nav item se cte z auth/tenant state.
+**Mentalni model:** Navigace je pohodli a UX. Security je endpoint permission + tenant/user scope + RLS. Schovany button neznamena zabezpeceny system.
+
+**Nav item:** pridej CRM do centralniho nav configu, ne primo do sidebar komponenty.
+
+```ts
+export const NAV_ITEMS: NavItem[] = [
+  // ...
+  {
+    key: "crm",
+    href: "/crm",
+    labelKey: "crm",
+    icon: UsersIcon,
+    moduleKey: "crm",
+  },
+];
+```
+
+**Sidebar filtr:** `AppNav` uz filtruje podle tenant entitlementu a permission. CRM tady nedostane special case.
+
+```ts
+const visibleItems = items.filter((item) => {
+  if (item.moduleKey && !isModuleEnabled(entitlements, item.moduleKey)) return false;
+  if (item.permission && !permissions.includes(item.permission)) return false;
+  return true;
+});
+```
+
+**Route guard:** na CRM page udelej stejny guard jako Marketing/Files. Layout entitlements prefetchuje, page si je pres `fetchQuery` vezme z cache a pri disabled modulu vrati 404.
+
+```tsx
+export default async function CrmPage() {
+  const queryClient = getQueryClient();
+  const entitlements = await queryClient.fetchQuery(entitlementQueries.me());
+  if (!isModuleEnabled(entitlements, "crm")) notFound();
+
+  void queryClient.prefetchQuery(crmQueries.contacts());
+
+  return (
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <CrmWorkspace />
+    </HydrationBoundary>
+  );
+}
+```
+
+**Permission guard v UI:** pro akce typu "Delete contact" nebo "Export CRM data" filtruj podle `user.permissions` nebo server-provided capability. Stejny permission musi byt na backend endpointu.
+
+```tsx
+const canDelete = user.permissions.includes("crm.contacts.delete");
+return canDelete ? <DeleteContactButton contactId={id} /> : null;
+```
+
+**Backend je autorita:** endpoint musi mit `.RequirePermission("crm.contacts.delete")` nebo odpovidajici permission const. Frontend permission jen brani tomu, aby user videl tlacitko, ktere by stejne skoncilo 403.
+
+**Entitlement disabled while on page:** realtime/cache invalidace entitlements nebo route refresh muze modul schovat z nav. Otevrena page musi pri dalsim server renderu vratit 404; client komponenty maji zvladnout 403/404 z API pres Error UX.
+
+**Loading:** layout entitlements prefetchuje pred renderem nav, aby nebyl flash "CRM vidim / nevidim". Pokud nekde delas client-only guard, ukaz skeleton, ne zakazane tlacitko.
+
+**Nepouzijes:** hardcoded tenant id, localStorage permissions, guard jen v sidebaru, redirect na CRM pri disabled entitlementu, specialni nav state mimo `NAV_ITEMS`.
 
 **EC:**
 
-- EC536 UI guard neni security.
-- EC537 stale token permissions.
-- EC538 entitlement disabled while user is on page.
-- EC539 deep link directly to route.
-- EC540 loading state pri nacitani entitlements.
+- EC536 UI guard neni security → backend endpoint musi mit permission/tenant/RLS guard vzdy.
+- EC537 stale token permissions → permission claims jsou snapshot; po zmene roli res auth refresh/re-login a backend stale rozhoduje.
+- EC538 entitlement disabled while user is on page → server page pri dalsim renderu `notFound`, API vrati 404/403, nav se refetchne.
+- EC539 deep link directly to route → page guard pres `entitlementQueries.me()` + `notFound()`.
+- EC540 loading state pri nacitani entitlements → SSR prefetch v layoutu; client-only fallback = skeleton, ne flash forbidden UI.
 
 ### UC109 Error UX
 
