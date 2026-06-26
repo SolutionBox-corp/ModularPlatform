@@ -405,7 +405,7 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC22 Platform checkout
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented — overeno `PlatformCheckoutTests`.
 
 **Pouzijes:** `POST /tenant/me/platform-checkout`.
 
@@ -415,11 +415,11 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 **EC:**
 
-- EC106 tenant bez provider config.
-- EC107 checkout session expired.
-- EC108 webhook prijde pozdeji nez navrat usera.
-- EC109 entitlement se zapne az po potvrzeni.
-- EC110 CRM nikdy nebere checkout success jako trvaly entitlement.
+- EC106 tenant bez provider config: checkout vrati 422, kdyz `PaymentPlane.Platform` nema gateway.
+- EC107 checkout session expired: expired/failed session se resi pres provider stav/webhook, ne pres redirect URL.
+- EC108 webhook prijde pozdeji nez navrat usera: checkout vraci jen redirect; stav/entitlement se cte pozdeji z platformy.
+- EC109 entitlement se zapne az po potvrzeni: samotne vytvoreni checkoutu nemeni `tenant_entitlements`.
+- EC110 CRM nikdy nebere checkout success jako trvaly entitlement: CRM respektuje jen live entitlement guard/status.
 
 ## Billing
 
