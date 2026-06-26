@@ -768,7 +768,7 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC42 Cancel subscription
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented — `CancelSubscriptionTests` overuji no active, provider failure a idempotent cancel-at-period-end.
 
 **Pouzijes:** `POST /billing/subscriptions/cancel`.
 
@@ -778,11 +778,11 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 **EC:**
 
-- EC206 no active subscription.
-- EC207 provider failure.
-- EC208 idempotent cancel.
-- EC209 entitlement revocation timing.
-- EC210 invalidovat subscription i entitlements.
+- EC206 no active subscription → endpoint vraci 404 `billing.subscription.not_found`.
+- EC207 provider failure → provider exception se preklada na domenovou 422 `billing.subscription.provider_failed`.
+- EC208 idempotent cancel → opakovany cancel pri `cancelAtPeriodEnd=true` zustava OK a drzi stejny lokalni intent.
+- EC209 entitlement revocation timing → default je cancel at period end, status zustava `Active` dokud provider webhook/reconcile nepotvrdi terminal state.
+- EC210 invalidovat subscription i entitlements → FE/CRM po cancel refetchuje subscription a entitlement UI; realtime z webhooku invaliduje subscription state.
 
 ### UC43 Billing portal
 

@@ -5,6 +5,7 @@ using ModularPlatform.Billing.Persistence;
 using ModularPlatform.Billing.Security;
 using ModularPlatform.Billing.Stripe;
 using ModularPlatform.Cqrs;
+using Stripe;
 
 namespace ModularPlatform.Billing.Features.Subscriptions.CancelSubscription;
 
@@ -28,7 +29,16 @@ internal sealed class CancelSubscriptionHandler(
             ?? throw new NotFoundException("billing.subscription.not_found", "No active subscription.");
 
         var atPeriodEnd = options.Value.CancelAtPeriodEnd;
-        await gateway.CancelSubscriptionAsync(subscription.StripeSubscriptionId, atPeriodEnd, ct);
+        try
+        {
+            await gateway.CancelSubscriptionAsync(subscription.StripeSubscriptionId, atPeriodEnd, ct);
+        }
+        catch (StripeException ex)
+        {
+            throw new BusinessRuleException(
+                "billing.subscription.provider_failed",
+                $"The subscription provider rejected the cancellation: {ex.Message}");
+        }
 
         if (atPeriodEnd)
         {

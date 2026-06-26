@@ -141,6 +141,7 @@
   <data name="billing.subscription.plan_not_found" xml:space="preserve"><value>Unknown subscription plan.</value></data>
   <data name="billing.subscription.already_active" xml:space="preserve"><value>The user already has an active subscription.</value></data>
   <data name="billing.subscription.not_found" xml:space="preserve"><value>No active subscription.</value></data>
+  <data name="billing.subscription.provider_failed" xml:space="preserve"><value>The subscription provider rejected the request.</value></data>
   <data name="billing.subscription.plan_key.required" xml:space="preserve"><value>A plan key is required.</value></data>
   <data name="billing.subscription.plan_key.too_long" xml:space="preserve"><value>The plan key is too long.</value></data>
 </root>
