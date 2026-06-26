@@ -2566,21 +2566,80 @@ return new StartCrmConversationResponse(conversation.Id);
 
 ### UC86 Send vibe message async
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implementovano v Marketing jako async 202 agent turn; CRM assistant ho ma kopirovat a doplnit billing podle ceny modelu.
 
-**Pouzijes:** `POST /marketing/vibe/conversations/{id}/messages`.
+**Pouzijes:** `POST /marketing/vibe/conversations/{id}/messages`, `IDbContextOutbox`, durable `RunVibeAgentTurn`, `ProcessVibeTurnCommand`, `IRealtimePublisher`, Billing reserve/spend pri placenem agentovi.
 
-**Co se stane:** Message se ulozi a worker vygeneruje odpoved.
+**Co se stane:** HTTP request overi, ze conversation patri userovi, ulozi user message, publikuje durable agent-turn message a vrati `202 Accepted + Location` na conversation. Worker nacte historii, zavola AI gateway, ulozi assistant message a az po commitu posle realtime event `message_ready`.
 
-**Napises v CRM:** message command + worker command.
+**Mentalni model:** send message neni "zavolej AI a cekej". Je to long-running command. Ulozeni user zpravy a zalozeni prace musi byt atomicke. Odpoved asistenta je dalsi radek v messages tabulce, ne transient HTTP body.
+
+**Accept handler:** explicitne over ownera, uloz user message a publishni work message pres outbox.
+
+```csharp
+var owns = await db.Conversations
+    .AnyAsync(x => x.Id == command.ConversationId && x.UserId == command.UserId, ct);
+if (!owns)
+{
+    throw new NotFoundException("crm.conversation_not_found", "Conversation not found.");
+}
+
+var message = new CrmMessage
+{
+    UserId = command.UserId,
+    ConversationId = command.ConversationId,
+    Role = "user",
+    Content = command.Content,
+    CreatedAt = clock.UtcNow,
+};
+
+db.Messages.Add(message);
+await outbox.PublishAsync(new RunCrmAgentTurn(command.ConversationId, command.UserId));
+await outbox.SaveChangesAndFlushMessagesAsync();
+```
+
+**Worker command:** nacti thread, pokud posledni message uz je `assistant`, preskoc redelivery. Jinak postav history, zavolej gateway, uloz assistant message, commitni a az potom posli realtime push.
+
+```csharp
+if (messages[^1].Role == "assistant")
+{
+    return Unit.Value;
+}
+
+var result = await agent.RunTurnAsync(command.UserId, history, ct);
+
+db.Messages.Add(new CrmMessage
+{
+    UserId = command.UserId,
+    ConversationId = command.ConversationId,
+    Role = "assistant",
+    Content = result.Content,
+    ToolCallsJson = result.ToolCallsJson,
+    CreatedAt = clock.UtcNow,
+});
+
+await db.SaveChangesAsync(ct);
+await realtime.PublishToUserAsync(command.UserId, "crm.message_ready",
+    new { command.ConversationId }, ct);
+```
+
+**Credits/tokeny:** pokud CRM assistant stoji tokeny, placeni dej do worker commandu kolem realneho AI volani. Nejdriv `ReserveCredits` s idempotency key typu `crm-agent:{conversationId}:{userMessageId}`, po uspesnem ulozeni assistant odpovedi `Confirm/Spend`; pri provider failure `Release`. Tak neodepises kredity za request, ktery nikdy nedosel k AI, a redelivery nedebituje dvakrat.
+
+**Failure stav:** Marketing dnes pri provider exception neuklada failed assistant message; Wolverine retry/DLQ resi worker. U CRM je UX lepsi, kdyz ulozis system/assistant message se statusem `Failed` nebo mas `AgentRun` status, aby UI nezustalo navzdy "pending".
+
+**Validator:** content required + max length; pro CRM pridej deny empty/whitespace, max tokens/characters a pripadne attachment count.
+
+**Testy k CRM:** conversation not found/foreign vraci 404, user message se ulozi, worker ulozi assistant reply, redelivery neduplikuj odpoved, provider failure uvolni reserved credits, realtime event prijde az po commitu.
+
+**Nepouzijes:** LLM call v HTTP requestu, direct handler call, fire-and-forget task, debit bez idempotency key, push pred commitem, ani client-provided role.
 
 **EC:**
 
-- EC426 conversation not found.
-- EC427 foreign conversation.
-- EC428 AI provider down.
-- EC429 duplicate message retry.
-- EC430 response status pending/failed.
+- EC426 conversation not found → `NotFoundException`, ne auto-create thread.
+- EC427 foreign conversation → stejny 404 jako missing; filtruj `Id && UserId`.
+- EC428 AI provider down → worker retry/DLQ, release reserved credits a UI ma videt pending/failed stav.
+- EC429 duplicate message retry → outbox/inbox dedup + worker idempotency guard; assistant odpoved nesmi vzniknout dvakrat.
+- EC430 response status pending/failed → po acceptu UI ukaze pending assistant turn; terminal `Failed` modeluj, pokud nechces nekonecny spinner.
 
 ### UC87 Stream vibe message
 
