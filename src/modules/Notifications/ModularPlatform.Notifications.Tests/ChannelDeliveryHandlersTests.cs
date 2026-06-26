@@ -48,6 +48,37 @@ public sealed class ChannelDeliveryHandlersTests
         sender.Calls.ShouldBe(1);
     }
 
+    [Fact]
+    public async Task Push_delivery_handler_sends_exact_rendered_payload_to_push_sender()
+    {
+        var sender = new RecordingPushSender();
+        var userId = Guid.CreateVersion7();
+        var message = NewPush(userId, title: "Deal assigned", body: "Open deal A");
+
+        await new PushDeliveryHandler().Handle(message, sender, CancellationToken.None);
+
+        sender.Calls.ShouldBe(1);
+        sender.LastUserId.ShouldBe(userId);
+        sender.LastTitle.ShouldBe("Deal assigned");
+        sender.LastBody.ShouldBe("Open deal A");
+    }
+
+    [Fact]
+    public async Task Push_delivery_handler_propagates_provider_failures_for_wolverine_retry_and_dlq()
+    {
+        var sender = new RecordingPushSender
+        {
+            ExceptionToThrow = new InvalidOperationException("push provider down"),
+        };
+        var message = NewPush(Guid.CreateVersion7(), title: "Deal assigned", body: "Open deal A");
+
+        var ex = await Should.ThrowAsync<InvalidOperationException>(
+            () => new PushDeliveryHandler().Handle(message, sender, CancellationToken.None));
+
+        ex.Message.ShouldBe("push provider down");
+        sender.Calls.ShouldBe(1);
+    }
+
     private static EmailDeliveryRequested NewEmail(string toAddress, string subject, string body) =>
         new(
             EventId: Guid.CreateVersion7(),
@@ -56,6 +87,15 @@ public sealed class ChannelDeliveryHandlersTests
             UserId: Guid.CreateVersion7(),
             ToAddress: toAddress,
             Subject: subject,
+            Body: body);
+
+    private static PushDeliveryRequested NewPush(Guid userId, string title, string body) =>
+        new(
+            EventId: Guid.CreateVersion7(),
+            OccurredAt: DateTimeOffset.UtcNow,
+            NotificationId: Guid.CreateVersion7(),
+            UserId: userId,
+            Title: title,
             Body: body);
 
     private sealed class RecordingEmailSender : IEmailSender
@@ -71,6 +111,30 @@ public sealed class ChannelDeliveryHandlersTests
             Calls++;
             LastToAddress = toAddress;
             LastSubject = subject;
+            LastBody = body;
+
+            if (ExceptionToThrow is not null)
+            {
+                throw ExceptionToThrow;
+            }
+
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingPushSender : IPushSender
+    {
+        public int Calls { get; private set; }
+        public Guid LastUserId { get; private set; }
+        public string? LastTitle { get; private set; }
+        public string? LastBody { get; private set; }
+        public Exception? ExceptionToThrow { get; init; }
+
+        public Task SendAsync(Guid userId, string title, string body, CancellationToken ct)
+        {
+            Calls++;
+            LastUserId = userId;
+            LastTitle = title;
             LastBody = body;
 
             if (ExceptionToThrow is not null)

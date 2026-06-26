@@ -1071,21 +1071,39 @@ await dispatcher.Send(new SendNotificationCommand(
 
 ### UC56 Push delivery
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented + tested — `ChannelDeliveryHandlersTests`.
 
 **Pouzijes:** `PushDeliveryHandler`.
 
-**Co se stane:** Worker doruci push pres `IPushSender`.
+**Co se stane:** `SendNotificationHandler` pri channel `push` publikuje `PushDeliveryRequested` do outboxu. Worker spusti `PushDeliveryHandler`, ktery zavola `IPushSender.SendAsync(userId, title, body)`. Dnesni provider je `NoOpPushSender`, takze base umi cely durable pipeline bez externiho FCM/Expo uctu. Realny provider se pozdeji vymeni za implementaci `IPushSender`.
 
-**Napises v CRM:** nic.
+**Napises v CRM:** nic navic. CRM jen pozada o notification s `channels = ["push"]` nebo `["push", "inapp"]`. CRM nema znat device tokeny ani FCM/Expo.
+
+**Vzor kodu:**
+
+```csharp
+await dispatcher.Send(new SendNotificationCommand(
+    userId,
+    "deal_due",
+    ["push", "inapp"],
+    new Dictionary<string, string>
+    {
+        ["dealName"] = dealName,
+    },
+    IdempotencyKey: $"deal-due:{dealId:N}"), ct);
+```
+
+**Co si pohlidas:** push je best-effort delivery channel. Trvaly fakt musi zustat v CRM nebo v in-app notification/feedu. Push samotny nesmi byt jedine misto, kde user zjisti dulezitou vec.
+
+**Nepouzijes:** zadny vlastni push client v CRM, zadne device tokeny v CRM tabulkach, zadny fire-and-forget provider call z HTTP requestu.
 
 **EC:**
 
-- EC276 push provider no-op/dev.
-- EC277 missing device token.
-- EC278 provider failure.
-- EC279 duplicate push retry.
-- EC280 user revoked notifications consent.
+- EC276 push provider no-op/dev → base registruje `NoOpPushSender`, takze se pipeline da vyvijet a testovat bez provideru.
+- EC277 missing device token → dnes neni token registry v base; realny `IPushSender` to ma resit jako no-op pro daneho usera, ne jako CRM chybu.
+- EC278 provider failure → provider exception se nechyta v handleru; Wolverine retry/DLQ rozhodne, co dal.
+- EC279 duplicate push retry → pro dulezite zpravy pridej `IdempotencyKey` uz na `SendNotificationCommand`; bez toho je push channel at-least-once.
+- EC280 user revoked notifications consent → consent/token filtering patri do budouciho `IPushSender` nebo Notifications preferenci, ne do CRM modulu.
 
 ## Files
 
