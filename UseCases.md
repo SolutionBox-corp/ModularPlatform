@@ -2395,21 +2395,60 @@ return await snapshots
 
 ### UC83 List analyses
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implementovano v Marketing; CRM ma kopirovat pattern pro ulozene AI insighty.
 
-**Pouzijes:** `GET /marketing/analyses`.
+**Pouzijes:** `GET /marketing/analyses`, `MarketingAnalysis`, `IMarketingAiGateway`, `PageRequest`, owner `UserId` z tokenu.
 
-**Co se stane:** Marketing vrati AI analyses.
+**Co se stane:** Worker po completed pullu nacte snapshots, zavola AI gateway, ulozi `MarketingAnalysis` a az pak UI cte list analyz. List endpoint uz AI nevola; jen vraci ulozene zaznamy od nejnovejsiho.
 
-**Napises v CRM:** AI vystupy ukladas jako domenu, ne jen transient response.
+**Mentalni model:** AI vystup je domenovy artefakt. Kdyz CRM vygeneruje "deal risk analysis", "lead quality insight" nebo "next best action", uloz ho do DB s vazbou na vstupni import/kontakt/deal. Jinak ho neumi GDPR export, audit, detail endpoint ani historie UI.
+
+**Entity pattern:** dej ownera, vazbu na zdroj dat, kratky summary pro list a strukturovany JSON pro detail.
+
+```csharp
+internal sealed class CrmAnalysis : AuditableEntity, IUserOwned
+{
+    public Guid UserId { get; set; }
+    public Guid? ImportId { get; set; }
+    public Guid? DealId { get; set; }
+    public string AnalysisType { get; set; } = string.Empty;
+    public string Summary { get; set; } = string.Empty;
+    public string? InsightsJson { get; set; }
+    public DateTimeOffset AnalyzedAt { get; set; }
+}
+```
+
+**List query:** vracej jen metadata pro tabulku/list. Velky `InsightsJson` nech pro detail endpoint UC84.
+
+```csharp
+return await db.CrmAnalyses
+    .Where(x => x.UserId == query.UserId)
+    .OrderByDescending(x => x.AnalyzedAt)
+    .Select(x => new CrmAnalysisListItem(
+        x.Id,
+        x.AnalysisType,
+        x.Summary,
+        x.AnalyzedAt))
+    .ToPagedResponseAsync(query.Page, ct);
+```
+
+**Worker write:** AI gateway volej ve worker commandu, ne v list endpointu. Pokud nejsou snapshots/vstupy, analysis nevytvarej nebo vytvor explicitni failed/empty stav podle produktu.
+
+**Failed analysis:** Marketing dnes failed AI analysis neuklada jako analysis row; chyba by se projevila worker retry/DLQ. U CRM si vyber: bud failed zustane stav importu/runu, nebo pridej `Status`/`ErrorCode` na `CrmAnalysisRun`. Nevracej fake insight.
+
+**Erased user data:** pokud erasure smazala vstupy, analysis list ma bud zmizet pres `IErasePersonalData`, nebo zustat jen anonymizovana. UI nesmi ukazovat cached insight s PII po erasure.
+
+**Testy k CRM:** empty list vraci 200, list je paged/newest-first, owner scope drzi, summary neobsahuje velky detail JSON, po GDPR erasure se PII insighty smazou/anonymizuji.
+
+**Nepouzijes:** AI call v GET endpointu, transient-only AI odpoved bez ulozeni, raw prompt/output s PII v listu, ani client-side owner filter.
 
 **EC:**
 
-- EC411 empty list.
-- EC412 failed analysis.
-- EC413 stale data source.
-- EC414 paging.
-- EC415 erased user data.
+- EC411 empty list → 200 + empty page; user jeste nema zadne insighty.
+- EC412 failed analysis → failed stav eviduj u runu/importu nebo analysis statusu; nevymyslej fake summary.
+- EC413 stale data source → list item ma `AnalyzedAt` a idealne vazbu na `ImportId`/snapshot version, aby UI poznalo stary insight.
+- EC414 paging → AI historie muze rust; pouzij `PageRequest` a nevracej velke JSON detaily v listu.
+- EC415 erased user data → GDPR eraser musi AI vystupy s PII smazat/anonymizovat a frontend vycistit cache.
 
 ### UC84 Get analysis
 
