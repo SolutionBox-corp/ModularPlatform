@@ -2007,21 +2007,57 @@ var rows = await db.AuditEntries
 
 ### UC77 Crypto-shred
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Base mechanismus hotovy a otestovany; CRM modul musi dodat vlastni `IErasePersonalData`, pokud drzi PII.
 
-**Pouzijes:** GDPR subject key shred.
+**Pouzijes:** `POST /v1/gdpr/me/erase`, `UserErasureRequested`, `IErasePersonalData`, `ShredSubjectKeyCommand`, `subject_keys`.
 
-**Co se stane:** PII encrypted pod subject DEK uz nejde precist.
+**Co se stane:** Erasure neni "smaz vsechny radky". Platforma publikuje durable `UserErasureRequested`. Worker zavola vsechny `IErasePersonalData` implementace, aby si kazdy modul anonymizoval svoje zbytky. Nakonec GDPR modul shreduje subject key: v `subject_keys` nastavi `WrappedDek = null` a `DeletedAt`. Od te chvile nejde precist zadny encrypted/audit envelope pod timto subjectem.
 
-**Napises v CRM:** UI umi zobrazit erased/null stavy.
+**Mentalni model:** per-module eraser uklidi ciste texty nebo business radky, ktere musi zustat. Crypto-shred je autoritativni privacy akt pro encrypted PII a audit PII. Backupy nebo append-only audit nemusi fyzicky prepisovat stare ciphertexty, protoze bez DEK jsou nepouzitelne.
+
+**Napises v CRM:** pokud CRM drzi kontakty, poznamky, import snapshots nebo AI analyzy s PII, zaregistruj `IErasePersonalData` v `CrmModule.RegisterServices`.
+
+```csharp
+services.AddScoped<IErasePersonalData, CrmPersonalDataEraser>();
+```
+
+```csharp
+internal sealed class CrmPersonalDataEraser(CrmDbContext db) : IErasePersonalData
+{
+    public string ModuleName => "Crm";
+
+    public async Task EraseAsync(Guid userId, CancellationToken ct)
+    {
+        await db.Contacts
+            .Where(x => x.UserId == userId)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(x => x.Email, string.Empty)
+                .SetProperty(x => x.EmailHash, string.Empty)
+                .SetProperty(x => x.DisplayName, "[erased]")
+                .SetProperty(x => x.Notes, string.Empty), ct);
+    }
+}
+```
+
+**Kdy pouzit `ExecuteUpdate` tady:** u erasure je set-based scrub spravne, i kdyz bypassuje audit/encryption interceptor. Nepises tam PII, ale tombstone konstanty. Operace musi byt idempotentni: opakovany erasure request nesmi vratit chybu a nesmi znovu vytvaret PII.
+
+**Co nedelas v CRM:** CRM samo neshreduje `subject_keys`; to dela GDPR modul po fan-outu. CRM take nema volat ostatni moduly. Jen uklidi svoji cast a necha event handler dobehnout.
+
+**Flow v base:** request handler publikuje `UserErasureRequested` pres outbox. Worker zavola erasers. I kdyz jeden eraser spadne, crypto-shred stale probehne a message se retryne, aby se failed modul pozdeji docistil.
+
+**Frontend UX:** po `POST /gdpr/me/erase` ber user account jako terminalni stav. Odhlas ho, zrus local cache, nepokousej se znovu nacitat CRM detail. Pokud UI nekde uvidi `[erased]`, zobrazi privacy-safe placeholder a nepusti editaci erased profilu.
+
+**Testy k CRM:** vytvor kontakt s PII, zavolej erasure, over ze CRM plaintext/lookup sloupce jsou anonymizovane, encrypted/audit read vraci `[erased]`, opakovany erasure je no-op a cizi user data zustanou nedotcena.
+
+**Nepouzijes:** fyzicky delete ledger/audit rows, custom crypto shred v CRM, mazani `subject_keys` radku, novy DEK po erasure, ani cross-module direct calls.
 
 **EC:**
 
-- EC381 tombstone se nesmi smazat.
-- EC382 post-erasure write PII nesmi remintnout readable key.
-- EC383 `[erased]` nesmi rozbit validators/UI.
-- EC384 admin forensic read po shred vraci erased.
-- EC385 cache s plaintext PII musi expirovat/refetchnout.
+- EC381 tombstone se nesmi smazat → `subject_keys` radek s `WrappedDek = null` zustava permanentne, aby pozdejsi write nemohl vytvorit novy citelny DEK.
+- EC382 post-erasure write PII nesmi remintnout readable key → protector po shredded key vraci redacted marker, ne novou sifrovatelnou hodnotu.
+- EC383 `[erased]` nesmi rozbit validators/UI → UI musi umet read-only erased placeholder; update flow nema vynucovat validni email na erased hodnote.
+- EC384 admin forensic read po shred vraci erased → audit endpoint nesmi spadnout ani vratit stary plaintext; protected envelope se mapuje na `[erased]`.
+- EC385 cache s plaintext PII musi expirovat/refetchnout → po erasure invaliduj CRM/profile/notifications cache a vycisti local storage, jinak UI ukaze stare PII z klienta.
 
 ### UC78 Retention sweep
 
