@@ -1944,21 +1944,66 @@ public sealed record CrmContactCreatedIntegrationEvent(
 
 ### UC76 Audit zmen
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Base pattern hotovy a otestovany v Identity/Billing/Notifications; CRM modul jen pouzije tracked entities a pripadne prida vlastni audit read slice.
 
-**Pouzijes:** `AuditInterceptor`.
+**Pouzijes:** `AuditInterceptor`, `AuditableEntity`, tracked EF entity, `PlatformPermissions.AuditRead`, per-module `{module}_audit_entries`.
 
-**Co se stane:** Tracked `SaveChanges` zapise changed fields do audit table modulu.
+**Co se stane:** Jakmile handler meni tracked entitu a zavola `SaveChanges`, platforma sama zapise audit radek do audit tabulky daneho modulu, napr. `crm_audit_entries`. Na create/delete ulozi vsechny auditable sloupce; na update ulozi jen zmenene sloupce. Audit row obsahuje `EntityType`, `EntityId`, `Action`, `ChangedColumns`, `NewValues`, `UserId`, `TenantId`, `IpAddress`, `Timestamp`.
 
-**Napises v CRM:** nic extra, jen pouzivas tracked entities.
+**Mentalni model:** audit neni samostatny CRM service. Audit je side effect EF `SaveChanges`. Kdyz entitu nactes tracked, zmenis properties a ulozis, audit vznikne. Kdyz pouzijes `ExecuteUpdate`, `ExecuteDelete` nebo raw SQL, audit interceptor se nespusti.
+
+**Napises v CRM:** entity dej `AuditableEntity`, zmeny delaj v command handleru pres tracked load a `SaveChanges`.
+
+```csharp
+internal sealed class CrmContact : AuditableEntity, ITenantScoped, IUserOwned
+{
+    public Guid UserId { get; set; }
+    public string CompanyName { get; set; } = string.Empty;
+    public string Stage { get; set; } = "lead";
+}
+```
+
+```csharp
+var contact = await db.Contacts
+    .FirstOrDefaultAsync(x => x.Id == command.ContactId
+                              && x.UserId == tenant.UserId, ct)
+    ?? throw new NotFoundException("crm.contact_not_found", "Contact not found.");
+
+contact.Stage = command.Stage;
+contact.CompanyName = command.CompanyName.Trim();
+
+await db.SaveChangesAsync(ct);
+```
+
+**Jak to bude v auditu:** update ulozi napr. `ChangedColumns = ["Stage","CompanyName"]` a `NewValues` jen pro tyto zmenene hodnoty. `CreatedAt/CreatedBy/UpdatedAt/UpdatedBy` doplni interceptor automaticky u `AuditableEntity`.
+
+**Audit read endpoint pro CRM:** kdyz chces ukazat historii kontaktu, udelej samostatnou query slice, napr. `GetContactAuditTrail`. Query cte `db.AuditEntries` no-tracking, filtruje `EntityType == "CrmContact"` a `EntityId == contactId.ToString()`. Endpoint musi mit `.RequirePermission(PlatformPermissions.AuditRead)`.
+
+```csharp
+var entityId = query.ContactId.ToString();
+var rows = await db.AuditEntries
+    .Where(a => a.EntityType == "CrmContact" && a.EntityId == entityId)
+    .OrderByDescending(a => a.Timestamp)
+    .ToListAsync(ct);
+```
+
+**PII v auditu:** pokud je audited property `[PersonalData]`, audit JSON nedostane plaintext. Dostane protected envelope pres `IPersonalDataProtector`; admin forensic query ho umi odhalit, dokud existuje subject key. Po GDPR shred se ve vystupu ukaze `[erased]`.
+
+**User context vs system context:** HTTP request zapise do audit row realneho usera/tenant/IP z tokenu. Worker nebo Jobs bezi casto jako system context, takze `UserId` muze byt prazdny. Kdyz CRM potrebuje pozdeji vysvetlit "kdo spustil import", uloz iniciatora do vlastni operation/import entity a audituj tu entitu tracked save; nespolihaj, ze worker audit row bude mit stejneho usera jako puvodni klik v UI.
+
+**Kdy pouzit `ExecuteUpdate`:** jen kdyz je zmena zamerne auditovana jinak nebo audit nepotrebujes. Typicky billing debit guard nebo GDPR scrub. U CRM statusu, poznamek, prirazeni a vlastniku pouzij tracked entity, protoze tyhle zmeny budou chtit lidi dohledat.
+
+**Testy k CRM:** pridej test create/update audit row, test update uklada jen changed columns, test audit endpoint vyzaduje `audit.read`, test user/tenant scope a PII audit test, pokud CRM audit obsahuje `[PersonalData]`.
+
+**Nepouzijes:** vlastni `CrmAuditLog` service, manualni insert do audit table, audit v endpointu, raw SQL, ani `ExecuteUpdate` pro business zmeny, ktere maji byt forenzne dohledatelne.
 
 **EC:**
 
-- EC376 `ExecuteUpdate` bypassuje audit.
-- EC377 raw SQL bypassuje conventions.
-- EC378 PII v auditu encryptovat.
-- EC379 audit read permission.
-- EC380 system context vs user context.
+- EC376 `ExecuteUpdate` bypassuje audit → pouzij ho jen jako vedome vyjimky; jinak tracked load + property set + `SaveChanges`.
+- EC377 raw SQL bypassuje conventions → v ModularPlatform raw SQL nepis; rozbije audit, RLS/conventions a udrzovatelnost.
+- EC378 PII v auditu encryptovat → `[PersonalData]` hodnota se v `NewValues` uklada jako protected envelope, ne plaintext.
+- EC379 audit read permission → audit endpointy musi byt za `PlatformPermissions.AuditRead`, protoze umi ukazat citlive forenzni informace.
+- EC380 system context vs user context → worker/job audit muze byt systemovy; puvodni iniciator dlouhe akce patri do operation/import entity, ne do domenky z audit `UserId`.
 
 ### UC77 Crypto-shred
 
