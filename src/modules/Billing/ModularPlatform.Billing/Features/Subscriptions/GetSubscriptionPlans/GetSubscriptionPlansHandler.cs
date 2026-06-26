@@ -14,6 +14,12 @@ internal sealed class GetSubscriptionPlansHandler(IOptions<SubscriptionOptions> 
     public Task<IReadOnlyList<SubscriptionPlanResponse>> Handle(GetSubscriptionPlansQuery query, CancellationToken ct)
     {
         IReadOnlyList<SubscriptionPlanResponse> plans = options.Value.Plans
+            .Where(p => p.Enabled)
+            .Where(p =>
+                !string.IsNullOrWhiteSpace(p.PlanKey)
+                && !string.IsNullOrWhiteSpace(p.StripePriceId)
+                && p.CreditsPerPeriod > 0)
+            .OrderBy(p => p.PlanKey)
             .Select(p => new SubscriptionPlanResponse(p.PlanKey, p.CreditsPerPeriod, p.BucketExpiryDays))
             .ToList();
         return Task.FromResult(plans);

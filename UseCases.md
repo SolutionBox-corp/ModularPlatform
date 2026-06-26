@@ -714,7 +714,7 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC39 Subscription plans
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented — `SubscriptionPlansTests` overuji enabled/valid filtr, empty config, stabilni `planKey` a neexponovani provider price id.
 
 **Pouzijes:** `GET /billing/subscriptions/plans`.
 
@@ -724,11 +724,11 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 **EC:**
 
-- EC191 config missing/invalid.
-- EC192 disabled plan.
-- EC193 stale frontend cache.
-- EC194 plan key musi byt stabilni.
-- EC195 CRM neparsuje raw Billing config.
+- EC191 config missing/invalid → endpoint vrati jen validni plany; kdyz neni zadny validni enabled plan, vrati prazdny list.
+- EC192 disabled plan → `Enabled=false` plan se v API neukaze.
+- EC193 stale frontend cache → FE ma refetchovat/cachovat `GET /billing/subscriptions/plans` jako konfiguracni katalog.
+- EC194 plan key musi byt stabilni → response radi podle `planKey`; CRM uklada jen `planKey`, ne Stripe price id.
+- EC195 CRM neparsuje raw Billing config → API neposila `StripePriceId`; CRM pouziva response DTO.
 
 ### UC40 Subscription checkout
 

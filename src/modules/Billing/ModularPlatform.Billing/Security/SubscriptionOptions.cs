@@ -18,6 +18,7 @@ internal sealed class SubscriptionOptions
 
 internal sealed class SubscriptionPlan
 {
+    public bool Enabled { get; set; } = true;
     public string PlanKey { get; set; } = string.Empty;
     public string StripePriceId { get; set; } = string.Empty;
     public long CreditsPerPeriod { get; set; }
