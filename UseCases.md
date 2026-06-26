@@ -480,7 +480,7 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC26 Stripe platform webhook
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented — overeno `StripeWebhookTests`, `BillingCommerceTests`, `DeadLetterTests`, `StripeReconcileTests`.
 
 **Pouzijes:** `POST /billing/webhooks/stripe`.
 
@@ -490,11 +490,11 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 **EC:**
 
-- EC126 invalid signature.
-- EC127 redelivery.
-- EC128 unknown event type.
-- EC129 event router refetchuje live state.
-- EC130 stuck event resi retry/DLQ/reconcile.
+- EC126 invalid signature → 400 pred persistenci, nic se neulozi.
+- EC127 redelivery → stejny signed event id je ingest exactly-once pres unique `stripe_events`.
+- EC128 unknown event type → worker refetchne event, oznaci `ProcessedAt`, ale neprovede ledger side effect.
+- EC129 event router refetchuje live state → test posila minimal payload, handler bere skutecny event z `IStripeGateway`.
+- EC130 stuck event resi retry/DLQ/reconcile → failing worker message jde do DLQ; reconcile requeue/regrant flow je otestovany.
 
 ### UC27 Credit balance
 

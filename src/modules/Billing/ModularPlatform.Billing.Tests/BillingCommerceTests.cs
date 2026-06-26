@@ -220,6 +220,32 @@ public sealed class BillingCommerceTests(PlatformApiFactory fixture)
         (await PlatformApiFactory.ReadData(balance)).GetProperty("available").GetInt64().ShouldBe(300);
     }
 
+    [Fact]
+    public async Task Unknown_stripe_event_type_is_marked_processed_without_side_effects()
+    {
+        var eventId = $"evt_{Guid.CreateVersion7():N}";
+        Fake.SeedEvent(new Event
+        {
+            Id = eventId,
+            Type = "payment_method.attached",
+            Data = new EventData
+            {
+                Object = new PaymentMethod
+                {
+                    Id = $"pm_{Guid.CreateVersion7():N}",
+                    Metadata = new Dictionary<string, string>(),
+                },
+            },
+        });
+
+        (await PostSignedWebhookAsync(eventId, "payment_method.attached")).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM stripe_events WHERE \"StripeEventId\" = '{eventId}' AND \"ProcessedAt\" IS NOT NULL", 1);
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_entries WHERE \"IdempotencyKey\" = '{eventId}'")).ShouldBe(0);
+    }
+
     // ---------------------------------------------------------------------------------------------------
     // Subscriptions: object-state reconcile (ST-4), per-period grant, cancel
     // ---------------------------------------------------------------------------------------------------
