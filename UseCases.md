@@ -1034,21 +1034,40 @@ public sealed class SendDealWonHandler(ILogger<SendDealWonHandler> logger)
 
 ### UC55 Email delivery
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented + tested — `ChannelDeliveryHandlersTests` + existing `SendNotification_persists_an_inapp_row_and_enqueues_channel_delivery_via_the_outbox`.
 
 **Pouzijes:** `EmailDeliveryHandler`.
 
-**Co se stane:** Worker doruci email pres `IEmailSender`.
+**Co se stane:** `SendNotificationHandler` pri channel `email` nevykona SMTP v HTTP requestu. Jen publikuje `EmailDeliveryRequested` do Wolverine outboxu. Worker potom spusti `EmailDeliveryHandler`, ten vezme uz vyrenderovany `ToAddress`, `Subject`, `Body` a zavola `IEmailSender.SendAsync(...)`. Kdyz sender hodi exception, handler ji nechyta, aby Wolverine mohl udelat retry a pripadne DLQ.
 
-**Napises v CRM:** nic, CRM jen vyvola notification.
+**Napises v CRM:** nic specialniho. CRM nikdy neposila email samo. CRM zavola notification slice/event a jen rekne `channels = ["email"]` nebo `["email", "inapp"]`. Email delivery patri Notifications modulu.
+
+**Vzor kodu:**
+
+```csharp
+await dispatcher.Send(new SendNotificationCommand(
+    userId,
+    "deal_assigned",
+    ["email", "inapp"],
+    new Dictionary<string, string>
+    {
+        ["email"] = assigneeEmail,
+        ["dealName"] = dealName,
+    },
+    IdempotencyKey: $"deal-assigned:{dealId:N}:{assigneeUserId:N}"), ct);
+```
+
+**Co si pohlidas:** email adresa jde do `data["email"]`, subject/body se berou z template, a PII v body zustava v durable envelope jen po omezenou dobu podle Wolverine retention. Pokud SMTP spadne, nesmis delat `try/catch` a oznacit to za hotove; exception musi spadnout do Wolverine retry/DLQ.
+
+**Nepouzijes:** `SmtpClient` primo v CRM handleru, zadny HTTP request cekajici na SMTP, zadny custom retry loop.
 
 **EC:**
 
-- EC271 SMTP down.
-- EC272 transient retry.
-- EC273 permanent bounce.
-- EC274 PII v email body.
-- EC275 DLQ monitoring.
+- EC271 SMTP down → `IEmailSender.SendAsync` hodi exception; handler ji pusti ven.
+- EC272 transient retry → retry dela Wolverine durable messaging, proto handler nema vlastni catch ani loop.
+- EC273 permanent bounce → nepatri do CRM. Provider adapter/sender ji vyhodi jako delivery failure; po retriech skonci v DLQ nebo se pozdeji doplni specialni bounce event podle provideru.
+- EC274 PII v email body → PII je v `EmailDeliveryRequested.Body`; platforma ma bounded durable-envelope retention (`KeepAfterMessageHandling`, DLQ expirace). Nedavej tam vic osobnich dat, nez email potrebuje.
+- EC275 DLQ monitoring → sleduje `MessagingHealthJob` pres `platform.messaging.dead_letters`; modul nema vlastni dead-letter tabulku.
 
 ### UC56 Push delivery
 
