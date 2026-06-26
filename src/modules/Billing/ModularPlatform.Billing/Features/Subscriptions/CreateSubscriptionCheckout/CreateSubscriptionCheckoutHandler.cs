@@ -26,7 +26,11 @@ internal sealed class CreateSubscriptionCheckoutHandler(
     public async Task<CreateSubscriptionCheckoutResponse> Handle(
         CreateSubscriptionCheckoutCommand command, CancellationToken ct)
     {
-        var plan = subscriptionOptions.Value.Plans.FirstOrDefault(p => p.PlanKey == command.PlanKey)
+        var plan = subscriptionOptions.Value.Plans.FirstOrDefault(p =>
+                p.Enabled
+                && p.PlanKey == command.PlanKey
+                && !string.IsNullOrWhiteSpace(p.StripePriceId)
+                && p.CreditsPerPeriod > 0)
             ?? throw new NotFoundException("billing.subscription.plan_not_found", "Unknown subscription plan.");
 
         var hasLiveSubscription = await db.Subscriptions.AnyAsync(

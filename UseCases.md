@@ -732,7 +732,7 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC40 Subscription checkout
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented — `SubscriptionCheckoutTests` + existujici subscription lifecycle testy overuji plan guard, active-sub conflict, double checkout a out-of-order webhook.
 
 **Pouzijes:** `POST /billing/subscriptions/checkout`.
 
@@ -742,11 +742,11 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 **EC:**
 
-- EC196 existing active subscription.
-- EC197 checkout session expired.
-- EC198 webhook out-of-order.
-- EC199 double checkout okno pred webhookem.
-- EC200 UI disable pending state.
+- EC196 existing active subscription → non-canceled local mirror blokuje dalsi checkout pres `billing.subscription.already_active`.
+- EC197 checkout session expired → checkout nevytvari lokalni pending subscription; opustena/expired session nezanecha orphan row.
+- EC198 webhook out-of-order → `UpsertSubscriptionFromStripeCommand` reconciliuje ze Stripe object state i kdyz `updated` prijde pred `created`.
+- EC199 double checkout okno pred webhookem → dva rychle checkouty vytvori dve provider sessions, ale zadnou lokalni subscription pred webhookem.
+- EC200 UI disable pending state → CRM/frontend ma po kliknuti disableovat tlacitko a po navratu refetchovat `/billing/subscriptions/me`.
 
 ### UC41 My subscription
 
