@@ -3558,21 +3558,73 @@ internal sealed class CrmDbContext(DbContextOptions<CrmDbContext> options, ITena
 
 ### UC102 Frontend route
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Frontend pattern existuje v Marketing/Files; CRM route ma kopirovat server page + feature components.
 
-**Pouzijes:** Next route v `frontend/app`.
+**Pouzijes:** `frontend/app/(tenant)/crm/page.tsx`, server component, `HydrationBoundary`, `getQueryClient`, entitlement guard, feature components z `features/crm/components`.
 
-**Co se stane:** Route slozi page layout a feature komponenty.
+**Co se stane:** Route slozi CRM obrazovku, overi ze je modul povoleny, prefetchne hlavni queries a vykresli feature komponenty. Route sama nedrzi business logiku, nedela mutace a neobsahuje fetch volani rozhazene po JSX.
 
-**Napises v CRM:** route bez business fetch logiky.
+**Mentalni model:** route je kompozice obrazovky. API shape patri do `features/crm/api.ts`, React Query hooky do `features/crm/hooks.ts`, UI widgety do `features/crm/components/*`. Page jen propoji layout, translations, entitlement a hydration.
+
+```tsx
+// frontend/app/(tenant)/crm/page.tsx
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
+import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
+import { getQueryClient } from "@/lib/api/query-client";
+import { entitlementQueries, isModuleEnabled } from "@/features/entitlements/api";
+import { crmQueries } from "@/features/crm/api";
+import { CrmContactsPanel } from "@/features/crm/components/contacts-panel";
+import { CrmAssistantPanel } from "@/features/crm/components/assistant-panel";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("crm");
+  return { title: t("metaTitle") };
+}
+
+export default async function CrmPage() {
+  const t = await getTranslations("crm");
+  const queryClient = getQueryClient();
+
+  const ent = await queryClient.fetchQuery(entitlementQueries.me());
+  if (!isModuleEnabled(ent, "crm")) notFound();
+
+  void queryClient.prefetchQuery(crmQueries.contacts());
+  void queryClient.prefetchQuery(crmQueries.imports());
+
+  return (
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">{t("page.heading")}</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">{t("page.description")}</p>
+        </div>
+        <CrmContactsPanel />
+        <CrmAssistantPanel />
+      </div>
+    </HydrationBoundary>
+  );
+}
+```
+
+**Entitlement guard:** frontend guard je UX, backend `.RequireModule("crm")` a permissions jsou autorita. Frontend muze `notFound()`/hide nav item, ale nesmi byt jedina ochrana.
+
+**Loading/error/empty:** route muze prefetchovat, ale komponenty stale musi umet loading, error a empty state, protoze query muze refetchovat nebo selhat po hydrataci.
+
+**Responsive layout:** CRM je pracovni tool, ne landing page. Pouzij dense but readable layout, table/list + side panel, zadne marketing hero. Over mobile/tablet, dlouhe emaily a nazvy firem nesmi rozbijet layout.
+
+**Testy k CRM:** Playwright route smoke, entitlement off -> notFound/hidden nav, empty state, API error state, responsive screenshot pro hlavni breakpointy.
+
+**Nepouzijes:** fetch primo v JSX komponentach mimo feature API, route jako business orchestrator, frontend-only auth, hardcoded text mimo messages, ani hero/landing page misto CRM aplikace.
 
 **EC:**
 
-- EC506 route nesmi duplikovat API logiku.
-- EC507 loading/error/empty states.
-- EC508 permission/entitlement UI guard.
-- EC509 responsive layout.
-- EC510 route-level redirect jen pro auth UX, backend zustava autorita.
+- EC506 route nesmi duplikovat API logiku → jen prefetch/query composition; request functions jsou v `features/crm/api.ts`.
+- EC507 loading/error/empty states → kazdy panel je umi i po hydrataci/refetchi.
+- EC508 permission/entitlement UI guard → route/nav skryje CRM, backend je stale autorita.
+- EC509 responsive layout → testuj sidebar/table/chat na mobile i desktop.
+- EC510 route-level redirect jen pro auth UX, backend zustava autorita → `notFound`/redirect nenahrazuje `.RequireAuthorization()`/`.RequireModule("crm")`.
 
 ### UC103 Frontend API file
 
