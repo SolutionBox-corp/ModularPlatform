@@ -1188,21 +1188,38 @@ var attachments = await db.DealAttachments
 
 ### UC59 Download souboru
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented + tested — `FilesUploadTests.Upload_then_download_round_trips_the_same_bytes_and_content_type`, `A_different_user_cannot_download_another_users_file`, `Download_returns_404_when_metadata_exists_but_blob_is_missing` a `StorageUnitTests`.
 
 **Pouzijes:** `GET /files/{fileId}`.
 
-**Co se stane:** Files overi ownership a streamuje blob.
+**Co se stane:** Download endpoint vezme `fileId` z route a usera z tokenu. `GetFileQuery(fileId, userId)` vrati jen metadata vlastnene tim userem: `StorageKey`, display `FileName`, `ContentType`. Endpoint potom otevre stream pres `IFileStorage.GetAsync(storageKey)` a vrati `Results.Stream(...)` s ulozenym content type a file name. Response neni `ApiResponse`, je to realny stream.
 
-**Napises v CRM:** link/button s `FileObjectId`.
+**Napises v CRM:** v detailu dealu zobrazis attachment button/link s `FileObjectId`. Pred zobrazenim overis CRM permission na deal. Samotny Files endpoint jeste znovu overi, ze file patri prihlasenemu userovi.
+
+**Vzor frontendu:**
+
+```ts
+window.open(`/v1/files/${fileObjectId}`, "_blank");
+```
+
+**Vzor CRM endpointu, kdyz chces vlastni routing:**
+
+```csharp
+// CRM overi, ze user vidi deal a ten ma prirazeny FileObjectId.
+// Bytes ale porad streamuje Files endpoint/building block, ne CRM storage klient.
+```
+
+**Co si pohlidas:** storage key nikdy neposilas na frontend. Frontend zna jen `fileId`. Kdyz blob chybi, provider vrati `file.not_found`, ne 500.
+
+**Nepouzijes:** primy S3/local path download z CRM, client-provided storage key, ani rozbaleni celeho streamu do pameti.
 
 **EC:**
 
-- EC291 foreign file id -> 404.
-- EC292 blob missing.
-- EC293 content type.
-- EC294 large stream failure.
-- EC295 storage key traversal guard.
+- EC291 foreign file id -> 404 → `GetFileHandler` ma explicitni `WHERE Id == fileId && UserId == tokenUser`; cizi id vypada jako neexistujici.
+- EC292 blob missing → metadata muze existovat, ale provider `GetAsync` vrati `file.not_found`; test maze blob a overuje 404.
+- EC293 content type → stream response pouzije ulozeny `ContentType`, test roundtrip overuje `text/plain`.
+- EC294 large stream failure → endpoint streamuje `Stream`, necte bytes cele do RAM; storage/provider exception propadne jako failure.
+- EC295 storage key traversal guard → `StorageKey.Validate` odmita `..`, absolute path, backslash a invalid znaky; unit testy to drzi.
 
 ### UC60 Rename souboru
 

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using Microsoft.Extensions.DependencyInjection;
+using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Files.Features.Download;
 using ModularPlatform.IntegrationTesting;
@@ -110,6 +111,27 @@ public sealed class FilesUploadTests(PlatformApiFactory fixture)
         var foreign = await fixture.Client.SendAsync(
             fixture.Authed(HttpMethod.Get, $"/v1/files/{fileId}", intruder));
         foreign.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Download_returns_404_when_metadata_exists_but_blob_is_missing()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync(
+            $"blob-missing-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+        var upload = await UploadAsync(token, "missing-blob.txt", "text/plain", Encoding.UTF8.GetBytes("body"));
+        upload.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var fileId = (await PlatformApiFactory.ReadData(upload)).GetProperty("id").GetGuid();
+        var storageKey = await fixture.ScalarAsync<string>(
+            $"SELECT \"StorageKey\" FROM file_objects WHERE \"Id\" = '{fileId}'");
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var storage = scope.ServiceProvider.GetRequiredService<IFileStorage>();
+        await storage.DeleteAsync(storageKey, CancellationToken.None);
+
+        var download = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, $"/v1/files/{fileId}", token));
+        download.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await download.Content.ReadAsStringAsync()).ShouldContain("file.not_found");
     }
 
     [Fact]
