@@ -2504,21 +2504,65 @@ return new CrmAnalysisDetail(
 
 ### UC85 Start vibe conversation
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implementovano v Marketing jako jednoduchy create; CRM assistant ma kopirovat owner/title/thread pattern a doplnit credits podle produktu.
 
-**Pouzijes:** `POST /marketing/vibe/conversations`.
+**Pouzijes:** `POST /marketing/vibe/conversations`, `VibeConversation`, `IDbContextOutbox`, `IUserOwned`, `ISoftDeletable`.
 
-**Co se stane:** Marketing zalozi AI conversation.
+**Co se stane:** Backend vytvori prazdnou conversation owned by token user, ulozi title a vrati `201 Created + Location` na detail threadu. AI se tady jeste nevola; message/odpoved resi dalsi UC.
 
-**Napises v CRM:** pokud delas CRM assistant, vytvoris `CrmConversation`.
+**Mentalni model:** conversation je kontejner. U CRM assistantu to muze byt chat nad dealem, kontaktem, pipeline nebo obecny workspace chat. Start endpoint nema generovat odpoved, jen zalozit thread, aby UI melo stabilni `ConversationId`.
+
+**Entity pattern:** owner z tokenu, title, soft delete pro sidebar, pripadne context vazba (`DealId`, `ContactId`, `PromptVersion`).
+
+```csharp
+internal sealed class CrmConversation : AuditableEntity, IUserOwned, ISoftDeletable
+{
+    public Guid UserId { get; set; }
+    public Guid? DealId { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string PromptVersion { get; set; } = "crm-assistant-v1";
+    public DateTimeOffset? DeletedAt { get; set; }
+}
+```
+
+**Handler:** default title res v handleru, ne ve frontendu. Commituj pres outbox context, i kdyz zatim nic nepublikujes, aby write seam zustal stejny.
+
+```csharp
+var title = string.IsNullOrWhiteSpace(command.Title)
+    ? "New CRM conversation"
+    : command.Title.Trim();
+
+var conversation = new CrmConversation
+{
+    UserId = command.UserId,
+    DealId = command.DealId,
+    Title = title,
+    PromptVersion = "crm-assistant-v1",
+};
+
+outbox.DbContext.Conversations.Add(conversation);
+await outbox.SaveChangesAndFlushMessagesAsync();
+
+return new StartCrmConversationResponse(conversation.Id);
+```
+
+**Endpoint:** user z `ITenantContext`, `Created(location, ApiResponse.Ok(...))`, `.RequireModule("crm")`.
+
+**Credits/quota:** Marketing start conversation dnes credits neresí. U placeneho CRM assistantu nedebituj tokeny uz za zalozeni prazdneho threadu, pokud to produkt nechce. Credit check obvykle patri az na "send message" / "run agent" command, kde vis model, token budget a realnou cenu. Pokud start conversation ma byt placeny, pouzij Billing reserve/spend command stejne jako u jinych placenych akci a udelej idempotency key podle conversation id.
+
+**System prompt version:** uloz `PromptVersion` na conversation nebo message run. Bez toho pozdeji nevis, proc assistant odpovedel jinak po prompt update.
+
+**Testy k CRM:** created vraci Location, title blank dostane default, owner je z tokenu, cizi user nevidi conversation v list/detail, prompt version se ulozi, quota/credit check je testovany jen pokud ho produkt zapne.
+
+**Nepouzijes:** AI call ve start endpointu, request body `userId`, hardcoded prompt bez verze, duplicate client-generated ids bez idempotency policy, ani mazani historie pri zavreni sidebaru.
 
 **EC:**
 
-- EC421 title/prompt validation.
-- EC422 user quota/credits.
-- EC423 duplicate start.
-- EC424 owner scope.
-- EC425 initial system prompt version.
+- EC421 title/prompt validation → title trimni, omez delku, prompt version ukladej server-side.
+- EC422 user quota/credits → start je typicky free; placeny debit dej az na message/agent run, pokud produkt neurci jinak.
+- EC423 duplicate start → pokud klient retryne po timeoutu, zvaz idempotency key; jinak vzniknou dva prazdne thready.
+- EC424 owner scope → `UserId` vzdy z tokenu a entity `IUserOwned`; cizi thread je 404.
+- EC425 initial system prompt version → uloz verzi promptu, at jsou pozdejsi odpovedi auditovatelne.
 
 ### UC86 Send vibe message async
 
