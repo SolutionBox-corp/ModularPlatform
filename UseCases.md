@@ -4117,21 +4117,70 @@ return canDelete ? <DeleteContactButton contactId={id} /> : null;
 
 ### UC109 Error UX
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Frontend ma jednotny `apiFetch` → `ApiError` → `ProblemDetails` / field errors pattern.
 
-**Pouzijes:** `apiFetch` + RFC9457 ProblemDetails.
+**Pouzijes:** `apiFetch`, `ApiError`, `isApiError`, `ProblemDetails`, `toDisplayMessage`, `error-map.ts`, `toast`, form `setError`.
 
-**Co se stane:** Frontend mapuje error code na text a stav.
+**Co se stane:** Backend vrati RFC9457 ProblemDetails se stable `errorCode`. `apiFetch` z toho udela `ApiError`. CRM UI rozhodne podle kontextu: formular field error, list empty/error state, detail 404/notFound, global route error boundary nebo toast.
 
-**Napises v CRM:** error handling pro form/list/detail.
+**Mentalni model:** Nezobrazuj raw backend texty ani stack trace. UI ukazuje stabilni lidsky text podle `errorCode`; backend `detail` je jen fallback.
+
+**Form error:** validacni chyby patri k polim. Business chyba bez pole jde do `ProblemDetails` nad formular.
+
+```tsx
+const [serverError, setServerError] = useState<unknown>(null);
+
+function onSubmit(values: CreateContactValues) {
+  setServerError(null);
+  createContact.mutate(values, {
+    onError: (error) => {
+      if (isApiError(error) && error.fieldErrors) {
+        for (const [field, messages] of Object.entries(error.fieldErrors)) {
+          form.setError(toFormField(field), { message: messages[0] ?? "invalid" });
+        }
+        return;
+      }
+      setServerError(error);
+    },
+  });
+}
+```
+
+**List error:** list ma mit loading, empty, error a normal state. Empty neni chyba; 403/500 chyba je `ProblemDetails` nebo query error panel.
+
+```tsx
+const contacts = useContacts(page, pageSize, search);
+
+if (contacts.isError) return <ProblemDetails error={contacts.error} />;
+
+return (
+  <DataTable
+    data={contacts.data?.items}
+    isLoading={contacts.isLoading}
+    emptyTitle={t(search ? "contacts.noMatch" : "contacts.empty")}
+  />
+);
+```
+
+**Detail 404:** kdyz kontakt neexistuje nebo patri jinemu userovi/tenantovi, backend vrati 404. UI nesmi prozradit "existuje, ale nemas pristup". Zobraz not found/empty state nebo pouzij route `notFound()`.
+
+**401:** `apiFetch` v browseru sam presmeruje na `/login?reason=expired`. CRM komponenta nema delat vlastni redirect pro 401.
+
+**403:** user je prihlaseny, ale nema permission. Ukaz klidny forbidden panel nebo skryj konkretni akci; endpoint stejne musi vratit 403.
+
+**429:** `ApiError.retryAfter` obsahuje sekundy z `Retry-After`. Disable retry button / submit a ukaz zpravu z `toDisplayMessage`.
+
+**Toast vs inline:** toast pouzij pro kratke mutation selhani, ktere neni opravitelne v konkretni field. Inline `ProblemDetails` pouzij tam, kde user zustava na formulari nebo page a potrebuje videt stav.
+
+**Nepouzijes:** `catch (e) { alert(e.message) }`, raw `ProblemDetails.detail` jako primarni text, swallowed errors, nekonecny spinner bez error state, specialni error model jen pro CRM.
 
 **EC:**
 
-- EC541 401 redirect login.
-- EC542 403 no permission.
-- EC543 404 empty/not found.
-- EC544 422 validation/business.
-- EC545 429 retry-after.
+- EC541 401 redirect login → nech na `apiFetch`; browser presmeruje na login s `next`.
+- EC542 403 no permission → zobraz forbidden/disabled action, ale backend permission je autorita.
+- EC543 404 empty/not found → nerozlisuj foreign id vs missing id; ukaz not found nebo empty detail.
+- EC544 422 validation/business → field errors do `setError`, non-field business error do `ProblemDetails`.
+- EC545 429 retry-after → pouzij `retryAfter`, disable submit/retry do uplynuti nebo ukaz jasny wait message.
 
 ### UC110 i18n error codes
 
