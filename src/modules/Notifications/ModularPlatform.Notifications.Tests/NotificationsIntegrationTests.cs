@@ -293,6 +293,46 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
         (await PlatformApiFactory.ReadData(after)).GetProperty("count").GetInt64().ShouldBe(1);
     }
 
+    [Fact]
+    public async Task Mark_notification_read_is_owner_scoped_and_idempotent()
+    {
+        var (aliceId, aliceToken) = await fixture.RegisterAndLoginAsync(
+            $"mark-alice-{Guid.CreateVersion7():N}@example.com", Password);
+        var (bobId, bobToken) = await fixture.RegisterAndLoginAsync(
+            $"mark-bob-{Guid.CreateVersion7():N}@example.com", Password);
+
+        var aliceTemplate = $"mark-alice-{Guid.CreateVersion7():N}";
+        var bobTemplate = $"mark-bob-{Guid.CreateVersion7():N}";
+        await SeedTemplateAsync(aliceTemplate, "A");
+        await SeedTemplateAsync(bobTemplate, "B");
+        await SendDirectAsync(aliceId, aliceTemplate);
+        await SendDirectAsync(bobId, bobTemplate);
+
+        var bobNotificationId = await fixture.ScalarAsync<Guid>(
+            $"SELECT \"Id\" FROM notifications WHERE \"UserId\" = '{bobId}' AND \"TemplateKey\" = '{bobTemplate}'");
+        var foreign = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Post, $"/v1/notifications/{bobNotificationId}/read", aliceToken));
+        foreign.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await foreign.Content.ReadAsStringAsync()).ShouldContain("notification.not_found");
+
+        var aliceNotificationId = await fixture.ScalarAsync<Guid>(
+            $"SELECT \"Id\" FROM notifications WHERE \"UserId\" = '{aliceId}' AND \"TemplateKey\" = '{aliceTemplate}'");
+        var first = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Post, $"/v1/notifications/{aliceNotificationId}/read", aliceToken));
+        var second = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Post, $"/v1/notifications/{aliceNotificationId}/read", aliceToken));
+
+        first.StatusCode.ShouldBe(HttpStatusCode.OK);
+        second.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var readRows = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM notifications WHERE \"Id\" = '{aliceNotificationId}' AND \"ReadAt\" IS NOT NULL");
+        readRows.ShouldBe(1);
+
+        var bobUnread = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/notifications/me/unread-count", bobToken));
+        (await PlatformApiFactory.ReadData(bobUnread)).GetProperty("count").GetInt64().ShouldBeGreaterThanOrEqualTo(1);
+    }
+
     // A notification's PII (Title/Body) is crypto-shredded in the audit trail: the live row keeps the rendered
     // text, but notifications_audit_entries stores it as a penc:v2: envelope — never the plaintext.
     [Fact]

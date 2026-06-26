@@ -932,21 +932,21 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC51 Mark notification read
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented + tested — `NotificationsIntegrationTests`.
 
 **Pouzijes:** `POST /notifications/{notificationId}/read`.
 
-**Co se stane:** Notifications oznaci jednu notifikaci jako prectenou.
+**Co se stane:** Notifications najde notifikaci podle `notificationId` a `UserId` z tokenu, a pokud je unread, nastavi `ReadAt`.
 
-**Napises v CRM:** mutation invaliduje list a unread count.
+**Napises v CRM:** mutation invaliduje list a unread count; optimistic update je OK, ale pri erroru rollback.
 
 **EC:**
 
-- EC251 foreign id -> 404.
-- EC252 already read -> idempotent/no-op.
-- EC253 double click.
-- EC254 stale feed.
-- EC255 optimistic update rollback pri erroru.
+- EC251 foreign id -> 404 → handler filtruje `Id && UserId`, cizi id vypada jako `notification.not_found`.
+- EC252 already read -> idempotent/no-op → pokud `ReadAt` uz je vyplnene, endpoint vrati OK a nic nemeni.
+- EC253 double click → opakovany POST na stejne id zustane OK a nevytvori druhy side effect.
+- EC254 stale feed → FE po OK invaliduje `/notifications/me` i `/unread-count`.
+- EC255 optimistic update rollback pri erroru → pri 404/401 vratis polozku v UI zpet do unread stavu.
 
 ### UC52 Mark all read
 
