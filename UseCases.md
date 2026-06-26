@@ -2334,21 +2334,64 @@ app.MapGet("/crm/imports", async (
 
 ### UC82 List snapshots
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implementovano v Marketing; CRM ma kopirovat pattern pro ulozene projekce/snapshots z importu.
 
-**Pouzijes:** `GET /marketing/snapshots`.
+**Pouzijes:** `GET /marketing/snapshots`, `MetricSnapshot`, `IUserOwned`, `PageRequest`, optional filter, read model/projekce.
 
-**Co se stane:** Marketing vrati ulozene read model snapshots.
+**Co se stane:** Worker po pullu prevede raw provider vysledek na normalizovane snapshots. UI pak necita raw JSON z externiho API, ale rychly read model: source, metricName, dimension, value, detailJson, recordedAt. Endpoint vraci paged list, owner-scoped a volitelne filtrovany podle source.
 
-**Napises v CRM:** pro casto ctena externi data ulozis snapshot/projekci.
+**Mentalni model:** snapshot je stav k precteni, ne prikaz a ne log chyby. U CRM to muze byt napr. "importovane firmy", "enrichment score", "deduplikacni kandidat", "lead score v case" nebo "stav kontaktu z externiho systemu". Kdyz data budes ukazovat casto, preloz je ve workeru do vlastni tabulky misto toho, aby frontend pokazde parsoval raw import payload.
+
+**Entity pattern:** high-volume read model muze dedit `Entity` misto `AuditableEntity`, pokud nepotrebujes audit kazdeho bodu. Musi byt `IUserOwned` nebo `ITenantScoped` podle toho, kdo snapshot vlastni.
+
+```csharp
+internal sealed class CrmSnapshot : Entity, IUserOwned
+{
+    public Guid UserId { get; set; }
+    public Guid ImportId { get; set; }
+    public string Source { get; set; } = string.Empty;
+    public string SnapshotType { get; set; } = string.Empty;
+    public string? Dimension { get; set; }
+    public string DetailJson { get; set; } = "{}";
+    public DateTimeOffset RecordedAt { get; set; }
+    public int SchemaVersion { get; set; } = 1;
+}
+```
+
+**List query:** filtruj ownera, volitelny source/type, sortuj od nejnovejsiho a vracej page.
+
+```csharp
+var snapshots = db.CrmSnapshots.Where(x => x.UserId == query.UserId);
+
+if (!string.IsNullOrWhiteSpace(query.Source))
+{
+    snapshots = snapshots.Where(x => x.Source == query.Source);
+}
+
+return await snapshots
+    .OrderByDescending(x => x.RecordedAt)
+    .Select(x => new CrmSnapshotListItem(
+        x.Id, x.Source, x.SnapshotType, x.Dimension, x.DetailJson, x.RecordedAt, x.SchemaVersion))
+    .ToPagedResponseAsync(query.Page, ct);
+```
+
+**Unknown filter:** Marketing u neznameho `source` vraci empty page, ne validation error. Pro CRM je to vhodne, pokud source filter pochazi z UI tab/filteru a nechces rozbijet list.
+
+**Stale snapshot:** snapshot neni automaticky live data. Response by mela mit `RecordedAt` nebo `ImportedAt`, aby UI mohlo ukazat stari dat a nabidnout "spustit novy import".
+
+**Schema version:** pokud `DetailJson` muze menit shape, pridej `SchemaVersion`. Frontend i AI analyzy pak vi, jak interpretovat stare snapshots.
+
+**Testy k CRM:** no snapshots vraci empty page, source/type filter funguje, owner scoping drzi, paging funguje, sort je `RecordedAt desc`, stary schemaVersion se neplete s novym.
+
+**Nepouzijes:** raw provider payload jako UI contract, list bez paging, frontend-only filter nad cizimi daty, ani snapshot bez casu/schema, pokud se ma dlouho uchovavat.
 
 **EC:**
 
-- EC406 no snapshots.
-- EC407 stale snapshot.
-- EC408 paging.
-- EC409 owner/tenant scope.
-- EC410 schema version.
+- EC406 no snapshots → 200 + empty page; UI ukaze "zatim zadna data", ne error.
+- EC407 stale snapshot → response nese `RecordedAt`/`ImportedAt`; UI pozna stara data a muze nabidnout refresh/import.
+- EC408 paging → snapshots mohou rust rychle, vzdy pouzij `PageRequest`/`PagedResponse`.
+- EC409 owner/tenant scope → filtruj `UserId`/`TenantId` v query a oznac entitu `IUserOwned`/`ITenantScoped`.
+- EC410 schema version → u JSON detailu pridej `SchemaVersion`, aby stare ulozene projekce nerozbily novy frontend/AI reader.
 
 ### UC83 List analyses
 
