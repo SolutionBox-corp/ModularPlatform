@@ -1452,21 +1452,44 @@ public sealed record CrmRunStatusResponse(
 
 ### UC65 List moje operace
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented + tested — `OperationsTests.Operations_list_is_paged_owner_scoped_newest_first_and_has_empty_state`.
 
 **Pouzijes:** `GET /operations`.
 
-**Co se stane:** User vidi historii svych dlouhych tasku.
+**Co se stane:** User vidi historii svych dlouhych tasku. Handler vraci jen jeho `operations`, radi nejnovsi prvni, strankuje pres `PageRequest` a vraci `PagedResponse<OperationListItem>`. List nevraci `ResultJson`, jen summary pro UI: id, type, status, errorCode, completedAt, createdAt.
 
-**Napises v CRM:** pokud chces domenu detailneji, vlastni list `CrmRuns`.
+**Napises v CRM:** pokud ti staci obecne operace, zobraz `GET /operations`. Pokud potrebujes domenu detailneji, udelej vlastni list `CrmRuns` s import statistykou, poctem radku, nazvem souboru atd.
+
+**Vzor frontendu:**
+
+```ts
+const runs = await api.get("/v1/operations", {
+  params: { page: 1, pageSize: 20 },
+});
+```
+
+**Vzor CRM list item:**
+
+```csharp
+public sealed record CrmRunListItem(
+    Guid Id,
+    string Status,
+    int ProcessedRows,
+    int FailedRows,
+    DateTimeOffset CreatedAt);
+```
+
+**Co si pohlidas:** empty state je normalni stav. List je owner-scoped; nikdy neposilej `userId` query param. Po startu operace invaliduj list, aby se novy `Pending` run objevil hned.
+
+**Nepouzijes:** globální operations list v tenant UI, frontend filtr jako security, ani list bez paging.
 
 **EC:**
 
-- EC321 paging.
-- EC322 old operations retention.
-- EC323 owner scope.
-- EC324 sort order.
-- EC325 empty state.
+- EC321 paging → `page/pageSize`, testuje se `pageSize=2`.
+- EC322 old operations retention → base zatim nema purge policy; pokud historie roste, pridej per-module retention rozhodnuti.
+- EC323 owner scope → handler filtruje `UserId`; cizi user ma prazdny list.
+- EC324 sort order → newest first podle `CreatedAt`.
+- EC325 empty state → prazdny list vraci `items=[]`, `totalCount=0`, ne error.
 
 ### UC66 Worker dokonci praci
 

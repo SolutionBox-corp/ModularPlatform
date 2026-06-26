@@ -69,6 +69,43 @@ public sealed class OperationsTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Operations_list_is_paged_owner_scoped_newest_first_and_has_empty_state()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync($"op-list-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+
+        var empty = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Get, "/v1/operations", token));
+        empty.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var emptyData = await PlatformApiFactory.ReadData(empty);
+        emptyData.GetProperty("totalCount").GetInt64().ShouldBe(0);
+        emptyData.GetProperty("items").GetArrayLength().ShouldBe(0);
+
+        var first = await StartDemoAsync(token);
+        await Task.Delay(20);
+        var second = await StartDemoAsync(token);
+        await Task.Delay(20);
+        var third = await StartDemoAsync(token);
+
+        var list = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/operations?page=1&pageSize=2", token));
+        list.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var data = await PlatformApiFactory.ReadData(list);
+        data.GetProperty("page").GetInt32().ShouldBe(1);
+        data.GetProperty("pageSize").GetInt32().ShouldBe(2);
+        data.GetProperty("totalCount").GetInt64().ShouldBe(3);
+        data.GetProperty("items").GetArrayLength().ShouldBe(2);
+        data.GetProperty("items")[0].GetProperty("id").GetGuid().ShouldBe(third);
+        data.GetProperty("items").EnumerateArray().Any(x => x.GetProperty("id").GetGuid() == first).ShouldBeFalse();
+
+        var (_, otherToken) = await fixture.RegisterAndLoginAsync($"op-list-other-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+        var otherList = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Get, "/v1/operations", otherToken));
+        otherList.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var otherData = await PlatformApiFactory.ReadData(otherList);
+        otherData.GetProperty("items").EnumerateArray()
+            .Any(x => x.GetProperty("id").GetGuid() == second)
+            .ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task A_terminal_operation_is_not_resurrected_by_a_duplicate_worker_transition()
     {
         var userId = Guid.CreateVersion7();
@@ -85,5 +122,12 @@ public sealed class OperationsTests(PlatformApiFactory fixture)
 
         var status = await dispatcher.Query(new GetOperationStatusQuery(operationId, userId));
         status.Status.ShouldBe("Succeeded");
+    }
+
+    private async Task<Guid> StartDemoAsync(string token)
+    {
+        var start = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Post, "/v1/operations/demo", token));
+        start.StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        return (await PlatformApiFactory.ReadData(start)).GetProperty("operationId").GetGuid();
     }
 }
