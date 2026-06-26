@@ -1536,21 +1536,49 @@ public sealed class RunCrmImportHandler
 
 ### UC67 Cron job
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented pattern — canonical examples `BillingStripeReconcileJob`, `BillingExpireCreditsJob`, `GdprRetentionSweepJob`; non-overlap overeno v Billing tests.
 
 **Pouzijes:** `IModule.RegisterJobs` + Quartz.
 
-**Co se stane:** Jobs host spousti command podle UTC cronu.
+**Co se stane:** Jobs host pri startu zavola `RegisterJobs` na kazdem enabled modulu. Modul zaregistruje Quartz job a trigger s cronem v UTC. Job je jen scheduler adapter: resolve `IDispatcher`, posle command a skonci. Business logika patri do command handleru, ne do `IJob`.
 
-**Napises v CRM:** `CrmReconcileJob` jen dispatchne `ReconcileCrmCommand`.
+**Napises v CRM:** `CrmReconcileJob` jen dispatchne `ReconcileCrmCommand`. Do `CrmModule.RegisterJobs` pridas cron config, napr. `Modules:Crm:Jobs:ReconcileCron`.
+
+**Vzor RegisterJobs:**
+
+```csharp
+public void RegisterJobs(IServiceCollectionQuartzConfigurator quartz, IConfiguration configuration)
+{
+    var cron = configuration["Modules:Crm:Jobs:ReconcileCron"] ?? "0 0/15 * * * ?";
+    var key = new JobKey("crm-reconcile");
+    quartz.AddJob<CrmReconcileJob>(key);
+    quartz.AddTrigger(trigger => trigger.ForJob(key)
+        .WithCronSchedule(cron, x => x.InTimeZone(TimeZoneInfo.Utc)));
+}
+```
+
+**Vzor jobu:**
+
+```csharp
+[DisallowConcurrentExecution]
+internal sealed class CrmReconcileJob(IDispatcher dispatcher) : IJob
+{
+    public Task Execute(IJobExecutionContext context) =>
+        dispatcher.Send(new ReconcileCrmCommand(MaxItems: 100), context.CancellationToken);
+}
+```
+
+**Co si pohlidas:** Jobs host dnes pouziva in-memory Quartz store. `[DisallowConcurrentExecution]` brani overlapu jen v jedne instanci scheduleru. Pro HA nepoustej proste dve repliky; bud joby musi byt idempotentni, nebo se prejde na clustered Quartz AdoJobStore.
+
+**Nepouzijes:** cron na event-driven praci, business logiku v `IJob`, local time zone, ani unbounded sweep bez capu.
 
 **EC:**
 
-- EC331 cron in UTC.
-- EC332 job nesmi obsahovat business logiku.
-- EC333 multi-instance scheduling.
-- EC334 retry/idempotency.
-- EC335 cap per run.
+- EC331 cron in UTC → vzdy `.WithCronSchedule(cron, x => x.InTimeZone(TimeZoneInfo.Utc))`.
+- EC332 job nesmi obsahovat business logiku → job dispatchne command, logika je v handleru.
+- EC333 multi-instance scheduling → default Quartz store neni cluster; single Jobs replica nebo idempotentni joby/cluster store.
+- EC334 retry/idempotency → Quartz zopakuje dalsi tick, command musi byt idempotentni a bezpecny pri duplicitnim behu.
+- EC335 cap per run → reconcile/sweep command ma limit typu `MaxItems`, aby jeden cron nezablokoval host.
 
 ### UC68 Messaging health
 
