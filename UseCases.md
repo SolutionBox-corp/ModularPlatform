@@ -1871,21 +1871,76 @@ const currentMarketing = history.data
 
 ### UC75 PII v CRM datech
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Blueprint nad hotovym base mechanismem — CRM modul ho zkopiruje z Identity/Notifications a overi vlastnimi testy.
 
-**Pouzijes:** `[PersonalData]`, `[Encrypted]`, `IDataSubject`.
+**Pouzijes:** `[PersonalData]`, `[Encrypted]`, `IDataSubject`, `IBlindIndexHasher`, GDPR crypto-shredder.
 
-**Co se stane:** PII se encryptuje at rest a audit PII je crypto-shreddable.
+**Co se stane:** CRM kontakt muze mit email, jmeno, telefon nebo poznamku s osobnimi udaji, ale v databazi nelezi jako cisty text. Live sloupec se ulozi jako encrypted envelope `penc:v2...`, audit PII hodnoty jsou chranene pres subject key a po GDPR erasure se daji znecitelnit crypto-shreddem. Aplikace pri normalnim cteni dostane plaintext; po shred vrati `[erased]`.
 
-**Napises v CRM:** entity atributy a blind index pro lookupy.
+**Mentalni model:** `[Encrypted]` chrani aktualni hodnotu v tabulce, `[PersonalData]` rika auditu/GDPR "tohle je osobni udaj" a `IDataSubject.SubjectId` rika, komu ten udaj patri. U CRM kontaktu typicky nechces subjectem delat samotny kontakt, ale ownera z tokenu (`UserId`), aby erasure uzivatele znicila jeho CRM PII.
+
+**Napises v CRM:** entity oznacis atributy, pridas hash sloupec pro lookup a v handleru nikdy nehledas podle encrypted hodnoty.
+
+```csharp
+internal sealed class CrmContact : AuditableEntity, ITenantScoped, IUserOwned, IDataSubject
+{
+    public Guid UserId { get; set; }
+
+    [PersonalData]
+    [Encrypted]
+    public string Email { get; set; } = string.Empty;
+
+    public string EmailHash { get; set; } = string.Empty;
+
+    [PersonalData]
+    [Encrypted]
+    public string DisplayName { get; set; } = string.Empty;
+
+    Guid IDataSubject.SubjectId => UserId;
+}
+```
+
+**Lookup podle emailu:** encrypted sloupec nejde pouzit na `WHERE Email == ...`, protoze v DB je ciphertext. Napises normalizaci a ulozis blind index.
+
+```csharp
+var normalizedEmail = request.Email.Trim().ToUpperInvariant();
+var emailHash = blindIndexHasher.Hash(normalizedEmail);
+
+var contact = await db.Contacts
+    .Where(x => x.UserId == tenant.UserId)
+    .FirstOrDefaultAsync(x => x.EmailHash == emailHash, ct);
+```
+
+**Create/update:** pred ulozenim nastav plaintext do `Email`; interceptor ho pri `SaveChanges` zasifruje. Zaroven nastav `EmailHash`, protoze ten se pouziva na duplicate check a lookup. Hash neni plaintext email, ale porad se k nemu chovej jako k citlivemu technickemu identifikatoru.
+
+```csharp
+contact.Email = normalizedEmail;
+contact.EmailHash = blindIndexHasher.Hash(normalizedEmail);
+contact.DisplayName = request.DisplayName.Trim();
+
+await db.SaveChangesAsync(ct);
+```
+
+**Cross-module event:** kdyz CRM publikuje `CrmContactCreatedIntegrationEvent`, neposilej v nem email/body/poznamku jen proto, ze se to hodi consumerovi. Posli `ContactId`, `OwnerUserId`, pripadne ne-PII business stav. Consumer si PII dotahne pres povoleny query/contract, pokud k tomu ma opravneni.
+
+```csharp
+public sealed record CrmContactCreatedIntegrationEvent(
+    Guid ContactId,
+    Guid OwnerUserId,
+    DateTimeOffset OccurredAtUtc) : IIntegrationEvent;
+```
+
+**Testy k CRM:** pridej architecture test pro atributy, integracni test "DB obsahuje `penc:v2`, API vraci plaintext", duplicate email test pres `EmailHash` a GDPR erasure test, ze po shred API nevraci puvodni hodnotu.
+
+**Nepouzijes:** plaintext search nad encrypted sloupcem, vlastni AES helper, event payload s nepotrebnou PII, route/body `userId` jako subject, ani `[PersonalData]` bez `IDataSubject`.
 
 **EC:**
 
-- EC371 encrypted column nejde hledat plaintextem.
-- EC372 blind index key missing fail-fast.
-- EC373 po shred se hodnota cte `[erased]`.
-- EC374 atribut `[PersonalData]` bez `IDataSubject` je arch bug.
-- EC375 neukladat PII do event payloadu zbytecne.
+- EC371 encrypted column nejde hledat plaintextem → pro email/telefon vytvor normalizovanou hodnotu + blind index (`EmailHash`, `PhoneHash`) a query pis proti hashi.
+- EC372 blind index key missing fail-fast → mimo Development musi byt `Gdpr:Encryption:BlindIndexKey` realny secret; jinak appka spadne pri startu, coz je spravne.
+- EC373 po shred se hodnota cte `[erased]` → UI to bere jako terminalni privacy stav, ne jako chybu k retry.
+- EC374 atribut `[PersonalData]` bez `IDataSubject` je arch bug → entity musi implementovat `IDataSubject`, jinak architecture test selze.
+- EC375 neukladat PII do event payloadu zbytecne → durable envelope neni crypto-shreddable stejne jako DB radek; eventy maji nest ID/stav, ne email texty a dlouhe poznamky.
 
 ### UC76 Audit zmen
 
