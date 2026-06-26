@@ -3353,21 +3353,54 @@ public sealed class DealCreatedNotificationHandler
 
 ### UC99 Event s minimem PII
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Base pravidlo aktivni; CRM eventy musi byt navrzene jako minimalni durable fakta.
 
-**Pouzijes:** `IIntegrationEvent` DTO.
+**Pouzijes:** `IIntegrationEvent` DTO, minimal IDs, optional non-PII status, message wire identity tests.
 
-**Co se stane:** Event prenese jen fakta, ktera consumer potrebuje.
+**Co se stane:** CRM publikuje event, ktery muze zustat v durable outbox/inbox/DLQ delsi dobu nez DB radek. Proto payload nesmi zbytecne obsahovat email, note body, chat content, raw provider payload ani dlouhe PII texty. Event nese identifikatory a fakt, consumer si citlive detaily dotahne pres povoleny query contract.
 
-**Napises v CRM:** `record DealWonIntegrationEvent(Guid DealId, Guid UserId, ...)`.
+**Dobry event:** minimalni, past-tense, bez PII.
+
+```csharp
+public sealed record DealWonIntegrationEvent(
+    Guid EventId,
+    DateTimeOffset OccurredAt,
+    Guid DealId,
+    Guid OwnerUserId,
+    Guid TenantId,
+    decimal Amount,
+    string Currency) : IIntegrationEvent;
+```
+
+**Spatny event:** nese vsechno, co bylo po ruce.
+
+```csharp
+// Nepouzivat: email, customer note, full deal object a raw AI text budou lezet v durable envelope.
+public sealed record DealWonIntegrationEvent(
+    Guid DealId,
+    string CustomerEmail,
+    string CustomerPrivateNote,
+    string AiSummaryJson,
+    DealDto FullDeal) : IIntegrationEvent;
+```
+
+**Kdy PII v eventu tolerovat:** jen kdyz je to nutne pro send path, napr. email delivery message potrebuje `ToAddress` a body. I tam se spolehni na platform retention pro durable envelopes a neposilej vic nez delivery potrebuje.
+
+**Consumer potrebuje PII:** dej mu query contract s permission/scope. Event nese `DealId`; consumer zavola `GetDealNotificationDataQuery`, pokud je to povolene. Tak zustane PII v DB s encryption/erasure pravidly, ne v message envelope.
+
+**Wire compatibility:** prejmenovani event typu nebo namespace je breaking change pro durable messages. Kdyz musis zmenit payload breaking zpusobem, pridej novy event typ `DealWonV2IntegrationEvent` nebo kompatibilni optional fields a aktualizuj frozen wire name testy vedome.
+
+**Testy k CRM:** event payload neobsahuje PII fields, serialization wire name je zmrazeny, consumer umi dotahnout detail pres query, stary event shape zustava kompatibilni nebo ma V2 migration rozhodnuti.
+
+**Nepouzijes:** full entity DTO v eventu, user email/body/notes bez nutnosti, event rename bez wire-name testu, breaking required field bez verze, ani event jako cache celeho stavu.
 
 **EC:**
 
-- EC491 email/body v durable envelope muze zit dele nez chces.
-- EC492 payload se neda crypto-shreddnout stejne jako DB.
-- EC493 consumer si PII nacte pres povoleny contract.
-- EC494 event wire name musi zustat kompatibilni.
-- EC495 event verze pri breaking change.
+- EC491 email/body v durable envelope muze zit dele nez chces → neposilej je, pokud nejsou primo nutne pro delivery.
+- EC492 payload se neda crypto-shreddnout stejne jako DB → PII patri do encrypted DB row, ne do obecneho integration eventu.
+- EC493 consumer si PII nacte pres povoleny contract → event nese ID, owner modul rozhodne scope a DTO.
+- EC494 event wire name musi zustat kompatibilni → rename namespace/type je reviewed breaking change.
+- EC495 event verze pri breaking change → pouzij optional field nebo novy V2 event, ne tichy shape break.
 
 ### UC100 Module jobs
 
