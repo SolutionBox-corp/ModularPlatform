@@ -368,7 +368,7 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC20 Tenant invite
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented — overeno `RegistrationJoinTests`.
 
 **Pouzijes:** `POST /tenant/admin/tenants/{tenantId}/invites`.
 
@@ -378,11 +378,12 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 **EC:**
 
-- EC096 expired invite.
-- EC097 invite reuse.
-- EC098 invite pro cizi tenant.
-- EC099 invite email/notifikace patri do platform flow.
-- EC100 CRM negeneruje invite tokeny.
+- EC096 expired invite: expired token neprojde pres tenant registration gate.
+- EC097 invite reuse: token je single-use, po prvnim joinu je dalsi pokus 403.
+- EC098 invite pro cizi tenant: token je vázany na `TenantId`, cizi subdomain ho neakceptuje.
+- EC099 invite email/notifikace patri do platform flow: CRM nema posilat vlastni invite tokeny; muze jen spustit
+  platformovou notifikaci, pokud produkt chce e-mail.
+- EC100 CRM negeneruje invite tokeny: token mintuje jen Tenancy `POST /tenant/admin/tenants/{tenantId}/invites`.
 
 ### UC21 Platform billing status
 

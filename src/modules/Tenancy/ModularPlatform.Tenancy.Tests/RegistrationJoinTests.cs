@@ -85,6 +85,39 @@ public sealed class RegistrationJoinTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task An_expired_invite_cannot_be_used_to_join_the_tenant()
+    {
+        var admin = await AdminTokenAsync();
+        var (tenantId, subdomain) = await ProvisionTenantAsync(admin);
+        var token = await CreateInviteAsync(admin, tenantId);
+
+        await fixture.ExecuteSqlAsync(
+            $"UPDATE tenant_invites SET \"ExpiresAt\" = now() - interval '1 minute' WHERE \"TenantId\" = '{tenantId}'");
+
+        var response = await RegisterOnHostAsync(
+            $"expired-{Guid.CreateVersion7():N}@x.com", $"{subdomain}.lvh.me", token);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task An_invite_for_one_tenant_cannot_join_another_tenant()
+    {
+        var admin = await AdminTokenAsync();
+        var (tenantA, subdomainA) = await ProvisionTenantAsync(admin);
+        var (_, subdomainB) = await ProvisionTenantAsync(admin);
+        var tokenForA = await CreateInviteAsync(admin, tenantA);
+
+        var wrongTenant = await RegisterOnHostAsync(
+            $"wrong-{Guid.CreateVersion7():N}@x.com", $"{subdomainB}.lvh.me", tokenForA);
+        wrongTenant.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        var rightTenant = await RegisterOnHostAsync(
+            $"right-{Guid.CreateVersion7():N}@x.com", $"{subdomainA}.lvh.me", tokenForA);
+        rightTenant.StatusCode.ShouldBe(HttpStatusCode.Created);
+    }
+
+    [Fact]
     public async Task Registering_without_a_subdomain_still_provisions_a_fresh_tenant()
     {
         var u1 = await RegisterOnHostAsync($"apex1-{Guid.CreateVersion7():N}@x.com", host: null, inviteToken: null);
