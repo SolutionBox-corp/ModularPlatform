@@ -516,7 +516,7 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC28 Credit ledger
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented — overeno `CreditLedgerReadTests`, `LedgerLifecycleTests`, `GdprIntegrationTests`.
 
 **Pouzijes:** `GET /billing/credits/entries`.
 
@@ -526,11 +526,11 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 **EC:**
 
-- EC136 paging.
-- EC137 ledger append-only.
-- EC138 GDPR erase ledger fyzicky nemaze.
-- EC139 ledger PII se anonymizuje podle pravidel.
-- EC140 CRM neduplikuje ledger.
+- EC136 paging → `GET /billing/credits/entries?page=&pageSize=` vraci `PagedResponse`.
+- EC137 ledger append-only → money flow pridava `credit_entries`; zmeny stavu jdou pres nove entries/holds, ne prepis ledgeru.
+- EC138 GDPR erase ledger fyzicky nemaze → Billing ledger/account rows zustavaji kvuli AML/tax a integrite knihy.
+- EC139 ledger PII se anonymizuje podle pravidel → Billing ledger dnes nema free-text PII; erasure probiha crypto-shreddingem subject key.
+- EC140 CRM neduplikuje ledger → CRM vola endpoint/query, nema vlastni tabulku ani vypocet ledgeru.
 
 ### UC29 Credit top-up
 

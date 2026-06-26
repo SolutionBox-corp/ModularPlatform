@@ -1,0 +1,50 @@
+using System.Net;
+using ModularPlatform.IntegrationTesting;
+using Shouldly;
+
+namespace ModularPlatform.Billing.Tests;
+
+/// <summary>
+/// UC28: the credit ledger is a paged, owner-scoped read model over append-only entries. Consumers use this endpoint;
+/// they do not recompute money from tables or duplicate Billing's ledger rules.
+/// </summary>
+[Collection("Integration")]
+public sealed class CreditLedgerReadTests(PlatformApiFactory fixture)
+{
+    private const string Password = "S3cure!pass";
+
+    [Fact]
+    public async Task Ledger_entries_are_paged_and_scoped_to_the_token_owner()
+    {
+        var (aliceId, aliceToken) = await fixture.RegisterAndLoginAsync($"ledger-alice-{Guid.CreateVersion7():N}@test.io", Password);
+        var (bobId, bobToken) = await fixture.RegisterAndLoginAsync($"ledger-bob-{Guid.CreateVersion7():N}@test.io", Password);
+
+        for (var i = 0; i < 5; i++)
+        {
+            await fixture.GrantCreditsAsync(aliceId, 100 + i, idempotencyKey: $"alice-ledger-{Guid.CreateVersion7():N}");
+        }
+
+        await fixture.GrantCreditsAsync(bobId, 999, idempotencyKey: $"bob-ledger-{Guid.CreateVersion7():N}");
+
+        var alicePage = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, "/v1/billing/credits/entries?page=1&pageSize=2", aliceToken));
+        alicePage.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var aliceData = await PlatformApiFactory.ReadData(alicePage);
+
+        aliceData.GetProperty("page").GetInt32().ShouldBe(1);
+        aliceData.GetProperty("pageSize").GetInt32().ShouldBe(2);
+        aliceData.GetProperty("totalCount").GetInt64().ShouldBe(5);
+        aliceData.GetProperty("totalPages").GetInt32().ShouldBe(3);
+        aliceData.GetProperty("items").EnumerateArray().Count().ShouldBe(2);
+        aliceData.GetProperty("items").EnumerateArray()
+            .ShouldAllBe(item => item.GetProperty("amount").GetInt64() != 999);
+
+        var bobPage = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, "/v1/billing/credits/entries?page=1&pageSize=20", bobToken));
+        bobPage.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var bobData = await PlatformApiFactory.ReadData(bobPage);
+
+        bobData.GetProperty("totalCount").GetInt64().ShouldBe(1);
+        bobData.GetProperty("items").EnumerateArray().Single().GetProperty("amount").GetInt64().ShouldBe(999);
+    }
+}
