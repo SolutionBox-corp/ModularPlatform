@@ -3731,21 +3731,87 @@ export function deleteContact(contactId: string): Promise<void> {
 
 ### UC104 Frontend hooks
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Frontend pattern existuje v Marketing/Files; CRM ma mit tenkou hook vrstvu nad `api.ts`.
 
-**Pouzijes:** `features/crm/hooks.ts`.
+**Pouzijes:** `frontend/features/crm/hooks.ts`, `useQuery`, `useMutation`, `useQueryClient`, `toast`, `queryRoots.crm`.
 
-**Co se stane:** UI pouziva `useQuery`, `useMutation`, invalidace a toast.
+**Co se stane:** Komponenty nepouzivaji `apiFetch` ani `crmQueries` primo. Importuji hooky: `useContacts`, `useContact`, `useCreateContact`, `useDeleteContact`, `useStartCrmImport`, `useSendCrmMessage`. Hooky resi query enabled flags, invalidace cache, toast a pending states.
 
-**Napises v CRM:** hook pro kazdou mutaci.
+**Mentalni model:** `api.ts` vi "jak volat backend"; `hooks.ts` vi "jak to zapojit do React Query UX". Komponenta vi jen "mam data, pending, error, mutate".
+
+```ts
+"use client";
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
+import { toast } from "sonner";
+import { queryRoots } from "@/lib/api/query-keys";
+import {
+  crmQueries,
+  createContact,
+  deleteContact,
+  type CreateContactRequest,
+} from "@/features/crm/api";
+
+export function useContacts(page = 1, pageSize = 20, search?: string) {
+  return useQuery(crmQueries.contacts(page, pageSize, search));
+}
+
+export function useContact(id: string, enabled = true) {
+  return useQuery({ ...crmQueries.contact(id), enabled: enabled && id.length > 0 });
+}
+```
+
+**Mutation hook:** disable double click pres `isPending` v komponentach a invaliduj vsechny dotcene query.
+
+```ts
+export function useCreateContact() {
+  const t = useTranslations("crm");
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (body: CreateContactRequest) => createContact(body),
+    onSuccess: (result) => {
+      toast.success(t("contacts.created"));
+      void queryClient.invalidateQueries({ queryKey: [...queryRoots.crm, "contacts"] });
+      void queryClient.invalidateQueries({
+        queryKey: [...queryRoots.crm, "contacts", result.contactId],
+      });
+    },
+  });
+}
+
+export function useDeleteContact() {
+  const t = useTranslations("crm");
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (contactId: string) => deleteContact(contactId),
+    onSuccess: () => {
+      toast.success(t("contacts.deleted"));
+      void queryClient.invalidateQueries({ queryKey: [...queryRoots.crm, "contacts"] });
+    },
+  });
+}
+```
+
+**Optimistic update:** pouzij jen pro male, vratitelne zmeny jako checkbox/status. U delete/create v enterprise CRM je casto cistsi disable + refetch, protoze server sort/order/permissions rozhodnou finalni stav.
+
+**Toast pred navigation:** pokud po create navigujes na detail, toast zavolej pred `router.push`, aby nezmizel s unmountem.
+
+**Pending controls:** komponenta pouzije `mutation.isPending` pro `disabled`, spinner a ochranu pred double clickem. Backend stale musi mit idempotency tam, kde ma side effect cenu.
+
+**Testy k CRM:** mutation invaliduje list/detail, button disabled during pending, toast success/error, optimistic rollback pokud je pouzit, component nepouziva raw `apiFetch`.
+
+**Nepouzijes:** fetch v komponentach, manualni state misto React Query cache, mutace bez invalidace, optimistic update bez rollbacku, toast jen po route unmountu.
 
 **EC:**
 
-- EC516 double click.
-- EC517 stale list/detail.
-- EC518 optimistic rollback.
-- EC519 toast pred navigation.
-- EC520 disable pending controls.
+- EC516 double click → pouzij `isPending` + backend idempotency pro drahe akce.
+- EC517 stale list/detail → invaliduj list, detail, counts a souvisejici roots po mutaci.
+- EC518 optimistic rollback → optimistic update jen s `onError` rollbackem.
+- EC519 toast pred navigation → success toast pred `router.push` nebo pouzij global toaster.
+- EC520 disable pending controls → tlacitka/form submit disabled behem pending.
 
 ### UC105 Form validation
 
