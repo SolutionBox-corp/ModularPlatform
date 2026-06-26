@@ -1366,21 +1366,47 @@ invalidateDealAttachments(dealId);
 
 ### UC63 Start dlouhe operace
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented pattern + tested — `OperationsTests.Demo_operation_is_accepted_runs_on_the_worker_and_is_owner_scoped`.
 
 **Pouzijes:** Operations pattern `POST /operations/demo` nebo vlastni CRM run table.
 
-**Co se stane:** HTTP request ulozi stav a outbox message, vrati 202/status id.
+**Co se stane:** HTTP request nesmi delat dlouhou praci. Accept handler vytvori `Operation` se stavem `Pending`, publikuje durable work message pres Wolverine outbox a commitne oboji pres `SaveChangesAndFlushMessagesAsync()`. Endpoint vrati `202 Accepted`, `operationId` a `Location` na status endpoint. Worker potom udela praci a prepne stav na `Running`/`Succeeded`/`Failed`.
 
-**Napises v CRM:** `StartCrmImportCommand` nebo `StartCrmAiRunCommand`.
+**Napises v CRM:** `StartCrmImportCommand` nebo `StartCrmAiRunCommand`. Bud pouzijes `IOperationStore`, pokud ti staci obecny operation status, nebo vlastni CRM run tabulku, pokud potrebujes domenove stavy/import statistiky.
+
+**Vzor accept handleru:**
+
+```csharp
+internal sealed class StartCrmImportHandler(
+    IDbContextOutbox<CrmDbContext> outbox,
+    IOperationStore operations)
+    : ICommandHandler<StartCrmImportCommand, StartCrmImportResponse>
+{
+    public async Task<StartCrmImportResponse> Handle(StartCrmImportCommand command, CancellationToken ct)
+    {
+        var operationId = await operations.CreateAsync("crm-import", command.UserId, ct);
+
+        await outbox.PublishAsync(new RunCrmImport(operationId, command.ImportId));
+        await outbox.SaveChangesAndFlushMessagesAsync();
+
+        return new StartCrmImportResponse(operationId);
+    }
+}
+```
+
+**Vzor endpointu:** vracej `202 Accepted`, ne `200 OK`, a `Location` sklad pres named route/status endpoint, ne string hardcode.
+
+**Co si pohlidas:** worker message musi byt idempotentni. Kdyz user klikne dvakrat, bud vytvoris dva nezavisle runy, nebo pouzijes idempotency key podle business akce.
+
+**Nepouzijes:** `Task.Run`, dlouhy HTTP request, fire-and-forget bez outboxu, ani frontend timer jako source of truth.
 
 **EC:**
 
-- EC311 request nesmi cekat na dlouhou praci.
-- EC312 operation musi byt owner-scoped.
-- EC313 duplicate click.
-- EC314 outbox publish a DB save atomicky.
-- EC315 response musi obsahovat status link/id.
+- EC311 request nesmi cekat na dlouhou praci → endpoint jen zalozi stav a vrati 202.
+- EC312 operation musi byt owner-scoped → `Operation` je `IUserOwned`, status query filtruje `UserId`.
+- EC313 duplicate click → podle produktu bud dovol dva runy, nebo pridej idempotency key v CRM accept commandu.
+- EC314 outbox publish a DB save atomicky → pouzij `IDbContextOutbox.SaveChangesAndFlushMessagesAsync()`.
+- EC315 response musi obsahovat status link/id → body ma `operationId`, header `Location` vede na `GET /operations/{id}` nebo CRM status.
 
 ### UC64 Get operation status
 
