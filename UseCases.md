@@ -3054,21 +3054,64 @@ catch
 
 ### UC94 Oznám fakt ostatnim
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Base pattern hotovy v Identity/Billing; CRM ma kopirovat outbox integration event pattern.
 
-**Pouzijes:** integration event v `*.Contracts`.
+**Pouzijes:** `IIntegrationEvent` v `ModularPlatform.Crm.Contracts`, `IDbContextOutbox<CrmDbContext>`, `PublishAsync`, `SaveChangesAndFlushMessagesAsync`.
 
-**Co se stane:** Modul ulozi vlastni stav a event atomicky pres outbox.
+**Co se stane:** CRM ulozi vlastni stav, napr. deal/contact/import, a ve stejne transakci publikuje fakt pro ostatni moduly. Worker pozdeji doruci event subscriberum. Kdyz DB commit selze, event se neodesle. Kdyz event doruceni selze, zustane v durable outboxu/retry.
 
-**Napises v CRM:** event typu `DealCreatedIntegrationEvent`, pokud ostatni moduly maji reagovat.
+**Mentalni model:** event je oznameni "tohle se uz stalo", ne prosba "udelej neco". CRM nema vedet, kdo vsechno posloucha. Notifications muze poslat zpravu, Marketing muze aktualizovat projekci, Billing muze merit spotrebu. CRM jen publikuje fakt.
+
+**Contract:** event patri do `ModularPlatform.Crm.Contracts`, aby ho ostatni moduly mohly referencovat bez CRM Core.
+
+```csharp
+namespace ModularPlatform.Crm.Contracts;
+
+public sealed record DealCreatedIntegrationEvent(
+    Guid EventId,
+    DateTimeOffset OccurredAt,
+    Guid DealId,
+    Guid OwnerUserId,
+    Guid TenantId) : IIntegrationEvent;
+```
+
+**Handler publish ve CRM:** nejdriv priprav entitu, publishni event pres outbox a commitni pres `SaveChangesAndFlushMessagesAsync`.
+
+```csharp
+var deal = new Deal
+{
+    UserId = command.UserId,
+    Name = command.Name.Trim(),
+    Stage = DealStage.New,
+};
+
+outbox.DbContext.Deals.Add(deal);
+
+await outbox.PublishAsync(new DealCreatedIntegrationEvent(
+    EventId: Guid.CreateVersion7(),
+    OccurredAt: clock.UtcNow,
+    DealId: deal.Id,
+    OwnerUserId: command.UserId,
+    TenantId: tenant.TenantId!.Value));
+
+await outbox.SaveChangesAndFlushMessagesAsync();
+```
+
+**Payload:** posilej hlavne IDs, cas a minimalni stav. Neposilej cele CRM entity, dlouhe notes, PII ani provider raw payload. Consumer si detail dotahne pres povoleny query contract, pokud ho potrebuje.
+
+**Ordering:** nepocitej, ze eventy prijdou v poradi. Kdyz publishnes `DealCreated` a pak `DealUpdated`, consumer musi byt idempotentni a order-independent nebo si dotahnout live stav.
+
+**Testy k CRM:** po create existuje DB row i outgoing envelope/event, pri failed save event nevznikne, payload neobsahuje PII, wire name je zmrazeny v message identity testech, handler subscriberu je idempotentni.
+
+**Nepouzijes:** event jako request-response, present-tense `CreateDealEvent`, payload s celou entitou, publish pred ulozenim stavu, ani in-memory event bus mimo outbox.
 
 **EC:**
 
-- EC466 event je past-tense fact.
-- EC467 event payload minimalni, hlavne IDs.
-- EC468 publish az po DB state.
-- EC469 event handler order neni garantovany.
-- EC470 event neni request-response.
+- EC466 event je past-tense fact → `DealCreatedIntegrationEvent`, ne `CreateDealIntegrationEvent`.
+- EC467 event payload minimalni, hlavne IDs → PII/detail si consumer dotahne pres query contract.
+- EC468 publish az po DB state → publish pres outbox a commitni s `SaveChangesAndFlushMessagesAsync`.
+- EC469 event handler order neni garantovany → consumers musi byt idempotentni/order-independent.
+- EC470 event neni request-response → pokud CRM potrebuje okamzity vysledek, pouzij command/query; event je oznameni ostatnim.
 
 ### UC95 Reaguj na event
 
