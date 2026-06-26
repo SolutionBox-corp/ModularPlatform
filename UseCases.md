@@ -291,7 +291,7 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC16 Platform admin vytvori tenant
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented — overeno `PlatformAdminTests`.
 
 **Pouzijes:** `POST /tenant/admin/tenants`.
 
@@ -301,11 +301,13 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 **EC:**
 
-- EC076 jen platform admin.
-- EC077 duplicate tenant key/name.
-- EC078 provisioning musi byt atomicky.
-- EC079 CRM neprovisionuje tenant bokem.
-- EC080 CRM seed handler musi byt idempotentni.
+- EC076 jen platform admin: bez `platform.tenants.manage` vraci endpoint 403.
+- EC077 duplicate tenant key/subdomain: stejny subdomain vrati 409 a nevznikne druhy tenant.
+- EC078 provisioning musi byt atomicky: po uspechu existuje tenant i default entitlements ve stejne platform flow.
+- EC079 CRM neprovisionuje tenant bokem: CRM si tenant nevytvari; pokud potrebuje seed, reaguje na
+  `TenantProvisionedIntegrationEvent`.
+- EC080 CRM seed handler musi byt idempotentni: budoucí CRM handler musi pouzit vlastni unique key / upsert podle
+  `TenantId`, protoze event muze prijit znovu.
 
 ### UC17 Platform admin listuje tenanty
 

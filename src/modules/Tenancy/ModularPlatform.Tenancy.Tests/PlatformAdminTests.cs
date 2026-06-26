@@ -48,6 +48,45 @@ public sealed class PlatformAdminTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Provisioning_creates_the_tenant_and_default_entitlements_atomically()
+    {
+        var admin = await AdminTokenAsync();
+        var subdomain = $"atomic-{Guid.CreateVersion7():N}".Substring(0, 30);
+
+        var provision = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/tenant/admin/tenants", admin, new { name = "Atomic", subdomain }));
+        provision.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var tenantId = (await PlatformApiFactory.ReadData(provision)).GetProperty("tenantId").GetGuid();
+
+        var tenantCount = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM tenants WHERE \"Id\" = '{tenantId}' AND \"Subdomain\" = '{subdomain}'");
+        tenantCount.ShouldBe(1);
+
+        var defaultEntitlements = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM tenant_entitlements WHERE \"TenantId\" = '{tenantId}' AND \"Enabled\" = true");
+        defaultEntitlements.ShouldBeGreaterThanOrEqualTo(6);
+    }
+
+    [Fact]
+    public async Task Duplicate_subdomain_is_rejected_without_creating_a_second_tenant()
+    {
+        var admin = await AdminTokenAsync();
+        var subdomain = $"dup-{Guid.CreateVersion7():N}".Substring(0, 30);
+
+        var first = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/tenant/admin/tenants", admin, new { name = "First", subdomain }));
+        first.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var duplicate = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/tenant/admin/tenants", admin, new { name = "Second", subdomain }));
+        duplicate.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+
+        var tenants = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM tenants WHERE \"Subdomain\" = '{subdomain}'");
+        tenants.ShouldBe(1);
+    }
+
+    [Fact]
     public async Task A_non_admin_cannot_provision_a_tenant()
     {
         var (_, userToken) = await fixture.RegisterAndLoginAsync($"plain-{Guid.CreateVersion7():N}@x.com", Password);
