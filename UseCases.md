@@ -1654,21 +1654,55 @@ await realtime.PublishToUserAsync(userId, "crm.deal_updated", new { dealId }, ct
 
 ### UC70 Export osobnich dat
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented pattern + tested — `GdprIntegrationTests.Export_assembles_one_document_keyed_by_module_with_each_modules_section` a `ExportResilienceUnitTests`.
 
 **Pouzijes:** `GET /gdpr/me/export`.
 
-**Co se stane:** GDPR modul zavola vsechny `IExportPersonalData` implementace.
+**Co se stane:** Endpoint vezme subject user id z tokenu (`/gdpr/me/export`, zadny route user id). `ExportUserDataHandler` zavola vsechny registrovane `IExportPersonalData` implementace a slozi jeden dokument keyed by `ModuleName`. Kdyz jeden exporter spadne, jeho sekce bude `{ "error": "export_failed" }` a ostatni moduly se exportuji dal.
 
-**Napises v CRM:** `CrmPersonalDataExporter` a registraci v `CrmModule`.
+**Napises v CRM:** `CrmPersonalDataExporter` a registraci v `CrmModule.RegisterServices`.
+
+**Vzor exporteru:**
+
+```csharp
+internal sealed class CrmPersonalDataExporter(IReadDbContextFactory<CrmDbContext> readDb)
+    : IExportPersonalData
+{
+    public string ModuleName => "Crm";
+
+    public async Task<IReadOnlyDictionary<string, object?>> ExportAsync(Guid userId, CancellationToken ct)
+    {
+        await using var db = readDb.Create();
+        var contacts = await db.Contacts
+            .Where(x => x.UserId == userId)
+            .Select(x => new { x.Id, x.Name, x.Email, x.CreatedAt })
+            .ToListAsync(ct);
+
+        return new Dictionary<string, object?>
+        {
+            ["contacts"] = contacts,
+        };
+    }
+}
+```
+
+**Registrace:**
+
+```csharp
+services.AddScoped<IExportPersonalData, CrmPersonalDataExporter>();
+```
+
+**Co si pohlidas:** export shape je API contract. Men ho opatrne. Encrypted columns cti pres EF model converter/read context, ne raw SQL, aby se PII spravne dešifrovala nebo vratila `[erased]`.
+
+**Nepouzijes:** endpoint `/gdpr/users/{id}/export` pro self-service, cross-module export z GDPR Core, raw SQL nad encrypted columns.
 
 **EC:**
 
-- EC346 exporter chybi -> CRM data nejsou v exportu.
-- EC347 exporter throw nesmi shodit cely export.
-- EC348 export foreign user zakazan.
-- EC349 PII z encrypted columns se cte pres converter.
-- EC350 export format musi byt stabilni.
+- EC346 exporter chybi -> CRM data nejsou v exportu → kazdy PII modul musi registrovat `IExportPersonalData`.
+- EC347 exporter throw nesmi shodit cely export → handler izoluje exporter exception a vlozi `error=export_failed`.
+- EC348 export foreign user zakazan → subject id je vzdy `ITenantContext.UserId`, ne route/body.
+- EC349 PII z encrypted columns se cte pres converter → pouzij EF/read DbContext, ne raw SQL.
+- EC350 export format musi byt stabilni → sekce keyed by `ModuleName`, polozky pojmenuj stabilne (`contacts`, `deals`, `attachments`).
 
 ### UC71 Request erasure
 
