@@ -1613,21 +1613,42 @@ internal sealed class ReconcileCrmCommandHandler
 
 ### UC69 Realtime stream
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented + tested — `RealtimeSseTests` a `RealtimeReplayTests`.
 
 **Pouzijes:** `GET /realtime/stream`.
 
-**Co se stane:** Browser dostava SSE eventy a replay podle `Last-Event-ID`.
+**Co se stane:** Browser otevře auth-gated SSE stream `/v1/realtime/stream`. Server posila eventy pro prihlaseneho usera. Pri reconnectu browser posle `Last-Event-ID`; platforma nejdriv pusti best-effort replay z Redis Streamu nebo local ring bufferu a pak live events.
 
-**Napises v CRM:** event type mapping na invalidaci `queryRoots.crm`.
+**Napises v CRM:** event type mapping na invalidaci `queryRoots.crm`. Realtime event nema byt jediny zdroj dat; je to signal "refetchni query". Napriklad `crm.deal_updated` invaliduje detail dealu a list deals.
+
+**Vzor frontendu:**
+
+```ts
+const es = new EventSource("/v1/realtime/stream", { withCredentials: true });
+es.addEventListener("crm.deal_updated", (event) => {
+  const payload = JSON.parse((event as MessageEvent).data);
+  queryClient.invalidateQueries({ queryKey: ["crm", "deal", payload.dealId] });
+  queryClient.invalidateQueries({ queryKey: ["crm", "deals"] });
+});
+```
+
+**Vzor backend publish:** publikuj az po commitu. Pokud pouzivas outbox worker, publikuj v workeru po ulozeni stavu; pokud je to rychla in-request mutace, zavolej realtime az po `SaveChanges`.
+
+```csharp
+await realtime.PublishToUserAsync(userId, "crm.deal_updated", new { dealId }, ct);
+```
+
+**Co si pohlidas:** replay je UX smoothing, ne guarantee. Durable pravda je DB/API. Kdyz user byl dlouho offline a replay buffer uz event nema, frontend stejne musi refetchnout pri focusu/navratu.
+
+**Nepouzijes:** vlastni WebSocket pro CRM, realtime event pred DB commitem, ani stav ulozeny jen v event payloadu.
 
 **EC:**
 
-- EC341 SSE disconnect.
-- EC342 replay je best-effort, ne durable truth.
-- EC343 Redis fallback/local mode rozdily.
-- EC344 event pred commitem nesmi odejit.
-- EC345 frontend ma refetch fallback.
+- EC341 SSE disconnect → browser reconnectne a posle `Last-Event-ID`; server zkusi replay.
+- EC342 replay je best-effort, ne durable truth → stale pouzivej API refetch jako pravdu.
+- EC343 Redis fallback/local mode rozdily → Redis umi multi-instance fan-out + stream replay; local mode je jen single-instance dev/test ring buffer.
+- EC344 event pred commitem nesmi odejit → publish az po commit, jinak UI refetchne phantom stav.
+- EC345 frontend ma refetch fallback → refetch pri focusu, navigation a po mutacich, i kdyz realtime nic neprislo.
 
 ## GDPR, PII, Audit
 
