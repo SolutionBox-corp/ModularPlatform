@@ -22,8 +22,11 @@ internal static class CreditTopUpEndpoint
                 // Namespace the client-supplied idempotency key so it can NEVER collide with the ledger's structured
                 // system keys (purchase:{id}, sub-invoice:{id}, …) in the per-account UNIQUE space — a collision would
                 // drop a real grant or absorb a fake one. The prefix is transparent to the client.
+                var idempotencyKey = string.IsNullOrEmpty(request.IdempotencyKey)
+                    ? request.IdempotencyKey
+                    : $"client:{request.IdempotencyKey}";
                 var result = await dispatcher.Send(new CreditTopUpCommand(
-                    userId, request.Amount, request.BucketExpiryDays, $"client:{request.IdempotencyKey}"), ct);
+                    userId, request.Amount, request.BucketExpiryDays, idempotencyKey), ct);
                 return Results.Ok(ApiResponse<CreditTopUpResponse>.Ok(result));
             })
             .RequireAuthorization()

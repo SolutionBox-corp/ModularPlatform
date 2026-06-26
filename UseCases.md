@@ -534,7 +534,7 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC29 Credit top-up
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented — overeno `CreditTopUpAuthorizationTests`, `BillingLedgerTests`, `CreditAmountBoundsTests`.
 
 **Pouzijes:** `POST /billing/credits/topup`.
 
@@ -544,11 +544,11 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 **EC:**
 
-- EC141 idempotency key required.
-- EC142 duplicate top-up nesmi dat dvoji kredit.
-- EC143 amount musi byt kladny.
-- EC144 account provision race.
-- EC145 top-up endpoint musi byt permission-gated.
+- EC141 idempotency key required → validator vraci 400; endpoint prefixuje klientsky key jako `client:{key}`.
+- EC142 duplicate top-up nesmi dat dvoji kredit → per-account unique idempotency key vraci `alreadyApplied=true`.
+- EC143 amount musi byt kladny → validator odmita `<= 0` i oversized hodnoty.
+- EC144 account provision race → handler pri UNIQUE(UserId) race reloadne account; concurrent ensure test drzi invariant.
+- EC145 top-up endpoint musi byt permission-gated → HTTP endpoint vyzaduje `billing.manage`; bez nej 403.
 
 ### UC30 Reserve credits
 
