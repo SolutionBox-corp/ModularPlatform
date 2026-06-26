@@ -1493,21 +1493,46 @@ public sealed record CrmRunListItem(
 
 ### UC66 Worker dokonci praci
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented pattern + tested — `OperationWorkerFailureTests` a `OperationsTests.A_terminal_operation_is_not_resurrected_by_a_duplicate_worker_transition`.
 
 **Pouzijes:** Wolverine handler.
 
-**Co se stane:** Worker zpracuje message a prevede stav do terminal state.
+**Co se stane:** Worker handler dostane durable message, prepne operation na `Running`, provede skutecnou praci a pak zavola `CompleteAsync`. Kdyz prace spadne, chyti exception, zaloguje ji a zavola `FailAsync` s generickym user-facing errorem. Pokud nejde zapsat ani fail stav, exception propadne ven a Wolverine zpravu retryne / presune do DLQ.
 
-**Napises v CRM:** public handler + internal command, idempotentni.
+**Napises v CRM:** public Wolverine handler + internal command/sluzbu pro domenu. Handler ma byt tenka public shell, protoze Wolverine scanuje public typy. Vlastni business prace patri do CRM commandu nebo domain metody, ne do endpointu.
+
+**Vzor workeru:**
+
+```csharp
+public sealed class RunCrmImportHandler
+{
+    public async Task Handle(RunCrmImport message, IOperationStore operations, IDispatcher dispatcher, CancellationToken ct)
+    {
+        try
+        {
+            await operations.MarkRunningAsync(message.OperationId, ct);
+            var result = await dispatcher.Send(new ExecuteCrmImportCommand(message.ImportId), ct);
+            await operations.CompleteAsync(message.OperationId, result, ct);
+        }
+        catch
+        {
+            await operations.FailAsync(message.OperationId, "crm.import_failed", "Import failed.", ct);
+        }
+    }
+}
+```
+
+**Co si pohlidas:** handler musi byt idempotentni/order-independent. Kdyz externi call probehl, ale save spadl, retry muze zavolat externi system znovu; pro takove integrace pouzij idempotency key/reconciliation.
+
+**Nepouzijes:** swallow exception bez terminal state, raw exception message do user detailu, ani worker business logiku bez testu na retry/failure.
 
 **EC:**
 
-- EC326 message retry.
-- EC327 duplicate message.
-- EC328 worker crash between external call and save.
-- EC329 terminal state no-op.
-- EC330 DLQ needs support/reconcile story.
+- EC326 message retry → pokud `FailAsync`/commit selze, exception propadne ven a Wolverine retryne.
+- EC327 duplicate message → `IOperationStore` ignoruje prechod terminal state zpet na Running.
+- EC328 worker crash between external call and save → navrhni externi call idempotentne a pridej reconcile; jinak retry muze zopakovat side effect.
+- EC329 terminal state no-op → `Succeeded/Failed` jsou finalni, test hlida duplicate transition.
+- EC330 DLQ needs support/reconcile story → DLQ sleduje `MessagingHealthJob`; domenove stuck runy resi CRM reconcile job.
 
 ### UC67 Cron job
 

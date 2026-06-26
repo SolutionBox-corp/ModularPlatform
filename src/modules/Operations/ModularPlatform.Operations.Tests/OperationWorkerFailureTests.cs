@@ -26,7 +26,21 @@ public sealed class OperationWorkerFailureTests
         store.FailedErrorCode.ShouldBe("operation.failed");
     }
 
-    private sealed class RecordingOperationStore(bool failOnComplete) : IOperationStore
+    [Fact]
+    public async Task Worker_propagates_when_failure_state_cannot_be_persisted_so_wolverine_can_retry()
+    {
+        var operationId = Guid.CreateVersion7();
+        var store = new RecordingOperationStore(failOnComplete: true, failOnFail: true);
+        var handler = new RunDemoOperationHandler();
+
+        var ex = await Should.ThrowAsync<InvalidOperationException>(
+            () => handler.Handle(new RunDemoOperation(operationId), store, NullLogger<RunDemoOperationHandler>.Instance, CancellationToken.None));
+
+        ex.Message.ShouldBe("fail write blew up");
+        store.FailedOperationId.ShouldBe(operationId);
+    }
+
+    private sealed class RecordingOperationStore(bool failOnComplete, bool failOnFail = false) : IOperationStore
     {
         public Guid? FailedOperationId { get; private set; }
         public string? FailedErrorCode { get; private set; }
@@ -43,6 +57,11 @@ public sealed class OperationWorkerFailureTests
         {
             FailedOperationId = operationId;
             FailedErrorCode = errorCode;
+            if (failOnFail)
+            {
+                throw new InvalidOperationException("fail write blew up");
+            }
+
             return Task.CompletedTask;
         }
     }
