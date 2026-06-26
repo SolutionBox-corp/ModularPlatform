@@ -1,10 +1,13 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using ModularPlatform.Billing.Contracts;
 using ModularPlatform.Cqrs;
+using ModularPlatform.Identity.Contracts;
 using ModularPlatform.IntegrationTesting;
 using ModularPlatform.Notifications.Features.Notifications.SendNotification;
+using ModularPlatform.Notifications.Messaging;
 using Shouldly;
 using Wolverine;
 
@@ -57,6 +60,50 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
         var feed = await fixture.Client.SendAsync(
             fixture.Authed(HttpMethod.Get, "/v1/notifications/me?unreadOnly=true", token));
         feed.StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task Welcome_handler_tolerates_missing_template_and_deduplicates_retries()
+    {
+        var handler = new SendWelcomeHandler(NullLogger<SendWelcomeHandler>.Instance);
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var dispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
+
+        var missingUserId = Guid.CreateVersion7();
+        var missingMessage = new UserRegisteredIntegrationEvent(
+            Guid.CreateVersion7(),
+            DateTimeOffset.UtcNow,
+            missingUserId,
+            Guid.CreateVersion7(),
+            $"missing-welcome-{Guid.CreateVersion7():N}@example.com",
+            DisplayName: null);
+
+        await fixture.ExecuteSqlAsync("DELETE FROM notification_templates WHERE \"Key\" = 'welcome'");
+        try
+        {
+            await handler.Handle(missingMessage, dispatcher, CancellationToken.None);
+            var missingRows = await fixture.ScalarAsync<long>(
+                $"SELECT count(*)::bigint FROM notifications WHERE \"UserId\" = '{missingUserId}' AND \"TemplateKey\" = 'welcome'");
+            missingRows.ShouldBe(0);
+        }
+        finally
+        {
+            await RestoreWelcomeTemplatesAsync();
+        }
+
+        var retryUserId = Guid.CreateVersion7();
+        var retryMessage = missingMessage with
+        {
+            UserId = retryUserId,
+            Email = $"retry-welcome-{Guid.CreateVersion7():N}@example.com",
+        };
+
+        await handler.Handle(retryMessage, dispatcher, CancellationToken.None);
+        await handler.Handle(retryMessage, dispatcher, CancellationToken.None);
+
+        var retryRows = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM notifications WHERE \"UserId\" = '{retryUserId}' AND \"TemplateKey\" = 'welcome'");
+        retryRows.ShouldBe(1);
     }
 
     // EV-2 resilience — A handler that finds NO template (bogus key) swallows NotFoundException and never
@@ -494,6 +541,18 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
         fixture.ExecuteSqlAsync(
             $"INSERT INTO notification_templates (\"Id\", \"Key\", \"Locale\", \"Subject\", \"Body\") " +
             $"VALUES ('{Guid.CreateVersion7()}', '{key}', 'en', '{subject}', 'Body')");
+
+    private async Task RestoreWelcomeTemplatesAsync()
+    {
+        await fixture.ExecuteSqlAsync(
+            "INSERT INTO notification_templates (\"Id\", \"Key\", \"Locale\", \"Subject\", \"Body\") " +
+            $"SELECT '{Guid.CreateVersion7()}', 'welcome', 'en', 'Welcome to the platform!', 'Hi {{displayName}}, welcome aboard.' " +
+            "WHERE NOT EXISTS (SELECT 1 FROM notification_templates WHERE \"Key\" = 'welcome' AND \"Locale\" = 'en')");
+        await fixture.ExecuteSqlAsync(
+            "INSERT INTO notification_templates (\"Id\", \"Key\", \"Locale\", \"Subject\", \"Body\") " +
+            $"SELECT '{Guid.CreateVersion7()}', 'welcome', 'cs', 'Vítejte na platformě!', 'Dobrý den {{displayName}}, vítáme vás.' " +
+            "WHERE NOT EXISTS (SELECT 1 FROM notification_templates WHERE \"Key\" = 'welcome' AND \"Locale\" = 'cs')");
+    }
 
     private async Task SendDirectAsync(Guid userId, string templateKey)
     {

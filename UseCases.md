@@ -968,21 +968,21 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC53 Welcome notification
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented + tested — `NotificationsIntegrationTests`.
 
 **Pouzijes:** `SendWelcomeHandler` na `UserRegisteredIntegrationEvent`.
 
-**Co se stane:** Worker posle welcome notifikaci po registraci.
+**Co se stane:** Worker zachyti `UserRegisteredIntegrationEvent` a pres `SendNotificationCommand` posle welcome email + in-app.
 
-**Napises v CRM:** podobny handler pro CRM onboarding jen pokud je potreba.
+**Napises v CRM:** podobny handler pro CRM onboarding jen pokud je potreba; handler musi byt public shell a dispatchovat existujici command.
 
 **EC:**
 
-- EC261 missing welcome template.
-- EC262 duplicate event.
-- EC263 handler retry.
-- EC264 user erased before delivery.
-- EC265 handler musi byt explicitne registrovany.
+- EC261 missing welcome template → handler chyti `NotFoundException`, zaloguje warning a nedeadletteruje registration event.
+- EC262 duplicate event → `IdempotencyKey = welcome:{userId}` zajisti jednu welcome row.
+- EC263 handler retry → opakovany handler call je no-op diky idempotency key.
+- EC264 user erased before delivery → `SendNotificationCommand`/PII protector nesmi obnovit shredded DEK; GDPR eraser blankuje existujici rows.
+- EC265 handler musi byt explicitne registrovany → `NotificationsModule.ConfigureMessaging` vola `IncludeType<SendWelcomeHandler>()`.
 
 ### UC54 Purchase completed notification
 
