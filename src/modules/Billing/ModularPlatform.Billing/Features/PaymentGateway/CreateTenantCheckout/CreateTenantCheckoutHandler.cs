@@ -26,15 +26,23 @@ internal sealed class CreateTenantCheckoutHandler(
             throw new BusinessRuleException(ex.ErrorCode, ex.Message);
         }
 
-        var result = await gateway.CreateCheckoutAsync(new CheckoutRequest(
-            ReferenceId: Guid.CreateVersion7().ToString("N"),
-            AmountMinorUnits: command.AmountMinorUnits,
-            Currency: command.Currency.Trim().ToUpperInvariant(),
-            Mode: CheckoutMode.Payment,
-            Description: command.Description,
-            Metadata: new Dictionary<string, string> { ["tenant_id"] = tenantId.ToString("N") },
-            SuccessUrl: configuration["Billing:Payments:SuccessUrl"] ?? "https://app/checkout/success",
-            CancelUrl: configuration["Billing:Payments:CancelUrl"] ?? "https://app/checkout/cancel"), ct);
+        CheckoutResult result;
+        try
+        {
+            result = await gateway.CreateCheckoutAsync(new CheckoutRequest(
+                ReferenceId: Guid.CreateVersion7().ToString("N"),
+                AmountMinorUnits: command.AmountMinorUnits,
+                Currency: command.Currency.Trim().ToUpperInvariant(),
+                Mode: CheckoutMode.Payment,
+                Description: command.Description,
+                Metadata: new Dictionary<string, string> { ["tenant_id"] = tenantId.ToString("N") },
+                SuccessUrl: configuration["Billing:Payments:SuccessUrl"] ?? "https://app/checkout/success",
+                CancelUrl: configuration["Billing:Payments:CancelUrl"] ?? "https://app/checkout/cancel"), ct);
+        }
+        catch (Exception ex) when (ex is not ModularPlatformException and not OperationCanceledException)
+        {
+            throw new BusinessRuleException("payment.gateway_inactive", "The payment gateway for this workspace is unavailable.");
+        }
 
         return new CreateTenantCheckoutResponse(result.ProviderPaymentId, result.RedirectUrl);
     }

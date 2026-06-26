@@ -11,6 +11,7 @@ public sealed class FakePaymentGateway(GatewayCapabilities? capabilities = null)
 {
     private readonly ConcurrentDictionary<string, PaymentSnapshot> _payments = new();
     private readonly ConcurrentBag<CheckoutRequest> _created = [];
+    private Exception? _nextCheckoutFailure;
 
     public GatewayCapabilities Capabilities { get; } =
         capabilities ?? new GatewayCapabilities(true, true, true, true, true);
@@ -20,6 +21,11 @@ public sealed class FakePaymentGateway(GatewayCapabilities? capabilities = null)
 
     public Task<CheckoutResult> CreateCheckoutAsync(CheckoutRequest request, CancellationToken ct = default)
     {
+        if (Interlocked.Exchange(ref _nextCheckoutFailure, null) is { } failure)
+        {
+            return Task.FromException<CheckoutResult>(failure);
+        }
+
         _created.Add(request);
         var id = $"fake_{Guid.CreateVersion7():N}";
         _payments[id] = new PaymentSnapshot(
@@ -53,4 +59,7 @@ public sealed class FakePaymentGateway(GatewayCapabilities? capabilities = null)
     /// <summary>Transitions a seeded payment to a new state (e.g. mark it Paid before a webhook).</summary>
     public void SetState(string providerPaymentId, PaymentState state) =>
         _payments[providerPaymentId] = _payments[providerPaymentId] with { State = state };
+
+    public void FailNextCheckout(Exception? exception = null) =>
+        Interlocked.Exchange(ref _nextCheckoutFailure, exception ?? new InvalidOperationException("Fake checkout failure."));
 }

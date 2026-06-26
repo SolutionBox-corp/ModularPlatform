@@ -444,7 +444,7 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC24 Vytvorit tenant checkout
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented — overeno `CreateTenantCheckoutTests`; CRM vola platformni endpoint, ne payment SDK.
 
 **Pouzijes:** `POST /billing/payments/checkout`.
 
@@ -454,11 +454,11 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 **EC:**
 
-- EC116 provider config missing.
-- EC117 amount nebo currency invalid.
-- EC118 checkout expired.
-- EC119 provider failure ma byt user-friendly error.
-- EC120 CRM nevola Stripe/GoPay SDK primo.
+- EC116 provider config missing → cisty 422 `payment.gateway_not_configured`, zadny fallback na cizi tenant gateway.
+- EC117 amount nebo currency invalid → validator vrati 400 pred volanim providera.
+- EC118 checkout expired → provider stav se resi pres webhook/re-fetch, CRM ma znovu zavolat checkout endpoint a nedrzet vlastni expiraci.
+- EC119 provider failure ma byt user-friendly error → runtime failure gateway se mapuje na 422 `payment.gateway_inactive`, ne 500.
+- EC120 CRM nevola Stripe/GoPay SDK primo → CRM dostane jen `providerPaymentId` a `redirectUrl`.
 
 ### UC25 Tenant payment webhook
 

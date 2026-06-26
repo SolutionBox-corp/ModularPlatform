@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.Extensions.DependencyInjection;
 using ModularPlatform.IntegrationTesting;
+using ModularPlatform.Payments;
 using Shouldly;
 
 namespace ModularPlatform.Billing.Tests;
@@ -14,6 +16,8 @@ namespace ModularPlatform.Billing.Tests;
 public sealed class CreateTenantCheckoutTests(PlatformApiFactory fixture)
 {
     private const string Password = "S3cure!pass";
+
+    private FakePaymentGateway FakePay => fixture.Services.GetRequiredService<FakePaymentGateway>();
 
     private async Task<string> AdminTokenAsync()
     {
@@ -45,6 +49,12 @@ public sealed class CreateTenantCheckoutTests(PlatformApiFactory fixture)
         var providerId = data.GetProperty("providerPaymentId").GetString()!;
         providerId.ShouldStartWith("fake_");
         data.GetProperty("redirectUrl").GetString()!.ShouldContain(providerId);
+
+        FakePay.CreatedCheckouts.ShouldContain(request =>
+            request.AmountMinorUnits == 25_000L
+            && request.Currency == "CZK"
+            && request.Mode == CheckoutMode.Payment
+            && request.Metadata.ContainsKey("tenant_id"));
     }
 
     [Fact]
@@ -56,6 +66,43 @@ public sealed class CreateTenantCheckoutTests(PlatformApiFactory fixture)
         var checkout = await fixture.Client.SendAsync(fixture.Authed(
             HttpMethod.Post, "/v1/billing/payments/checkout", token,
             new { amountMinorUnits = 1_000L, currency = "CZK", description = "x" }));
+
+        checkout.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+    }
+
+    [Theory]
+    [InlineData(0, "CZK")]
+    [InlineData(-1, "CZK")]
+    [InlineData(1_000, "")]
+    [InlineData(1_000, "CZKK")]
+    public async Task Invalid_amount_or_currency_is_rejected_before_gateway_call(long amountMinorUnits, string currency)
+    {
+        var admin = await AdminTokenAsync();
+        var before = FakePay.CreatedCheckouts.Count;
+
+        var checkout = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/billing/payments/checkout", admin,
+            new { amountMinorUnits, currency, description = "Membership" }));
+
+        checkout.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        FakePay.CreatedCheckouts.Count.ShouldBe(before);
+    }
+
+    [Fact]
+    public async Task Provider_runtime_failure_is_a_clean_422()
+    {
+        var admin = await AdminTokenAsync();
+
+        var configure = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Put, "/v1/billing/payment-gateway", admin,
+            new { provider = "fake", currency = "CZK", sandbox = false }));
+        configure.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        FakePay.FailNextCheckout();
+
+        var checkout = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/billing/payments/checkout", admin,
+            new { amountMinorUnits = 1_000L, currency = "CZK", description = "Membership" }));
 
         checkout.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
     }
