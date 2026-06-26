@@ -2061,21 +2061,56 @@ internal sealed class CrmPersonalDataEraser(CrmDbContext db) : IErasePersonalDat
 
 ### UC78 Retention sweep
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Base GDPR job hotovy a otestovany; pro CRM je to vzor, ne misto pro cross-module mazani.
 
-**Pouzijes:** `GdprRetentionSweepJob`.
+**Pouzijes:** `GdprRetentionSweepJob`, Quartz cron, vlastni `CrmRetentionSweepCommand`, vlastni CRM job jen pro CRM-owned data.
 
-**Co se stane:** Platform ma seam pro retention, subject key tombstones zustavaji permanentne.
+**Co se stane:** GDPR retention sweep bezi jako Quartz job a dispatchuje command, ale dnes nic nepuruje. Duvod je zamer: shredded `subject_keys` tombstones se musi drzet permanentne, protoze brani tomu, aby se po erasure vytvoril novy readable DEK pro stejny subject.
 
-**Napises v CRM:** vlastni purge command pro purgeable CRM data, pokud existuji.
+**Mentalni model:** erasure a retention nejsou to same. Erasure odstrani/anonymizuje PII konkretniho subjektu. Retention sweep je casovy uklid dat, ktera uz podle policy nepotrebujes. CRM si muze mazat jen vlastni purgeable data, napr. stare import temporary rows, failed pull logs nebo expirovane AI drafty. Nesmí sahat na GDPR `subject_keys`, audit tombstones ani cizi moduly.
+
+**Napises v CRM:** pokud CRM ma purgeable data, udelej command a ten volej z jobu. Job je tenky; business logika je v handleru.
+
+```csharp
+internal sealed class CrmRetentionSweepJob(IDispatcher dispatcher) : IJob
+{
+    public Task Execute(IJobExecutionContext context) =>
+        dispatcher.Send(new CrmRetentionSweepCommand(), context.CancellationToken);
+}
+```
+
+```csharp
+internal sealed class CrmRetentionSweepHandler(CrmDbContext db, IClock clock)
+    : ICommandHandler<CrmRetentionSweepCommand, CrmRetentionSweepResponse>
+{
+    public async Task<CrmRetentionSweepResponse> Handle(CrmRetentionSweepCommand command, CancellationToken ct)
+    {
+        var cutoff = clock.UtcNow.AddDays(-30);
+
+        var deleted = await db.ImportDrafts
+            .Where(x => x.Status == ImportDraftStatus.Failed && x.CreatedAt < cutoff)
+            .ExecuteDeleteAsync(ct);
+
+        return new CrmRetentionSweepResponse(deleted);
+    }
+}
+```
+
+**Registrace jobu:** v `CrmModule.RegisterJobs` pridej trigger s cronem z configu, napr. `Modules:Crm:Jobs:RetentionSweepCron`. Cron interpretuj jako UTC a dej cap per run, pokud ma tabulka rust hodne.
+
+**Co purgeovat v CRM:** do doc/spec si u kazde tabulky rekni, jestli je to legal/audit/business record nebo jen temporary cache. Temporary import chunks ano. CRM contacts vetsinou ne, dokud existuje owner nebo legal/business retention. Audit rows ne.
+
+**Testy k CRM:** testuj, ze sweep smaze jen stare purgeable CRM rows, nesmaze nove rows, je idempotentni, nesaha na subject key tombstones a Jobs host nabootuje s registovanou job dependency graph.
+
+**Nepouzijes:** generic cross-module reaper, raw SQL delete, mazani `subject_keys`, mazani audit entries bez jasne policy, ani business logiku primo v `IJob`.
 
 **EC:**
 
-- EC386 tombstones se nemazou.
-- EC387 cron UTC.
-- EC388 purge jen module-owned data.
-- EC389 legal retention vs user erase.
-- EC390 idempotentni sweep.
+- EC386 tombstones se nemazou → shredded `subject_keys` jsou permanentni DEK re-mint guard; CRM sweep se jich nikdy nedotyka.
+- EC387 cron UTC → job planuj v UTC a pojmenuj config klic, napr. `Modules:Crm:Jobs:RetentionSweepCron`.
+- EC388 purge jen module-owned data → CRM maze jen CRM tabulky; cross-module cleanup je poruseni boundary.
+- EC389 legal retention vs user erase → pred delete rozlis temporary data od zaznamu, ktere musi zustat pro audit/legal/business historii.
+- EC390 idempotentni sweep → opakovany run po prvnim cleanupu vrati 0 nebo stejny bezpecny vysledek, ne chybu.
 
 ## Marketing
 
