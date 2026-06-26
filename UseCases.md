@@ -1706,21 +1706,55 @@ services.AddScoped<IExportPersonalData, CrmPersonalDataExporter>();
 
 ### UC71 Request erasure
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented pattern + tested — `GdprIntegrationTests.Erasure_blanks_notification_pii_shreds_the_subject_key_and_retains_the_billing_ledger`, Identity erasure/session tests.
 
 **Pouzijes:** `POST /gdpr/me/erase`.
 
-**Co se stane:** GDPR publikuje erasure event a erasers modulu anonymizuji/smazou PII.
+**Co se stane:** Endpoint vezme subject user id z tokenu a `RequestErasureHandler` publikuje `UserErasureRequested` pres outbox. Worker `UserErasureRequestedHandler` zavola vsechny `IErasePersonalData` implementace a potom dispatchne `ShredSubjectKeyCommand`, ktery znici subject DEK. Crypto-shred je autoritativni erasure akt; residual rows se v modulech anonymizuji nebo mazou podle povinnosti.
 
-**Napises v CRM:** `CrmPersonalDataEraser`.
+**Napises v CRM:** `CrmPersonalDataEraser` a registraci v `CrmModule.RegisterServices`.
+
+**Vzor eraseru:**
+
+```csharp
+internal sealed class CrmPersonalDataEraser(CrmDbContext db) : IErasePersonalData
+{
+    public string ModuleName => "Crm";
+
+    public async Task EraseAsync(Guid userId, CancellationToken ct)
+    {
+        var contacts = await db.Contacts
+            .Where(x => x.UserId == userId)
+            .ToListAsync(ct);
+
+        foreach (var contact in contacts)
+        {
+            contact.Name = "";
+            contact.Email = "";
+        }
+
+        await db.SaveChangesAsync(ct);
+    }
+}
+```
+
+**Registrace:**
+
+```csharp
+services.AddScoped<IErasePersonalData, CrmPersonalDataEraser>();
+```
+
+**Co si pohlidas:** eraser musi byt idempotentni. Kdyz ho Worker zavola dvakrat, nesmi spadnout ani obnovit PII. U append-only / ucetnich dat anonymizuj PII, nemaž historickou integritu.
+
+**Nepouzijes:** fyzicke mazani ledger/audit rows, vlastni erasure endpoint v CRM, ani zavislost GDPR Core na CRM Core.
 
 **EC:**
 
-- EC351 eraser chybi -> CRM PII prezije.
-- EC352 jeden eraser failure nesmi blokovat crypto-shred vseho navzdy.
-- EC353 ledger/audit se nema fyzicky mazat, ale anonymizovat.
-- EC354 erasure retry idempotentni.
-- EC355 po erasure login/refresh nesmi fungovat.
+- EC351 eraser chybi -> CRM PII prezije → kazdy PII modul musi registrovat `IErasePersonalData`.
+- EC352 jeden eraser failure nesmi blokovat crypto-shred vseho navzdy → handler loguje failure, crypto-shred provede, pak throwne pro retry failed eraseru.
+- EC353 ledger/audit se nema fyzicky mazat, ale anonymizovat → append-only data se drzi, PII se znecitliví/crypto-shredne.
+- EC354 erasure retry idempotentni → opakovany POST po shredded key je no-op; erasers musi byt idempotentni.
+- EC355 po erasure login/refresh nesmi fungovat → Identity soft-delete/revoke flow brani loginu a refresh rotaci.
 
 ### UC72 Grant consent
 
