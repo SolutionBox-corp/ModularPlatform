@@ -606,7 +606,7 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC33 Public packages
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented — overeno `PublicPackageCatalogueTests`, `BillingCommerceTests`.
 
 **Pouzijes:** `GET /billing/packages`.
 
@@ -616,11 +616,11 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 **EC:**
 
-- EC161 disabled package se neprodava.
-- EC162 stabilni sort order.
-- EC163 cena a kredit jsou Billing source of truth.
-- EC164 stale cache po admin edit.
-- EC165 CRM nehardcoduje package ids.
+- EC161 disabled package se neprodava → public list vraci jen `Active=true`; checkout inactive package odmita.
+- EC162 stabilni sort order → public list radi `Price`, potom `Name`, potom `Id`.
+- EC163 cena a kredit jsou Billing source of truth → response nese `creditAmount`, `price`, `currency`, `bucketExpiryDays`.
+- EC164 stale cache po admin edit → po update inactive public endpoint package nevrati; FE ma invalidovat billing package query.
+- EC165 CRM nehardcoduje package ids → CRM bere ids a ceny z `GET /billing/packages`.
 
 ### UC34 Admin package list
 

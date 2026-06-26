@@ -20,6 +20,8 @@ internal sealed class ListCreditPackagesHandler(
         return await db.CreditPackages
             .Where(p => p.Active && (p.TenantId == tenantId || p.TenantId == null))
             .OrderBy(p => p.Price)
+            .ThenBy(p => p.Name)
+            .ThenBy(p => p.Id)
             .Select(p => new CreditPackageResponse(p.Id, p.Name, p.CreditAmount, p.Price, p.Currency, p.BucketExpiryDays))
             .ToListAsync(ct);
     }
