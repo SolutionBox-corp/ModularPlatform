@@ -2270,21 +2270,67 @@ app.MapGet("/crm/imports/{importId:guid}", async (
 
 ### UC81 List pulls
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implementovano v Marketing; CRM ma kopirovat paged owner-scoped list pro importy/runy.
 
-**Pouzijes:** `GET /marketing/pulls`.
+**Pouzijes:** `GET /marketing/pulls`, `PageRequest`, `PagedResponse<T>`, `IReadDbContextFactory`, owner `UserId` z tokenu.
 
-**Co se stane:** User vidi historii pulls.
+**Co se stane:** User vidi historii svych pullu/importu od nejnovejsiho. Response je paged list, kazda polozka ma stejny shape jako status detail: id, source, status, errorCode, completedAt. Backend filtruje podle ownera a RLS je dalsi pojistka.
 
-**Napises v CRM:** list importu/runu.
+**Mentalni model:** list je pro prehled a retry UX. Neprovadi side effects, neopravuje failed/stuck prace a necte cizi historii. Frontend z nej kresli tabulku "posledni importy" a detail/status si muze otevrit pres `GET /crm/imports/{id}`.
+
+**Napises v CRM:** query dostane `UserId` a `PageRequest`; endpoint vezme `page/pageSize` z query stringu.
+
+```csharp
+public sealed record ListCrmImportsQuery(Guid UserId, PageRequest Page)
+    : IQuery<PagedResponse<CrmImportStatusResponse>>;
+```
+
+```csharp
+return await db.Imports
+    .Where(x => x.UserId == query.UserId)
+    .OrderByDescending(x => x.CreatedAt)
+    .Select(x => new CrmImportStatusResponse(
+        x.Id,
+        x.Source,
+        x.Status.ToString(),
+        x.ErrorCode,
+        x.CompletedAt))
+    .ToPagedResponseAsync(query.Page, ct);
+```
+
+**Endpoint:** nepousti `userId` z query stringu. Pagination parametry jsou jedine klientem ovlivnene vstupy.
+
+```csharp
+app.MapGet("/crm/imports", async (
+        int? page,
+        int? pageSize,
+        ITenantContext tenant,
+        IDispatcher dispatcher,
+        CancellationToken ct) =>
+    {
+        var userId = tenant.UserId
+            ?? throw new UnauthorizedException("auth.required", "Authentication required.");
+
+        var result = await dispatcher.Query(
+            new ListCrmImportsQuery(userId, new PageRequest(page, pageSize)), ct);
+
+        return Results.Ok(ApiResponse<PagedResponse<CrmImportStatusResponse>>.Ok(result));
+    });
+```
+
+**Frontend:** empty state je normalni `items: []`, ne chyba. Failed items v historii nech, protoze user potrebuje videt proc import neprosel a pripadne spustit novy. Po startu/complete importu invaliduj list query.
+
+**Testy k CRM:** prazdny list vraci 200 + empty page, newest-first sort, owner A nevidi owner B importy, failed import zustava v listu s errorCode, pagination drzi pageSize.
+
+**Nepouzijes:** neomezeny list bez paging, client-side owner filter, sort podle nahodneho DB orderu, mazani failed polozek jen aby UI bylo ciste.
 
 **EC:**
 
-- EC401 paging.
-- EC402 sort order.
-- EC403 owner scope.
-- EC404 old failed items.
-- EC405 empty state.
+- EC401 paging → pouzij `PageRequest`/`PagedResponse`, nikdy nevracej celou historii bez limitu.
+- EC402 sort order → default `CreatedAt desc`, aby nove importy byly nahore a UI neskakalo nahodne.
+- EC403 owner scope → `WHERE UserId == token user`; cizi rows se nedostanou ani do countu.
+- EC404 old failed items → failed importy nech v historii s `ErrorCode`, retry je nova akce.
+- EC405 empty state → 200 s prazdnou page; frontend zobrazi prazdnou historii, ne error.
 
 ### UC82 List snapshots
 
