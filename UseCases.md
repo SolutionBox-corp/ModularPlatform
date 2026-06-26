@@ -3194,21 +3194,65 @@ public void ConfigureMessaging(WolverineOptions options)
 
 ### UC96 Lokalni projekce cizich dat
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Blueprint pattern nad event handlers; pouzij pro rychle CRM listy, ne jako novy source of truth.
 
-**Pouzijes:** event handler + CRM read table.
+**Pouzijes:** integration event handler, CRM read/projection table, `SourceEventId`, `SourceUpdatedAt`, reconciliation job/command.
 
-**Co se stane:** CRM si drzi malou kopii dat pro rychly list.
+**Co se stane:** CRM si ulozi malou kopii dat z jineho modulu, aby nemuselo pri kazdem listu volat query nebo joinovat. Napr. `CrmUserSnapshot` pro jmeno/email ownera, `CrmBillingSnapshot` pro cached credit tier, `CrmTenantEntitlementSnapshot` pro UI filtrovani.
 
-**Napises v CRM:** `CrmUserSnapshot` nebo `CrmBillingSnapshot`.
+**Mentalni model:** projekce je cache/read model. Source module je porad vlastnik pravdy. CRM projekci pouziva pro rychlost a ergonomii, ale nesmi podle ni delat nevratna rozhodnuti bez revalidace u owner modulu.
+
+**Entity:** drz jen minimum potrebne pro CRM list. Pridej metadata, odkud data prisla.
+
+```csharp
+internal sealed class CrmUserSnapshot : Entity, ITenantScoped
+{
+    public Guid UserId { get; set; }
+    public Guid TenantId { get; set; }
+    public string DisplayName { get; set; } = string.Empty;
+    public string? EmailHashOrMaskedEmail { get; set; }
+    public Guid SourceEventId { get; set; }
+    public DateTimeOffset SourceUpdatedAt { get; set; }
+    public int SchemaVersion { get; set; } = 1;
+}
+```
+
+**Updater command:** event handler dispatchne command, command upsertne projekci idempotentne. Pokud event je starsi nez aktualni `SourceUpdatedAt`, ignoruj ho.
+
+```csharp
+if (snapshot is not null && snapshot.SourceUpdatedAt >= command.SourceUpdatedAt)
+{
+    return Unit.Value;
+}
+
+if (snapshot is null)
+{
+    db.UserSnapshots.Add(new CrmUserSnapshot { UserId = command.UserId });
+}
+
+snapshot.DisplayName = command.DisplayName;
+snapshot.SourceEventId = command.SourceEventId;
+snapshot.SourceUpdatedAt = command.SourceUpdatedAt;
+snapshot.SchemaVersion = 1;
+
+await db.SaveChangesAsync(ct);
+```
+
+**Reconcile:** pokud event ztratis, handler byl v DLQ, nebo zmenis schema projekce, potrebujes command/job, ktery projde CRM projections a dotahne live data pres query contract owner modulu. Nedelat generic cross-module reaper.
+
+**Minimal PII:** nedavej do projekce vic PII, nez list opravdu potrebuje. Email casto staci masked nebo hash. Pokud ulozis plaintext, musi platit UC75/UC91.
+
+**Testy k CRM:** event vytvori/aktualizuje projekci, duplicate event neni duplicita, out-of-order starsi event neprepise novejsi stav, reconcile opravi stale projekci, GDPR erase smaze/anonymizuje PII v projekci.
+
+**Nepouzijes:** projekci jako autoritativni billing/permission zdroj, cross-module join, kopii cele cizi entity, PII pro pohodli, ani read model bez repair cesty.
 
 **EC:**
 
-- EC476 projection stale.
-- EC477 event lost/replay gap -> reconcile.
-- EC478 minimalni PII.
-- EC479 schema version.
-- EC480 source module zustava owner.
+- EC476 projection stale → ukladej `SourceUpdatedAt` a pro kriticke rozhodnuti revaliduj owner query.
+- EC477 event lost/replay gap -> reconcile → pridej reconciliation command/job pro opravu projekce.
+- EC478 minimalni PII → projekce nese jen hodnoty potrebne pro CRM UI; plaintext PII musi byt encrypted/erasable.
+- EC479 schema version → pridej `SchemaVersion`, kdyz detail JSON/projection shape muze evolvovat.
+- EC480 source module zustava owner → CRM projection je cache, ne misto pro zapis zpet do owner domeny.
 
 ### UC97 Kratky request-response pres bus
 
