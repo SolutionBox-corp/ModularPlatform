@@ -2701,21 +2701,54 @@ finally
 
 ### UC88 List conversations
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Marketing ma jednoduchy owner-scoped list; CRM by mel pouzit stejnou owner/soft-delete logiku a pridat paging/last activity.
 
-**Pouzijes:** `GET /marketing/vibe/conversations`.
+**Pouzijes:** `GET /marketing/vibe/conversations`, `VibeConversation`, `IUserOwned`, `ISoftDeletable`, `IReadDbContextFactory`, pro CRM radeji `PageRequest`.
 
-**Co se stane:** User vidi svoje conversations.
+**Co se stane:** User vidi seznam svych ne-smazanych assistant sessions pro sidebar nebo historii. Deleted/archived threads se defaultne nevraci. Backend cte jen metadata, ne celou message history.
 
-**Napises v CRM:** list CRM assistant sessions.
+**Mentalni model:** conversation list neni chat detail. Ma byt rychly, maly a stabilni: id, title, createdAt/updatedAt/lastMessageAt, pripadne status pending/failed. Messages patri do UC89.
+
+**Entity:** conversation je `IUserOwned` a `ISoftDeletable`; query filter skryje `DeletedAt != null`.
+
+```csharp
+internal sealed class CrmConversation : AuditableEntity, IUserOwned, ISoftDeletable
+{
+    public Guid UserId { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public DateTimeOffset? LastMessageAt { get; set; }
+    public DateTimeOffset? DeletedAt { get; set; }
+}
+```
+
+**CRM list query:** filtruj ownera, sortuj podle posledni aktivity a strankuj. Marketing dnes vraci simple list podle `CreatedAt`; pro CRM sidebar s realnym pouzitim je lepsi `LastMessageAt desc`.
+
+```csharp
+return await db.Conversations
+    .Where(x => x.UserId == query.UserId)
+    .OrderByDescending(x => x.LastMessageAt ?? x.CreatedAt)
+    .Select(x => new CrmConversationListItem(
+        x.Id,
+        x.Title,
+        x.LastMessageAt ?? x.CreatedAt))
+    .ToPagedResponseAsync(query.Page, ct);
+```
+
+**Archived/deleted:** delete ze sidebaru delej jako soft delete. Pokud potrebujes archive, pridej `ArchivedAt` nebo `Status`; nemichej to s hard delete, protoze messages/history/GDPR export muzou jeste potrebovat data.
+
+**Frontend:** empty state je normalni. Po start conversation, send message, assistant ready a delete invaliduj conversation list. Pokud mas pending odpoved, list item muze ukazat spinner podle posledniho message/run statusu.
+
+**Testy k CRM:** empty list 200, owner A nevidi owner B, soft-deleted thread zmizi, newest activity sort, pagination, po send message se `LastMessageAt` zmeni.
+
+**Nepouzijes:** nacitani cele message historie pro sidebar, frontend-only owner filter, hard delete jako default, neomezeny list bez page limitu.
 
 **EC:**
 
-- EC436 paging.
-- EC437 owner scope.
-- EC438 archived/deleted state.
-- EC439 sort by recent activity.
-- EC440 empty state.
+- EC436 paging → pro CRM pouzij `PageRequest`; assistant historie muze rust rychleji nez marketing demo.
+- EC437 owner scope → `WHERE UserId == token user` + `IUserOwned`; cizi conversation se nikdy neobjevi.
+- EC438 archived/deleted state → soft-deleted/archived threads defaultne skryj, ale nemaz fyzicky bez retention policy.
+- EC439 sort by recent activity → sortuj podle `LastMessageAt`/`UpdatedAt`, ne jen podle created date.
+- EC440 empty state → 200 + empty list/page; UI ukaze prazdny sidebar.
 
 ### UC89 Get conversation
 
