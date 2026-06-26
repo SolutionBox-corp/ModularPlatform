@@ -642,7 +642,7 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC35 Create package
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented — `CreateCreditPackageTests` overuji validace, duplicate name, active flag a viditelnost v admin/public listu.
 
 **Pouzijes:** `POST /billing/admin/packages`.
 
@@ -652,11 +652,11 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 **EC:**
 
-- EC171 amount/price validation.
-- EC172 currency validation.
-- EC173 duplicate key/name.
-- EC174 disabled/default stav podle business rozhodnuti.
-- EC175 po create invalidovat admin i public list.
+- EC171 amount/price validation → `creditAmount > 0`, `price >= 0`.
+- EC172 currency validation → 3 pismena ISO tvaru; handler normalizuje na uppercase.
+- EC173 duplicate key/name → v jednom katalogu nejde zalozit package se stejnym jmenem.
+- EC174 disabled/default stav podle business rozhodnuti → `active` je explicitni input; `active=false` zalozi disabled package.
+- EC175 po create invalidovat admin i public list → po create se novy package objevi v admin listu; pokud je active, objevi se i v public listu. FE musi invalidovat oba query cache klice.
 
 ### UC36 Update package
 

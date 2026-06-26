@@ -129,6 +129,7 @@
   <data name="billing.package.price_not_configured" xml:space="preserve"><value>The package has no Stripe price configured.</value></data>
   <data name="billing.package.name.required" xml:space="preserve"><value>A package name is required.</value></data>
   <data name="billing.package.name.too_long" xml:space="preserve"><value>The package name is too long.</value></data>
+  <data name="billing.package.name_taken" xml:space="preserve"><value>A package with this name already exists.</value></data>
   <data name="billing.package.credit_amount.must_be_positive" xml:space="preserve"><value>The credit amount must be positive.</value></data>
   <data name="billing.package.price.must_not_be_negative" xml:space="preserve"><value>The price must not be negative.</value></data>
   <data name="billing.package.currency.required" xml:space="preserve"><value>A currency is required.</value></data>

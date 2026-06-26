@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Billing.Entities;
 using ModularPlatform.Billing.Persistence;
@@ -12,10 +13,18 @@ internal sealed class CreateCreditPackageHandler(BillingDbContext db, ITenantCon
 {
     public async Task<CreateCreditPackageResponse> Handle(CreateCreditPackageCommand command, CancellationToken ct)
     {
+        var name = command.Name.Trim();
+        var tenantId = tenant.TenantId;
+
+        if (await db.CreditPackages.AnyAsync(p => p.TenantId == tenantId && p.Name == name, ct))
+        {
+            throw new ConflictException("billing.package.name_taken", "A package with this name already exists.");
+        }
+
         var package = new CreditPackage
         {
-            TenantId = tenant.TenantId, // the caller's tenant owns this package (null only in a system context)
-            Name = command.Name,
+            TenantId = tenantId, // the caller's tenant owns this package (null only in a system context)
+            Name = name,
             CreditAmount = command.CreditAmount,
             Price = command.Price,
             Currency = command.Currency.Trim().ToUpperInvariant(),
