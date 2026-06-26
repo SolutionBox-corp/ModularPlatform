@@ -986,21 +986,51 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 ### UC54 Purchase completed notification
 
-**Status:** Backlog — implementovat a overit vcetne prirazenych EC.
+**Status:** Implemented + tested — `NotificationsIntegrationTests.CreditPurchaseCompleted_event_creates_purchase_completed_notification` a `Purchase_completed_handler_is_idempotent_and_missing_template_is_non_fatal`.
 
 **Pouzijes:** Notifications handler na `CreditPurchaseCompletedIntegrationEvent`.
 
-**Co se stane:** Po nakupu kreditu dostane user notifikaci.
+**Co se stane:** Billing po uspesnem nakupu publikuje `CreditPurchaseCompletedIntegrationEvent`. Notifications ma public Wolverine handler `SendPurchaseCompletedHandler`, ktery nevezme zadnou Billing tabulku, ale jen payload eventu (`UserId`, `PurchaseId`, `CreditAmount`). Handler zavola existujici slice `SendNotificationCommand` s template `purchase_completed`, channel `inapp` a `IdempotencyKey = purchase-completed:{purchaseId}`. Tim se pouzije normalni Notifications flow: render template, ulozit in-app row, pripadne predat email/push pres outbox.
 
-**Napises v CRM:** pro `DealWonIntegrationEvent` nebo `AiRunCompletedEvent` stejny pattern.
+**Napises v CRM:** kdyz CRM dokonci obchod nebo AI beh, nevkladej notifikaci primo. CRM publikuje treba `DealWonIntegrationEvent` nebo `AiRunCompletedEvent`. V Notifications napises handler `SendDealWonHandler`, ktery z eventu posklada `data` pro template a zavola `SendNotificationCommand(..., IdempotencyKey: $"deal-won:{dealId:N}")`. Dulezite je, ze CRM zustane vlastnik obchodu a Notifications zustane vlastnik doruceni.
+
+**Vzor kodu:**
+
+```csharp
+public sealed class SendDealWonHandler(ILogger<SendDealWonHandler> logger)
+{
+    public async Task Handle(DealWonIntegrationEvent message, IDispatcher dispatcher, CancellationToken ct)
+    {
+        try
+        {
+            await dispatcher.Send(new SendNotificationCommand(
+                message.UserId,
+                "deal_won",
+                ["inapp"],
+                new Dictionary<string, string>
+                {
+                    ["locale"] = "en",
+                    ["dealName"] = message.DealName,
+                },
+                IdempotencyKey: $"deal-won:{message.DealId:N}"), ct);
+        }
+        catch (NotFoundException)
+        {
+            logger.LogWarning("Deal-won notification skipped: template missing for {DealId}.", message.DealId);
+        }
+    }
+}
+```
+
+**Nepouzijes:** zadny direct insert do `notifications`, zadny call do Billing Core, zadny vlastni retry loop. Retry dela Wolverine, dedup dela `SendNotificationCommand.IdempotencyKey`.
 
 **EC:**
 
-- EC266 Billing event duplicate.
-- EC267 notifikace musi mit idempotency key.
-- EC268 purchase event order.
-- EC269 missing template.
-- EC270 retry nesmi poslat dva emaily.
+- EC266 Billing event duplicate → dva eventy se stejnym `PurchaseId` maji stejny `IdempotencyKey`, tak vznikne jen jedna notifikace.
+- EC267 notifikace musi mit idempotency key → key je `purchase-completed:{purchaseId:N}` a patri do `SendNotificationCommand`, ne do rucni tabulky.
+- EC268 purchase event order → handler necte aktualni Billing stav a nespoléha na poradi eventu; bere event jako hotovy fakt.
+- EC269 missing template → `NotFoundException` se zachyti a zaloguje; jeden chybejici seed nesmi otravit Wolverine inbox.
+- EC270 retry nesmi poslat dva emaily → duplicitni send rollbackne na UNIQUE idempotency key jeste pred outbox handoffem, tak stejny retry nevytvori dalsi feed row ani dalsi delivery message.
 
 ### UC55 Email delivery
 

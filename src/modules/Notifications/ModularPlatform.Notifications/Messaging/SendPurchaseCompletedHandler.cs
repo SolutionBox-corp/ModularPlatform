@@ -28,7 +28,12 @@ public sealed class SendPurchaseCompletedHandler(ILogger<SendPurchaseCompletedHa
         try
         {
             await dispatcher.Send(
-                new SendNotificationCommand(message.UserId, "purchase_completed", ["inapp"], data), ct);
+                new SendNotificationCommand(
+                    message.UserId,
+                    "purchase_completed",
+                    ["inapp"],
+                    data,
+                    IdempotencyKey: $"purchase-completed:{message.PurchaseId:N}"), ct);
         }
         catch (NotFoundException)
         {

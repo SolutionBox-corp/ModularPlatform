@@ -479,6 +479,7 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
     {
         var email = $"purchase-{Guid.CreateVersion7():N}@example.com";
         var (userId, _) = await fixture.RegisterAndLoginAsync(email, Password);
+        var purchaseId = Guid.CreateVersion7();
 
         // Ensure Billing account is provisioned (proves the spine is healthy before we publish).
         await fixture.WaitForCountAsync(
@@ -492,7 +493,7 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
             EventId: Guid.CreateVersion7(),
             OccurredAt: DateTimeOffset.UtcNow,
             UserId: userId,
-            PurchaseId: Guid.CreateVersion7(),
+            PurchaseId: purchaseId,
             PackageId: Guid.CreateVersion7(),
             CreditAmount: 500));
 
@@ -500,6 +501,55 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
         await fixture.WaitForCountAsync(
             $"SELECT count(*)::bigint FROM notifications " +
             $"WHERE \"UserId\" = '{userId}' AND \"TemplateKey\" = 'purchase_completed'", 1);
+    }
+
+    [Fact]
+    public async Task Purchase_completed_handler_is_idempotent_and_missing_template_is_non_fatal()
+    {
+        var (userId, _) = await fixture.RegisterAndLoginAsync(
+            $"purchase-retry-{Guid.CreateVersion7():N}@example.com", Password);
+        var purchaseId = Guid.CreateVersion7();
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var dispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
+        var handler = new SendPurchaseCompletedHandler(NullLogger<SendPurchaseCompletedHandler>.Instance);
+        var message = new CreditPurchaseCompletedIntegrationEvent(
+            EventId: Guid.CreateVersion7(),
+            OccurredAt: DateTimeOffset.UtcNow,
+            UserId: userId,
+            PurchaseId: purchaseId,
+            PackageId: Guid.CreateVersion7(),
+            CreditAmount: 750);
+
+        // A retry or duplicate Billing event has the same PurchaseId. The handler maps it to the same
+        // SendNotificationCommand idempotency key, so the UNIQUE key leaves exactly one feed row/outbox handoff.
+        await handler.Handle(message, dispatcher, CancellationToken.None);
+        await handler.Handle(message with { EventId = Guid.CreateVersion7() }, dispatcher, CancellationToken.None);
+
+        var duplicateRows = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM notifications WHERE \"UserId\" = '{userId}' " +
+            $"AND \"TemplateKey\" = 'purchase_completed' AND \"IdempotencyKey\" = 'purchase-completed:{purchaseId:N}'");
+        duplicateRows.ShouldBe(1);
+
+        await fixture.ExecuteSqlAsync("DELETE FROM notification_templates WHERE \"Key\" = 'purchase_completed'");
+        try
+        {
+            var missingTemplatePurchaseId = Guid.CreateVersion7();
+            await handler.Handle(message with
+            {
+                EventId = Guid.CreateVersion7(),
+                PurchaseId = missingTemplatePurchaseId,
+            }, dispatcher, CancellationToken.None);
+
+            var missingTemplateRows = await fixture.ScalarAsync<long>(
+                $"SELECT count(*)::bigint FROM notifications WHERE \"UserId\" = '{userId}' " +
+                $"AND \"IdempotencyKey\" = 'purchase-completed:{missingTemplatePurchaseId:N}'");
+            missingTemplateRows.ShouldBe(0);
+        }
+        finally
+        {
+            await RestorePurchaseCompletedTemplatesAsync();
+        }
     }
 
     /// <summary>
@@ -552,6 +602,20 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
             "INSERT INTO notification_templates (\"Id\", \"Key\", \"Locale\", \"Subject\", \"Body\") " +
             $"SELECT '{Guid.CreateVersion7()}', 'welcome', 'cs', 'Vítejte na platformě!', 'Dobrý den {{displayName}}, vítáme vás.' " +
             "WHERE NOT EXISTS (SELECT 1 FROM notification_templates WHERE \"Key\" = 'welcome' AND \"Locale\" = 'cs')");
+    }
+
+    private async Task RestorePurchaseCompletedTemplatesAsync()
+    {
+        await fixture.ExecuteSqlAsync(
+            "INSERT INTO notification_templates (\"Id\", \"Key\", \"Locale\", \"Subject\", \"Body\") " +
+            $"SELECT '{Guid.CreateVersion7()}', 'purchase_completed', 'en', 'Purchase completed', " +
+            $"'Your purchase of {{creditAmount}} credits is complete.' " +
+            "WHERE NOT EXISTS (SELECT 1 FROM notification_templates WHERE \"Key\" = 'purchase_completed' AND \"Locale\" = 'en')");
+        await fixture.ExecuteSqlAsync(
+            "INSERT INTO notification_templates (\"Id\", \"Key\", \"Locale\", \"Subject\", \"Body\") " +
+            $"SELECT '{Guid.CreateVersion7()}', 'purchase_completed', 'cs', 'Nákup dokončen', " +
+            $"'Váš nákup {{creditAmount}} kreditů je dokončen.' " +
+            "WHERE NOT EXISTS (SELECT 1 FROM notification_templates WHERE \"Key\" = 'purchase_completed' AND \"Locale\" = 'cs')");
     }
 
     private async Task SendDirectAsync(Guid userId, string templateKey)
