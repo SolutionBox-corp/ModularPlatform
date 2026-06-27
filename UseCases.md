@@ -404,13 +404,35 @@ public sealed record DealDetailResponse(
 
 **Napises v CRM:** jen endpointy, ktere machine token smi volat, a permissions pro ne.
 
+**Mentalni model:** Machine token je ne-lidsky principal pro integraci/edge agenta. Ma tenant scope a `role=machine`, ale neni to normalni user session. Nemas `ITenantContext.UserId` jako lidskeho vlastnika akce.
+
+**Kdy ho pouzijes v CRM:** napr. externi import agent posila stav synchronizace, device gateway posila lead, nebo backend integrace vola tenant-scoped CRM endpoint. Nepouzivej ho pro akce, ktere maji byt pripisane konkretni osobe bez explicitniho "performed by machine" modelu.
+
+**Endpoint rozhodnuti:** human-only endpointy machine principalum zakaz pres `DenyMachinePrincipals()`. Machine endpointy naopak gateuj samostatnou permission/role policy a ukladavej `MachineSubjectId`/name jako actor metadata.
+
+```csharp
+app.MapPost("/crm/import-agent/push", ...)
+   .RequireRole(AuthorizationClaims.MachineRole)
+   .RequireModule("crm");
+
+app.MapPost("/crm/deals/{id}/checkout", ...)
+   .RequirePermission(PlatformPermissions.CrmDealsManage)
+   .DenyMachinePrincipals();
+```
+
+**Audit actor:** kdyz machine token spusti CRM akci, audit/log musi ukazat machine actor, ne predstirat konkretni user id. Pokud flow potrebuje human approval, udelej explicitni approval command lidskym userem.
+
+**Secret handling:** issued JWT plaintext se zobrazi jen pri vydani. CRM ho neuklada do vlastnich tabulek, notes, audit ani durable eventu. Integrace si ho ulozi ve svem secret store.
+
+**Co nepises:** machine token jako nahradu user loginu, implicitni `crm.*` permissions pro kazdy machine token, plaintext token do CRM configu, endpoint ktery predpoklada `UserId` u machine principalu.
+
 **EC:**
 
-- EC051 machine token nema automaticky znamenat normalni user context.
-- EC052 token musi mit omezene permissions.
-- EC053 vydani tokenu musi byt auditovatelne.
-- EC054 token musi mit expiraci/rotaci.
-- EC055 token se neuklada plaintext do CRM dat.
+- EC051 machine token nema automaticky znamenat normalni user context → CRM handler nesmi vyzadovat `UserId`, pokud endpoint povoluje machine principal.
+- EC052 token musi mit omezene permissions → machine endpointy musi byt explicitne opt-in, ne "authenticated == allowed".
+- EC053 vydani tokenu musi byt auditovatelne → Identity uklada issuance metadata; CRM audituje az svoje machine akce.
+- EC054 token musi mit expiraci/rotaci → integrace musi pocitat s obnovou tokenu a nesmi mit nekonecny secret.
+- EC055 token se neuklada plaintext do CRM dat → token nepatri do CRM notes/config/audit/event payloadu.
 
 ### UC12 Audit usera v tenant scope
 
