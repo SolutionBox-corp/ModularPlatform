@@ -105,13 +105,31 @@ var userId = tenantContext.UserId
 
 **Napises v CRM:** nic, jen pocitas s tim, ze permissions jsou snapshot v access tokenu.
 
+**Mentalni model:** Access token je fotka opravneni v case vydani. Refresh je okamzik, kdy se fotka obnovi. Kdyz admin prida userovi `crm.contacts.delete`, stare taby to neuvidi magicky hned; uvidi to po refreshi tokenu, novem loginu nebo po expiraci stareho access tokenu.
+
+**Co dela Identity:** refresh token je jednorazovy. Pri refreshi se stary token oznaci jako consumed, vyda se novy refresh token ve stejne family a access token se vyda s aktualnimi rolemi/permissions.
+
+**Co dela BFF/frontend:** kdyz server-side fetch vidi expirovany access token, zkusi refresh. Kdyz refresh selze, session se vycisti. Browser `apiFetch` pri 401 presmeruje na `/login?reason=expired`.
+
+**Co dela CRM UI:** po 401 nedrzi stare CRM query jako pravdu. Po navratu na login nebo po refresh failure se user-specific cache bere jako neduveryhodna.
+
+```ts
+// CRM komponenta nema resit refresh token.
+// Volas normalne apiFetch/useQuery; BFF/browser vrstva vyresi refresh nebo redirect.
+const contacts = useContacts();
+```
+
+**Co dela CRM backend:** endpoint se diva na aktualni claims v requestu. Pokud token jeste obsahuje starou permission, backend ji pro tento request bere jako snapshot. Pro okamzite revokace citlivych akci navrhni kratkou expiraci nebo server-side revocation policy v Identity, ne lokalni CRM hack.
+
+**Co nepises:** vlastni refresh endpoint v CRM, vlastni token family table, polling Identity DB pro permissions v kazdem CRM requestu, specialni "force refresh" business logiku v CRM handleru.
+
 **EC:**
 
-- EC011 replay stareho refresh tokenu revoke celou token family.
-- EC012 pri soubeznem refreshi vyhraje jen jeden request.
-- EC013 refresh po erasure nebo soft-delete vraci 401.
-- EC014 zmena role se projevi az po refreshi/loginu nebo expiraci stareho access tokenu.
-- EC015 frontend musi po 401 zahodit session a cache.
+- EC011 replay stareho refresh tokenu revoke celou token family → CRM pri 401 nenabizi retry donekonecna; user se musi znovu prihlasit.
+- EC012 pri soubeznem refreshi vyhraje jen jeden request → frontend/BFF musi pocitat s tim, ze paralelni taby mohou dostat 401 a udelat redirect.
+- EC013 refresh po erasure nebo soft-delete vraci 401 → CRM nesmi zobrazit cached PII po session invalidaci.
+- EC014 zmena role se projevi az po refreshi/loginu nebo expiraci stareho access tokenu → UI permissions jsou snapshot, backend permission guard je stale autorita.
+- EC015 frontend musi po 401 zahodit session a cache → neukazuj stale CRM data z React Query/local state po auth failure.
 
 ### UC04 Logout
 
