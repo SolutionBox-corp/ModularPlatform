@@ -534,13 +534,30 @@ if (query.TenantId is { } tenantId)
 
 **Napises v CRM:** nic.
 
+**Mentalni model:** Platform audit je forenzni cross-tenant pohled pro provozovatele platformy. Neni to tenant admin funkce a neni to obecny audit vsech modulu. Tady jde porad jen o Identity audit trail usera.
+
+**Rozdil proti UC12:** tenant admin route `/identity/admin/users/{userId}/audit` overuje tenant scope. Platform route `/identity/platform/users/{userId}/audit` posle `CrossTenant: true` a vyzaduje platform-level permissions.
+
+```csharp
+app.MapGet("/identity/platform/users/{userId:guid}/audit", ...)
+   .RequireAuthorization(policy => policy
+      .RequireClaim("permission", PlatformPermissions.AuditRead)
+      .RequireClaim("permission", PlatformPermissions.PlatformUsersList));
+```
+
+**Co stale plati:** handler cte Identity `AuditEntries`, ne Billing/CRM/Files audit. PII reveal jde pres `IPersonalDataProtector`; po crypto-shred se vraci `[erased]`.
+
+**CRM dopad:** pokud budes chtit platform-wide CRM audit, neni to "vezmu vsechny audit tabulky". Musi vzniknout explicitni CRM platform audit endpoint s jasnym permission, scope a retention pravidly.
+
+**Co nepises:** CRM volani Identity platform audit pro CRM entity, centralni SQL union pres `*_audit_entries`, decrypt PII mimo protector, platform audit v tenant sidebaru.
+
 **EC:**
 
-- EC066 jen platform permission.
-- EC067 erased PII zustane unreadable.
-- EC068 neplest s tenant admin audit endpointem.
-- EC069 zadne cross-module joiny.
-- EC070 respektovat retention a GDPR pravidla.
+- EC066 jen platform permission → typicky `audit.read` + `platform.users.list`, ne bezny tenant admin.
+- EC067 erased PII zustane unreadable → platform admin nema obejit crypto-shred.
+- EC068 neplest s tenant admin audit endpointem → `/identity/admin/...` a `/identity/platform/...` maji jiny scope.
+- EC069 zadne cross-module joiny → Identity platform audit cte jen Identity audit rows.
+- EC070 respektovat retention a GDPR pravidla → audit retention a erased marker nejsou UI volba.
 
 ## Tenancy
 
