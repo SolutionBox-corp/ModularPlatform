@@ -876,17 +876,51 @@ nebo registraci, ktera bere `tenantId` z body misto tenant/subdomain kontextu.
 
 **Pouzijes:** `GET /tenant/admin/platform-billing`.
 
-**Co se stane:** Admin vidi, jestli je platform billing pripraveny.
+**Co se stane:** Platform admin vidi stav subscription/billingu pro svuj tenant: aktualni plan (`free` kdyz neni
+nastaveny tier), zapnute moduly, payment provider, `checkoutReady` a pripadny `actionRequired` error code.
 
-**Napises v CRM:** nic.
+**Mentalni model:** Tohle je platform-plane billing. Rika, jestli tenant plati ModularPlatform/base produkt a jake
+platform modules ma dostupne. Neni to tenant-plane checkout pro CRM zakazniky a neni to kreditovy balance uzivatele.
+
+**Frontend pouziti:**
+
+```tsx
+const { data, isLoading } = usePlatformBillingStatus();
+
+if (data?.checkoutReady) {
+  // enable "Upgrade / manage plan"
+}
+
+if (data?.actionRequired) {
+  // show admin-readable config problem, e.g. payment.gateway_not_configured
+}
+```
+
+`PlatformBillingCard` zobrazuje `plan`, `provider`, `checkoutReady/actionRequired` a `modules[]`. Pro novy CRM admin
+dashboard muzes stejnou query pouzit jen jako platform stav, ne jako CRM feature config.
+
+**Backend pouziti:** Handler bere tenant z `ITenantContext.TenantId`, cte entitlements pres `IEntitlementResolver` a
+payment gateway resi pres `IPaymentGatewayResolver` s `PaymentPlane.Platform`. Provider problem se nepropaguje jako
+500; status vrati `checkoutReady=false`.
+
+**Kdy to volat:** pred zobrazenim checkout/upgrade akce, v platform admin overview nebo tenant detailu. Nevolej to pred
+kazdou CRM akci; runtime autorita pro CRM endpoint je `.RequireModule("crm")` a billing autorita pro tokeny je Billing.
+
+**Co nepises:** CRM polling kazdych par sekund, check `checkoutReady` jako security gate, Stripe SDK call z frontendu,
+nebo zamenu s `GET /billing/credits/balance`.
 
 **EC:**
 
-- EC101 missing platform payment config: status vrati `checkoutReady=false` a `actionRequired`.
-- EC102 provider down: status neprovadi checkout; provider problem mapuje na `checkoutReady=false`.
-- EC103 UI musi ukazat actionable stav: `PlatformBillingCard` zobrazuje ready/off stav a `actionRequired`.
-- EC104 platform-plane billing a tenant-plane billing nejsou totez: status pouziva `PaymentPlane.Platform`.
-- EC105 nespoustet checkout naslepo bez statusu: frontend ma cist status pred povolenim checkout akce.
+- EC101 missing platform payment config → status vrati `checkoutReady=false` a `actionRequired`, typicky
+  `payment.gateway_not_configured`.
+- EC102 provider down → status neprovadi checkout; `ValidateCredentialsAsync` failure se mapuje na
+  `checkoutReady=false`, ne na crash admin dashboardu.
+- EC103 UI musi ukazat actionable stav → `PlatformBillingCard` zobrazuje on/off badge a `actionRequired`, aby admin
+  vedel, co opravit.
+- EC104 platform-plane billing a tenant-plane billing nejsou totez → status pouziva `PaymentPlane.Platform`; CRM prodej
+  vlastnich balicku pouzije Billing tenant-plane endpointy.
+- EC105 nespoustet checkout naslepo bez statusu → frontend ma cist status pred povolenim checkout akce a pri
+  `checkoutReady=false` misto redirectu ukazat opravitelny problem.
 
 ### UC22 Platform checkout
 
