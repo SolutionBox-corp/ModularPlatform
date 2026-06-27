@@ -444,13 +444,36 @@ app.MapPost("/crm/deals/{id}/checkout", ...)
 
 **Napises v CRM:** per-module audit endpoint jen pro CRM entity, pokud je potreba.
 
+**Mentalni model:** Audit je platform capability, ale data jsou per-module. Identity audit endpoint cte `identity_audit_entries`. CRM audit endpoint ma cist `crm_audit_entries`. Centralni "audit vsech modulu pres vsechny tabulky" by porusil boundary law.
+
+**Kdy CRM audit potrebujes:** napr. admin chce videt zmeny kontaktu, dealu nebo CRM AI runu. Endpoint patri do CRM modulu a vraci jen CRM entity, ktere CRM vlastni.
+
+```csharp
+app.MapGet("/crm/admin/contacts/{contactId:guid}/audit", ...)
+   .RequirePermission(PlatformPermissions.AuditRead)
+   .RequireModule("crm");
+```
+
+**Handler pattern:** pouzij CRM read DbContext, filtruj `EntityType`/`EntityId`, tenant/user scope over v CRM domene, a PII reveal delej pres `IPersonalDataProtector`. Po crypto-shred se PII vrati jako `[erased]`.
+
+```csharp
+var rows = await db.AuditEntries
+    .Where(a => a.EntityType == "CrmContact" && a.EntityId == contactId.ToString())
+    .OrderByDescending(a => a.Timestamp)
+    .ToListAsync(ct);
+```
+
+**PII pravidlo:** pokud CRM entity maji `[PersonalData]`, audit interceptor ulozi protected envelope, ne plaintext. Admin forensic read ho muze odhalit jen dokud subject key existuje; po erasure uvidi erased marker.
+
+**Co nepises:** centralni Audit module, raw SQL do `*_audit_entries`, cteni `identity_audit_entries` z CRM, decrypt PII bez `IPersonalDataProtector`, audit endpoint bez permission.
+
 **EC:**
 
-- EC056 po crypto-shred se PII v auditu zobrazi jako `[erased]`.
-- EC057 audit read vyzaduje permission.
-- EC058 audit neni centralni cross-module DB.
-- EC059 CRM audit nesmi cist cizi module audit tabulky.
-- EC060 raw SQL pro audit je zakazany.
+- EC056 po crypto-shred se PII v auditu zobrazi jako `[erased]` → CRM audit UI musi tento terminalni stav normalne zobrazit.
+- EC057 audit read vyzaduje permission → typicky `audit.read` + modulovy/tenant guard.
+- EC058 audit neni centralni cross-module DB → kazdy modul expose vlastni audit read, pokud ho potrebuje.
+- EC059 CRM audit nesmi cist cizi module audit tabulky → Identity/Billing/Files audit zustava u vlastnich modulu.
+- EC060 raw SQL pro audit je zakazany → pouzij EF/LINQ nad vlastnim DbContextem a DTO projection.
 
 ### UC13 Platform admin listuje usery
 
