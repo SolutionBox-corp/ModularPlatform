@@ -572,14 +572,46 @@ app.MapGet("/identity/platform/users/{userId:guid}/audit", ...)
 
 **Napises v CRM:** navigation guard a backend `.RequireModule("crm")`.
 
+**Mentalni model:** Entitlement rika "ma tento tenant tento modul koupeny/zapnuty?". Permission rika "smi tento user udelat tuto akci?". Pro CRM potrebujes oboji: tenant musi mit CRM enabled a user musi mit CRM permission.
+
+**Frontend nav:** pridej CRM do `NAV_ITEMS` s `moduleKey: "crm"`. `AppNav` ho schova, pokud `GET /tenant/me/entitlements` neobsahuje enabled CRM.
+
+```ts
+{
+  key: "crm",
+  href: "/crm",
+  labelKey: "crm",
+  icon: UsersIcon,
+  moduleKey: "crm",
+}
+```
+
+**Server page guard:** stranka `/crm` musi udelat stejny check i pri deep linku. Kdyz tenant CRM nema, vrat `notFound()`.
+
+```tsx
+const ent = await queryClient.fetchQuery(entitlementQueries.me());
+if (!isModuleEnabled(ent, "crm")) notFound();
+```
+
+**Backend endpoint guard:** kazdy CRM endpoint pridej pod live entitlement guard. To je security vrstva; menu guard je jen UX.
+
+```csharp
+app.MapPost("/crm/contacts", ...)
+   .RequireModule("crm")
+   .RequirePermission(PlatformPermissions.CrmContactsWrite);
+```
+
+**Cache:** po platform-admin zmene entitlementu invaliduj `queryRoots.entitlements`, aby sidebar a route guards nacetly aktualni stav. Backend guard funguje hned na dalsi request i pri stale UI.
+
+**Co nepises:** vlastni `TenantEntitlement` tabulku v CRM, localStorage flag `crmEnabled`, ochranu jen skrytim menu, hardcoded "CRM je zapnute pro vsechny".
+
 **EC:**
 
-- EC071 chybejici entitlement schova CRM menu: frontend `isModuleEnabled` vraci false pro chybejici modul.
-- EC072 backend stale blokuje endpoint, i kdyz UI menu nekdo obejde: test vypne `billing` a primy call na
-  `/billing/packages` skonci 404.
-- EC073 po admin zmene invaliduj entitlement cache: `useSetEntitlement` invaliduje `queryRoots.entitlements`.
-- EC074 menu guard neni security: security je `.RequireModule(...)`, ne navigace.
-- EC075 novy modul ma byt defaultne vypnuty, dokud neni entitlement: test overuje, ze cerstvy tenant nema `crm`.
+- EC071 chybejici entitlement schova CRM menu → frontend `isModuleEnabled(entitlements, "crm")` vraci false.
+- EC072 backend stale blokuje endpoint, i kdyz UI menu nekdo obejde → `.RequireModule("crm")` vrati 404/not entitled shape.
+- EC073 po admin zmene invaliduj entitlement cache → `useSetEntitlement` invaliduje `queryRoots.entitlements`.
+- EC074 menu guard neni security → security je live backend entitlement guard, ne navigace.
+- EC075 novy modul ma byt defaultne vypnuty, dokud neni entitlement → cerstvy tenant nema CRM, dokud ho platform/admin flow nezapne.
 
 ### UC16 Platform admin vytvori tenant
 
