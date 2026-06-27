@@ -67,13 +67,33 @@ public sealed class CreateCrmWorkspaceOnUserRegisteredHandler
 
 **Napises v CRM:** nic. CRM nikdy neoveruje heslo a nikdy nevydava JWT.
 
+**Mentalni model:** Login je security flow. CRM az potom dostane request s platnym bearer tokenem. CRM se nepta "je heslo spravne?", ale "co rika token a ma user permission na tuto CRM akci?".
+
+**Co dela Identity:** email lookup jde pres blind index, neznamy email i spatne heslo delaji stejne drahou Argon2 verify cestu a vraci stejny `auth.invalid_credentials`. Lockout se ukaze jen callerovi, ktery zna spravne heslo.
+
+**Co dela frontend:** `loginAction` vola Identity, ulozi access/refresh token do server session a z access tokenu vytahne `roles`/`permissions` pro UI. CRM komponenty potom pouzivaji session permissions jen pro UX guardy; backend endpointy porad rozhoduji samy.
+
+```tsx
+const canCreateContact = user.permissions.includes("crm.contacts.create");
+return canCreateContact ? <CreateContactButton /> : null;
+```
+
+**Co dela CRM backend:** v handleru beres usera/tenant z `ITenantContext`, ne z login requestu ani z body.
+
+```csharp
+var userId = tenantContext.UserId
+    ?? throw new UnauthorizedException("auth.unauthenticated", "Sign in required.");
+```
+
+**Co nepises:** `LoginCrmUserHandler`, vlastni password table, vlastni lockout, rozdilne hlasky "email neexistuje" vs "spatne heslo", role lookup v CRM DB pri kazdem requestu.
+
 **EC:**
 
-- EC006 neexistujici email a spatne heslo musi vypadat stejne.
-- EC007 opakovane spatne pokusy zamknou ucet.
-- EC008 soft-deleted nebo erased user se nesmi prihlasit.
-- EC009 frontend nesmi ukazovat text typu "email existuje".
-- EC010 admin bootstrap patri do Identity login flow, ne do CRM.
+- EC006 neexistujici email a spatne heslo musi vypadat stejne → CRM ani frontend nesmi z chyby odvozovat account existence.
+- EC007 opakovane spatne pokusy zamknou ucet → lockout patri Identity; CRM nema vlastni pocitadlo login pokusu.
+- EC008 soft-deleted nebo erased user se nesmi prihlasit → CRM requesty takoveho usera neuvidi jako validni session.
+- EC009 frontend nesmi ukazovat text typu "email existuje" → login UI vzdy generic "spatny email nebo heslo".
+- EC010 admin bootstrap patri do Identity login flow, ne do CRM → CRM jen definuje vlastni permissions, neprideluje system admin roli.
 
 ### UC03 Refresh session
 
