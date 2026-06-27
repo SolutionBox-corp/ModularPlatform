@@ -185,6 +185,130 @@
     "save": "Uložit",
     "search": "Hledat"
   },
+  "crm": {
+    "page": {
+      "metaTitle": "CRM — Kontakty",
+      "heading": "Kontakty",
+      "description": "Spravujte kontakty, zaznamenávejte interakce a plánujte schůzky.",
+      "contactMetaTitle": "CRM — Kontakt",
+      "backToContacts": "Zpět na kontakty",
+      "meetingsMetaTitle": "CRM — Schůzky"
+    },
+    "table": {
+      "name": "Jméno",
+      "email": "E-mail",
+      "company": "Firma",
+      "status": "Stav",
+      "open": "Otevřít",
+      "delete": "Smazat",
+      "meetingTitle": "Název",
+      "when": "Kdy",
+      "duration": "Délka",
+      "minutes": "{count} min"
+    },
+    "status": {
+      "lead": "Lead",
+      "active": "Aktivní",
+      "customer": "Zákazník",
+      "archived": "Archivováno"
+    },
+    "meetingStatus": {
+      "planned": "Naplánováno",
+      "done": "Hotovo",
+      "canceled": "Zrušeno",
+      "no_show": "Nedorazil"
+    },
+    "interactionType": {
+      "call": "Hovor",
+      "email": "E-mail",
+      "note": "Poznámka",
+      "meeting": "Schůzka"
+    },
+    "filter": {
+      "status": "Stav",
+      "allStatuses": "Všechny stavy"
+    },
+    "contacts": {
+      "new": "Nový kontakt",
+      "edit": "Upravit",
+      "notFound": "Kontakt nenalezen.",
+      "emptyTitle": "Zatím žádné kontakty",
+      "emptyDescription": "Přidejte první kontakt a začněte."
+    },
+    "contactForm": {
+      "createTitle": "Nový kontakt",
+      "editTitle": "Upravit kontakt",
+      "fullName": "Celé jméno",
+      "email": "E-mail",
+      "phone": "Telefon",
+      "company": "Firma",
+      "position": "Pozice",
+      "status": "Stav",
+      "tags": "Štítky",
+      "tagsPlaceholder": "oddělené, čárkou",
+      "notes": "Poznámky",
+      "save": "Uložit",
+      "saving": "Ukládání…"
+    },
+    "interactionForm": {
+      "type": "Typ",
+      "body": "Poznámka",
+      "bodyPlaceholder": "Co se stalo?",
+      "add": "Přidat"
+    },
+    "timeline": {
+      "heading": "Časová osa",
+      "empty": "Zatím žádné interakce."
+    },
+    "meetings": {
+      "heading": "Schůzky",
+      "new": "Naplánovat",
+      "complete": "Dokončit",
+      "cancel": "Zrušit",
+      "emptyTitle": "Žádné schůzky",
+      "emptyDescription": "Naplánujte schůzku a uvidíte ji zde.",
+      "pageHeading": "Schůzky",
+      "pageDescription": "Vaše nadcházející i proběhlé schůzky."
+    },
+    "meetingForm": {
+      "createTitle": "Naplánovat schůzku",
+      "editTitle": "Upravit schůzku",
+      "title": "Název",
+      "scheduledAt": "Kdy",
+      "duration": "Délka (min)",
+      "location": "Místo",
+      "notes": "Poznámky",
+      "save": "Uložit",
+      "saving": "Ukládání…"
+    },
+    "toast": {
+      "contactCreated": "Kontakt vytvořen",
+      "contactUpdated": "Kontakt upraven",
+      "contactDeleted": "Kontakt smazán",
+      "interactionAdded": "Interakce přidána",
+      "meetingCreated": "Schůzka naplánována",
+      "meetingUpdated": "Schůzka upravena",
+      "meetingCanceled": "Schůzka zrušena",
+      "meetingCompleted": "Schůzka dokončena"
+    },
+    "validation": {
+      "fullNameRequired": "Jméno je povinné.",
+      "fullNameMax": "Jméno je příliš dlouhé.",
+      "emailMax": "E-mail je příliš dlouhý.",
+      "emailInvalid": "E-mail není platný.",
+      "phoneMax": "Telefon je příliš dlouhý.",
+      "companyMax": "Firma je příliš dlouhá.",
+      "positionMax": "Pozice je příliš dlouhá.",
+      "notesMax": "Poznámky jsou příliš dlouhé.",
+      "tagsMax": "Štítky jsou příliš dlouhé.",
+      "titleRequired": "Název je povinný.",
+      "titleMax": "Název je příliš dlouhý.",
+      "scheduledAtRequired": "Čas je povinný.",
+      "durationInvalid": "Délka musí být 1–1440 minut.",
+      "locationMax": "Místo je příliš dlouhé.",
+      "bodyMax": "Poznámka je příliš dlouhá."
+    }
+  },
   "files": {
     "dropzone": {
       "ariaLabel": "Nahrát soubor — přetáhněte sem nebo klikněte pro výběr",
@@ -437,7 +561,8 @@
     "profile": "Profil",
     "signOut": "Odhlásit se",
     "users": "Uživatelé",
-    "platformProducts": "Produkty"
+    "platformProducts": "Produkty",
+    "crm": "CRM"
   },
   "notifications": {
     "badge": {

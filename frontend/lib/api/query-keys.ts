@@ -15,4 +15,5 @@ export const queryRoots = {
   entitlements: ["entitlements"] as const,
   admin: ["admin"] as const,
   marketing: ["marketing"] as const,
+  crm: ["crm"] as const,
 } as const;

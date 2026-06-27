@@ -185,6 +185,130 @@
     "save": "Save",
     "search": "Search"
   },
+  "crm": {
+    "page": {
+      "metaTitle": "CRM — Contacts",
+      "heading": "Contacts",
+      "description": "Manage your contacts, log interactions and plan meetings.",
+      "contactMetaTitle": "CRM — Contact",
+      "backToContacts": "Back to contacts",
+      "meetingsMetaTitle": "CRM — Meetings"
+    },
+    "table": {
+      "name": "Name",
+      "email": "Email",
+      "company": "Company",
+      "status": "Status",
+      "open": "Open",
+      "delete": "Delete",
+      "meetingTitle": "Title",
+      "when": "When",
+      "duration": "Duration",
+      "minutes": "{count} min"
+    },
+    "status": {
+      "lead": "Lead",
+      "active": "Active",
+      "customer": "Customer",
+      "archived": "Archived"
+    },
+    "meetingStatus": {
+      "planned": "Planned",
+      "done": "Done",
+      "canceled": "Canceled",
+      "no_show": "No-show"
+    },
+    "interactionType": {
+      "call": "Call",
+      "email": "Email",
+      "note": "Note",
+      "meeting": "Meeting"
+    },
+    "filter": {
+      "status": "Status",
+      "allStatuses": "All statuses"
+    },
+    "contacts": {
+      "new": "New contact",
+      "edit": "Edit",
+      "notFound": "Contact not found.",
+      "emptyTitle": "No contacts yet",
+      "emptyDescription": "Add your first contact to get started."
+    },
+    "contactForm": {
+      "createTitle": "New contact",
+      "editTitle": "Edit contact",
+      "fullName": "Full name",
+      "email": "Email",
+      "phone": "Phone",
+      "company": "Company",
+      "position": "Position",
+      "status": "Status",
+      "tags": "Tags",
+      "tagsPlaceholder": "comma, separated",
+      "notes": "Notes",
+      "save": "Save",
+      "saving": "Saving…"
+    },
+    "interactionForm": {
+      "type": "Type",
+      "body": "Note",
+      "bodyPlaceholder": "What happened?",
+      "add": "Add"
+    },
+    "timeline": {
+      "heading": "Timeline",
+      "empty": "No interactions logged yet."
+    },
+    "meetings": {
+      "heading": "Meetings",
+      "new": "Schedule",
+      "complete": "Complete",
+      "cancel": "Cancel",
+      "emptyTitle": "No meetings",
+      "emptyDescription": "Schedule a meeting to see it here.",
+      "pageHeading": "Meetings",
+      "pageDescription": "Your upcoming and past meetings."
+    },
+    "meetingForm": {
+      "createTitle": "Schedule meeting",
+      "editTitle": "Edit meeting",
+      "title": "Title",
+      "scheduledAt": "When",
+      "duration": "Duration (min)",
+      "location": "Location",
+      "notes": "Notes",
+      "save": "Save",
+      "saving": "Saving…"
+    },
+    "toast": {
+      "contactCreated": "Contact created",
+      "contactUpdated": "Contact updated",
+      "contactDeleted": "Contact deleted",
+      "interactionAdded": "Interaction added",
+      "meetingCreated": "Meeting scheduled",
+      "meetingUpdated": "Meeting updated",
+      "meetingCanceled": "Meeting canceled",
+      "meetingCompleted": "Meeting completed"
+    },
+    "validation": {
+      "fullNameRequired": "Name is required.",
+      "fullNameMax": "Name is too long.",
+      "emailMax": "Email is too long.",
+      "emailInvalid": "Email is not valid.",
+      "phoneMax": "Phone is too long.",
+      "companyMax": "Company is too long.",
+      "positionMax": "Position is too long.",
+      "notesMax": "Notes are too long.",
+      "tagsMax": "Tags are too long.",
+      "titleRequired": "Title is required.",
+      "titleMax": "Title is too long.",
+      "scheduledAtRequired": "Time is required.",
+      "durationInvalid": "Duration must be 1–1440 minutes.",
+      "locationMax": "Location is too long.",
+      "bodyMax": "Note is too long."
+    }
+  },
   "files": {
     "dropzone": {
       "ariaLabel": "Upload a file — drag and drop or click to browse",
@@ -437,7 +561,8 @@
     "profile": "Profile",
     "signOut": "Sign out",
     "users": "Users",
-    "platformProducts": "Products"
+    "platformProducts": "Products",
+    "crm": "CRM"
   },
   "notifications": {
     "badge": {
