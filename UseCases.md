@@ -250,13 +250,32 @@ await queryClient.invalidateQueries({
 
 **Napises v CRM:** nic, jen frontend po uspechu posle usera na login.
 
+**Mentalni model:** Zmena hesla je credential rotation. Po uspechu uz zadna stara session nema pokracovat, ani ta aktualni v otevrenem CRM tabu. User se prihlasi znovu a dostane nove tokeny.
+
+**Co dela Identity:** overi current password, odmita stejne nove heslo, ulozi Argon2 hash a tracked save revokuje vsechny aktivni refresh tokeny usera.
+
+**Co dela frontend:** po uspesne zmene hesla vycisti BFF session pres `logoutAction()` a presmeruje na login. CRM cache z predchozi session se nema dal zobrazovat.
+
+```ts
+await changePassword({ currentPassword, newPassword });
+toast.success(t("password.changed"));
+await logoutAction();
+router.push("/login?reason=password-changed");
+```
+
+**Chyby ve formulari:** `user.current_password_invalid` patri na field `currentPassword`. Slabe heslo nebo mismatch potvrzeni chyti frontend schema/backend validator a zobrazi se u poli.
+
+**Co dela CRM backend:** nic. Pokud bezi CRM worker z predchozi akce, jeho behavior se ridi vlastnim stavem operace/ownerem, ne tim, ze user zmenil heslo.
+
+**Co nepises:** change password v CRM modulu, endpoint s `userId` v body, zachovani otevrene CRM session po password rotation, vlastni password policy mimo Identity.
+
 **EC:**
 
-- EC031 spatne current password vraci generic 401.
-- EC032 slabe nove heslo vraci validation error.
-- EC033 po uspechu uz stara session nema pokracovat.
-- EC034 frontend musi vycistit auth state a query cache.
-- EC035 zmena hesla nesmi byt dostupna pres cizi user id.
+- EC031 spatne current password vraci generic 401 → formular mapuje `user.current_password_invalid` na current password pole.
+- EC032 slabe nove heslo vraci validation error → CRM neudrzuje vlastni password rules.
+- EC033 po uspechu uz stara session nema pokracovat → redirect na login, zadne pokracovani v CRM workspace.
+- EC034 frontend musi vycistit auth state a query cache → `logoutAction` + route refresh/login, user-specific cache se bere jako stale.
+- EC035 zmena hesla nesmi byt dostupna pres cizi user id → endpoint bere usera z tokenu, nikdy z route/body.
 
 ### UC08 Admin priradi roli
 
