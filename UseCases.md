@@ -214,13 +214,31 @@ var userId = tenant.UserId
 
 **Napises v CRM:** nic. Pokud CRM zobrazuje jmeno usera, cte public profile DTO nebo drzi projekci.
 
+**Mentalni model:** Profil je self-service nastaveni uzivatele. CRM nema menit profil, pokud zrovna nestavis account/profile obrazovku. CRM muze profil zobrazit, ale owner zmen je Identity.
+
+**Frontend pouziti:** po update invaliduj `accountQueries.profile()`. Pokud CRM header/sidebar zobrazuje jmeno, automaticky se prepocita z Identity cache.
+
+```ts
+await queryClient.invalidateQueries({
+  queryKey: accountQueries.profile().queryKey,
+});
+```
+
+**Locale:** zmena locale je UI preference. Frontend po ulozeni muze nastavit `NEXT_LOCALE` cookie a reloadnout/refreshnout UI. CRM komponenty nesmi mit vlastni paralelni locale setting.
+
+**Proc neni event:** `UpdateProfileHandler` nic nepublikuje, protoze dnes neni skutecny downstream consumer. Nepridavej event "pro jistotu". Pokud CRM opravdu potrebuje local projection display name, nejdriv pridej jasny consumer a GDPR erase/update pravidla.
+
+**Concurrent edit:** handler pouziva tracked entity + xmin/concurrency retry. CRM nema pridavat manualni rowversion ani vlastni lock kolem Identity profilu.
+
+**Co nepises:** edit profilu v CRM modulu, update Identity Core entity z CRM, locale preference v CRM tabulce, event bez consumeru, raw SQL update profilu.
+
 **EC:**
 
-- EC026 prazdne nebo whitespace display name se normalizuje na `null`.
-- EC027 locale musi projit validaci.
-- EC028 po ulozeni invaliduj `accountQueries.profile()`.
-- EC029 soubezne editace serializuje xmin a retry behavior.
-- EC030 profile update nepousti event, dokud neni skutecny consumer.
+- EC026 prazdne nebo whitespace display name se normalizuje na `null` → CRM UI musi umet fallback na email/inicialy.
+- EC027 locale musi projit validaci → CRM neprijima libovolny locale string mimo platform supported locales.
+- EC028 po ulozeni invaliduj `accountQueries.profile()` → jinak header/sidebar ukaze stare jmeno nebo locale.
+- EC029 soubezne editace serializuje xmin a retry behavior → CRM nedela vlastni optimistic overwrite Identity profilu.
+- EC030 profile update nepousti event, dokud neni skutecny consumer → zadne "profile changed" eventy jen do budoucna.
 
 ### UC07 Zmena hesla
 
