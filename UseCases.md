@@ -1526,17 +1526,43 @@ timeout mechanismus misto Billing hold expiry/reconcile.
 
 **Pouzijes:** `GET /billing/packages`.
 
-**Co se stane:** Billing vrati koupitelne credit packages.
+**Co se stane:** Billing vrati koupitelne credit packages pro aktualni tenant: aktivni tenant packages plus pripadne
+platform-global packages. Seradi je stabilne podle `Price`, `Name`, `Id`.
 
-**Napises v CRM:** nic.
+**Mentalni model:** Public package catalogue je zdroj pravdy pro to, co si uzivatel muze koupit. Frontend ho nacte,
+zobrazi karty a checkout spusti podle vraceneho `id`. Ceny, currency a credit amount se nehardcoduji v CRM.
+
+**Frontend pouziti:**
+
+```tsx
+const { data: packages, isLoading } = usePackages();
+
+return packages?.map((pkg) => (
+  <PackageCard key={pkg.id} pkg={pkg} />
+));
+```
+
+**Response shape:** `id`, `name`, `creditAmount`, `price`, `currency`, `bucketExpiryDays`. `bucketExpiryDays=null`
+znamena, ze kredity z balicku neexpiruji.
+
+**Checkout navaznost:** Po vyberu balicku nevolas obecny UC24 one-off checkout. Pouzijes package checkout
+`POST /billing/packages/{packageId}/checkout`, protoze ten zalozi purchase sagu a metadata pro grant kreditu.
+
+**Backend / CRM pouziti:** CRM bezne nepotrebuje vlastni package katalog. Pokud ma CRM obrazovku "dobij kredity",
+embedne Billing packages komponentu nebo vola `GET /billing/packages` a pouzije vracene ids.
+
+**Co nepises:** hardcoded package ids, cached price table v CRM, checkout inactive package, nebo vlastni grant po
+kliknuti na package kartu.
 
 **EC:**
 
 - EC161 disabled package se neprodava → public list vraci jen `Active=true`; checkout inactive package odmita.
-- EC162 stabilni sort order → public list radi `Price`, potom `Name`, potom `Id`.
-- EC163 cena a kredit jsou Billing source of truth → response nese `creditAmount`, `price`, `currency`, `bucketExpiryDays`.
-- EC164 stale cache po admin edit → po update inactive public endpoint package nevrati; FE ma invalidovat billing package query.
-- EC165 CRM nehardcoduje package ids → CRM bere ids a ceny z `GET /billing/packages`.
+- EC162 stabilni sort order → public list radi `Price`, potom `Name`, potom `Id`, aby UI neskakalo.
+- EC163 cena a kredit jsou Billing source of truth → response nese `creditAmount`, `price`, `currency`,
+  `bucketExpiryDays`.
+- EC164 stale cache po admin edit → po update inactive public endpoint package nevrati; FE ma invalidovat billing package
+  query.
+- EC165 CRM nehardcoduje package ids → CRM bere ids a ceny z `GET /billing/packages` a checkoutuje vraceny `id`.
 
 ### UC34 Admin package list
 
