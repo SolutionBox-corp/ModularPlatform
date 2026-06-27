@@ -1201,17 +1201,57 @@ custom retry loop, nebo vlastni Stripe SDK volani mimo `IStripeGateway`.
 
 **Pouzijes:** `GET /billing/credits/balance` nebo public query.
 
-**Co se stane:** Billing vrati aktualni projection `posted/pending/available`.
+**Co se stane:** Billing vrati autoritativni ulozenou projekci kreditu pro prihlaseneho usera:
+`posted`, `pending`, `available`. Hodnota `available` je presne to, co pozdejsi reservation dovoli utratit.
 
-**Napises v CRM:** UI muze zobrazit balance, ale backend placene akce vzdy vola reserve.
+**Mentalni model:** Balance je read model pro UX. Ukazuje uzivateli "mas zhruba tolik k utraceni", ale neni to lock.
+Dva requesty muzou prijit soucasne, proto placena CRM akce nesmi delat jen `if (balance.available >= price)`.
+
+**Frontend pouziti:**
+
+```tsx
+const { data: balance, isLoading } = useCreditBalance();
+
+return <MoneyAmount value={balance?.available ?? 0} />;
+```
+
+`CreditBalanceCard` uz pouziva `billingQueries.balance()` a realtime provider invaliduje billing root po credit eventech,
+takze karta po reserve/confirm/release refetchne.
+
+**Backend / CRM pouziti:** Pro zobrazeni stavu volej query. Pro placenou akci pouzij lifecycle:
+
+```csharp
+var reservation = await dispatcher.Send(
+    new ReserveCreditsCommand(userId, amount: 25, HoldMinutes: 10), ct);
+
+try
+{
+    await dispatcher.Send(new RunCrmAiEnrichmentCommand(contactId), ct);
+    await dispatcher.Send(new ConfirmSpendCommand(userId, reservation.ReservationId), ct);
+}
+catch
+{
+    await dispatcher.Send(new ReleaseHoldCommand(userId, reservation.ReservationId), ct);
+    throw;
+}
+```
+
+**Response shape:** `CreditBalanceResponse(accountId, userId, posted, pending, available)`. `posted` = historicky
+pripsano minus confirmed spend podle projekce, `pending` = drzeni/holds, `available = posted - pending`.
+
+**Co nepises:** vlastni `crm_credit_balance`, vypocet balance z ledgeru v CRM, client-side security check, nebo spend bez
+reservation.
 
 **EC:**
 
-- EC131 chybejici account → registrace provisionuje zero account; primy query bez accountu vraci `credit.account_not_found`.
+- EC131 chybejici account → registrace provisionuje zero account; primy query bez accountu vraci
+  `credit.account_not_found`.
 - EC132 UI balance je orientacni, neni security → placene akce musi jit pres reserve/confirm/release, ne pres UI hodnotu.
-- EC133 po reserve/confirm/release invaliduj balance → endpoint vraci ulozenou projekci po kazde mutaci.
+- EC133 po reserve/confirm/release invaliduj balance → endpoint vraci ulozenou projekci po kazde mutaci; FE pouziva
+  billing query invalidaci/realtime refresh.
 - EC134 balance je user/tenant scoped → endpoint bere usera z tokenu; RLS brani cteni ciziho accountu.
-- EC135 CRM nepocita balance ručně z ledgeru → CRM vola `GET /billing/credits/balance` nebo Billing query.
+- EC135 CRM nepocita balance z ledgeru → CRM vola `GET /billing/credits/balance` nebo Billing query, protoze ledger je
+  auditni kniha, ne rychly read model.
 
 ### UC28 Credit ledger
 
