@@ -1146,17 +1146,54 @@ primo v endpointu, nebo custom "already processed" tabulku mimo saga/ledger idem
 
 **Pouzijes:** `POST /billing/webhooks/stripe`.
 
-**Co se stane:** Billing prijme Stripe event a routuje ho do commandu/sagy.
+**Co se stane:** Stripe zavola platform webhook. HTTP endpoint overi podpis nad raw body, ulozi event do
+`stripe_events` pod unique `StripeEventId` a ve stejne transakci pres Wolverine outbox enqueue-ne
+`ProcessStripeEventMessage`. Samotne money/subscription zmeny dela az Worker.
 
-**Napises v CRM:** nic.
+**Mentalni model:** Tohle je Stripe platform/router webhook, ne tenant GoPay/Stripe callback z UC25. Je to obecny
+Stripe event pipeline pro package purchases, subscriptions, invoice credits a reconcile. HTTP cast je jen ingest.
+
+**Flow:**
+
+```mermaid
+flowchart LR
+  Stripe["Stripe webhook"] --> Api["POST /billing/webhooks/stripe"]
+  Api --> Sig{"Valid signature?"}
+  Sig -- no --> Bad["400, nic neulozit"]
+  Sig -- yes --> Store["stripe_events UNIQUE StripeEventId"]
+  Store --> Outbox["outbox ProcessStripeEventMessage"]
+  Outbox --> Worker["Worker ProcessStripeEventCommand"]
+  Worker --> Refetch["IStripeGateway.GetEventAsync(eventId)"]
+  Refetch --> Route{"Typ eventu"}
+  Route --> Package["CreditPurchaseConfirmed -> saga"]
+  Route --> Sub["UpsertSubscriptionFromStripe"]
+  Route --> Invoice["GrantSubscriptionCredits"]
+  Route --> Topup["CreditTopUpCommand"]
+```
+
+**Router pravidlo:** Worker refetchuje live Stripe event pres `IStripeGateway`. Neveri poradi webhooku ani minimal
+payloadu. `checkout.session.completed` pro delayed payment methods grantuje jen kdyz `PaymentStatus` je `paid` nebo
+`no_payment_required`; unpaid/failed eventy negrantuji.
+
+**Reconcile:** Kdyz event zustane `ProcessedAt IS NULL` dele nez 30 minut, `ReconcileStripeCommand` ho znovu posle do
+outboxu. Stejny job porovnava local subscription mirror proti live Stripe stavu a opravuje drift.
+
+**Napises v CRM:** nic. CRM muze jen reagovat na finalni Billing event/status/credit balance. Pokud potrebujes vlastni
+paid workflow, kopiruj pattern: ingest minimalne, work durable ve Workeru, idempotency key, reconcile.
+
+**Co nepises:** ledger grant v HTTP webhook endpointu, trust minimal Stripe payloadu, raw SQL nad `stripe_events`,
+custom retry loop, nebo vlastni Stripe SDK volani mimo `IStripeGateway`.
 
 **EC:**
 
-- EC126 invalid signature → 400 pred persistenci, nic se neulozi.
-- EC127 redelivery → stejny signed event id je ingest exactly-once pres unique `stripe_events`.
-- EC128 unknown event type → worker refetchne event, oznaci `ProcessedAt`, ale neprovede ledger side effect.
-- EC129 event router refetchuje live state → test posila minimal payload, handler bere skutecny event z `IStripeGateway`.
-- EC130 stuck event resi retry/DLQ/reconcile → failing worker message jde do DLQ; reconcile requeue/regrant flow je otestovany.
+- EC126 invalid signature → 400 pred persistenci, nic se neulozi a Stripe vi, ze event nebyl prijaty.
+- EC127 redelivery → stejny signed event id je ingest exactly-once pres unique `stripe_events`; concurrent duplicate
+  prohraje unique race a vrati 200 no-op.
+- EC128 unknown event type → Worker refetchne event, oznaci `ProcessedAt`, ale neprovede ledger side effect.
+- EC129 event router refetchuje live state → test posila minimal payload; handler bere skutecny event z
+  `IStripeGateway`, aby byl out-of-order safe.
+- EC130 stuck event resi retry/DLQ/reconcile → failing worker message jde do retry/DLQ; reconcile znovu enqueue-ne
+  stare unprocessed eventy a paid stuck purchases regrantuje idempotentne.
 
 ### UC27 Credit balance
 
