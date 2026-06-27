@@ -1033,17 +1033,64 @@ fake provider v produkci, nebo vlastni payment SDK volani mimo `IPaymentGatewayR
 
 **Pouzijes:** `POST /billing/payments/checkout`.
 
-**Co se stane:** Billing vybere provider podle tenant configu a vytvori checkout.
+**Co se stane:** Billing vytvori one-off checkout na platebni brane konkretniho tenant workspace. Resolver pouzije
+`PaymentPlane.Tenant`, nacte provider config z UC23, vytvori checkout u providera a vrati `providerPaymentId` +
+`redirectUrl`.
 
-**Napises v CRM:** jen redirect/link na hotovy checkout, pokud CRM prodava tenant-plane vec.
+**Mentalni model:** Tohle je tenant-plane platba: uzivatel nebo zakaznik plati tenantovi. Platforma jen poskytuje
+bezpecny gateway wrapper. CRM muze tento endpoint pouzit, kdyz chce prodat vlastni CRM vec, ale nesmi si samo spravovat
+provider SDK ani webhook state.
+
+**Request priklad:**
+
+```json
+{
+  "amountMinorUnits": 25000,
+  "currency": "CZK",
+  "description": "CRM premium report"
+}
+```
+
+**Frontend pouziti:**
+
+```tsx
+const checkout = await apiFetch<{
+  providerPaymentId: string;
+  redirectUrl: string;
+}>("billing/payments/checkout", {
+  method: "POST",
+  body: {
+    amountMinorUnits: price.amountMinorUnits,
+    currency: price.currency,
+    description: "CRM premium report",
+  },
+});
+
+window.location.assign(checkout.redirectUrl);
+```
+
+**Backend / CRM pouziti:** CRM by typicky nemelo brat cenu primo z klienta. Pokud CRM prodava vlastni produkt,
+CRM backend ma nejdriv vybrat server-authoritative price/package a az potom zavolat Billing command/endpoint s castkou.
+Tento obecny endpoint validuje jen technicky amount/currency; business pravidlo "tento report stoji 250 CZK" patri do
+CRM nebo do billing catalogue.
+
+**Co se stane po platbe:** Samotny checkout nic negrantuje. Provider callback jde do UC25 webhooku, kde Billing
+refetchne stav platby a az potom spusti ledger/sagu nebo jiny potvrzovaci flow.
+
+**Co nepises:** Stripe/GoPay SDK ve frontend CRM, `providerPaymentId` jako dukaz zaplaceni, fallback na platform gateway,
+nebo ulozeni vlastniho checkout state bez idempotency/reconciliation.
 
 **EC:**
 
 - EC116 provider config missing → cisty 422 `payment.gateway_not_configured`, zadny fallback na cizi tenant gateway.
-- EC117 amount nebo currency invalid → validator vrati 400 pred volanim providera.
-- EC118 checkout expired → provider stav se resi pres webhook/re-fetch, CRM ma znovu zavolat checkout endpoint a nedrzet vlastni expiraci.
-- EC119 provider failure ma byt user-friendly error → runtime failure gateway se mapuje na 422 `payment.gateway_inactive`, ne 500.
-- EC120 CRM nevola Stripe/GoPay SDK primo → CRM dostane jen `providerPaymentId` a `redirectUrl`.
+- EC117 amount nebo currency invalid → FluentValidation vrati 400 pred volanim providera; `amountMinorUnits` musi byt
+  > 0 a `currency` ma presne 3 znaky.
+- EC118 checkout expired → provider stav se resi pres webhook/re-fetch; CRM ma vytvorit novy checkout, ne drzet vlastni
+  expiraci jako pravdu.
+- EC119 provider failure ma byt user-friendly error → runtime failure gateway se mapuje na 422 `payment.gateway_inactive`,
+  ne 500.
+- EC120 CRM nevola Stripe/GoPay SDK primo → CRM dostane jen `providerPaymentId` a `redirectUrl`; potvrzeni platby ceka
+  na webhook/reconcile.
 
 ### UC25 Tenant payment webhook
 
