@@ -623,15 +623,38 @@ app.MapPost("/crm/contacts", ...)
 
 **Napises v CRM:** nic, pripadne handler na tenant provisioned pro vlastni seed.
 
+**Mentalni model:** Tenant je workspace/platform boundary. Tenancy ho vytvari, pridava default entitlements a publikuje fakt "tenant vznikl". CRM tenant nikdy neprovisionuje samo.
+
+**Default entitlements:** novy tenant dostane jen default product modules. CRM zustava vypnute, dokud ho admin nezapne pres entitlement. Seed CRM dat proto nesmi predpokladat, ze kazdy tenant ma CRM aktivni.
+
+**Kdy CRM reaguje:** pokud CRM potrebuje tenant-level defaults, napr. default pipeline stages nebo default settings, pridej public Wolverine handler a internal command.
+
+```csharp
+public sealed class SeedCrmTenantHandler
+{
+    public Task Handle(
+        TenantProvisionedIntegrationEvent message,
+        IDispatcher dispatcher,
+        CancellationToken ct) =>
+        dispatcher.Send(new EnsureCrmTenantDefaultsCommand(
+            TenantId: message.TenantId,
+            IdempotencyKey: $"tenant-provisioned:{message.TenantId:N}"), ct);
+}
+```
+
+**Idempotency:** seed command ma mit unique key podle `TenantId` nebo upsert logiku. Event muze byt retrynuty a handler nesmi zalozit default pipeline dvakrat.
+
+**Entitlement check v seed:** pokud seed dava smysl jen pro enabled CRM, command nejdriv zkontroluje entitlement. Pokud seed ma byt pripraven dopredu, musi byt neviditelny, dokud `.RequireModule("crm")` nepusti endpointy.
+
+**Co nepises:** `CreateTenantCommand` v CRM, vlastni tenant registry, zapis do `tenants`/`tenant_entitlements` mimo Tenancy, seed bez unique guardu, default zapnuti CRM pro vsechny tenanty bez produktu/entitlement rozhodnuti.
+
 **EC:**
 
-- EC076 jen platform admin: bez `platform.tenants.manage` vraci endpoint 403.
-- EC077 duplicate tenant key/subdomain: stejny subdomain vrati 409 a nevznikne druhy tenant.
-- EC078 provisioning musi byt atomicky: po uspechu existuje tenant i default entitlements ve stejne platform flow.
-- EC079 CRM neprovisionuje tenant bokem: CRM si tenant nevytvari; pokud potrebuje seed, reaguje na
-  `TenantProvisionedIntegrationEvent`.
-- EC080 CRM seed handler musi byt idempotentni: budoucí CRM handler musi pouzit vlastni unique key / upsert podle
-  `TenantId`, protoze event muze prijit znovu.
+- EC076 jen platform admin → bez `platform.tenants.manage` vraci endpoint 403.
+- EC077 duplicate tenant key/subdomain → stejny subdomain vrati 409 a nevznikne druhy tenant.
+- EC078 provisioning musi byt atomicky → po uspechu existuje tenant i default entitlements ve stejne platform flow.
+- EC079 CRM neprovisionuje tenant bokem → CRM si tenant nevytvari; pokud potrebuje seed, reaguje na `TenantProvisionedIntegrationEvent`.
+- EC080 CRM seed handler musi byt idempotentni → pouzij unique key / upsert podle `TenantId`, protoze event muze prijit znovu.
 
 ### UC17 Platform admin listuje tenanty
 
