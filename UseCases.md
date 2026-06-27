@@ -666,15 +666,34 @@ public sealed class SeedCrmTenantHandler
 
 **Napises v CRM:** nic.
 
+**Mentalni model:** `GET /tenant/admin/tenants` je platform registry list. Je pro provozovatele SaaS, ne pro bezneho uzivatele CRM uvnitr jednoho tenant workspace.
+
+**Frontend pouziti:** platform admin UI pouzije `platformQueries.tenants`. Query patri pod admin root.
+
+```ts
+const tenants = useQuery(platformQueries.tenants({
+  limit: 50,
+  offset,
+}));
+```
+
+**Response shape:** list vraci jen registry summary: tenant id, subdomain, name, status, placement, createdAt. Nevraci secrets, placement internals, entitlement detail ani CRM config.
+
+**Paging:** handler clampuje `limit` na rozumny rozsah a pouziva `offset`. Platform UI nesmi nacitat vsechny tenanty naraz.
+
+**Cache:** po `provisionTenant` nebo `setEntitlement` invaliduj `queryRoots.admin`, protoze tenant list/detail/status se mohou zmenit.
+
+**CRM alternativa:** pokud CRM potrebuje "current tenant info" pro header nebo nastaveni, nepouzij platform list. Udelej tenant-scoped endpoint nebo cti entitlements/current tenant view, podle toho co opravdu potrebujes.
+
+**Co nepises:** CRM dropdown vsech tenantu, cross-tenant CRM switcher pro normalni usery, response s infra/secrets, unbounded export, local copy tenant registry v CRM.
+
 **EC:**
 
-- EC081 paging a limit: endpoint vraci `limit`, `offset`, `total` a neprekryvajici se stranky.
-- EC082 platform-admin only: bez `platform.tenants.manage` vraci endpoint 403.
-- EC083 nepouzivat v beznem CRM tenant UI: je to platform-admin registry list, ne tenant CRM obrazovka.
-- EC084 list nesmi leakovat citliva data: response shape neobsahuje `dbDsnSecretRef`, `infraRevision`, moduly ani
-  entitlements.
-- EC085 stale list po provision nebo entitlement change: `useProvisionTenant` i `useSetEntitlement` invaliduji
-  `queryRoots.admin`.
+- EC081 paging a limit → endpoint vraci `limit`, `offset`, `total` a neprekryvajici se stranky.
+- EC082 platform-admin only → bez `platform.tenants.manage` vraci endpoint 403.
+- EC083 nepouzivat v beznem CRM tenant UI → je to platform-admin registry list, ne tenant CRM obrazovka.
+- EC084 list nesmi leakovat citliva data → response shape neobsahuje secrets, infra internals, moduly ani entitlements detail.
+- EC085 stale list po provision nebo entitlement change → `useProvisionTenant` i `useSetEntitlement` invaliduji `queryRoots.admin`.
 
 ### UC18 Tenant detail
 
