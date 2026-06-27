@@ -1798,15 +1798,34 @@ row po `Completed`.
 
 **Pouzijes:** `GET /billing/subscriptions/plans`.
 
-**Co se stane:** Billing vrati config-driven plany.
+**Co se stane:** Billing vrati enabled + valid subscription plany z konfigurace `Billing:Subscriptions:Plans`. Klient
+vidi jen stabilni `planKey`, `creditsPerPeriod` a `bucketExpiryDays`; provider `StripePriceId` zustava server-side.
 
-**Napises v CRM:** jen mapovani plan -> CRM capability, pokud produkt potrebuje.
+**Mentalni model:** Subscription plan je katalog predplatneho, ne stav uzivatelova predplatneho. Stav aktualniho usera
+ctes pres UC41. Plan catalogue rika "co lze koupit".
+
+**Frontend pouziti:**
+
+```tsx
+const { data: plans } = useSubscriptionPlans();
+
+plans?.map((plan) => (
+  <SubscriptionPlanCard key={plan.planKey} plan={plan} />
+));
+```
+
+**Backend / CRM pouziti:** Pokud CRM potrebuje mapovat plan na capability, ukladej `planKey`, ne Stripe price id.
+Napriklad `pro` muze odemknout CRM AI limit, ale samotna platba a grant kreditu patri do Billing.
+
+**Co nepises:** raw parse `IConfiguration` v CRM, price id v klientovi, plan sort podle frontend pole, nebo hardcoded
+list planu mimo Billing response.
 
 **EC:**
 
-- EC191 config missing/invalid → endpoint vrati jen validni plany; kdyz neni zadny validni enabled plan, vrati prazdny list.
+- EC191 config missing/invalid → endpoint vrati jen validni plany; kdyz neni zadny validni enabled plan, vrati prazdny
+  list.
 - EC192 disabled plan → `Enabled=false` plan se v API neukaze.
-- EC193 stale frontend cache → FE ma refetchovat/cachovat `GET /billing/subscriptions/plans` jako konfiguracni katalog.
+- EC193 stale frontend cache → FE ma cachovat/refetchovat `GET /billing/subscriptions/plans` jako konfiguracni katalog.
 - EC194 plan key musi byt stabilni → response radi podle `planKey`; CRM uklada jen `planKey`, ne Stripe price id.
 - EC195 CRM neparsuje raw Billing config → API neposila `StripePriceId`; CRM pouziva response DTO.
 
