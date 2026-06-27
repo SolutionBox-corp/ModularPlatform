@@ -176,13 +176,33 @@ router.refresh();
 
 **Napises v CRM:** nic. Nepises vlastni `/crm/me`.
 
+**Mentalni model:** "Kdo jsem?" je Identity otazka. CRM nema mit vlastni profil usera, pokud opravdu nepotrebuje CRM-specificke preference. Pro email, display name a locale pouzij Identity DTO.
+
+**Frontend pouziti:** CRM page muze cist profile query pro hlavicku, avatar fallback nebo locale-aware UI. Query key patri pod Identity root, ne pod CRM.
+
+```ts
+const profile = useQuery(accountQueries.profile());
+const displayName = profile.data?.displayName ?? profile.data?.email;
+```
+
+**Backend pouziti:** kdyz CRM potrebuje caller id, nevola profil endpoint. Vezme `tenantContext.UserId`. Profil endpoint je pro UI/read DTO, ne pro autorizacni rozhodnuti uvnitr handleru.
+
+```csharp
+var userId = tenant.UserId
+    ?? throw new UnauthorizedException("auth.required", "Authentication required.");
+```
+
+**PII detail:** `Email` a `DisplayName` jsou encrypted at rest a citelne pres model converter/API. CRM si je nema kopirovat do vlastnich tabulek jen proto, ze chce zobrazit jmeno. Pokud delas CRM projekci kvuli performance, musi byt PII encrypted/erasable a synchronizovana pres povoleny pattern.
+
+**Co nepises:** `/crm/me`, request body `userId`, cross-module join na `users`, cteni Identity Core entity, vlastni cache profilu bez GDPR/erasure cleanup.
+
 **EC:**
 
-- EC021 request bez tokenu vraci 401.
-- EC022 erased/deleted user nema vratit normalni profil.
-- EC023 encrypted `Email` a `DisplayName` se ctou pres converter.
-- EC024 tenant filter nesmi byt obejity.
-- EC025 klient nikdy neposila user id pro vlastni profil.
+- EC021 request bez tokenu vraci 401 → CRM page bez session redirectuje/loginuje, nesklada fake profile.
+- EC022 erased/deleted user nema vratit normalni profil → CRM UI nesmi ukazovat cached profile po auth/profile 404/401.
+- EC023 encrypted `Email` a `DisplayName` se ctou pres converter → CRM necte ciphertext ani neobchazi Identity API.
+- EC024 tenant filter nesmi byt obejity → profil query je scoped tokenem; CRM nepouziva system context pro user UI.
+- EC025 klient nikdy neposila user id pro vlastni profil → endpoint ignoruje body/route id; CRM handler taky bere caller id z tokenu.
 
 ### UC06 Editace profilu
 
