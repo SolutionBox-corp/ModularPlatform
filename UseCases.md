@@ -1704,17 +1704,48 @@ client-side "disable" jen skrytim karty bez server update.
 
 **Pouzijes:** `POST /billing/packages/{packageId}/checkout`.
 
-**Co se stane:** Billing zalozi purchase sagou a checkout session.
+**Co se stane:** Billing zalozi accept krok nakupu: najde aktivni package v tenant/global katalogu, vytvori provider
+checkout na tenant gateway, do metadata vlozi `purchase_type=package`, `purchase_id`, `user_id`, `credit_amount`,
+`tenant_id`, a pres outbox posle `CreditPurchaseStarted`. Worker z toho materializuje `CreditPurchaseSaga`.
 
-**Napises v CRM:** redirect do checkoutu.
+**Mentalni model:** Tohle jeste nepridava kredity. Je to jen pending purchase + redirect. Kredity se grantnou az kdyz
+tenant webhook z UC25 potvrdi `Paid` a saga zavola UC29 top-up s idempotency key `purchase:{purchaseId}`.
+
+**Frontend pouziti:**
+
+```tsx
+const checkout = useCheckoutPackage();
+
+<Button
+  disabled={checkout.isPending}
+  onClick={() => checkout.mutate(pkg.id)}
+>
+  Buy
+</Button>
+```
+
+`useCheckoutPackage()` po uspechu dela safe redirect na backend-provided `checkoutUrl`. Button musi byt disabled pri
+pending stavu, protoze endpoint nema client idempotency key a dvojklik zalozi dve samostatne pending purchases.
+
+**Response shape:** `purchaseId`, `checkoutSessionId`, `checkoutUrl`. `purchaseId` si UI muze ulozit pro UC38 status
+polling. `checkoutSessionId` neni dukaz zaplaceni.
+
+**Backend / CRM pouziti:** CRM vetsinou jen embedne Billing purchase flow. Pokud CRM potrebuje vlastni paid product,
+kopiruj tenhle pattern: pending durable state, provider metadata, webhook confirm, idempotent grant/side effect.
+
+**Co nepises:** grant kreditu pri clicku, grant podle success redirectu, checkout inactive package, nebo vlastni Stripe
+checkout metadata mimo Billing.
 
 **EC:**
 
 - EC181 package disabled/not found → unknown package vraci 404, inactive package vraci `billing.package_inactive`.
-- EC182 duplicate checkout click → bez client idempotency key backend zalozi dve oddelene pending purchases; FE musi button disableovat. Bez confirmed webhooku se nic nepripise.
+- EC182 duplicate checkout click → bez client idempotency key backend zalozi dve oddelene pending purchases; FE musi
+  button disableovat. Bez confirmed webhooku se nic nepripise.
 - EC183 provider unavailable → tenant bez payment gateway configu dostane `payment.gateway_not_configured`.
-- EC184 saga timeout → `CreditPurchaseTimeout` presune pending purchase na `Abandoned`; late confirmation stale muze grantnout.
-- EC185 kredit se grantuje az po confirmed webhooku → checkout pouze vytvori provider session + pending saga; ledger entry vznikne az po paid webhooku.
+- EC184 saga timeout → `CreditPurchaseTimeout` presune pending purchase na `Abandoned`; late confirmation stale muze
+  grantnout idempotentne.
+- EC185 kredit se grantuje az po confirmed webhooku → checkout pouze vytvori provider session + pending saga; ledger
+  entry vznikne az po paid webhooku.
 
 ### UC38 Purchase status
 
