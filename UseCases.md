@@ -1302,17 +1302,52 @@ cross-user ledger admin list bez explicitni admin slice.
 
 **Pouzijes:** `POST /billing/credits/topup`.
 
-**Co se stane:** Billing pripise kredity idempotentne.
+**Co se stane:** Billing pripise kredity na ucet prihlaseneho usera idempotentne. Vytvori bucket, ledger entry
+`Topup`, zvedne projekci `posted/available`, publikuje `CreditsToppedUpIntegrationEvent` a po commitu posle realtime
+`billing.credits_changed`.
 
-**Napises v CRM:** nic, pouzij jen admin/backoffice flow.
+**Mentalni model:** Top-up je grant primitive. Pouziva ho admin/backoffice, purchase saga, subscription invoice grant
+nebo webhook router po realne platbe. Neni to self-service endpoint, kde si bezny user muze sam pridat kredity.
+
+**HTTP request priklad pro admin hand-grant:**
+
+```json
+{
+  "amount": 750,
+  "bucketExpiryDays": null,
+  "idempotencyKey": "support-ticket-123"
+}
+```
+
+Endpoint prefixuje client key na `client:{key}`, aby se nikdy nesrazil se system keys jako `purchase:{id}` nebo
+`sub-invoice:{invoiceId}`.
+
+**Backend / CRM pouziti:** V CRM placenem workflow top-up typicky nepouzivas. Pokud uzivatel zaplatil balicek, nech to
+projit pres package checkout/webhook/sagu. Pokud support potrebuje kompenzaci, pouzij Billing admin flow s
+`billing.manage`.
+
+**Internal command pouziti:** Kdyz jsi v Billing workeru a mas duveryhodny payment event, dispatchnes:
+
+```csharp
+await dispatcher.Send(new CreditTopUpCommand(
+    userId,
+    amount,
+    BucketExpiryDays: null,
+    IdempotencyKey: $"purchase:{purchaseId}"), ct);
+```
+
+**Co nepises:** CRM tlacitko "add credits" pro normalni usery, top-up bez idempotency key, top-up pred potvrzenou
+platbou, nebo rucni update `credit_accounts.Available`.
 
 **EC:**
 
-- EC141 idempotency key required → validator vraci 400; endpoint prefixuje klientsky key jako `client:{key}`.
-- EC142 duplicate top-up nesmi dat dvoji kredit → per-account unique idempotency key vraci `alreadyApplied=true`.
-- EC143 amount musi byt kladny → validator odmita `<= 0` i oversized hodnoty.
+- EC141 idempotency key required → validator vraci 400; HTTP endpoint prefixuje klientsky key jako `client:{key}`.
+- EC142 duplicate top-up nesmi dat dvoji kredit → per-account unique idempotency key vraci `alreadyApplied=true` a
+  posted zustane stejny.
+- EC143 amount musi byt kladny → validator odmita `<= 0` i oversized hodnoty nad `1_000_000_000`.
 - EC144 account provision race → handler pri UNIQUE(UserId) race reloadne account; concurrent ensure test drzi invariant.
-- EC145 top-up endpoint musi byt permission-gated → HTTP endpoint vyzaduje `billing.manage`; bez nej 403.
+- EC145 top-up endpoint musi byt permission-gated → HTTP endpoint vyzaduje `billing.manage` a `.RequireModule("billing")`;
+  bezny user dostane 403 a nemuze si mintnout produkt zdarma.
 
 ### UC30 Reserve credits
 
