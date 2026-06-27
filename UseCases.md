@@ -1753,16 +1753,43 @@ checkout metadata mimo Billing.
 
 **Pouzijes:** `GET /billing/purchases/{purchaseId}`.
 
-**Co se stane:** Frontend polluje purchase/saga stav.
+**Co se stane:** Frontend cte user-facing stav purchase sagy. Saga row zustava v DB i po dokonceni, protoze slouzi jako
+purchase status record. Endpoint filtruje podle `UserId` z tokenu.
 
-**Napises v CRM:** nic.
+**Mentalni model:** Po package checkoutu mas `purchaseId`, ale jeste nevis, jestli provider platbu potvrdil. Tenhle
+endpoint rika, jestli purchase je `Pending`, `Abandoned` nebo `Completed`.
+
+**Frontend pouziti po navratu z checkoutu:**
+
+```tsx
+const purchase = useQuery({
+  queryKey: ["billing", "purchase", purchaseId],
+  queryFn: () => apiFetch<CreditPurchaseResponse>(`billing/purchases/${purchaseId}`),
+  refetchInterval: (query) =>
+    query.state.data?.status === "Pending" ? 2_000 : false,
+});
+```
+
+Kdyz saga row jeste neni materializovana Workerem, endpoint muze kratce vratit 404. UI to ma brat jako loading/pending
+okno, ne jako definitivni fail, pokud prave prisel z checkout startu.
+
+**Response shape:** `purchaseId`, `packageId`, `creditAmount`, `status`, `startedAt`, `resolvedAt`.
+
+**Backend / CRM pouziti:** CRM to normalne nepouziva. Pokud chce zobrazit "dobiti kreditu se zpracovava", pouzij tenhle
+endpoint nebo Billing UI. Necist `credit_purchase_sagas` naprimo.
+
+**Co nepises:** stav podle URL `success`, cross-user status endpoint, CRM DB join na purchase sagas, nebo mazani saga
+row po `Completed`.
 
 **EC:**
 
-- EC186 foreign purchase -> 404 → endpoint filtruje podle `UserId` z tokenu.
+- EC186 foreign purchase -> 404 → endpoint filtruje podle `UserId` z tokenu, takze cizi purchase nefunguje jako
+  existence oracle.
 - EC187 pending/confirmed/abandoned states → status se cte ze saga row; `Pending`, `Abandoned`, `Completed`.
-- EC188 late webhook after timeout → pozdni `CreditPurchaseConfirmed` po `Abandoned` preklopi purchase na `Completed` a zachova penize.
-- EC189 frontend polling interval a loading → FE polluje `GET /billing/purchases/{purchaseId}`; pred materializaci saga row muze kratce dostat 404/loading.
+- EC188 late webhook after timeout → pozdni `CreditPurchaseConfirmed` po `Abandoned` preklopi purchase na `Completed` a
+  zachova penize.
+- EC189 frontend polling interval a loading → FE polluje `GET /billing/purchases/{purchaseId}`; pred materializaci saga
+  row muze kratce dostat 404/loading.
 - EC190 CRM necita Billing DB → CRM pouziva endpoint/response, ne `credit_purchase_sagas` tabulku.
 
 ### UC39 Subscription plans
