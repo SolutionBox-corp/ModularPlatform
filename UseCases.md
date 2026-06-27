@@ -1658,15 +1658,43 @@ automaticky active package bez explicitniho `active` inputu.
 
 **Pouzijes:** `PUT /billing/admin/packages/{packageId}`.
 
-**Co se stane:** Admin zmeni package.
+**Co se stane:** Admin upravi tracked `CreditPackage`: jmeno, credit amount, price, expiry, active flag a
+`stripePriceId`. Handler najde package jen ve scope callerova katalogu (`TenantId`), odmita duplicate name a ulozi
+zmenu auditovane.
 
-**Napises v CRM:** nic.
+**Mentalni model:** Update meni budoucnost, ne historii. Pokud uz nekdo spustil purchase checkout, `CreditPurchaseSaga`
+ma snapshot amount/price z doby nakupu. Pozdejsi zmena package nesmi prepsat rozjete ani historicke purchases.
+
+**Request priklad:**
+
+```json
+{
+  "name": "Starter 250",
+  "creditAmount": 250,
+  "price": 8.99,
+  "bucketExpiryDays": null,
+  "active": false,
+  "stripePriceId": "price_new"
+}
+```
+
+**Frontend/admin pouziti:** `useUpdatePackage()` vola `updateCreditPackage(id, input)`. Po uspechu invaliduj admin
+package list a public package list. Kdyz `active=false`, karta musi zmizet z UC33 public katalogu, ale zustat v UC34
+admin katalogu.
+
+**Backend pravidla:** Endpoint je permission-gated pres `billing.manage`, bez `.RequireModule("billing")`. Tracked save
+znamena xmin/concurrency retry + audit interceptor. Nepouzivej `ExecuteUpdate`, protoze bys obesel audit.
+
+**Co nepises:** update historicke purchase sagy, fyzicke mazani disabled package, update ciziho tenant package, nebo
+client-side "disable" jen skrytim karty bez server update.
 
 **EC:**
 
 - EC176 not found → neznamy nebo cizi tenant package vraci 404 bez existence leaku.
-- EC177 zmena ceny nesmi prepsat historicke purchases → checkout zalozi snapshot v `credit_purchase_sagas`; pozdejsi update package ho nemeni.
-- EC178 disabled package zmizi z public listu → `active=false` se v admin listu drzi, public `GET /billing/packages` ho nevrati.
+- EC177 zmena ceny nesmi prepsat historicke purchases → checkout zalozi snapshot v `credit_purchase_sagas`; pozdejsi
+  update package ho nemeni.
+- EC178 disabled package zmizi z public listu → `active=false` se v admin listu drzi, public `GET /billing/packages` ho
+  nevrati.
 - EC179 concurrent update → tracked save + xmin/concurrency retry serializuje paralelni update bez 500.
 - EC180 audit change → update jde pres tracked `CreditPackage` a pise `billing_audit_entries`.
 
