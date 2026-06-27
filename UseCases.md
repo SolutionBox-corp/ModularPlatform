@@ -746,10 +746,9 @@ join CRM tabulek na `tenants`, nebo UI pro normalni CRM usery, ktere by ukazoval
   presne tohle, ne hardcoded seznam z klienta.
 - EC090 CRM nesmi prepisovat tenant metadata → CRM pouziva `TenantId` jako foreign id/reference, ale nemeni
   `subdomain`, `placement` ani `status`.
-- EC091 detail muze byt stale po toggle → po `SetEntitlement` invaliduj detail/list/status; jinak admin uvidi vypnuty
-  modul jako stale zapnuty.
-- EC092 placement neni routing logika pro CRM → CRM neodvozuje connection string ani region z `placement`; pokud base
-  zavede silo routing, resi to platforma.
+
+**Pozor:** po `SetEntitlement` musi UI invalidovat detail/list/status; jinak admin uvidi stale moduly. CRM take
+neodvozuje connection string ani region z `placement`; pokud base zavede silo routing, resi to platforma.
 
 ### UC19 Zapnout nebo vypnout modul tenantovi
 
@@ -757,18 +756,64 @@ join CRM tabulek na `tenants`, nebo UI pro normalni CRM usery, ktere by ukazoval
 
 **Pouzijes:** `PUT /tenant/admin/tenants/{tenantId}/entitlements/{moduleKey}`.
 
-**Co se stane:** Tenancy zmeni entitlement pro modul.
+**Co se stane:** Platform admin zapne nebo vypne modul pro konkretni tenant. Tenancy zkontroluje, ze `moduleKey`
+je znamy, najde tenant, zalozi nebo upravi `TenantEntitlement`, nastavi `Enabled/Tier`, vymaze stare `ValidTo` a ulozi
+zmenu auditovane pres EF/outbox commit.
 
-**Napises v CRM:** endpointy chranis `.RequireModule("crm")`.
+**Mentalni model:** Entitlement je produktovy vypinac. Nerika, kdo smi v CRM delat konkretni akci; to resi permissions
+uvnitr modulu. Entitlement rika jen "tenhle workspace ma CRM vubec dostupne".
+
+**Backend pouziti v novem CRM modulu:** Kazdy CRM endpoint, ktery patri do placeneho CRM produktu, dostane guard:
+
+```csharp
+app.MapPost("/crm/contacts", async (
+        CreateContactRequest request,
+        IDispatcher dispatcher,
+        CancellationToken ct) =>
+    {
+        var result = await dispatcher.Send(
+            new CreateContactCommand(request.Name, request.Email), ct);
+        return Results.Ok(ApiResponse<CreateContactResponse>.Ok(result));
+    })
+    .RequireAuthorization()
+    .RequireModule("crm")
+    .RequirePermission("crm.contacts.write")
+    .WithName("CreateCrmContact");
+```
+
+**Frontend pouziti v platform admin UI:**
+
+```tsx
+await setEntitlement({
+  tenantId,
+  moduleKey: "crm",
+  enabled: true,
+  tier: "pro",
+});
+```
+
+`useSetEntitlement` uz invaliduje admin queries i `queryRoots.entitlements`, takze admin detail a bezne nav menu pri
+dalsim requestu vidi novy stav.
+
+**Kdy pridavas novy modul key:** backend key pridej do `ProductModuleKeys`. Pokud ma byt modul defaultne dostupny
+novym tenantum, pridej ho i do `DefaultEntitled`. Pokud ho ma admin videt ve switchich, dopln i frontend
+`KNOWN_MODULE_KEYS`. Dnes je `crm` znamy backend key, ale neni defaultne zapnuty.
+
+**Co nepises:** vlastni `IsCrmEnabled` sloupec v CRM tabulkach, entitlement ulozeny v JWT, per-request DB check rucne v
+handleru, nebo mazani CRM dat pri vypnuti modulu.
 
 **EC:**
 
-- EC091 preklep v module key: neznamy key vrati 422 `tenant.module_unknown` a neulozi typo radek.
-- EC092 vypnuti CRM nema mazat CRM data automaticky: entitlement toggle meni jen `tenant_entitlements`, ne data modulu.
-- EC093 UI musi refetchnout entitlements: `useSetEntitlement` invaliduje `queryRoots.admin` i
-  `queryRoots.entitlements`.
-- EC094 backend guard je autorita: `.RequireModule(...)` cte entitlement live a blokuje primy bypass.
-- EC095 zmena entitlementu musi byt auditovatelna: update `TenantEntitlement` zapisuje `tenancy_audit_entries`.
+- EC091 preklep v module key → `crmm` vrati 422 `tenant.module_unknown` a nevytvori typo radek v
+  `tenant_entitlements`.
+- EC092 vypnuti CRM nema mazat CRM data → toggle meni jen dostupnost modulu. Kontakty, deals a soubory zustanou v CRM
+  tabulkach pro pripadne pozdejsi znovuzapnuti nebo export.
+- EC093 UI musi refetchnout entitlements → `useSetEntitlement` invaliduje `queryRoots.admin` i
+  `queryRoots.entitlements`; jinak by sidebar porad ukazoval stary stav.
+- EC094 backend guard je autorita → `.RequireModule("crm")` cte entitlement live pres `IEntitlementResolver` a pri
+  vypnutem modulu vraci 404-style `tenant.module_not_entitled`, i kdyz nekdo zavola endpoint primo.
+- EC095 zmena entitlementu musi byt auditovatelna → update `TenantEntitlement` zapisuje `tenancy_audit_entries`; pro
+  admin akce nepouzivej bypass pres raw SQL nebo neauditovane tabulky.
 
 ### UC20 Tenant invite
 
