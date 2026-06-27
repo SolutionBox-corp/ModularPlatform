@@ -329,13 +329,29 @@ app.MapPost("/crm/contacts", ...)
 
 **Napises v CRM:** nic.
 
+**Mentalni model:** Odebrani role meni budouci token snapshots. Nezabije okamzite kazdy existujici access token v otevrenych tabech. Pro normalni CRM permission je to OK; pro high-risk akci res kratkou expiraci tokenu nebo explicitni revocation politiku mimo CRM.
+
+**Co dela Identity:** najde role assignment a smaze ho tracked `Remove` + `SaveChangesAsync`. Kdyz role nebo assignment neexistuje, je to no-op.
+
+**Co dela frontend:** admin UI po revoke invaliduje `queryRoots.admin`, aby user detail/audit/list neukazoval stale role.
+
+```ts
+void queryClient.invalidateQueries({ queryKey: queryRoots.admin });
+```
+
+**Co dela CRM endpoint:** nic specialniho. Dal pouziva `.RequirePermission(...)`. Jakmile user dostane novy token bez permission, endpoint zacne vracet 403.
+
+**Audit:** security zmeny typu role revoke se nesmi delat bulk `ExecuteUpdate`/`ExecuteDelete`, protoze by obesly audit interceptor. Pouzij tracked entity.
+
+**Co nepises:** CRM role revoke endpoint, manualni mazani claims z ciziho tokenu, bulk delete role assignmentu, klientsky predpoklad "permission zmizela okamzite ve vsech tabech".
+
 **EC:**
 
-- EC041 odebrani neexistujici role assignment je no-op.
-- EC042 stary access token muze jeste chvili fungovat.
-- EC043 frontend po zmene roli refetchuje user detail.
-- EC044 security zmeny musi byt auditovane pres tracked save.
-- EC045 nepouzivat bulk `ExecuteUpdate` na auditovane security rows.
+- EC041 odebrani neexistujici role assignment je no-op → admin UI muze retrynout bez vytvoreni chyby.
+- EC042 stary access token muze jeste chvili fungovat → citlive CRM akce musi pocitat se snapshot claims.
+- EC043 frontend po zmene roli refetchuje user detail → invaliduj `queryRoots.admin` nebo konkretni user detail.
+- EC044 security zmeny musi byt auditovane pres tracked save → role revoke ma zustat ve forenzni historii.
+- EC045 nepouzivat bulk `ExecuteUpdate` na auditovane security rows → bulk operace by obesly audit/xmin.
 
 ### UC10 Admin zobrazi user detail
 
