@@ -1259,16 +1259,41 @@ reservation.
 
 **Pouzijes:** `GET /billing/credits/entries`.
 
-**Co se stane:** Billing vrati append-only ledger entries.
+**Co se stane:** Billing vrati paged append-only ledger prihlaseneho usera, newest first. Handler nejdriv najde
+`CreditAccount` podle `UserId` z tokenu a pak vrati jen entries pro tento account.
 
-**Napises v CRM:** jen link nebo embed Billing UI.
+**Mentalni model:** Ledger je auditni kniha transakci. Je skvela pro "proc mam tolik kreditu?", export a support.
+Neni to rychly stav pro rozhodovani, jestli CRM akce muze bezet. Na to je UC27 balance a UC30 reservation.
+
+**Frontend pouziti:**
+
+```tsx
+const [page, setPage] = useState(1);
+const ledger = useQuery(billingQueries.ledger(page, 20));
+```
+
+`CreditLedgerTable` uz lokalizuje zname typy (`Topup`, `Spend`, `Reservation`, `Release`, `Expiry`, `Adjustment`,
+`Refund`) a neznami typ fallbackuje na raw value, aby FE nespadl pri novem typu.
+
+**Response shape:** kazda polozka ma `id`, `direction` (`Credit`/`Debit`), `amount`, `type`, `transactionId`,
+`idempotencyKey`, `createdAt`. `transactionId` seskupuje logicky set polozek; `idempotencyKey` rika, ktera business
+operace entry vytvorila.
+
+**Backend / CRM pouziti:** CRM obvykle jen odkazuje na Billing ledger nebo embedne tabulku. Pokud potrebujes u CRM
+akce zobrazit "tato AI analyza stala 25 kreditu", uloz do CRM vlastni business audit s `reservationId`/operation id a
+ledger nech jako financni knihu.
+
+**Co nepises:** vlastni vypocet `available` z entries, edit ledger radku, delete ledger pri GDPR erasure, nebo
+cross-user ledger admin list bez explicitni admin slice.
 
 **EC:**
 
-- EC136 paging → `GET /billing/credits/entries?page=&pageSize=` vraci `PagedResponse`.
-- EC137 ledger append-only → money flow pridava `credit_entries`; zmeny stavu jdou pres nove entries/holds, ne prepis ledgeru.
+- EC136 paging → `GET /billing/credits/entries?page=&pageSize=` vraci `PagedResponse`; nenacitej cely ledger najednou.
+- EC137 ledger append-only → money flow pridava `credit_entries`; zmeny stavu jdou pres nove entries/holds, ne prepis
+  ledgeru.
 - EC138 GDPR erase ledger fyzicky nemaze → Billing ledger/account rows zustavaji kvuli AML/tax a integrite knihy.
-- EC139 ledger PII se anonymizuje podle pravidel → Billing ledger dnes nema free-text PII; erasure probiha crypto-shreddingem subject key.
+- EC139 ledger PII se anonymizuje podle pravidel → Billing ledger dnes nema free-text PII; erasure probiha
+  crypto-shreddingem subject key.
 - EC140 CRM neduplikuje ledger → CRM vola endpoint/query, nema vlastni tabulku ani vypocet ledgeru.
 
 ### UC29 Credit top-up
