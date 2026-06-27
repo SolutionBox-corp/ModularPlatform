@@ -982,18 +982,50 @@ token, nebo prime volani Stripe/GoPay SDK z CRM frontendu.
 
 **Pouzijes:** `PUT /billing/payment-gateway`.
 
-**Co se stane:** Billing ulozi provider config a secrets pres platform secrets.
+**Co se stane:** Tenant admin nastavi vlastni tenant-plane platebni branu. Billing vezme `TenantId` z tokenu, upsertne
+`payment_configurations` pro `PaymentPlane.Tenant`, vygeneruje webhook token a provider credentials ulozi do
+`tenant_secrets` pres `ISecretProtector`.
 
-**Napises v CRM:** nic, CRM neskladuje payment secrets.
+**Mentalni model:** Tohle je brana tenant -> jeho zakaznici/uzivatele. Priklad: CRM tenant chce prodavat placene
+reporty nebo kreditove balicky svym lidem. Neni to platform subscription z UC21/UC22.
+
+**Request priklad:**
+
+```json
+{
+  "provider": "stripe",
+  "currency": "EUR",
+  "stripeApiKey": "sk_live_...",
+  "stripeWebhookSecret": "whsec_...",
+  "sandbox": false
+}
+```
+
+Pro GoPay se misto Stripe secrets posilaji `goPayGoid`, `goPayClientId`, `goPayClientSecret`.
+
+**Backend pravidla:** Endpoint ma `.RequirePermission(PlatformPermissions.BillingManage)` a `.RequireModule("billing")`.
+Handler nikdy nebere `tenantId` z body. V Production validuje realne credentials pred aktivaci, aby prvni checkout
+nespadl az pozdeji.
+
+**Secrets:** Plaintext credentials smi existovat jen v requestu a v pameti handleru. Do DB jde sealed ciphertext
+(`tenant_secrets.Ciphertext`, `KeyVersion`, `WrappedDek`). Secret nesmi jit do auditu, outbox payloadu, logu ani CRM
+tabulky.
+
+**Frontend pouziti:** Config UI v repu zatim neni. Az vznikne, musi po ulozeni invalidovat billing/admin stav a nikdy
+nesmi znovu zobrazovat ulozeny secret. U update formu ukaz "configured", ne hodnotu klice.
+
+**Co nepises:** `crm_payment_settings` s API key, plaintext secret v JSONB configu, provider fallback na jiny tenant,
+fake provider v produkci, nebo vlastni payment SDK volani mimo `IPaymentGatewayResolver`.
 
 **EC:**
 
-- EC111 jen opravneny admin: bez `billing.manage` vraci endpoint 403.
-- EC112 secret se nesmi ulozit plaintext: Stripe key je ulozeny jako sealed ciphertext v `tenant_secrets`.
-- EC113 unsupported provider: neznamy provider vrati 422.
-- EC114 fake gateway jen v test/dev rezimu: Production host `fake` odmita.
-- EC115 po zmene invalidovat billing config UI: config UI zatim v repu neni; az vznikne, mutation musi invalidovat
-  `queryRoots.billing`.
+- EC111 jen opravneny admin → bez `billing.manage` nebo bez billing entitlementu vraci endpoint 403/404 podle guardu.
+- EC112 secret se nesmi ulozit plaintext → Stripe key/webhook secret a GoPay secret jsou ulozene jako sealed ciphertext
+  v `tenant_secrets`, ne jako string v configu.
+- EC113 unsupported provider → neznamy provider jako `paypal` vrati 422 `billing.gateway.unknown_provider`.
+- EC114 fake gateway jen v test/dev rezimu → Production host `fake` odmita pres `billing.gateway.fake_not_allowed`.
+- EC115 po zmene invalidovat billing config UI → config UI zatim v repu neni; az vznikne, mutation musi invalidovat
+  billing/admin queries a nesmi cacheovat plaintext secrets.
 
 ### UC24 Vytvorit tenant checkout
 
