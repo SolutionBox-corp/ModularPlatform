@@ -701,17 +701,55 @@ const tenants = useQuery(platformQueries.tenants({
 
 **Pouzijes:** `GET /tenant/admin/tenants/{tenantId}`.
 
-**Co se stane:** Admin vidi detail tenant nastaveni.
+**Co se stane:** Platform admin otevre jeden tenant a dostane registry detail plus live entitlements. Je to
+obrazovka pro spravu workspace: nazev, subdomain, status, placement a seznam modulu (`modules[]`).
 
-**Napises v CRM:** nic, CRM nema delat kopii tenant detailu bez duvodu.
+**Mentalni model:** Tenant detail neni CRM nastaveni. Je to platform registry. CRM z toho smi vzit odpoved na otazku
+"existuje tenhle tenant a jake moduly ma zapnute?", ale CRM domena si svoje nastaveni drzi sama.
+
+**Frontend pouziti:**
+
+```tsx
+const { data: tenant, isLoading } = useTenantDetail(tenantId);
+
+return (
+  <EntitlementToggles
+    tenantId={tenantId}
+    modules={tenant?.modules}
+    isLoading={isLoading}
+  />
+);
+```
+
+**Backend / CRM pouziti:** V CRM backendu tenhle endpoint typicky nevolas. Pokud jsi v requestu bezneho uzivatele,
+pouzijes `ITenantContext.TenantId` a `.RequireModule("crm")`. Pokud delas platform-admin obrazovku, pouzijes
+`GetTenantQuery(tenantId)` pres dispatcher nebo hotovy HTTP endpoint.
+
+**Response shape:** `TenantDetail` obsahuje `id`, `subdomain`, `name`, `status`, `placement`, `createdAt` a
+`modules[]` (`key`, `enabled`, `tier`). Neobsahuje payment secrets, CRM config, user list ani data z CRM tabulek.
+
+**Cache:** Detail se cacheuje pres `platformQueries.tenantById(tenantId)`. Po `setEntitlement` invaliduj admin root
+i entitlement query keys; existujici `useSetEntitlement` to uz dela.
+
+**Co nepises:** CRM endpoint `GET /crm/tenant/{tenantId}/platform-detail`, vlastni kopii `tenant_entitlements`,
+join CRM tabulek na `tenants`, nebo UI pro normalni CRM usery, ktere by ukazovalo platform placement.
 
 **EC:**
 
-- EC086 tenant not found -> 404: chybejici tenant vraci `tenant.not_found`.
-- EC087 platform-admin scope: bez `platform.tenants.manage` vraci endpoint 403.
-- EC088 detail neni CRM config source: jde o platform-admin registry detail, CRM si drzi vlastni CRM config.
-- EC089 zobrazit entitlements jasne: detail vraci `modules[]` s `key`, `enabled`, `tier` z persisted entitlements.
-- EC090 CRM nesmi prepisovat tenant metadata: CRM nesaha na `tenants`; pouziva jen `TenantId` jako referenci.
+- EC086 tenant not found -> 404 → chybejici tenant vraci `tenant.not_found`; UI ukaze empty/not found stav, ne prazdy
+  CRM workspace.
+- EC087 platform-admin scope → bez `platform.tenants.manage` vraci endpoint 403; bezny CRM user se k registry detailu
+  nedostane.
+- EC088 detail neni CRM config source → CRM nastaveni jako pipeline stages, custom fields nebo notification rules
+  patri do CRM modulu, ne do Tenancy.
+- EC089 entitlements jsou persisted stav → `modules[]` je live pohled pres `IEntitlementResolver`; FE switch ma ukazat
+  presne tohle, ne hardcoded seznam z klienta.
+- EC090 CRM nesmi prepisovat tenant metadata → CRM pouziva `TenantId` jako foreign id/reference, ale nemeni
+  `subdomain`, `placement` ani `status`.
+- EC091 detail muze byt stale po toggle → po `SetEntitlement` invaliduj detail/list/status; jinak admin uvidi vypnuty
+  modul jako stale zapnuty.
+- EC092 placement neni routing logika pro CRM → CRM neodvozuje connection string ani region z `placement`; pokud base
+  zavede silo routing, resi to platforma.
 
 ### UC19 Zapnout nebo vypnout modul tenantovi
 
