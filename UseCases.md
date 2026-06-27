@@ -363,13 +363,36 @@ void queryClient.invalidateQueries({ queryKey: queryRoots.admin });
 
 **Napises v CRM:** CRM drzi jen `UserId`, ne `User` Core entity.
 
+**Mentalni model:** `UserId` je cross-module reference. Detail usera zustava Identity read model. CRM muze user id ulozit u vlastnich entit (`OwnerUserId`, `AssignedToUserId`), ale kdyz chce zobrazit email/jmeno/role, cte DTO z Identity nebo vlastni synchronizovanou projekci.
+
+**Tenant admin vs platform admin:** tento endpoint je tenant/admin role-management pohled, ne globalni platform directory. Normalni tenant filter plati. Cross-tenant list patri do platform-admin endpointu, ne do CRM obrazovky.
+
+**Frontend pouziti:** admin UI pouzije query pod `queryRoots.admin`, ne `queryRoots.crm`, protoze data vlastni Identity admin feature.
+
+```ts
+const user = useQuery(identityAdminQueries.userDetail(userId));
+```
+
+**CRM backend pouziti:** pokud CRM endpoint vraci deal s assigned userem, vrat `AssignedToUserId` nebo vlastni DTO/projekci. Nevracej EF `User` entity ani nedelaj join do Identity Core tabulek.
+
+```csharp
+public sealed record DealDetailResponse(
+    Guid DealId,
+    string Name,
+    Guid? AssignedToUserId);
+```
+
+**Kdy projekce dava smysl:** pokud CRM list potrebuje na kazdem radku zobrazit assigned display name a je to performance hot path, vytvor CRM-owned projection synchronizovanou povolenym event/query patternem. Projekce je cache, ne source of truth, a musi umet GDPR erase.
+
+**Co nepises:** reference na `ModularPlatform.Identity.Entities.User`, cross-module `Include`, SQL join do `users`, globalni user directory v tenant CRM UI, cachovani erased PII bez cleanupu.
+
 **EC:**
 
-- EC046 bez permission vraci 403.
-- EC047 tenant admin a platform admin scope nejsou totez.
-- EC048 soft-deleted user se zobrazuje jen tam, kde to endpoint explicitne dela.
-- EC049 CRM nesmi referencovat Identity Core.
-- EC050 pro UI pouzij DTO nebo projekci.
+- EC046 bez permission vraci 403 → CRM admin obrazovka musi mit vlastni permission guard a nesmi spolehat jen na skryty link.
+- EC047 tenant admin a platform admin scope nejsou totez → CRM tenant UI nema cross-tenant user directory.
+- EC048 soft-deleted user se zobrazuje jen tam, kde to endpoint explicitne dela → bezny CRM assigned-user display musi umet missing/erased stav.
+- EC049 CRM nesmi referencovat Identity Core → pouzij `UserId`, DTO nebo projection, nikdy Core entity.
+- EC050 pro UI pouzij DTO nebo projekci → frontend typy z `identity-admin/api.ts`, ne backend entity shape.
 
 ### UC11 Machine token
 
