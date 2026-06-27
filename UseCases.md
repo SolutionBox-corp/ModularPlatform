@@ -1355,17 +1355,64 @@ platbou, nebo rucni update `credit_accounts.Available`.
 
 **Pouzijes:** `POST /billing/credits/reservations` nebo command.
 
-**Co se stane:** Billing atomicky zkontroluje `available >= amount` a zalozi hold.
+**Co se stane:** Billing atomicky zkontroluje `available >= amount`, snizi `Available`, zvysi `Pending`, zalozi
+`CreditHold` ve stavu `Active`, zapise ledger entry `Reservation` a po commitu posle realtime refresh balance.
 
-**Napises v CRM:** ulozis `ReservationId`, cenu a stav `Reserved`.
+**Mentalni model:** Reservation je jediny spravny zpusob jak "zkontrolovat kredit na akci". Neni to jen check. Je to
+check + blokace v jedne DB operaci, takze dva paralelni CRM requesty neutrati stejne kredity dvakrat.
+
+**HTTP request priklad:**
+
+```json
+{
+  "amount": 25,
+  "holdMinutes": 10
+}
+```
+
+**Backend / CRM pouziti:** V CRM handleru zavolas Billing command pred drahou akci a ulozis vysledek k vlastni CRM
+operaci.
+
+```csharp
+var reservation = await dispatcher.Send(
+    new ReserveCreditsCommand(userId, Amount: 25, HoldMinutes: 10), ct);
+
+var run = new CrmAiRun
+{
+    Id = Guid.CreateVersion7(),
+    UserId = userId,
+    ContactId = contactId,
+    CreditReservationId = reservation.ReservationId,
+    CreditAmount = 25,
+    Status = CrmAiRunStatus.Reserved,
+};
+db.CrmAiRuns.Add(run);
+await db.SaveChangesAsync(ct);
+```
+
+**Co ulozit v CRM:** `ReservationId`, `Amount`, vlastni operation id, stav (`Reserved`, `Completed`, `Failed`,
+`Released`) a idempotency/business key vlastni akce. Neulozuj kopii credit balance.
+
+**Proc je to safe:** Handler pouziva EF `ExecuteUpdate` s `WHERE Available >= amount`. Update row zamkne a guard se
+vyhodnoti atomicky v DB. Kdyz neni dost kreditu, nevznikne hold ani ledger entry.
+
+**Dalsi krok:** Po skutecnem uspechu CRM akce vola UC31 Confirm spend. Pri chybe, timeoutu nebo cancelu vola UC32
+Release hold. Pokud je akce long-running, reservation id patri do Operations statusu nebo CRM job state.
+
+**Co nepises:** `GET balance -> if enough -> run action -> subtract later`, vlastni hold tabulku v CRM, rezervaci bez
+nasledneho confirm/release, nebo HTTP work, ktery drzi request otevreny dele nez hold.
 
 **EC:**
 
 - EC146 insufficient credits -> business error → 422 `credit.insufficient_balance`, bez hold/ledger side effectu.
-- EC147 concurrent reserve nesmi double-spend → atomic EF `ExecuteUpdate` guard `WHERE Available >= amount`.
-- EC148 amount musi byt kladny → validator odmita `<= 0`, oversized a nekladne `holdMinutes`.
-- EC149 hold muze expirovat → expiry sweep prevede lapsed hold na `Expired` a vrati availability.
-- EC150 CRM nesmi delat read-then-write balance → CRM vola `ReserveCreditsCommand`/endpoint a uklada jen `ReservationId`.
+- EC147 concurrent reserve nesmi double-spend → atomic EF `ExecuteUpdate` guard `WHERE Available >= amount` serializuje
+  paralelni requesty v DB.
+- EC148 amount musi byt kladny → validator odmita `<= 0`, oversized hodnoty nad `1_000_000_000` a nekladne
+  `holdMinutes`.
+- EC149 hold muze expirovat → expiry sweep prevede lapsed hold na `Expired` a vrati availability; CRM reconcile nesmi
+  donekonecna cekat ve stavu `Reserved`.
+- EC150 CRM nesmi delat read-then-write balance → CRM vola `ReserveCreditsCommand`/endpoint a uklada jen
+  `ReservationId`, ne vlastni vypocet balance.
 
 ### UC31 Confirm spend
 
