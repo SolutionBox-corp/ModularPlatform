@@ -1098,17 +1098,47 @@ nebo ulozeni vlastniho checkout state bez idempotency/reconciliation.
 
 **Pouzijes:** `POST /billing/webhooks/{provider}/{tenantId}/{token?}`.
 
-**Co se stane:** Billing prijme webhook pro tenant-plane provider.
+**Co se stane:** Payment provider zavola anonymni webhook pro konkretni tenant. Endpoint precte raw body, Stripe
+signature header, query parametry a posle `ProcessTenantWebhookCommand`. Handler potom vyresi tenant gateway, overi
+nebo refetchne provider stav a teprve pri `Paid` publikuje potvrzovaci message do Billing sagy.
 
-**Napises v CRM:** nic.
+**Mentalni model:** Webhook je jediny duveryhodny prechod "checkout se stal platbou". Frontend redirect ani
+`providerPaymentId` nestaci. Handler je schvalne tolerantni k chybam providera: spatny podpis, unknown tenant nebo
+malformed payload se acknou 200 a ignoruji, aby provider retry smycka nespoustela nekonecne 5xx.
+
+**Route shape:**
+
+```http
+POST /v1/billing/webhooks/stripe/{tenantId}
+POST /v1/billing/webhooks/gopay/{tenantId}/{token}
+POST /v1/billing/webhooks/fake/{tenantId}?id=fake_...
+```
+
+**Co se v handleru deje:**
+
+1. GoPay token se porovna se stored `PaymentConfiguration.WebhookToken`.
+2. Gateway se vyresi pres `IPaymentGatewayResolver` pro `PaymentPlane.Tenant`.
+3. Provider notification se overi/refetchne pres gateway.
+4. Jen pokud snapshot rika `Paid` a metadata obsahuji `purchase_type=package`, `purchase_id`, `user_id`,
+   `credit_amount`, outbox publikuje `CreditPurchaseConfirmed`.
+5. `CreditPurchaseSaga` grantne kredity pres idempotency key `purchase:{purchaseId}`.
+
+**Napises v CRM:** obvykle nic. Pokud CRM zavadi vlastni placenou akci, musi mit vlastni durable stav a provider
+metadata, ale potvrzeni platby ma porad jit pres Billing/webhook pattern, ne pres browser success page.
+
+**Co nepises:** authenticated webhook endpoint, rate limit na provider callback, 500 pri spatnem podpisu, grant kreditu
+primo v endpointu, nebo custom "already processed" tabulku mimo saga/ledger idempotency.
 
 **EC:**
 
-- EC121 spatny token nebo signature → GoPay token mismatch a Stripe bad signature se acknowledge+ignore, nic se neprovede.
-- EC122 duplicate webhook → stejny paid webhook nevytvori druhy ledger entry.
-- EC123 unknown tenant → 200 OK a ignore, zadny fallback na jinou gateway.
+- EC121 spatny token nebo signature → GoPay token mismatch a Stripe bad signature se acknowledge+ignore, nic se
+  neprovede.
+- EC122 duplicate webhook → stejny paid webhook nevytvori druhy ledger entry; saga/ledger pouzije idempotency key
+  `purchase:{purchaseId}`.
+- EC123 unknown tenant → 200 OK a ignore, zadny fallback na jinou gateway a zadne leakovani tenant existence providerovi.
 - EC124 out-of-order event → unpaid webhook nic negrantuje; pozdejsi paid webhook purchase dokonci.
-- EC125 handler musi byt idempotentni → grant jde pres `CreditPurchaseSaga` a ledger idempotency key `purchase:{id}`.
+- EC125 handler musi byt idempotentni → grant jde pres `CreditPurchaseSaga`, ne pres rucni DB update nebo endpoint
+  side effect.
 
 ### UC26 Stripe platform webhook
 
