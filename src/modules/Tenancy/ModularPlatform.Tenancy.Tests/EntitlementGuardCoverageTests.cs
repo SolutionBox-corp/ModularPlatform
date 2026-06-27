@@ -22,6 +22,7 @@ public sealed class EntitlementGuardCoverageTests(PlatformApiFactory fixture)
         ["/v1/files/"] = "files",
         ["/v1/operations/"] = "operations",
         ["/v1/notifications/"] = "notifications",
+        ["/v1/crm/"] = "crm",
     };
 
     [Fact]

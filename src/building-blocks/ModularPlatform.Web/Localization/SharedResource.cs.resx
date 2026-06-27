@@ -148,4 +148,19 @@
   <data name="billing.portal.provider_failed" xml:space="preserve"><value>Poskytovatel billing portálu požadavek odmítl.</value></data>
   <data name="billing.subscription.plan_key.required" xml:space="preserve"><value>Klíč plánu je povinný.</value></data>
   <data name="billing.subscription.plan_key.too_long" xml:space="preserve"><value>Klíč plánu je příliš dlouhý.</value></data>
+  <data name="tenant.module_unknown" xml:space="preserve"><value>Neznámý klíč modulu.</value></data>
+  <data name="crm.contact_not_found" xml:space="preserve"><value>Kontakt nenalezen.</value></data>
+  <data name="crm.contact.full_name.required" xml:space="preserve"><value>Jméno kontaktu je povinné.</value></data>
+  <data name="crm.contact.full_name.too_long" xml:space="preserve"><value>Jméno kontaktu je příliš dlouhé.</value></data>
+  <data name="crm.contact.email.invalid" xml:space="preserve"><value>E-mail kontaktu není platný.</value></data>
+  <data name="crm.contact.email.too_long" xml:space="preserve"><value>E-mail kontaktu je příliš dlouhý.</value></data>
+  <data name="crm.contact.phone.too_long" xml:space="preserve"><value>Telefon kontaktu je příliš dlouhý.</value></data>
+  <data name="crm.contact.company.too_long" xml:space="preserve"><value>Název firmy je příliš dlouhý.</value></data>
+  <data name="crm.contact.position.too_long" xml:space="preserve"><value>Pozice je příliš dlouhá.</value></data>
+  <data name="crm.contact.notes.too_long" xml:space="preserve"><value>Poznámky jsou příliš dlouhé.</value></data>
+  <data name="crm.contact.status.invalid" xml:space="preserve"><value>Stav kontaktu není platný.</value></data>
+  <data name="crm.contact.tags.too_many" xml:space="preserve"><value>Příliš mnoho štítků.</value></data>
+  <data name="crm.contact.tag.too_long" xml:space="preserve"><value>Štítek je příliš dlouhý.</value></data>
+  <data name="crm.interaction.type.invalid" xml:space="preserve"><value>Typ interakce není platný.</value></data>
+  <data name="crm.interaction.body.too_long" xml:space="preserve"><value>Poznámka k interakci je příliš dlouhá.</value></data>
 </root>

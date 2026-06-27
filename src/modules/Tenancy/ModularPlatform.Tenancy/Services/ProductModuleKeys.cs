@@ -7,12 +7,9 @@ namespace ModularPlatform.Tenancy.Services;
 internal static class ProductModuleKeys
 {
     public static readonly string[] DefaultEntitled =
-        ["billing", "notifications", "files", "operations", "gdpr", "marketing"];
+        ["billing", "notifications", "files", "operations", "gdpr", "marketing", "crm"];
 
-    private static readonly HashSet<string> Known = new(DefaultEntitled, StringComparer.Ordinal)
-    {
-        "crm",
-    };
+    private static readonly HashSet<string> Known = new(DefaultEntitled, StringComparer.Ordinal);
 
     public static bool IsKnown(string moduleKey) => Known.Contains(moduleKey);
 }

@@ -148,4 +148,19 @@
   <data name="billing.portal.provider_failed" xml:space="preserve"><value>The billing portal provider rejected the request.</value></data>
   <data name="billing.subscription.plan_key.required" xml:space="preserve"><value>A plan key is required.</value></data>
   <data name="billing.subscription.plan_key.too_long" xml:space="preserve"><value>The plan key is too long.</value></data>
+  <data name="tenant.module_unknown" xml:space="preserve"><value>Unknown module key.</value></data>
+  <data name="crm.contact_not_found" xml:space="preserve"><value>Contact not found.</value></data>
+  <data name="crm.contact.full_name.required" xml:space="preserve"><value>The contact name is required.</value></data>
+  <data name="crm.contact.full_name.too_long" xml:space="preserve"><value>The contact name is too long.</value></data>
+  <data name="crm.contact.email.invalid" xml:space="preserve"><value>The contact email is not valid.</value></data>
+  <data name="crm.contact.email.too_long" xml:space="preserve"><value>The contact email is too long.</value></data>
+  <data name="crm.contact.phone.too_long" xml:space="preserve"><value>The contact phone is too long.</value></data>
+  <data name="crm.contact.company.too_long" xml:space="preserve"><value>The company name is too long.</value></data>
+  <data name="crm.contact.position.too_long" xml:space="preserve"><value>The position is too long.</value></data>
+  <data name="crm.contact.notes.too_long" xml:space="preserve"><value>The notes are too long.</value></data>
+  <data name="crm.contact.status.invalid" xml:space="preserve"><value>The contact status is not valid.</value></data>
+  <data name="crm.contact.tags.too_many" xml:space="preserve"><value>Too many tags.</value></data>
+  <data name="crm.contact.tag.too_long" xml:space="preserve"><value>A tag is too long.</value></data>
+  <data name="crm.interaction.type.invalid" xml:space="preserve"><value>The interaction type is not valid.</value></data>
+  <data name="crm.interaction.body.too_long" xml:space="preserve"><value>The interaction note is too long.</value></data>
 </root>

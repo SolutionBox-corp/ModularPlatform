@@ -12,6 +12,8 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
     <PackageReference Include="Shouldly" />
   </ItemGroup>
 
@@ -22,6 +24,8 @@
   <ItemGroup>
     <ProjectReference Include="..\ModularPlatform.Crm\ModularPlatform.Crm.csproj" />
     <ProjectReference Include="..\ModularPlatform.Crm.Contracts\ModularPlatform.Crm.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\hosts\ModularPlatform.Api\ModularPlatform.Api.csproj" />
+    <ProjectReference Include="..\..\..\..\tests\ModularPlatform.IntegrationTesting\ModularPlatform.IntegrationTesting.csproj" />
   </ItemGroup>
 
 </Project>

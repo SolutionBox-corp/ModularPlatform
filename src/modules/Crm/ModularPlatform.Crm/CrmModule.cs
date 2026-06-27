@@ -4,6 +4,14 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
+using ModularPlatform.Crm.Features.Contacts.AddInteraction;
+using ModularPlatform.Crm.Features.Contacts.CreateContact;
+using ModularPlatform.Crm.Features.Contacts.DeleteContact;
+using ModularPlatform.Crm.Features.Contacts.GetContact;
+using ModularPlatform.Crm.Features.Contacts.ListContacts;
+using ModularPlatform.Crm.Features.Contacts.ListInteractions;
+using ModularPlatform.Crm.Features.Contacts.UpdateContact;
+using ModularPlatform.Crm.Gdpr;
 using ModularPlatform.Crm.Persistence;
 using ModularPlatform.Messaging;
 using ModularPlatform.Persistence;
@@ -14,13 +22,9 @@ namespace ModularPlatform.Crm;
 
 /// <summary>
 /// CRM module wiring (mirrors the canonical <c>IdentityModule</c>). The host discovers this via
-/// <see cref="IModule"/>, gated on <c>Modules:Crm:Enabled</c>. It owns its <see cref="CrmDbContext"/>; nothing
-/// outside this assembly references its Core types (only <c>ModularPlatform.Crm.Contracts</c>).
-///
-/// Phase 0 scaffolding: the module is registered in all four hosts and the migration/RLS pipeline, but has no
-/// features yet. Endpoints, integration-event handlers, jobs and the GDPR export/erase ports are added as the
-/// Contacts / Meetings / Outreach / Kanban features land (the module holds PII, so it WILL register
-/// <c>IExportPersonalData</c> + <c>IErasePersonalData</c> once Contacts exist).
+/// <see cref="IModule"/>, gated on <c>Modules:Crm:Enabled</c>; per-tenant visibility is the live
+/// <c>RequireModule("crm")</c> entitlement. Owns its <see cref="CrmDbContext"/>; nothing outside this assembly
+/// references its Core types (only <c>ModularPlatform.Crm.Contracts</c>).
 /// </summary>
 public sealed class CrmModule : IModule
 {
@@ -37,11 +41,21 @@ public sealed class CrmModule : IModule
 
         services.AddModuleDbContext<CrmDbContext>(Name, write);
         services.AddModuleReadDbContext<CrmDbContext>(read);
+
+        // GDPR: CRM holds PII (contacts) — export it and crypto-shred-scrub it on request.
+        services.AddScoped<IExportPersonalData, CrmPersonalDataExporter>();
+        services.AddScoped<IErasePersonalData, CrmPersonalDataEraser>();
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
-        // No endpoints yet. Each feature adds its endpoint extension here, mapping RELATIVE routes ("/crm/...").
+        endpoints.MapCreateContact();
+        endpoints.MapGetContact();
+        endpoints.MapListContacts();
+        endpoints.MapUpdateContact();
+        endpoints.MapDeleteContact();
+        endpoints.MapAddInteraction();
+        endpoints.MapListInteractions();
     }
 
     public void ConfigureMessaging(WolverineOptions options)
