@@ -1835,17 +1835,47 @@ list planu mimo Billing response.
 
 **Pouzijes:** `POST /billing/subscriptions/checkout`.
 
-**Co se stane:** Billing vytvori subscription checkout.
+**Co se stane:** Billing vytvori Stripe checkout session pro vybrany `planKey`. Lokalni subscription row se nezaklada
+predem; vznikne az pozdeji z `customer.subscription.*` webhooku nebo reconcile podle Stripe object state.
 
-**Napises v CRM:** redirect a refetch po navratu.
+**Mentalni model:** Subscription checkout je jen redirect. Stripe je source of truth. Kdyz user checkout opusti, v nasi
+DB nezustane orphan `Pending` subscription. Stav ctes pres UC41 `GET /billing/subscriptions/me`.
+
+**Frontend pouziti:**
+
+```tsx
+const subscribe = useSubscribeCheckout();
+
+<Button
+  disabled={subscribe.isPending}
+  onClick={() => subscribe.mutate(plan.planKey)}
+>
+  Subscribe
+</Button>
+```
+
+`useSubscribeCheckout()` dela safe redirect na Stripe URL. Po navratu z checkoutu refetchni subscription stav a balance;
+neber URL success jako aktivni subscription.
+
+**Backend pravidla:** Endpoint bere `UserId` z tokenu, zakazuje machine principals, vyzaduje billing entitlement a
+odmita checkout, pokud existuje lokalni non-canceled subscription mirror. Metadata `user_id`, `plan_key` a `tenant_id`
+se stampuji na session/subscription, aby pozdejsi webhook umel stav obnovit.
+
+**Co nepises:** local pending subscription row, entitlement/CRM capability podle checkout redirectu, client-supplied
+price id, nebo druhy checkout button bez pending disable.
 
 **EC:**
 
-- EC196 existing active subscription → non-canceled local mirror blokuje dalsi checkout pres `billing.subscription.already_active`.
-- EC197 checkout session expired → checkout nevytvari lokalni pending subscription; opustena/expired session nezanecha orphan row.
-- EC198 webhook out-of-order → `UpsertSubscriptionFromStripeCommand` reconciliuje ze Stripe object state i kdyz `updated` prijde pred `created`.
-- EC199 double checkout okno pred webhookem → dva rychle checkouty vytvori dve provider sessions, ale zadnou lokalni subscription pred webhookem.
-- EC200 UI disable pending state → CRM/frontend ma po kliknuti disableovat tlacitko a po navratu refetchovat `/billing/subscriptions/me`.
+- EC196 existing active subscription → non-canceled local mirror blokuje dalsi checkout pres
+  `billing.subscription.already_active`.
+- EC197 checkout session expired → checkout nevytvari lokalni pending subscription; opustena/expired session nezanecha
+  orphan row.
+- EC198 webhook out-of-order → `UpsertSubscriptionFromStripeCommand` reconciliuje ze Stripe object state i kdyz
+  `updated` prijde pred `created`.
+- EC199 double checkout okno pred webhookem → dva rychle checkouty vytvori dve provider sessions, ale zadnou lokalni
+  subscription pred webhookem.
+- EC200 UI disable pending state → CRM/frontend ma po kliknuti disableovat tlacitko a po navratu refetchovat
+  `/billing/subscriptions/me`.
 
 ### UC41 My subscription
 
