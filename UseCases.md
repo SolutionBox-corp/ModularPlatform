@@ -821,18 +821,54 @@ handleru, nebo mazani CRM dat pri vypnuti modulu.
 
 **Pouzijes:** `POST /tenant/admin/tenants/{tenantId}/invites`.
 
-**Co se stane:** Tenancy vytvori invite pro pridani usera do tenant kontextu.
+**Co se stane:** Platform admin vytvori jednorazovy invite token pro tenant, ktery ma registraci v rezimu
+`InviteOnly`. Handler vygeneruje 256-bit raw token, do DB ulozi jen jeho SHA-256 hash, nastavi expiraci a raw token
+vrati pouze jednou v response.
 
-**Napises v CRM:** nic.
+**Mentalni model:** Invite neni CRM objekt. Je to vstupenka do workspace. CRM muze chtit tlacitko "pozvat clena tymu",
+ale samotny token mintuje Tenancy a join validuje Identity registrace pres `ITenantRegistrationGate`.
+
+**Frontend pouziti v platform/admin UI:**
+
+```tsx
+const result = await createTenantInvite({
+  tenantId,
+  expiresInDays: 7,
+});
+
+await navigator.clipboard.writeText(result.inviteToken);
+```
+
+Token ukaz uzivateli hned po vytvoreni. Pozdeji ho z DB nevyctes, protoze ulozeny je jen hash.
+
+**Jak se pouzije pri registraci:** Novy user se registruje na tenant subdomain / tenant kontextu a posle raw invite
+token v registration requestu. `TenantRegistrationGate` token zahashuje, najde neexpirovany neconsumeovany invite pro
+stejny `TenantId`, nastavi `ConsumedAt` a pusti join.
+
+```json
+{
+  "email": "eva@acme.test",
+  "password": "Sup3rSecret!",
+  "inviteToken": "raw-token-from-admin-dialog"
+}
+```
+
+**Notifikace:** Pokud produkt chce poslat invite e-mailem, CRM nema generovat token samo. Spravny flow je: CRM/admin
+akce zavola platform invite command a potom posle notifikaci pres Notifications modul se stejnym raw tokenem, dokud ho
+ma jeste v pameti. Neskladuj raw invite token do CRM tabulky.
+
+**Co nepises:** vlastni `crm_invites`, plaintext token v DB, token platny pro vsechny tenanty, reusable invite link,
+nebo registraci, ktera bere `tenantId` z body misto tenant/subdomain kontextu.
 
 **EC:**
 
-- EC096 expired invite: expired token neprojde pres tenant registration gate.
-- EC097 invite reuse: token je single-use, po prvnim joinu je dalsi pokus 403.
-- EC098 invite pro cizi tenant: token je vázany na `TenantId`, cizi subdomain ho neakceptuje.
-- EC099 invite email/notifikace patri do platform flow: CRM nema posilat vlastni invite tokeny; muze jen spustit
-  platformovou notifikaci, pokud produkt chce e-mail.
-- EC100 CRM negeneruje invite tokeny: token mintuje jen Tenancy `POST /tenant/admin/tenants/{tenantId}/invites`.
+- EC096 expired invite → expired token neprojde pres `TenantRegistrationGate`; validator dovoli expiraci jen 1-30 dni.
+- EC097 invite reuse → token je single-use. Po prvnim joinu je `ConsumedAt` nastavene a dalsi pokus se zamitne.
+- EC098 invite pro cizi tenant → lookup je podle `(TenantId, TokenHash)`, takze token z tenant A neotevre tenant B.
+- EC099 invite email/notifikace patri do platform flow → CRM muze jen spustit pozvani, ale token mintuje Tenancy a
+  odeslani jde pres Notifications, ne pres vlastni mailer v CRM.
+- EC100 CRM negeneruje invite tokeny → jediny zdroj je `POST /tenant/admin/tenants/{tenantId}/invites`; raw token se
+  neuklada a nejde pozdeji znovu zobrazit.
 
 ### UC21 Platform billing status
 
