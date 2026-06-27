@@ -1570,17 +1570,40 @@ kliknuti na package kartu.
 
 **Pouzijes:** `GET /billing/admin/packages`.
 
-**Co se stane:** Admin vidi vsechny packages vcetne disabled.
+**Co se stane:** Admin vidi paged management katalog: aktivni i neaktivni packages, svoje tenant rows plus
+platform-global rows. Response navic obsahuje `active` a `stripePriceId`.
 
-**Napises v CRM:** nic.
+**Mentalni model:** Admin list je spravcovsky pohled. Neni to to same jako public `GET /billing/packages`, protoze admin
+potrebuje videt i disabled balicky, upravovat je a auditovat zmeny.
+
+**Frontend/admin pouziti:**
+
+```tsx
+const packages = useQuery(adminPackageQueries.list({ page, pageSize: 20 }));
+```
+
+V aktualnim frontend API jsou admin package hooks v `frontend/features/platform/hooks.ts`, ne v beznem tenant billing
+UI. Po create/update invaliduj admin packages i public packages, protoze zmena `active` meni oba pohledy.
+
+**Backend pravidlo:** Endpoint je `.RequirePermission(PlatformPermissions.BillingManage)`, ale schvalne nema
+`.RequireModule("billing")`. System/platform admin muze nemit tenant kontext a entitlement guard by mu vratil 404.
+Sprava katalogu je permission, ne tenant feature access.
+
+**Scope:** Tenant admin vidi svoje tenant packages plus global rows. System platform admin bez tenant id vidi global
+katalog. Public list z UC33 filtruje jen purchasable active rows.
+
+**Co nepises:** public UI postavene nad admin listem, client-side filtrovani disabled package misto UC33, nebo
+RequireModule guard na system admin endpoint.
 
 **EC:**
 
 - EC166 admin permission → endpoint vyzaduje `billing.manage`, bez nej vraci 403.
-- EC167 include disabled → admin list vraci i `active=false` packages.
+- EC167 include disabled → admin list vraci i `active=false` packages, aby je slo znovu zapnout nebo auditovat.
 - EC168 paging/order → `page/pageSize` vraci `PagedResponse`, order je `Price`, potom `Name`, potom `Id`.
-- EC169 audit admin change → admin create/update package jde pres audited `CreditPackage` entitu; zmena katalogu je domenova mutace, ne read side effect listu.
-- EC170 oddelit admin list a public list → admin list vidi disabled, public `GET /billing/packages` vraci jen aktivni purchasable packages.
+- EC169 audit admin change → admin create/update package jde pres audited `CreditPackage` entitu; zmena katalogu je
+  domenova mutace, ne read side effect listu.
+- EC170 oddelit admin list a public list → admin list vidi disabled, public `GET /billing/packages` vraci jen aktivni
+  purchasable packages.
 
 ### UC35 Create package
 
