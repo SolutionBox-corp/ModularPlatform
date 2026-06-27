@@ -485,13 +485,44 @@ var rows = await db.AuditEntries
 
 **Napises v CRM:** nic. Bezny CRM list nikdy nema obchazet tenant filter.
 
+**Mentalni model:** Toto je control-plane obrazovka pro provozovatele platformy. Neni to CRM adresar lidi v jedne firme. Bezne CRM UI zustava tenant-scoped a nikdy nepotrebuje `IgnoreQueryFilters`.
+
+**Kdy se pouzije:** platform admin resi support, tenant provisioning, audit nebo cross-tenant administraci. Volitelny `tenantId` filtr jen zuzi platform-wide list, ale permission je porad platform permission.
+
+**Frontend pouziti:** platform UI pouziva `platformQueries.users`, query key je pod `queryRoots.admin`.
+
+```ts
+const users = useQuery(platformQueries.users({
+  tenantId,
+  limit: 50,
+  offset,
+}));
+```
+
+**Backend detail:** handler pouziva `IgnoreQueryFilters()` vedome, proto musi explicitne znovu pridat `DeletedAt == null` a optional tenant filtr. Jinak by platform list zacal ukazovat soft-deleted/erased rows.
+
+```csharp
+var filtered = db.Users
+    .IgnoreQueryFilters()
+    .Where(u => u.DeletedAt == null);
+
+if (query.TenantId is { } tenantId)
+{
+    filtered = filtered.Where(u => EF.Property<Guid?>(u, "TenantId") == tenantId);
+}
+```
+
+**CRM alternativa:** kdyz CRM potrebuje "uzivatele v mem tenantovi", udelej tenant-scoped CRM/Identity query nebo vlastni CRM projection. Nevolej platform list z tenant UI.
+
+**Co nepises:** cross-tenant CRM user list, `IgnoreQueryFilters` v beznem CRM handleru, neomezeny export vsech useru, log s PII v list access eventu.
+
 **EC:**
 
-- EC061 endpoint je jen platform-admin.
-- EC062 `IgnoreQueryFilters` se pouziva jen v explicitnim platform-admin flow.
-- EC063 list ma limit a paging.
-- EC064 filtr tenantem musi byt explicitni.
-- EC065 pristup do platform listu je audit/log concern.
+- EC061 endpoint je jen platform-admin → gate `platform.users.list`, ne tenant admin permission.
+- EC062 `IgnoreQueryFilters` se pouziva jen v explicitnim platform-admin flow → normalni CRM handler ho nepouziva.
+- EC063 list ma limit a paging → zadny unbounded `GET all users`.
+- EC064 filtr tenantem musi byt explicitni → pokud zuzis na tenant, filtruj shadow `TenantId`, ne klientskou domnenku.
+- EC065 pristup do platform listu je audit/log concern → loguj pristup bez PII, s tenantId/limit/offset.
 
 ### UC14 Platform admin cte platform audit usera
 
