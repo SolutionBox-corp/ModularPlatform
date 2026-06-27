@@ -141,13 +141,30 @@ const contacts = useContacts();
 
 **Napises v CRM:** nic.
 
+**Mentalni model:** Logout je security revocation + UX cleanup. Server zneplatni refresh token family, frontend zahodi session/cookies/cache. CRM nema vlastni predstavu "user je odhlaseny"; jen vidi, ze dalsi request nema validni token.
+
+**Co dela Identity:** endpoint vezme `UserId` z access tokenu a refresh token z body. Pokud token patri userovi, revokuje celou family. Pokud je token neznamy nebo patri nekomu jinemu, vrati tichy success, aby nevznikl token-enumeration signal.
+
+**Co dela frontend:** `logoutAction` udela best-effort POST na Identity, potom session znici vzdy. Maze i CSRF cookie. CRM UI ma po logoutu opustit tenant layout a neponechat user-specific cache jako viditelnou pravdu.
+
+```ts
+await logoutAction();
+toast.success(t("signedOut"));
+router.push("/login");
+router.refresh();
+```
+
+**Co dela CRM:** nic v backendu. Pokud ma CRM dlouhe obrazovky, po logoutu se k nim user dostane znovu jen pres novou session a nove API fetches. Background worker bezici pro drive zahajenou operaci se neridi logoutem; ridi se operation/owner stavem.
+
+**Co nepises:** `/crm/logout`, localStorage auth flag, smazani jen client tokenu bez server revoke, logout ktery bere `userId` z body, mazani CRM dat pri logoutu.
+
 **EC:**
 
-- EC016 cizi refresh token nesmi odhlasit jineho usera.
-- EC017 neznamy refresh token je tichy success.
-- EC018 logout bez autentizace vraci 401.
-- EC019 frontend po logoutu cisti user-specific cache.
-- EC020 client-side smazani tokenu neni nahrada server revoke.
+- EC016 cizi refresh token nesmi odhlasit jineho usera → handler kontroluje `token.UserId == command.UserId`.
+- EC017 neznamy refresh token je tichy success → logout je idempotentni a neprozrazuje token existenci.
+- EC018 logout bez autentizace vraci 401 → user id jde z access tokenu, ne z body.
+- EC019 frontend po logoutu cisti user-specific cache → session destroy + route refresh; CRM query cache nesmi zustat zobrazena jako prihlaseny stav.
+- EC020 client-side smazani tokenu neni nahrada server revoke → vzdy zkus Identity logout, i kdyz je request best-effort.
 
 ### UC05 Zobrazit profil
 
