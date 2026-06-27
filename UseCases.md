@@ -1420,17 +1420,51 @@ nasledneho confirm/release, nebo HTTP work, ktery drzi request otevreny dele nez
 
 **Pouzijes:** `POST /billing/credits/reservations/confirm`.
 
-**Co se stane:** Billing prevede pending hold do utraty.
+**Co se stane:** Billing prevede aktivni reservation do skutecne utraty. Najde hold pro useruv account, overi ze je
+`Active` a neexpiroval, nakresli kredity z bucketu FIFO podle expirace, zapise ledger entry `Spend`, snizi `Posted` i
+`Pending`, publikuje `CreditsSpentIntegrationEvent` a po commitu posle realtime refresh.
 
-**Napises v CRM:** worker vola confirm az po realnem uspechu externi akce.
+**Mentalni model:** Confirm je bod "akce se opravdu povedla, kredity smime spalit". Nevolej ho pred AI/API/export
+uspechem. Pokud confirm probehne a pak teprve selze CRM zapis, uz jsi utratil kredity; proto si poradi kroku navrhni
+tak, aby confirm byl az po durable uspechu nebo v dobre kontrolovanem workeru.
+
+**HTTP request priklad:**
+
+```json
+{
+  "reservationId": "018f..."
+}
+```
+
+**Backend / CRM pouziti:**
+
+```csharp
+await dispatcher.Send(
+    new ConfirmSpendCommand(userId, crmRun.CreditReservationId), ct);
+
+crmRun.Status = CrmAiRunStatus.Completed;
+crmRun.CompletedAt = clock.UtcNow;
+```
+
+U long-running CRM akce confirm typicky vola Worker po uspesnem dokonceni, ne HTTP accept endpoint. Pokud worker
+spadne po externim uspechu pred confirmem, reconcile podle CRM run stavu muze confirm zopakovat; je idempotentni.
+
+**Idempotence:** Opakovany confirm stejne reservation vrati aktualni stav a nezapise druhy `Spend`. Unique
+`spend:{reservationId}` a xmin retry chrani concurrent retry.
+
+**Co nepises:** confirm pred skutecnym uspechem, confirm pro cizi `reservationId`, manualni decrement `Posted`, nebo
+catch-all, ktery pri confirm chybe tise oznaci CRM akci jako hotovou.
 
 **EC:**
 
-- EC151 duplicate confirm je idempotentni → concurrent confirm zapise jen jeden `Spend`.
+- EC151 duplicate confirm je idempotentni → concurrent confirm zapise jen jeden `Spend` a opakovany call vrati aktualni
+  `posted/available`.
 - EC152 hold not found nebo released → unknown reservation je 404, released/expired/non-active hold je 422 bez spendu.
-- EC153 bucket draw musi zachovat invariant → confirm kresli buckets FIFO a drzi `available = posted - pending`.
-- EC154 worker retry nesmi utratit dvakrat → `spend:{reservationId}` idempotency key + xmin retry.
-- EC155 confirm se nesmi volat pred skutecnym uspechem → CRM/worker vola confirm az po uspesne externi akci; jinak vola release.
+- EC153 bucket draw musi zachovat invariant → confirm kresli buckets FIFO a drzi `available = posted - pending`; pri
+  bucket underflow vraci `credit.bucket_underflow`.
+- EC154 worker retry nesmi utratit dvakrat → `spend:{reservationId}` idempotency key + xmin retry chrani retry i race.
+- EC155 confirm se nesmi volat pred skutecnym uspechem → CRM/worker vola confirm az po uspesne externi akci; jinak vola
+  release.
 
 ### UC32 Release hold
 
