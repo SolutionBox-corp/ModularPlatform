@@ -1611,17 +1611,46 @@ RequireModule guard na system admin endpoint.
 
 **Pouzijes:** `POST /billing/admin/packages`.
 
-**Co se stane:** Admin vytvori novy package.
+**Co se stane:** Admin vytvori novy credit package v katalogu sveho tenant workspace, nebo v global katalogu pokud bezi
+system/platform admin bez tenant kontextu. Handler normalizuje `currency` na uppercase, ulozi tracked `CreditPackage`
+a vrati `id`.
 
-**Napises v CRM:** nic.
+**Mentalni model:** Package je Billing product row. CRM nema vytvaret vlastni cenik kreditu; pokud chce ovlivnit, co se
+prodava, pouzije Billing admin katalog.
+
+**Request priklad:**
+
+```json
+{
+  "name": "Starter 250",
+  "creditAmount": 250,
+  "price": 9.99,
+  "currency": "EUR",
+  "bucketExpiryDays": null,
+  "active": true,
+  "stripePriceId": "price_..."
+}
+```
+
+**Frontend/admin pouziti:** `useCreatePackage()` vola `createCreditPackage(input)` a po uspechu invaliduje admin package
+query. Pokud `active=true`, invaliduj i public `billingQueries.packages()`, aby se balicek hned ukazal kupujicim.
+
+**Backend pravidla:** Endpoint je `.RequirePermission(PlatformPermissions.BillingManage)`, bez `.RequireModule("billing")`
+ze stejneho duvodu jako UC34. Duplicate name se odmita v ramci jednoho katalogu (`TenantId + Name`).
+
+**Co nepises:** package create z bezne CRM obrazovky, cena v CRM configu, package bez auditovatelne Billing entity, nebo
+automaticky active package bez explicitniho `active` inputu.
 
 **EC:**
 
-- EC171 amount/price validation → `creditAmount > 0`, `price >= 0`.
+- EC171 amount/price validation → `creditAmount > 0`, `price >= 0`; invalid vstupy vraci 400 pred ulozenim.
 - EC172 currency validation → 3 pismena ISO tvaru; handler normalizuje na uppercase.
-- EC173 duplicate key/name → v jednom katalogu nejde zalozit package se stejnym jmenem.
-- EC174 disabled/default stav podle business rozhodnuti → `active` je explicitni input; `active=false` zalozi disabled package.
-- EC175 po create invalidovat admin i public list → po create se novy package objevi v admin listu; pokud je active, objevi se i v public listu. FE musi invalidovat oba query cache klice.
+- EC173 duplicate key/name → v jednom katalogu nejde zalozit package se stejnym jmenem; vraci
+  `billing.package.name_taken`.
+- EC174 disabled/default stav podle business rozhodnuti → `active` je explicitni input; `active=false` zalozi disabled
+  package viditelny jen v admin listu.
+- EC175 po create invalidovat admin i public list → po create se novy package objevi v admin listu; pokud je active,
+  objevi se i v public listu. FE musi invalidovat oba query cache klice.
 
 ### UC36 Update package
 
