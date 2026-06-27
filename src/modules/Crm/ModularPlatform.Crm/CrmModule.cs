@@ -11,6 +11,12 @@ using ModularPlatform.Crm.Features.Contacts.GetContact;
 using ModularPlatform.Crm.Features.Contacts.ListContacts;
 using ModularPlatform.Crm.Features.Contacts.ListInteractions;
 using ModularPlatform.Crm.Features.Contacts.UpdateContact;
+using ModularPlatform.Crm.Features.Meetings.CancelMeeting;
+using ModularPlatform.Crm.Features.Meetings.CompleteMeeting;
+using ModularPlatform.Crm.Features.Meetings.CreateMeeting;
+using ModularPlatform.Crm.Features.Meetings.GetMeeting;
+using ModularPlatform.Crm.Features.Meetings.ListMeetings;
+using ModularPlatform.Crm.Features.Meetings.UpdateMeeting;
 using ModularPlatform.Crm.Gdpr;
 using ModularPlatform.Crm.Persistence;
 using ModularPlatform.Messaging;
@@ -56,6 +62,13 @@ public sealed class CrmModule : IModule
         endpoints.MapDeleteContact();
         endpoints.MapAddInteraction();
         endpoints.MapListInteractions();
+
+        endpoints.MapCreateMeeting();
+        endpoints.MapGetMeeting();
+        endpoints.MapListMeetings();
+        endpoints.MapUpdateMeeting();
+        endpoints.MapCancelMeeting();
+        endpoints.MapCompleteMeeting();
     }
 
     public void ConfigureMessaging(WolverineOptions options)

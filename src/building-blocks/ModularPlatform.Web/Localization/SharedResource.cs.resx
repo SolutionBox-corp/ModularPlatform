@@ -163,4 +163,12 @@
   <data name="crm.contact.tag.too_long" xml:space="preserve"><value>Štítek je příliš dlouhý.</value></data>
   <data name="crm.interaction.type.invalid" xml:space="preserve"><value>Typ interakce není platný.</value></data>
   <data name="crm.interaction.body.too_long" xml:space="preserve"><value>Poznámka k interakci je příliš dlouhá.</value></data>
+  <data name="crm.meeting_not_found" xml:space="preserve"><value>Schůzka nenalezena.</value></data>
+  <data name="crm.meeting.title.required" xml:space="preserve"><value>Název schůzky je povinný.</value></data>
+  <data name="crm.meeting.title.too_long" xml:space="preserve"><value>Název schůzky je příliš dlouhý.</value></data>
+  <data name="crm.meeting.scheduled_at.required" xml:space="preserve"><value>Čas schůzky je povinný.</value></data>
+  <data name="crm.meeting.duration.invalid" xml:space="preserve"><value>Délka schůzky není platná.</value></data>
+  <data name="crm.meeting.location.too_long" xml:space="preserve"><value>Místo schůzky je příliš dlouhé.</value></data>
+  <data name="crm.meeting.notes.too_long" xml:space="preserve"><value>Poznámky ke schůzce jsou příliš dlouhé.</value></data>
+  <data name="crm.meeting.outcome.too_long" xml:space="preserve"><value>Výsledek schůzky je příliš dlouhý.</value></data>
 </root>

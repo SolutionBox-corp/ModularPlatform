@@ -37,5 +37,18 @@ internal sealed class CrmPersonalDataEraser(CrmDbContext db, IClock clock) : IEr
             .IgnoreQueryFilters()
             .Where(i => i.UserId == userId && i.Body != null)
             .ExecuteUpdateAsync(s => s.SetProperty(i => i.Body, (string?)null), ct);
+
+        // Meeting metadata is the user's own scheduling data — scrub the free-text fields and soft-delete.
+        await db.Meetings
+            .IgnoreQueryFilters()
+            .Where(m => m.UserId == userId)
+            .ExecuteUpdateAsync(
+                s => s
+                    .SetProperty(m => m.Title, "[erased]")
+                    .SetProperty(m => m.Location, (string?)null)
+                    .SetProperty(m => m.Notes, (string?)null)
+                    .SetProperty(m => m.Outcome, (string?)null)
+                    .SetProperty(m => m.DeletedAt, m => m.DeletedAt ?? now),
+                ct);
     }
 }
