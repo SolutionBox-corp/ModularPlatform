@@ -287,13 +287,37 @@ router.push("/login?reason=password-changed");
 
 **Napises v CRM:** jen nove permission constants typu `crm.read`, `crm.write`, pokud CRM potrebuje vlastni gate.
 
+**Mentalni model:** Role a permission assignment vlastni Identity. CRM definuje slovnik permissions pro svoje endpointy, ale nepridava vlastni role tabulky ani user-role vazby.
+
+**CRM permission:** novy permission pridej do `PlatformPermissions`. Seeder ho na startupu zalozi v Identity a system `admin` role ho dostane automaticky.
+
+```csharp
+public const string CrmContactsRead = "crm.contacts.read";
+public const string CrmContactsWrite = "crm.contacts.write";
+public const string CrmDealsManage = "crm.deals.manage";
+```
+
+**CRM endpoint guard:** endpoint gated pres permission claim z tokenu.
+
+```csharp
+app.MapPost("/crm/contacts", ...)
+   .RequirePermission(PlatformPermissions.CrmContactsWrite)
+   .WithTags("CRM");
+```
+
+**Assign role flow:** admin vola Identity `POST /identity/admin/users/{userId}/roles`. Po assignu se permission objevi az v novem/refreshed access tokenu target usera. Stary token zustava snapshot.
+
+**Co dela CRM frontend:** po admin zmene role invaliduj admin/user detail query. Necekaj, ze otevreny tab target usera okamzite vidi novou permission bez refresh/loginu.
+
+**Co nepises:** `CrmUserRole`, `CrmPermission`, DB lookup role v kazdem CRM requestu, hardcoded role names v handleru misto permission constants, permission strings rozesete po endpoint files bez constu.
+
 **EC:**
 
-- EC036 endpoint vyzaduje admin permission.
-- EC037 neexistujici user nebo role vraci 404.
-- EC038 duplicate assign je idempotentni.
-- EC039 uz vydany access token muze zustat stale do expirace.
-- EC040 CRM nepise vlastni `UserRole` tabulku.
+- EC036 endpoint vyzaduje admin permission → role assignment je gated `identity.manage_roles`; CRM admin endpointy maji vlastni `crm.*` permission.
+- EC037 neexistujici user nebo role vraci 404 → CRM neprideluje role sam a nema obchazet Identity not-found pravidla.
+- EC038 duplicate assign je idempotentni → stejny role grant dvakrat nesmi spadnout; CRM admin UI muze po retry dostat stejny vysledek.
+- EC039 uz vydany access token muze zustat stale do expirace → nova CRM permission se projevi po refresh/loginu.
+- EC040 CRM nepise vlastni `UserRole` tabulku → permission vocabulary ano, assignment store ne.
 
 ### UC09 Admin odebere roli
 
