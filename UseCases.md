@@ -25,13 +25,37 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 **Napises v CRM:** nic do registrace. Pokud CRM potrebuje onboarding, napises handler na `UserRegisteredIntegrationEvent`.
 
+**Mentalni model:** Registrace je vstup do platformy, ne do CRM. Identity resi email, heslo, tenant a tokeny. CRM se maximalne dozvi fakt "vznikl user/tenant" a zalozi si vlastni vychozi CRM data.
+
+**Kdy CRM neco dela:** jen pokud produkt potrebuje napr. default pipeline, ukazkovy seznam kontaktu nebo CRM onboarding checklist. To se dela jako consumer eventu, ne jako kod uvnitr `RegisterUserHandler`.
+
+```csharp
+public sealed class CreateCrmWorkspaceOnUserRegisteredHandler
+{
+    public Task Handle(
+        UserRegisteredIntegrationEvent message,
+        IDispatcher dispatcher,
+        CancellationToken ct) =>
+        dispatcher.Send(new EnsureCrmWorkspaceCommand(
+            UserId: message.UserId,
+            TenantId: message.TenantId,
+            IdempotencyKey: $"user-registered:{message.UserId:N}"), ct);
+}
+```
+
+**CRM command:** `EnsureCrmWorkspaceCommand` musi byt idempotentni. Idealni je unique index na `UserId`/`TenantId` nebo vlastni stable idempotency key. Event muze prijit znovu po retry.
+
+**Co nepises:** vlastni registracni endpoint v CRM, vlastni hash hesla, vlastni tenant provisioning, vlastni JWT, primy zapis do Identity/Tenancy tabulek.
+
+**Proc event payload obsahuje email/display name:** existujici welcome flow ho potrebuje. Novy CRM handler by mel pouzit hlavne `UserId`/`TenantId`; PII do vlastnich durable eventu neposilej, pokud ji opravdu nepotrebujes.
+
 **EC:**
 
-- EC001 duplicitni email vrati konflikt pres blind index.
-- EC002 soubezna registrace stejneho emailu skonci unique constraintem, ne dvema usery.
-- EC003 register endpoint musi byt rate-limited, protoze dela drahou auth praci.
-- EC004 tenant name nesmi obsahovat email ani PII.
-- EC005 downstream handlery na registraci musi byt idempotentni, protoze event muze byt retrynuty.
+- EC001 duplicitni email vrati konflikt pres blind index → CRM nikdy nehleda usera podle plaintext emailu v Identity DB.
+- EC002 soubezna registrace stejneho emailu skonci unique constraintem, ne dvema usery → CRM onboarding handler musi pocitat s tim, ze event dostane jen pro uspesne commitnuty user.
+- EC003 register endpoint musi byt rate-limited, protoze dela drahou auth praci → CRM nepridava vlastni registracni variantu bez stejne ochrany.
+- EC004 tenant name nesmi obsahovat email ani PII → CRM onboarding si bere tenant id, neodvozuje workspace nazev z emailu.
+- EC005 downstream handlery na registraci musi byt idempotentni, protoze event muze byt retrynuty → `EnsureCrmWorkspaceCommand` ma unique guard / idempotency key.
 
 ### UC02 Login
 
