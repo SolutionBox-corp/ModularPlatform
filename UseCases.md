@@ -928,17 +928,51 @@ nebo zamenu s `GET /billing/credits/balance`.
 
 **Pouzijes:** `POST /tenant/me/platform-checkout`.
 
-**Co se stane:** Tenant user/admin jde do checkoutu za platform subscription.
+**Co se stane:** Prihlaseny human user spusti platform-plane checkout za SaaS plan. Request posle jen `planKey`;
+server najde cenu a menu v `Platform:Payments:Plans:{planKey}`, vyresi gateway pres `PaymentPlane.Platform`, vytvori
+provider checkout a vrati `providerPaymentId` + `redirectUrl`.
 
-**Napises v CRM:** CRM jen respektuje vysledny entitlement.
+**Mentalni model:** Checkout start neni potvrzeni platby. Je to jen vytvoreni redirectu k providerovi. Entitlement se
+zmeni az po potvrzeni providerem/webhookem/reconcile flow. Browser redirect zpet do aplikace je UX signal, ne pravda.
+
+**Frontend pouziti:**
+
+```tsx
+const result = await apiFetch<{
+  providerPaymentId: string;
+  redirectUrl: string;
+}>("tenant/me/platform-checkout", {
+  method: "POST",
+  body: { planKey: "pro" },
+});
+
+window.location.href = result.redirectUrl;
+```
+
+Pred zobrazenim tlacitka si precti UC21 `GET /tenant/admin/platform-billing`. Kdyz `checkoutReady=false`, tlacitko
+nespoustej a ukaz `actionRequired`.
+
+**Backend pravidla:** Endpoint bere tenant z tokenu (`ITenantContext.TenantId`), zakazuje machine principal
+(`DenyMachinePrincipals`) a cenu nikdy nebere z body. `amountMinorUnits`, `currency`, `description`, success/cancel URL
+jsou server-side config.
+
+**Co udela CRM po navratu z checkoutu:** CRM nebo platform dashboard jen znovu nacte entitlements/status. Nezapina
+`crm` nebo `pro` plan podle query parametru v URL. Pokud webhook prijde pozdeji, UI ukaze pending/refresh stav.
+
+**Co nepises:** `amount` v requestu, `tenantId` v body, manualni enable entitlement po redirectu, checkout pro machine
+token, nebo prime volani Stripe/GoPay SDK z CRM frontendu.
 
 **EC:**
 
-- EC106 tenant bez provider config: checkout vrati 422, kdyz `PaymentPlane.Platform` nema gateway.
-- EC107 checkout session expired: expired/failed session se resi pres provider stav/webhook, ne pres redirect URL.
-- EC108 webhook prijde pozdeji nez navrat usera: checkout vraci jen redirect; stav/entitlement se cte pozdeji z platformy.
-- EC109 entitlement se zapne az po potvrzeni: samotne vytvoreni checkoutu nemeni `tenant_entitlements`.
-- EC110 CRM nikdy nebere checkout success jako trvaly entitlement: CRM respektuje jen live entitlement guard/status.
+- EC106 tenant bez provider config → checkout vrati 422, kdyz `PaymentPlane.Platform` nema gateway nebo credentials.
+- EC107 unknown plan key → `planKey` mimo config vrati 422 `tenancy.platform_plan_unknown`; klient nemuze poslat vlastni
+  cenu.
+- EC108 webhook prijde pozdeji nez navrat usera → checkout vraci jen redirect; stav/entitlement se cte pozdeji z
+  platformy.
+- EC109 entitlement se zapne az po potvrzeni → samotne vytvoreni checkoutu nemeni `tenant_entitlements`; test overuje,
+  ze po startu checkoutu neni `Tier='pro'`.
+- EC110 CRM nikdy nebere checkout success jako trvaly entitlement → CRM respektuje jen live entitlement guard/status,
+  ne URL `success` nebo `providerPaymentId`.
 
 ## Billing
 
