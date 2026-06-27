@@ -1472,16 +1472,52 @@ catch-all, ktery pri confirm chybe tise oznaci CRM akci jako hotovou.
 
 **Pouzijes:** `POST /billing/credits/reservations/release`.
 
-**Co se stane:** Billing vrati rezervovane kredity do available.
+**Co se stane:** Billing zrusi aktivni reservation a vrati blokovane kredity do `Available`. Zapise ledger entry
+`Release`, nastavi hold na `Released`, snizi `Pending`, zvysi `Available` a po commitu posle realtime refresh.
 
-**Napises v CRM:** failure branch a reconcile job volaji release.
+**Mentalni model:** Release je failure/cancel vetev. Pokud CRM akce po reservation neprobehla, nechces userovi spalit
+kredity. Release je idempotentni, takze ho smi volat catch blok, retry worker i reconcile.
+
+**HTTP request priklad:**
+
+```json
+{
+  "reservationId": "018f..."
+}
+```
+
+**Backend / CRM pouziti v catch:**
+
+```csharp
+try
+{
+    await dispatcher.Send(new RunCrmAiEnrichmentCommand(run.Id), ct);
+    await dispatcher.Send(new ConfirmSpendCommand(userId, run.CreditReservationId), ct);
+}
+catch
+{
+    await dispatcher.Send(new ReleaseHoldCommand(userId, run.CreditReservationId), ct);
+    run.Status = CrmAiRunStatus.Failed;
+    throw;
+}
+```
+
+**Reconcile pouziti:** Pokud CRM run zustane dlouho `Reserved` a neni hotovy, job ma bud pokracovat v praci, nebo hold
+release-nout. Nedrz donekonecna vlastni CRM stav `Reserved`; Billing hold muze mezitim expirovat.
+
+**Co se stane po confirmu:** Release po confirmed reservation neobnovi kredit. Handler vrati aktualni available a
+nevytvori `Release` ledger entry, protoze spend uz je skutecny.
+
+**Co nepises:** ignorovani failure vetve, manualni `Available += amount`, release cizi reservation, nebo druhy vlastni
+timeout mechanismus misto Billing hold expiry/reconcile.
 
 **EC:**
 
 - EC156 duplicate release je idempotentni → opakovany release vraci 200 a neprida druhy `Release` entry.
 - EC157 release po confirm nesmi vratit kredit → confirmed hold se jen nahlasi jako uz resolved, bez obnovy available.
 - EC158 kazda failure vetev musi release resit → CRM failure/retry branch vola `ReleaseHoldCommand`.
-- EC159 stuck `Reserved` stav potrebuje reconcile → expiry sweep materializuje lapsed active holds jako `Expired` a vrati availability.
+- EC159 stuck `Reserved` stav potrebuje reconcile → expiry sweep materializuje lapsed active holds jako `Expired` a vrati
+  availability; CRM job ma mit vlastni kontrolu stuck runu.
 - EC160 UI refetchuje balance po release → handler po commit publikuje `billing.credits_changed`.
 
 ### UC33 Public packages
