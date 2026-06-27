@@ -22,6 +22,7 @@ public sealed class RlsConventionTests
         typeof(ModularPlatform.Gdpr.GdprModule).Assembly,
         typeof(ModularPlatform.Operations.OperationsModule).Assembly,
         typeof(ModularPlatform.Files.FilesModule).Assembly,
+        typeof(ModularPlatform.Crm.CrmModule).Assembly,
         typeof(ModularPlatform.Tenancy.TenancyModule).Assembly,
     };
 

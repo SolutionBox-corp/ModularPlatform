@@ -20,6 +20,7 @@ public sealed class PersonalDataConventionTests
         typeof(ModularPlatform.Files.FilesModule).Assembly,
         typeof(ModularPlatform.Tenancy.TenancyModule).Assembly,
         typeof(ModularPlatform.Marketing.MarketingModule).Assembly,
+        typeof(ModularPlatform.Crm.CrmModule).Assembly,
     };
 
     [Fact]

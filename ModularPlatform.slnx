@@ -24,6 +24,11 @@
     <Project Path="src/modules/Billing/ModularPlatform.Billing.Tests/ModularPlatform.Billing.Tests.csproj" />
     <Project Path="src/modules/Billing/ModularPlatform.Billing/ModularPlatform.Billing.csproj" />
   </Folder>
+  <Folder Name="/src/modules/Crm/">
+    <Project Path="src/modules/Crm/ModularPlatform.Crm.Contracts/ModularPlatform.Crm.Contracts.csproj" />
+    <Project Path="src/modules/Crm/ModularPlatform.Crm.Tests/ModularPlatform.Crm.Tests.csproj" />
+    <Project Path="src/modules/Crm/ModularPlatform.Crm/ModularPlatform.Crm.csproj" />
+  </Folder>
   <Folder Name="/src/modules/Files/">
     <Project Path="src/modules/Files/ModularPlatform.Files.Tests/ModularPlatform.Files.Tests.csproj" />
     <Project Path="src/modules/Files/ModularPlatform.Files/ModularPlatform.Files.csproj" />

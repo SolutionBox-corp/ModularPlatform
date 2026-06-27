@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Billing;
+using ModularPlatform.Crm;
 using ModularPlatform.Files;
 using ModularPlatform.Gdpr;
 using ModularPlatform.Identity;
@@ -27,6 +28,7 @@ var modules = ModuleLoader.Discover(
     typeof(OperationsModule).Assembly,
     typeof(FilesModule).Assembly,
     typeof(MarketingModule).Assembly,
+    typeof(CrmModule).Assembly,
     // Tenancy LAST: it creates the `tenants` table that Identity's drop migration removes — discovery order is
     // migration-application order, so Identity (first) must drop before Tenancy (last) re-creates as its owner.
     typeof(TenancyModule).Assembly);

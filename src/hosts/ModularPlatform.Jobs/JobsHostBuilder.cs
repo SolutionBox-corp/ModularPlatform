@@ -2,6 +2,7 @@ using ModularPlatform.Abstractions;
 using ModularPlatform.Billing;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Cqrs.Behaviors;
+using ModularPlatform.Crm;
 using ModularPlatform.Files;
 using ModularPlatform.Gdpr;
 using ModularPlatform.Identity;
@@ -52,6 +53,7 @@ public static class JobsHostBuilder
             // DI graph stays uniform and the host-boot test validates it — no special-case omission to drift on.
             typeof(FilesModule).Assembly,
             typeof(MarketingModule).Assembly,
+            typeof(CrmModule).Assembly,
             typeof(TenancyModule).Assembly);
         foreach (var module in modules)
         {

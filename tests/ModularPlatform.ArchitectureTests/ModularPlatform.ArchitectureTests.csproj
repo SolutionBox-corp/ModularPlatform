@@ -26,6 +26,8 @@
     <ProjectReference Include="..\..\src\modules\Identity\ModularPlatform.Identity.Contracts\ModularPlatform.Identity.Contracts.csproj" />
     <ProjectReference Include="..\..\src\modules\Billing\ModularPlatform.Billing\ModularPlatform.Billing.csproj" />
     <ProjectReference Include="..\..\src\modules\Billing\ModularPlatform.Billing.Contracts\ModularPlatform.Billing.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\modules\Crm\ModularPlatform.Crm\ModularPlatform.Crm.csproj" />
+    <ProjectReference Include="..\..\src\modules\Crm\ModularPlatform.Crm.Contracts\ModularPlatform.Crm.Contracts.csproj" />
     <ProjectReference Include="..\..\src\modules\Notifications\ModularPlatform.Notifications\ModularPlatform.Notifications.csproj" />
     <ProjectReference Include="..\..\src\modules\Notifications\ModularPlatform.Notifications.Contracts\ModularPlatform.Notifications.Contracts.csproj" />
     <ProjectReference Include="..\..\src\modules\Gdpr\ModularPlatform.Gdpr\ModularPlatform.Gdpr.csproj" />

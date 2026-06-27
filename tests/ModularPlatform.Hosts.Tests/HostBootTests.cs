@@ -33,6 +33,7 @@ public sealed class HostBootTests
         "--Modules:Operations:Enabled=true",
         "--Modules:Files:Enabled=true",
         "--Modules:Marketing:Enabled=true",
+        "--Modules:Crm:Enabled=true",
         "--Modules:Tenancy:Enabled=true",
         // The fake Stripe gateway is exempt from the prod guard in Development and avoids needing a real API key.
         "--Billing:Stripe:UseFakeGateway=true",

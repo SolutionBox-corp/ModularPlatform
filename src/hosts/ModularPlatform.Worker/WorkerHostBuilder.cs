@@ -2,6 +2,7 @@ using ModularPlatform.Abstractions;
 using ModularPlatform.Billing;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Cqrs.Behaviors;
+using ModularPlatform.Crm;
 using ModularPlatform.Files;
 using ModularPlatform.Gdpr;
 using ModularPlatform.Identity;
@@ -47,6 +48,7 @@ public static class WorkerHostBuilder
             typeof(OperationsModule).Assembly,
             typeof(FilesModule).Assembly,
             typeof(MarketingModule).Assembly,
+            typeof(CrmModule).Assembly,
             typeof(TenancyModule).Assembly);
         foreach (var module in modules)
         {
