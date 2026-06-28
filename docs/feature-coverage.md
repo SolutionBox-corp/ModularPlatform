@@ -191,14 +191,14 @@ _Strong: dummy-hash timing equalization + hasRealHash gate is the right pattern;
 |---|:--:|---|
 | Unknown token hash | ✓ | FirstOrDefault null -> 401 auth.refresh_token_invalid — RefreshTokenHandler.cs:33-37 |
 | Replay of consumed token | ✓ | ConsumedAt!=null -> revoke whole family (tracked SaveChanges so it is audited) -> 401 reused — RefreshTokenHandler.cs:39-58; test Refresh_reuse_revokes_whole_family_and_is_audited |
-| Expired/revoked-but-not-consumed token | ✓ | IsActive(now) false -> 401 invalid — RefreshTokenHandler.cs:60-63 |
+| Expired/revoked-but-not-consumed token | ✓ | IsActive(now) false -> 401 invalid — RefreshTokenHandler.cs:60-63; test Expired_refresh_token_is_rejected_as_invalid |
 | Token outliving a soft-deleted/erased account | ✓ | User loaded IgnoreQueryFilters; DeletedAt!=null -> 401 — RefreshTokenHandler.cs:65-75; test Refresh_is_rejected_when_the_account_is_soft_deleted |
 | Token outliving a hard-deleted/missing user | ✓ | FirstOrDefault (not First) -> null -> clean 401, not 500 — RefreshTokenHandler.cs:69-72 |
 | Parallel refresh of same token | ✓ | Exactly one 200, one 401, family ends fully revoked, no 5xx — proven by AuthRobustnessTests.Parallel_refresh_with_same_token_yields_one_winner_no_server_error (xmin serializes the consume) |
 | Claims snapshot staleness | ✓ | Roles/permissions reloaded each refresh via UserAuthorizationQuery — RefreshTokenHandler.cs:92 |
 
-**Testy:** IdentityE2ETests reuse-detection leg; AuthRobustnessTests.Refresh_reuse_revokes_whole_family_and_is_audited; AuthRobustnessTests.Parallel_refresh_with_same_token_yields_one_winner_no_server_error; SessionRevocationTests.Refresh_is_rejected_when_the_account_is_soft_deleted; SessionRevocationTests.Erasure_revokes_all_of_the_subjects_refresh_tokens
-**Test gaps:** No explicit test for an EXPIRED (not consumed/revoked) token -> 401 (only consumed/soft-deleted covered); No test for refresh after explicit revoke of a single token via reuse on a different family member
+**Testy:** IdentityE2ETests reuse-detection leg; AuthRobustnessTests.Refresh_reuse_revokes_whole_family_and_is_audited; AuthRobustnessTests.Parallel_refresh_with_same_token_yields_one_winner_no_server_error; AuthRobustnessTests.Expired_refresh_token_is_rejected_as_invalid; SessionRevocationTests.Refresh_is_rejected_when_the_account_is_soft_deleted; SessionRevocationTests.Erasure_revokes_all_of_the_subjects_refresh_tokens
+**Test gaps:** No test for refresh after explicit revoke of a single token via reuse on a different family member
 
 _Security-critical slice is thorough; the deliberate tracked-SaveChanges (not ExecuteUpdate) for the family revoke so the AuditInterceptor + xmin engage is correct and tested._
 
@@ -214,10 +214,10 @@ _Security-critical slice is thorough; the deliberate tracked-SaveChanges (not Ex
 | Family revoke audited + concurrency-safe | ✓ | Tracked SaveChanges (not ExecuteUpdate) -> AuditInterceptor + xmin — LogoutHandler.cs:30-39 |
 | Unauthenticated logout | ✓ | RequireAuthorization + UnauthorizedException(auth.required) if no UserId — LogoutEndpoint.cs:20-25 |
 
-**Testy:** SessionRevocationTests.Logout_revokes_the_session_family
-**Test gaps:** No test asserting logout with a foreign refresh token (UserId mismatch) is a silent no-op and does NOT revoke another user's family; No test asserting logout with an unknown token returns 200 (idempotent) rather than 404
+**Testy:** SessionRevocationTests.Logout_revokes_the_session_family; SessionRevocationTests.Logout_with_another_users_refresh_token_is_a_silent_noop; SessionRevocationTests.Logout_with_an_unknown_refresh_token_is_a_silent_success
+**Test gaps:** No remaining logout/session-family revocation gap in this slice.
 
-_Logic is correct; the cross-user-no-op IDOR guard (LogoutHandler.cs:24) is security-relevant but untested._
+_Logic is correct; the cross-user-no-op IDOR guard and unknown-token idempotency are both pinned by tests._
 
 ### Profile read (GetProfile /me) — ✅ correct
 *Return the authenticated user's own profile via the no-tracking read factory.*
