@@ -912,14 +912,15 @@ _Clean reuse-first slice. The 'one inapp row regardless of channels' is intentio
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
-| Empty ToAddress on the email message | ✓ | ChannelDeliveryHandlers.cs:13-15 returns Task.CompletedTask without touching SMTP. |
-| SMTP relay unreachable / send throws | ✓ | Handler lets the exception bubble; PlatformMessaging retry-with-cooldown + durable dead-letter (per CLAUDE.md §4 messaging resilience) governs it. SmtpEmailSender connects per-send (SmtpEmailSender.cs:24-33). |
-| Push delivery | ◐ | NoOpPushSender.cs:9 is a deliberate stub — push is a documented no-op until a real provider lands; the durable pipeline is exercised end-to-end but no device ever receives anything. This is an acknowledged 'not yet' (IPushSender.cs:5-6). |
+| Empty ToAddress on the email message | ✓ | ChannelDeliveryHandlers.cs:13-15 returns Task.CompletedTask without touching SMTP. Proven by ChannelDeliveryHandlersTests.Email_delivery_handler_skips_missing_address_without_calling_smtp. |
+| SMTP relay unreachable / send throws | ✓ | Handler lets the exception bubble; PlatformMessaging retry-with-cooldown + durable dead-letter (per CLAUDE.md §4 messaging resilience) governs it. SmtpEmailSender connects per-send (SmtpEmailSender.cs:24-33). Proven at handler boundary by ChannelDeliveryHandlersTests.Email_delivery_handler_propagates_smtp_failures_for_wolverine_retry_and_dlq. |
+| Push delivery | ◐ | NoOpPushSender.cs:9 is a deliberate stub — push is a documented no-op until a real provider lands; the handler contract and no-op provider are directly tested. No device receives anything until a real provider replaces the stub. |
 | SMTP auth optional | ✓ | SmtpEmailSender.cs:27-30 only authenticates when User is non-empty; StartTlsWhenAvailable used. |
 
-**Test gaps:** No test exercises EmailDeliveryHandler/PushDeliveryHandler directly (the blank-ToAddress short-circuit and the push no-op are untested); SmtpEmailSender has no test (acknowledged — needs a real relay); a fake IEmailSender capturing the send would let NT-1 assert the email path end-to-end through the Worker
+**Testy:** ChannelDeliveryHandlersTests.Email_delivery_handler_sends_exact_rendered_payload_to_email_sender; ChannelDeliveryHandlersTests.Email_delivery_handler_skips_missing_address_without_calling_smtp; ChannelDeliveryHandlersTests.Email_delivery_handler_propagates_smtp_failures_for_wolverine_retry_and_dlq; ChannelDeliveryHandlersTests.Push_delivery_handler_sends_exact_rendered_payload_to_push_sender; ChannelDeliveryHandlersTests.Push_delivery_handler_propagates_provider_failures_for_wolverine_retry_and_dlq; ChannelDeliveryHandlersTests.Noop_push_sender_completes_without_external_provider
+**Test gaps:** SmtpEmailSender has no live relay test (acknowledged — needs a configured SMTP relay or MailKit test server); Worker end-to-end delivery to a fake sender is still inferred from outbox tests plus direct handler tests.
 
-_Push being a no-op is by design and documented; the only real gap is zero direct test coverage of the two Worker delivery handlers._
+_Push being a no-op is by design and documented; worker-side channel handlers now have direct unit coverage, while real SMTP remains an environment-backed integration concern._
 
 ### Templates + rendering + seeding — 🟢 minor-gaps
 *Reusable {placeholder} message templates keyed by (Key,Locale), rendered at send time, idempotently seeded on startup.*
