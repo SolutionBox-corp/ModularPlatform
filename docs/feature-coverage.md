@@ -837,10 +837,10 @@ _End-to-end erasure is well tested and correct. Per-eraser isolation now matches
 | Erasure of consents bypasses audit/xmin via ExecuteDelete | ✓ | documented sanctioned GDPR-scrub path (ConsentPersonalDataEraser.cs:9-24) |
 | Consent rows excluded from AML/tax retention | ✓ | eraser deletes them, unlike the credit ledger (ConsentPersonalDataEraser.cs:9-12) |
 
-**Testy:** GdprIntegrationTests.Consent_grant_then_withdraw_is_append_only_and_get_reflects_the_latest_state; GdprIntegrationTests.Consent_history_is_exported_and_deleted_on_erasure
-**Test gaps:** No test that ConsentType is trimmed before persistence (handler .Trim() — GrantConsentHandler.cs:21); No test of the validator (empty/too-long ConsentType -> error codes)
+**Testy:** GdprIntegrationTests.Consent_grant_then_withdraw_is_append_only_and_get_reflects_the_latest_state; GdprIntegrationTests.Consent_grant_trims_type_and_policy_version_before_persistence; GdprIntegrationTests.Consent_history_is_exported_and_deleted_on_erasure; ConsentValidatorTests.Grant_consent_validator_uses_stable_error_codes; ConsentValidatorTests.Withdraw_consent_validator_uses_stable_error_codes; ConsentValidatorTests.Consent_validators_accept_valid_input
+**Test gaps:** No remaining focused consent log/validator gap in this slice.
 
-_Clean append-only model, correct token-identity, well tested. GrantConsentValidator still validates UserId.NotEmpty (GrantConsentValidator.cs) even though UserId now always comes from the token — dead/redundant rule (harmless)._
+_Clean append-only model, correct token-identity, stable validation error codes, and trimmed persisted consent values._
 
 ### Export fan-out (IExportPersonalData) — ✅ correct
 *Assemble one Art.15 document keyed by module, resilient to a single exporter failing.*

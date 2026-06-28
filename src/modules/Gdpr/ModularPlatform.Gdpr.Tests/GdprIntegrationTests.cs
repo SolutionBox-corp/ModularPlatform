@@ -261,6 +261,33 @@ public sealed class GdprIntegrationTests(PlatformApiFactory fixture)
         rows[0].GetProperty("policyVersion").GetString().ShouldBe("2026-06");
     }
 
+    [Fact]
+    public async Task Consent_grant_trims_type_and_policy_version_before_persistence()
+    {
+        var email = $"consent-trim-{Guid.CreateVersion7():N}@example.com";
+        var (userId, accessToken) = await fixture.RegisterAndLoginAsync(email, Password);
+        var consentType = $"trimmed-{Guid.CreateVersion7():N}";
+
+        var grant = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Post, "/v1/gdpr/consents/grant", accessToken,
+                new { consentType = $"  {consentType}  ", policyVersion = "  2026-06  " }));
+        grant.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var storedType = await fixture.ScalarAsync<string>(
+            $"SELECT \"ConsentType\" FROM consent_records WHERE \"UserId\" = '{userId}' ORDER BY \"RecordedAt\" DESC LIMIT 1");
+        storedType.ShouldBe(consentType);
+        var storedPolicy = await fixture.ScalarAsync<string>(
+            $"SELECT \"PolicyVersion\" FROM consent_records WHERE \"UserId\" = '{userId}' ORDER BY \"RecordedAt\" DESC LIMIT 1");
+        storedPolicy.ShouldBe("2026-06");
+
+        var get = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/gdpr/me/consents", accessToken));
+        get.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var latest = (await PlatformApiFactory.ReadData(get))[0];
+        latest.GetProperty("consentType").GetString().ShouldBe(consentType);
+        latest.GetProperty("policyVersion").GetString().ShouldBe("2026-06");
+    }
+
     // GD-6 — the consent log participates in its OWN export + erasure (was a gap: consent history survived erasure
     // with the real UserId and was absent from the Art. 15 export). Export now includes a "Gdpr.Consents" section;
     // erasure DELETES the subject's consent rows (no AML/tax retention obligation, unlike the credit ledger).
