@@ -22,15 +22,21 @@ const CATALOG: Catalog = {
   // Backend code: auth.locked_out (LoginHandler.cs). Keep auth.account_locked as alias.
   "auth.locked_out": { en: "Account temporarily locked. Try again later.", cs: "Účet je dočasně uzamčen. Zkuste to později." },
   "auth.account_locked": { en: "Account temporarily locked. Try again later.", cs: "Účet je dočasně uzamčen. Zkuste to později." },
+  "auth.forbidden": { en: "You do not have permission to access this area.", cs: "Nemáte oprávnění pro přístup do této části." },
+  "auth.email_verification_invalid": { en: "This email verification link is invalid or expired.", cs: "Odkaz pro ověření e-mailu je neplatný nebo vypršel." },
   "security.csrf_failed": { en: "Security check failed. Reload and retry.", cs: "Bezpečnostní kontrola selhala. Obnovte stránku." },
   "rate_limit.exceeded": { en: "Too many requests. Please slow down.", cs: "Příliš mnoho požadavků. Zpomalte prosím." },
   // Identity
   "user.email_taken": { en: "That email is already registered.", cs: "Tento e-mail je již registrován." },
   "user.not_found": { en: "User not found.", cs: "Uživatel nenalezen." },
+  "user.current_password_invalid": { en: "The current password is incorrect.", cs: "Aktuální heslo není správné." },
+  "user.password_unchanged": { en: "The new password must differ from the current one.", cs: "Nové heslo se musí lišit od aktuálního." },
   // Billing
   "billing.insufficient_credits": { en: "Not enough credits for this action.", cs: "Nedostatek kreditů pro tuto akci." },
+  "billing.no_billing_account": { en: "No billing account yet. Subscribe or buy credits first.", cs: "Zatím nemáte fakturační účet. Nejprve si předplaťte nebo kupte kredity." },
   "billing.package_not_found": { en: "That package is no longer available.", cs: "Tento balíček již není dostupný." },
   "billing.promo_invalid": { en: "This promo code is not valid.", cs: "Tento promo kód není platný." },
+  "credit.account_not_found": { en: "Credit account not found.", cs: "Kreditní účet nenalezen." },
   "billing.gateway.unknown_provider": { en: "Unknown payment provider.", cs: "Neznámý poskytovatel plateb." },
   "billing.gateway.stripe_key_required": { en: "A Stripe API key is required.", cs: "Je vyžadován Stripe API klíč." },
   "billing.gateway.stripe_webhook_secret_required": { en: "A Stripe webhook signing secret is required.", cs: "Je vyžadován podpisový tajný klíč Stripe webhooku." },

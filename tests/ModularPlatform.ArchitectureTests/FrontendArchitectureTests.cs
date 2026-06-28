@@ -4,6 +4,14 @@ namespace ModularPlatform.ArchitectureTests;
 
 public sealed class FrontendArchitectureTests
 {
+    private static readonly Regex FrontendErrorCodeLiteral = new(
+        @"(?:errorCode\s*:\s*|\.errorCode\s*={2,3}\s*)[""']([a-z0-9_]+(?:\.[a-z0-9_]+)+)[""']",
+        RegexOptions.Compiled);
+
+    private static readonly Regex FrontendErrorCatalogKey = new(
+        @"[""']([a-z0-9_]+(?:\.[a-z0-9_]+)+)[""']\s*:",
+        RegexOptions.Compiled);
+
     [Fact]
     public void Feature_components_do_not_call_backend_clients_directly()
     {
@@ -95,6 +103,36 @@ public sealed class FrontendArchitectureTests
             violations.Count == 0,
             "Realtime SSE/WebSocket ownership must stay in frontend/lib/realtime/realtime-provider.tsx; modules add event-map rows and invalidate queries instead: "
             + string.Join(", ", violations));
+    }
+
+    [Fact]
+    public void Frontend_error_code_literals_are_in_the_display_catalog()
+    {
+        var catalogPath = Path.Combine(FindRepoRoot(), "frontend", "lib", "errors", "error-map.ts");
+        var catalogCodes = FrontendErrorCatalogKey
+            .Matches(File.ReadAllText(catalogPath))
+            .Select(match => match.Groups[1].Value)
+            .ToHashSet();
+
+        var usedCodes = FindFrontendSourceFiles()
+            .SelectMany(file => FrontendErrorCodeLiteral
+                .Matches(StripComments(File.ReadAllText(file)))
+                .Select(match => new
+                {
+                    Code = match.Groups[1].Value,
+                    File = RelativeToRepo(file),
+                }))
+            .Where(item => item.File != "frontend/lib/errors/error-map.ts")
+            .GroupBy(item => item.Code)
+            .Where(group => !catalogCodes.Contains(group.Key))
+            .Select(group => $"{group.Key} ({string.Join(", ", group.Select(item => item.File).Distinct().Order())})")
+            .Order()
+            .ToList();
+
+        Assert.True(
+            usedCodes.Count == 0,
+            "Frontend errorCode literals must have EN/CS fallback entries in frontend/lib/errors/error-map.ts: "
+            + string.Join("; ", usedCodes));
     }
 
     private static IReadOnlyList<string> FindFrontendFiles(string glob)

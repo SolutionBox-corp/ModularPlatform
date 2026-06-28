@@ -5365,7 +5365,7 @@ return canDelete ? <DeleteContactButton contactId={id} /> : null;
 
 ### UC109 Error UX
 
-**Status:** Frontend ma jednotny `apiFetch` → `ApiError` → `ProblemDetails` / field errors pattern.
+**Status:** Frontend ma jednotny `apiFetch` → `ApiError` → `ProblemDetails` / field errors pattern. Guard `FrontendArchitectureTests.Frontend_error_code_literals_are_in_the_display_catalog` hlida, ze frontend `errorCode` literaly maji fallback v `error-map.ts`.
 
 **Pouzijes:** `apiFetch`, `ApiError`, `isApiError`, `ProblemDetails`, `toDisplayMessage`, `error-map.ts`, `toast`, form `setError`.
 
@@ -5432,7 +5432,7 @@ return (
 
 ### UC110 i18n error codes
 
-**Status:** Backend ma `SharedResource.resx`/`SharedResource.cs.resx`; frontend ma `error-map.ts` pro safe display.
+**Status:** Backend ma `SharedResource.resx`/`SharedResource.cs.resx` a guard `ErrorCodeLocalizationTests`; frontend ma `error-map.ts` pro safe display a guard `FrontendArchitectureTests.Frontend_error_code_literals_are_in_the_display_catalog`.
 
 **Pouzijes:** `src/building-blocks/ModularPlatform.Web/Localization/SharedResource.resx`, `SharedResource.cs.resx`, `frontend/lib/errors/error-map.ts`, FluentValidation `.WithErrorCode(...)`.
 
