@@ -291,8 +291,8 @@ _Two admin-grant paths (startup seeder + login) with a benign divergence on the 
 | Admin-only, route id is target subject (not IDOR) | ✓ | RequirePermission(AuditRead); route userId is intentional admin-over-subject like role assignment — GetUserAuditTrailEndpoint.cs:10-27 |
 | Read via read factory (no tracking) | ✓ | IReadDbContextFactory — GetUserAuditTrailHandler.cs:22 |
 
-**Testy:** AuditPiiEncryptionTests.User_pii_is_enveloped_in_audit_and_decryptable_by_an_admin; AuditPiiEncryptionTests.Erasing_the_subject_makes_audit_pii_unrecoverable; IdentityE2ETests audit-row-count leg
-**Test gaps:** No test that a NON-admin (lacking audit.read) gets 403 on the audit endpoint; No test for malformed/empty NewValues handling (defensive paths uncovered)
+**Testy:** AuditPiiEncryptionTests.User_pii_is_enveloped_in_audit_and_decryptable_by_an_admin; AuditPiiEncryptionTests.Erasing_the_subject_makes_audit_pii_unrecoverable; AuditPiiEncryptionTests.Tenant_audit_requires_permission_and_does_not_cross_tenant; AuditPiiEncryptionTests.Platform_audit_requires_platform_permission_and_keeps_erased_pii_unreadable; AuditPiiEncryptionTests.Audit_trail_tolerates_non_object_new_values_json; IdentityE2ETests audit-row-count leg
+**Test gaps:** No remaining focused Identity audit-read gap in this slice.
 
 _Crypto-shred reveal is solid and end-to-end tested both pre- and post-erasure._
 
