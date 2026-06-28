@@ -1560,12 +1560,13 @@ _Pure evaluation cleanly extracted and unit-tested; the Scheduled-vs-Outgoing bu
 | errorCode has no resx entry | ✓ | detail.ResourceNotFound → falls back to safe `error.unexpected`, never `ex.Message` (GlobalExceptionMiddleware.cs:50); ArchitectureTests.ErrorCodeLocalizationTests fails the build if any thrown code lacks en+cs entry |
 | Leaking internals in production 500s | ✓ | exception extension only when IsDevelopment (GlobalExceptionMiddleware.cs:85-88) |
 | traceId correlation | ✓ | problem.Extensions['traceId']=context.TraceIdentifier (GlobalExceptionMiddleware.cs:73) |
+| Validation failure response shape | ✓ | `errors[]` extension is pinned as an array of `{field,errorCode,message}` with stable `validation.failed` title/type/errorCode in GlobalExceptionMiddlewareTests.Validation_exception_returns_problem_details_with_errors_extension_shape |
 | Response already started when exception thrown (e.g. mid-SSE-stream) | ✓ | Catch blocks check `Response.HasStarted` before writing ProblemDetails; middleware rethrows the original exception and leaves the already-started stream untouched (GlobalExceptionMiddleware.cs:32-51) |
 
-**Testy:** PlatformContractTests.PL3_domain_errors_are_rfc9457_with_stable_code_and_localized_detail; ArchitectureTests.ErrorCodeLocalizationTests.Every_thrown_error_code_is_localized_in_en_and_cs; GlobalExceptionMiddlewareTests.Unhandled_exception_returns_safe_problem_details; GlobalExceptionMiddlewareTests.Development_500_includes_exception_extension; GlobalExceptionMiddlewareTests.Started_response_rethrows_original_exception_without_overwriting_stream
-**Test gaps:** No direct unit test for the validation errors[] extension shape; domain validation is still covered through endpoint-level contract tests.
+**Testy:** PlatformContractTests.PL3_domain_errors_are_rfc9457_with_stable_code_and_localized_detail; ArchitectureTests.ErrorCodeLocalizationTests.Every_thrown_error_code_is_localized_in_en_and_cs; GlobalExceptionMiddlewareTests.Unhandled_exception_returns_safe_problem_details; GlobalExceptionMiddlewareTests.Development_500_includes_exception_extension; GlobalExceptionMiddlewareTests.Validation_exception_returns_problem_details_with_errors_extension_shape; GlobalExceptionMiddlewareTests.Started_response_rethrows_original_exception_without_overwriting_stream
+**Test gaps:** No remaining focused RFC9457 error-contract gap in this slice.
 
-_Solid contract with build-time i18n parity guard. The streaming `HasStarted` edge case is now guarded and directly tested._
+_Solid contract with build-time i18n parity guard. Validation errors, production-safe 500s, dev exception detail, and started-response rethrow are now directly tested._
 
 ### Rate limiting (global + auth policy) — ✅ correct
 *Partitioned token/fixed-window limiting: per-user (or per-IP) global bucket + tight per-IP 'auth' policy for credential endpoints.*

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging.Abstractions;
+using ModularPlatform.Cqrs;
 using ModularPlatform.Web.Errors;
 using ModularPlatform.Web.Localization;
 using Shouldly;
@@ -46,6 +47,35 @@ public sealed class GlobalExceptionMiddlewareTests
 
         var json = await ReadResponseJson(context);
         json.RootElement.GetProperty("exception").GetString().ShouldNotBeNull().ShouldContain("development detail");
+    }
+
+    [Fact]
+    public async Task Validation_exception_returns_problem_details_with_errors_extension_shape()
+    {
+        var context = NewHttpContext();
+        var middleware = NewMiddleware(_ => throw new ValidationException(
+        [
+            new ValidationError("email", "user.email_invalid", "Email is invalid."),
+        ]));
+
+        await middleware.Invoke(context);
+
+        context.Response.StatusCode.ShouldBe(StatusCodes.Status400BadRequest);
+        context.Response.ContentType.ShouldStartWith("application/problem+json");
+
+        var json = await ReadResponseJson(context);
+        json.RootElement.GetProperty("title").GetString().ShouldBe("validation.failed");
+        json.RootElement.GetProperty("type").GetString().ShouldBe("https://errors.modularplatform.dev/validation.failed");
+        json.RootElement.GetProperty("detail").GetString().ShouldBe("Validation failed.");
+        json.RootElement.GetProperty("errorCode").GetString().ShouldBe("validation.failed");
+        json.RootElement.GetProperty("traceId").GetString().ShouldBe(context.TraceIdentifier);
+
+        var errors = json.RootElement.GetProperty("errors");
+        errors.ValueKind.ShouldBe(JsonValueKind.Array);
+        errors.GetArrayLength().ShouldBe(1);
+        errors[0].GetProperty("field").GetString().ShouldBe("email");
+        errors[0].GetProperty("errorCode").GetString().ShouldBe("user.email_invalid");
+        errors[0].GetProperty("message").GetString().ShouldBe("Email is invalid.");
     }
 
     [Fact]
@@ -117,6 +147,7 @@ public sealed class GlobalExceptionMiddlewareTests
         private static readonly Dictionary<string, string> Values = new(StringComparer.Ordinal)
         {
             ["error.unexpected"] = "Something went wrong.",
+            ["validation.failed"] = "Validation failed.",
         };
 
         public LocalizedString this[string name]
