@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using ModularPlatform.Billing.Contracts;
 using ModularPlatform.Cqrs;
-using ModularPlatform.Notifications.Features.Notifications.SendNotification;
+using ModularPlatform.Notifications.Contracts;
 
 namespace ModularPlatform.Notifications.Messaging;
 

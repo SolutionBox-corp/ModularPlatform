@@ -2090,11 +2090,11 @@ price id, nebo druhy checkout button bez pending disable.
 
 **Status:** Implemented + tested — `NotificationsIntegrationTests`.
 
-**Pouzijes:** `POST /notifications/send` nebo `SendNotificationCommand`.
+**Pouzijes:** `POST /notifications/send` nebo `SendNotificationCommand` z `ModularPlatform.Notifications.Contracts`.
 
 **Co se stane:** Notifications vyrenderuje template, ulozi in-app feed row a email/push prida do Wolverine outboxu.
 
-**Napises v novem modulu (napr. ExampleModule):** command/event s recipientem, template key, daty a `idempotencyKey`. Pres HTTP posilej jen opravneny/admin caller; bezny user si nema posilat notifikace cizim userum.
+**Napises v novem modulu (napr. ExampleModule):** command/event s recipientem, template key, daty a `idempotencyKey`. Pokud volas z backendu jineho modulu, referencuj `ModularPlatform.Notifications.Contracts`, nikdy Notifications Core. Pres HTTP posilej jen opravneny/admin caller; bezny user si nema posilat notifikace cizim userum.
 
 **EC:**
 
@@ -2200,7 +2200,7 @@ price id, nebo druhy checkout button bez pending disable.
 
 **Pouzijes:** Notifications handler na `CreditPurchaseCompletedIntegrationEvent`.
 
-**Co se stane:** Billing po uspesnem nakupu publikuje `CreditPurchaseCompletedIntegrationEvent`. Notifications ma public Wolverine handler `SendPurchaseCompletedHandler`, ktery nevezme zadnou Billing tabulku, ale jen payload eventu (`UserId`, `PurchaseId`, `CreditAmount`). Handler zavola existujici slice `SendNotificationCommand` s template `purchase_completed`, channel `inapp` a `IdempotencyKey = purchase-completed:{purchaseId}`. Tim se pouzije normalni Notifications flow: render template, ulozit in-app row, pripadne predat email/push pres outbox.
+**Co se stane:** Billing po uspesnem nakupu publikuje `CreditPurchaseCompletedIntegrationEvent`. Notifications ma public Wolverine handler `SendPurchaseCompletedHandler`, ktery nevezme zadnou Billing tabulku, ale jen payload eventu (`UserId`, `PurchaseId`, `CreditAmount`). Handler zavola `SendNotificationCommand` z `ModularPlatform.Notifications.Contracts` s template `purchase_completed`, channel `inapp` a `IdempotencyKey = purchase-completed:{purchaseId}`. Tim se pouzije normalni Notifications flow: render template, ulozit in-app row, pripadne predat email/push pres outbox.
 
 **Napises v novem modulu (napr. ExampleModule):** kdyz ExampleModule dokonci obchod nebo AI beh, nevkladej notifikaci primo. ExampleModule publikuje treba `DealWonIntegrationEvent` nebo `AiRunCompletedEvent`. V Notifications napises handler `SendDealWonHandler`, ktery z eventu posklada `data` pro template a zavola `SendNotificationCommand(..., IdempotencyKey: $"deal-won:{dealId:N}")`. Dulezite je, ze ExampleModule zustane vlastnik obchodu a Notifications zustane vlastnik doruceni.
 
@@ -4212,20 +4212,20 @@ var balance = await dispatcher.Query(new GetCreditBalanceQuery(userId), ct);
 
 **Mentalni model:** command patri modulu, ktery vlastni invariant. Billing vi, jak korektne rezervovat kredity. Notifications vi, jak dedupovat send a rozdelit email/push/in-app pres outbox. ExampleModule jen orchestruje "co potrebuju udelat", neimplementuje cizi pravidla.
 
-**Priklad notifikace:** ExampleModule po vytvoreni dealu chce poslat in-app/email.
+**Priklad notifikace:** ExampleModule po vytvoreni recordu chce poslat in-app/email. Importuj `ModularPlatform.Notifications.Contracts`, ne Notifications Core.
 
 ```csharp
 await dispatcher.Send(new SendNotificationCommand(
     UserId: ownerUserId,
-    TemplateKey: "example_deal_created",
+    TemplateKey: "example_record_created",
     Channels: ["inapp", "email"],
     Data: new Dictionary<string, string>
     {
-        ["dealName"] = deal.Name,
+        ["recordName"] = record.Name,
         ["email"] = ownerEmail,
         ["locale"] = "cs",
     },
-    IdempotencyKey: $"example-deal-created:{deal.Id}"), ct);
+    IdempotencyKey: $"example-record-created:{record.Id}"), ct);
 ```
 
 **Priklad credits pro AI akci:** ExampleModule agent chce spotrebovat kredity. Neodecitas balance sam. Zavolas Billing reserve, spustis akci, potom confirm nebo release.

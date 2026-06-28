@@ -6,7 +6,7 @@ using ModularPlatform.Billing.Contracts;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Identity.Contracts;
 using ModularPlatform.IntegrationTesting;
-using ModularPlatform.Notifications.Features.Notifications.SendNotification;
+using ModularPlatform.Notifications.Contracts;
 using ModularPlatform.Notifications.Messaging;
 using Shouldly;
 using Wolverine;
@@ -134,7 +134,7 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
     // persisted with the rendered title/body. The 200 + persisted row prove the email channel was NOT sent
     // inline (the test host has no reachable SMTP relay, so an inline send would have failed the request);
     // the email/push are published to the outbox per SendNotificationHandler.cs:55-74 + the explicit
-    // "never sends inline" contract in SendNotificationCommand.cs:6-8 and IntegrationEvents.cs:6-10.
+    // "never sends inline" contract in Notifications.Contracts/Commands.cs + IntegrationEvents.cs.
     [Fact]
     public async Task SendNotification_persists_an_inapp_row_and_enqueues_channel_delivery_via_the_outbox()
     {

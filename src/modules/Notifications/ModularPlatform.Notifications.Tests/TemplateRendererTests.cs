@@ -1,4 +1,4 @@
-using ModularPlatform.Notifications.Features.Notifications.SendNotification;
+using ModularPlatform.Notifications.Contracts;
 using Shouldly;
 
 namespace ModularPlatform.Notifications.Tests;

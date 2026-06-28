@@ -1,4 +1,5 @@
 using FluentValidation;
+using ModularPlatform.Notifications.Contracts;
 
 namespace ModularPlatform.Notifications.Features.Notifications.SendNotification;
 
