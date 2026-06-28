@@ -33,9 +33,23 @@ internal sealed class FilesPersonalDataExporter(IReadDbContextFactory<FilesDbCon
             })
             .ToListAsync(ct);
 
+        var links = await db.FileLinks
+            .Where(l => l.UserId == userId)
+            .OrderByDescending(l => l.CreatedAt)
+            .Select(l => new
+            {
+                l.Id,
+                l.FileObjectId,
+                l.OwnerType,
+                l.OwnerId,
+                l.CreatedAt,
+            })
+            .ToListAsync(ct);
+
         return new Dictionary<string, object?>
         {
             ["files"] = files,
+            ["fileLinks"] = links,
         };
     }
 }

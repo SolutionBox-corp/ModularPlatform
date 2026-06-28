@@ -124,6 +124,12 @@
   <data name="file.content_type.not_allowed" xml:space="preserve"><value>This file type is not allowed.</value></data>
   <data name="file.name.required" xml:space="preserve"><value>A file name is required.</value></data>
   <data name="file.name.too_long" xml:space="preserve"><value>The file name is too long.</value></data>
+  <data name="file.id.required" xml:space="preserve"><value>File id is required.</value></data>
+  <data name="file.link_not_found" xml:space="preserve"><value>File link not found.</value></data>
+  <data name="file.link.owner_type.required" xml:space="preserve"><value>Owner type is required.</value></data>
+  <data name="file.link.owner_type.too_long" xml:space="preserve"><value>Owner type is too long.</value></data>
+  <data name="file.link.owner_type.invalid" xml:space="preserve"><value>Owner type has an invalid format.</value></data>
+  <data name="file.link.owner_id.required" xml:space="preserve"><value>Owner id is required.</value></data>
 
   <!-- Billing commerce (packages, subscriptions, coupons, Stripe) -->
   <data name="billing.stripe.not_configured" xml:space="preserve"><value>Stripe is not configured.</value></data>

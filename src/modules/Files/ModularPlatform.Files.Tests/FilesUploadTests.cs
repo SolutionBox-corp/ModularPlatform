@@ -194,6 +194,13 @@ public sealed class FilesUploadTests(PlatformApiFactory fixture)
         var upload = await UploadAsync(ownerToken, "delete-me.txt", "text/plain", Encoding.UTF8.GetBytes("body"));
         upload.StatusCode.ShouldBe(HttpStatusCode.Created);
         var fileId = (await PlatformApiFactory.ReadData(upload)).GetProperty("id").GetGuid();
+        var ownerId = Guid.CreateVersion7();
+        var link = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post,
+            $"/v1/files/{fileId}/links",
+            ownerToken,
+            new { ownerType = "files.delete-test", ownerId }));
+        link.StatusCode.ShouldBe(HttpStatusCode.Created);
 
         var (_, otherToken) = await fixture.RegisterAndLoginAsync(
             $"delete-other-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
@@ -211,6 +218,8 @@ public sealed class FilesUploadTests(PlatformApiFactory fixture)
 
         (await fixture.ScalarAsync<long>(
             $"SELECT count(*)::bigint FROM file_objects WHERE \"Id\" = '{fileId}'")).ShouldBe(0);
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM file_links WHERE \"FileObjectId\" = '{fileId}'")).ShouldBe(0);
 
         var download = await fixture.Client.SendAsync(
             fixture.Authed(HttpMethod.Get, $"/v1/files/{fileId}", ownerToken));
@@ -220,6 +229,98 @@ public sealed class FilesUploadTests(PlatformApiFactory fixture)
             fixture.Authed(HttpMethod.Get, "/v1/files?search=delete-me", ownerToken));
         list.StatusCode.ShouldBe(HttpStatusCode.OK);
         (await PlatformApiFactory.ReadData(list)).GetProperty("totalCount").GetInt64().ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task File_can_be_linked_listed_idempotently_and_unlinked_without_deleting_the_file()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync($"link-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+        var upload = await UploadAsync(token, "contract.pdf", "application/pdf", Encoding.UTF8.GetBytes("pdf"));
+        upload.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var fileId = (await PlatformApiFactory.ReadData(upload)).GetProperty("id").GetGuid();
+        var ownerId = Guid.CreateVersion7();
+
+        var first = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post,
+            $"/v1/files/{fileId}/links",
+            token,
+            new { ownerType = "crm.deal", ownerId }));
+        first.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var firstData = await PlatformApiFactory.ReadData(first);
+        var linkId = firstData.GetProperty("id").GetGuid();
+        firstData.GetProperty("fileObjectId").GetGuid().ShouldBe(fileId);
+        firstData.GetProperty("ownerType").GetString().ShouldBe("crm.deal");
+
+        var duplicate = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post,
+            $"/v1/files/{fileId}/links",
+            token,
+            new { ownerType = "crm.deal", ownerId }));
+        duplicate.StatusCode.ShouldBe(HttpStatusCode.Created);
+        (await PlatformApiFactory.ReadData(duplicate)).GetProperty("id").GetGuid().ShouldBe(linkId);
+        (await fixture.ScalarAsync<long>(
+            $"""SELECT count(*)::bigint FROM file_links WHERE "FileObjectId" = '{fileId}'""")).ShouldBe(1);
+
+        var list = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get,
+            $"/v1/files/links?ownerType=crm.deal&ownerId={ownerId}",
+            token));
+        list.StatusCode.ShouldBe(HttpStatusCode.OK, await list.Content.ReadAsStringAsync());
+        var listData = await PlatformApiFactory.ReadData(list);
+        listData.GetProperty("totalCount").GetInt64().ShouldBe(1);
+        listData.GetProperty("items")[0].GetProperty("fileName").GetString().ShouldBe("contract.pdf");
+
+        var unlink = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Delete, $"/v1/files/links/{linkId}", token));
+        unlink.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        (await fixture.ScalarAsync<long>(
+            $"""SELECT count(*)::bigint FROM file_links WHERE "Id" = '{linkId}'""")).ShouldBe(0);
+
+        var download = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, $"/v1/files/{fileId}", token));
+        download.StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task File_links_are_owner_scoped_and_validate_owner_type()
+    {
+        var (_, ownerToken) = await fixture.RegisterAndLoginAsync(
+            $"link-owner-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+        var upload = await UploadAsync(ownerToken, "owned.txt", "text/plain", Encoding.UTF8.GetBytes("body"));
+        upload.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var fileId = (await PlatformApiFactory.ReadData(upload)).GetProperty("id").GetGuid();
+        var ownerId = Guid.CreateVersion7();
+
+        var invalid = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post,
+            $"/v1/files/{fileId}/links",
+            ownerToken,
+            new { ownerType = "CRM Deal", ownerId }));
+        invalid.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await invalid.Content.ReadAsStringAsync()).ShouldContain("file.link.owner_type.invalid");
+
+        var (_, otherToken) = await fixture.RegisterAndLoginAsync(
+            $"link-other-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+        var foreignFile = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post,
+            $"/v1/files/{fileId}/links",
+            otherToken,
+            new { ownerType = "crm.deal", ownerId }));
+        foreignFile.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
+        var create = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post,
+            $"/v1/files/{fileId}/links",
+            ownerToken,
+            new { ownerType = "crm.deal", ownerId }));
+        create.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var linkId = (await PlatformApiFactory.ReadData(create)).GetProperty("id").GetGuid();
+
+        var foreignUnlink = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Delete, $"/v1/files/links/{linkId}", otherToken));
+        foreignUnlink.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await foreignUnlink.Content.ReadAsStringAsync()).ShouldContain("file.link_not_found");
     }
 
     [Fact]
@@ -263,9 +364,20 @@ public sealed class FilesUploadTests(PlatformApiFactory fixture)
         var (userId, token) = await fixture.RegisterAndLoginAsync($"gdpr-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
         var upload = await UploadAsync(token, "cv.pdf", "application/pdf", Encoding.UTF8.GetBytes("resume bytes"));
         upload.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var fileId = (await PlatformApiFactory.ReadData(upload)).GetProperty("id").GetGuid();
+        var ownerId = Guid.CreateVersion7();
+
+        var link = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post,
+            $"/v1/files/{fileId}/links",
+            token,
+            new { ownerType = "gdpr.case", ownerId }));
+        link.StatusCode.ShouldBe(HttpStatusCode.Created);
 
         await fixture.WaitForCountAsync(
             $"SELECT count(*)::bigint FROM file_objects WHERE \"UserId\" = '{userId}'", 1);
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM file_links WHERE \"UserId\" = '{userId}'", 1);
 
         var erase = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Post, "/v1/gdpr/me/erase", token));
         erase.EnsureSuccessStatusCode();
@@ -278,6 +390,9 @@ public sealed class FilesUploadTests(PlatformApiFactory fixture)
         (await fixture.ScalarAsync<long>(
             $"SELECT count(*)::bigint FROM file_objects WHERE \"UserId\" = '{userId}'"))
             .ShouldBe(0, "GDPR erasure must delete the user's file metadata");
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM file_links WHERE \"UserId\" = '{userId}'"))
+            .ShouldBe(0, "GDPR erasure must delete the user's file links");
     }
 
     [Fact]

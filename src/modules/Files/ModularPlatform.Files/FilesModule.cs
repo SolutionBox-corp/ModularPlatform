@@ -7,6 +7,9 @@ using ModularPlatform.Cqrs;
 using ModularPlatform.Files.Features.Delete;
 using ModularPlatform.Files.Features.Download;
 using ModularPlatform.Files.Features.List;
+using ModularPlatform.Files.Features.Links.LinkFile;
+using ModularPlatform.Files.Features.Links.ListFileLinks;
+using ModularPlatform.Files.Features.Links.UnlinkFile;
 using ModularPlatform.Files.Features.Rename;
 using ModularPlatform.Files.Features.Upload;
 using ModularPlatform.Files.Gdpr;
@@ -54,6 +57,9 @@ public sealed class FilesModule : IModule
         endpoints.MapUploadFile();
         endpoints.MapDownloadFile();
         endpoints.MapListFiles();
+        endpoints.MapLinkFile();
+        endpoints.MapListFileLinks();
+        endpoints.MapUnlinkFile();
         endpoints.MapDeleteFile();
         endpoints.MapRenameFile();
     }

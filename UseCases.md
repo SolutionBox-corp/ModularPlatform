@@ -2491,37 +2491,34 @@ queryClient.invalidateQueries({ queryKey: ["deal", dealId, "attachments"] });
 - EC304 vazba v novem modulu zustane orphan -> cleanup → modul ma vlastni vazbu deaktivovat/smazat, idealne v jedne command transakci; Files nema znat tabulky toho modulu.
 - EC305 UI stale list → invaliduj `files` i ExampleModule attachment query po 204.
 
-### UC62 Pripojit file k ExampleModule entite
+### UC62 Pripojit file k doménové entitě modulu
 
-**Status:** Blueprint for ExampleModule module — base nema ExampleModule modul, implementuje se v novem ExampleModule Core podle tohoto vzoru.
+**Status:** Implemented + tested 2026-06-28 — `FilesUploadTests.File_can_be_linked_listed_idempotently_and_unlinked_without_deleting_the_file`, `File_links_are_owner_scoped_and_validate_owner_type` a GDPR erasure test pokryvaji UC62/EC306-EC310.
 
-**Pouzijes:** Files upload + ExampleModule join table.
+**Pouzijes:** Files upload + generic Files link API.
 
-**Co se stane:** Files modul vlastni blob a metadata souboru. ExampleModule modul vlastni jen vazbu mezi ExampleModule entitou a file id, napr. `DealAttachment(DealId, FileObjectId, UserId, CreatedAt)`. Upload probiha pres `POST /files`, response vrati `FileObjectId`. ExampleModule potom zavola `AttachFileToDealCommand`, ktery overi, ze deal patri userovi/tenantovi, a ulozi vazbu. ExampleModule nikdy necita `file_objects` tabulku primo.
+**Co se stane:** Files modul vlastni blob, metadata souboru a obecnou vazbu `file_links`. Produktovy modul nejdriv overi, ze user vidi svoji domenovou entitu, napr. `Deal`, `Campaign`, `ImportRun` nebo `Case`. Potom zavola Files link API a rekne: `ownerType = "crm.deal"`, `ownerId = dealId`, `fileObjectId = uploaded.id`. Files overi, ze soubor patri aktualnimu userovi, ulozi link a vrati metadata pro UI. Files schvalne neoveruje, jestli `ownerId` existuje v CRM/Marketing/HR tabulce; to je odpovednost owner modulu.
 
-**Napises v novem modulu (napr. ExampleModule):** command `AttachFileToDealCommand` + validator + endpoint. Entity ma unique index `(DealId, FileObjectId)`, aby double-click nevytvoril duplicitni attachment.
+**Backend API base:**
 
-**Vzor entity:**
+```http
+POST /v1/files/{fileId}/links
+GET /v1/files/links?ownerType=crm.deal&ownerId={dealId}
+DELETE /v1/files/links/{linkId}
+```
 
-```csharp
-internal sealed class DealAttachment : AuditableEntity, IUserOwned
+**Request pro attach:**
+
+```json
 {
-    public Guid DealId { get; set; }
-    public Guid FileObjectId { get; set; }
-    public Guid UserId { get; set; }
+  "ownerType": "crm.deal",
+  "ownerId": "018f..."
 }
 ```
 
-**Vzor commandu:**
+**Napises v novem modulu:** endpoint/command porad overi domenovy object. Napriklad `AttachFileToDealCommand` overi `dealId && userId/tenantId`. Samotny vztah k souboru ulozis pres Files link API, ne pres vlastni storage key a ne pres join do `file_objects`.
 
-```csharp
-public sealed record AttachFileToDealCommand(
-    Guid DealId,
-    Guid FileObjectId,
-    Guid UserId) : ICommand<DealAttachmentResponse>;
-```
-
-**Vzor handleru:**
+**Vzor backend/BFF orchestrace v produktovem modulu:**
 
 ```csharp
 var deal = await db.Deals
@@ -2529,44 +2526,36 @@ var deal = await db.Deals
     .FirstOrDefaultAsync(ct)
     ?? throw new NotFoundException("example.deal_not_found", "Deal not found.");
 
-db.DealAttachments.Add(new DealAttachment
-{
-    DealId = deal.Id,
-    FileObjectId = command.FileObjectId,
-    UserId = command.UserId,
-});
-
-try
-{
-    await db.SaveChangesAsync(ct);
-}
-catch (DbUpdateException ex) when (IsUniqueViolation(ex))
-{
-    // Idempotent double-click: return existing attachment.
-}
+// Potom zavolej Files API:
+// POST /v1/files/{fileObjectId}/links
+// { "ownerType": "crm.deal", "ownerId": deal.Id }
 ```
 
-**Jak overis file access:** v prvni verzi ExampleModule ulozi jen id a spoleha na Files endpoint, ktery pri downloadu znovu overi owner scope. Pokud potrebujes overit uz pri attachi, nepristupuj na Files Core ani DB; pouzij verejny endpoint/query kontrakt, pokud pro to v base vznikne. Do te doby attach autorizuj pres deal ownership a user-owned file download zustava final guard.
+**Poznamka:** pokud volas z jineho Core modulu, nesmis referencovat Files Core typy primo. Pouzij HTTP/BFF endpoint nebo dopln verejny `Files.Contracts` command/query contract, pokud ma byt cross-module volani in-process. Z frontend/BFF flow staci volat API.
 
 **Frontend flow:**
 
 ```ts
 const uploaded = await uploadFile(file);
-await api.post(`/v1/example/deals/${dealId}/attachments`, {
+await linkFileToOwner({
   fileObjectId: uploaded.id,
+  ownerType: "crm.deal",
+  ownerId: dealId,
 });
-invalidateDealAttachments(dealId);
+queryClient.invalidateQueries({
+  queryKey: [...queryRoots.files, "links", "crm.deal", dealId],
+});
 ```
 
-**Nepouzijes:** navigation property na FileObject, cross-module JOIN, storage key v ExampleModule, ani `fileUserId` z request body.
+**Nepouzijes:** navigation property na FileObject, cross-module JOIN do `file_objects`, storage key v produktovem modulu, ani `fileUserId` z request body.
 
 **EC:**
 
-- EC306 deal foreign user -> 404 → command hleda deal pres `DealId && UserId/TenantId`; cizi deal se tvari jako neexistujici.
-- EC307 file foreign user -> 404 → finalni guard je Files download/list owner scope; pro eager validation nepristupuj na Files DB, dopln verejny Files query/endpoint.
-- EC308 duplicate attachment → unique index `(DealId, FileObjectId)` + catch unique violation = idempotentni double-click.
-- EC309 deal deleted → attach command vrati `example.deal_not_found`; list attachmentu ma filtrovat jen existujici/aktivni deal.
-- EC310 GDPR erase musi odstranit i vazby nebo anonymizovat metadata → ExampleModule `IErasePersonalData` smaze/anonymizuje `DealAttachment` rows pro subjecta; Files eraser smaze samotne soubory subjecta.
+- EC306 owner foreign user -> 404 → produktovy modul musi pred linkem overit vlastni entitu pres `OwnerId && UserId/TenantId`; cizi deal/case/campaign se tvari jako neexistujici.
+- EC307 file foreign user -> 404 → `LinkFileHandler` hleda `FileObjectId && UserId`; cizi file nejde nalinkovat ani kdyz user zna GUID.
+- EC308 duplicate attachment → unique index `(UserId, OwnerType, OwnerId, FileObjectId)` + catch unique violation = idempotentni double-click.
+- EC309 owner deleted → produktovy modul uz attach endpoint nema pustit; Files link list sam o sobe owner existenci nevi, proto detail page ma list volat az po overeni owner entity.
+- EC310 GDPR erase musi odstranit vazby → Files eraser smaze `file_links` i `file_objects`; produktovy modul stale maze/anonymizuje vlastni domenova data.
 
 ## Operations, Worker, Jobs, Realtime
 

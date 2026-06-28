@@ -124,6 +124,12 @@
   <data name="file.content_type.not_allowed" xml:space="preserve"><value>Tento typ souboru není povolen.</value></data>
   <data name="file.name.required" xml:space="preserve"><value>Název souboru je povinný.</value></data>
   <data name="file.name.too_long" xml:space="preserve"><value>Název souboru je příliš dlouhý.</value></data>
+  <data name="file.id.required" xml:space="preserve"><value>ID souboru je povinné.</value></data>
+  <data name="file.link_not_found" xml:space="preserve"><value>Vazba souboru nebyla nalezena.</value></data>
+  <data name="file.link.owner_type.required" xml:space="preserve"><value>Typ vlastníka je povinný.</value></data>
+  <data name="file.link.owner_type.too_long" xml:space="preserve"><value>Typ vlastníka je příliš dlouhý.</value></data>
+  <data name="file.link.owner_type.invalid" xml:space="preserve"><value>Typ vlastníka má neplatný formát.</value></data>
+  <data name="file.link.owner_id.required" xml:space="preserve"><value>ID vlastníka je povinné.</value></data>
 
   <!-- Billing commerce (packages, subscriptions, coupons, Stripe) -->
   <data name="billing.stripe.not_configured" xml:space="preserve"><value>Stripe není nakonfigurován.</value></data>

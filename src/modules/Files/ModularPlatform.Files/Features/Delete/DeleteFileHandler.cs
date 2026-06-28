@@ -37,6 +37,11 @@ internal sealed class DeleteFileHandler(
             throw;
         }
 
+        var links = await db.FileLinks
+            .Where(l => l.UserId == command.UserId && l.FileObjectId == command.FileId)
+            .ToListAsync(ct);
+        db.FileLinks.RemoveRange(links);
+
         db.Files.Remove(file);
         await db.SaveChangesAsync(ct);
 
