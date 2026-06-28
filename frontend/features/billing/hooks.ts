@@ -10,6 +10,8 @@ import {
   subscribeCheckout,
   cancelSubscription,
   createBillingPortalSession,
+  configurePaymentGateway,
+  type ConfigurePaymentGatewayInput,
 } from "@/features/billing/api";
 import { ApiError } from "@/lib/api/types";
 import { toDisplayMessage, currentLocale } from "@/lib/errors/error-map";
@@ -147,6 +149,21 @@ export function useCancelSubscription() {
       void queryClient.invalidateQueries({
         queryKey: [...queryRoots.billing, "subscription"],
       });
+    },
+  });
+}
+
+export function useConfigurePaymentGateway() {
+  const queryClient = useQueryClient();
+  const t = useTranslations("billing");
+
+  return useMutation({
+    mutationFn: (input: ConfigurePaymentGatewayInput) =>
+      configurePaymentGateway(input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryRoots.billing });
+      void queryClient.invalidateQueries({ queryKey: queryRoots.admin });
+      toast.success(t("paymentGateway.saved"));
     },
   });
 }

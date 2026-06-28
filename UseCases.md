@@ -1055,7 +1055,8 @@ token, nebo prime volani Stripe/GoPay SDK z ExampleModule frontendu.
 
 ### UC23 Nastavit tenant payment gateway
 
-**Status:** Implemented — overeno `PaymentGatewayConfigTests`.
+**Status:** Implemented — overeno `PaymentGatewayConfigTests`; frontend pokryto `PaymentGatewayConfigCard`
+pres `useConfigurePaymentGateway`.
 
 **Pouzijes:** `PUT /billing/payment-gateway`.
 
@@ -1088,8 +1089,9 @@ nespadl az pozdeji.
 (`tenant_secrets.Ciphertext`, `KeyVersion`, `WrappedDek`). Secret nesmi jit do auditu, outbox payloadu, logu ani ExampleModule
 tabulky.
 
-**Frontend pouziti:** Config UI v repu zatim neni. Az vznikne, musi po ulozeni invalidovat billing/admin stav a nikdy
-nesmi znovu zobrazovat ulozeny secret. U update formu ukaz "configured", ne hodnotu klice.
+**Frontend pouziti:** `PaymentGatewayConfigCard` je na tenant `/billing` strance jen pro session s `billing.manage`.
+Po ulozeni vola `PUT /billing/payment-gateway`, invaliduje `queryRoots.billing` i `queryRoots.admin` a nikdy znovu
+nezobrazuje ulozeny secret. U update formu ukaz jen prazdna secret pole / "configured" stav, ne hodnotu klice.
 
 **Co nepises:** `example_payment_settings` s API key, plaintext secret v JSONB configu, provider fallback na jiny tenant,
 fake provider v produkci, nebo vlastni payment SDK volani mimo `IPaymentGatewayResolver`.
@@ -1101,8 +1103,8 @@ fake provider v produkci, nebo vlastni payment SDK volani mimo `IPaymentGatewayR
   v `tenant_secrets`, ne jako string v configu.
 - EC113 unsupported provider → neznamy provider jako `paypal` vrati 422 `billing.gateway.unknown_provider`.
 - EC114 fake gateway jen v test/dev rezimu → Production host `fake` odmita pres `billing.gateway.fake_not_allowed`.
-- EC115 po zmene invalidovat billing config UI → config UI zatim v repu neni; az vznikne, mutation musi invalidovat
-  billing/admin queries a nesmi cacheovat plaintext secrets.
+- EC115 po zmene invalidovat billing config UI → `useConfigurePaymentGateway` invaliduje billing/admin query roots a
+  formular po save resetuje secret inputy, takze plaintext secrets nezustavaji v UI cache.
 
 ### UC24 Vytvorit tenant checkout
 

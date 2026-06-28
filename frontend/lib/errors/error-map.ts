@@ -31,6 +31,13 @@ const CATALOG: Catalog = {
   "billing.insufficient_credits": { en: "Not enough credits for this action.", cs: "Nedostatek kreditů pro tuto akci." },
   "billing.package_not_found": { en: "That package is no longer available.", cs: "Tento balíček již není dostupný." },
   "billing.promo_invalid": { en: "This promo code is not valid.", cs: "Tento promo kód není platný." },
+  "billing.gateway.unknown_provider": { en: "Unknown payment provider.", cs: "Neznámý poskytovatel plateb." },
+  "billing.gateway.stripe_key_required": { en: "A Stripe API key is required.", cs: "Je vyžadován Stripe API klíč." },
+  "billing.gateway.stripe_webhook_secret_required": { en: "A Stripe webhook signing secret is required.", cs: "Je vyžadován podpisový tajný klíč Stripe webhooku." },
+  "billing.gateway.gopay_goid_required": { en: "A GoPay merchant id is required.", cs: "Je vyžadováno GoPay obchodní id." },
+  "billing.gateway.gopay_client_required": { en: "GoPay client credentials are required.", cs: "Jsou vyžadovány GoPay klientské údaje." },
+  "billing.gateway.fake_not_allowed": { en: "The fake payment gateway is not allowed in production.", cs: "Fake platební brána není v produkci povolena." },
+  "billing.gateway.credentials_invalid": { en: "The payment gateway credentials could not be validated.", cs: "Údaje platební brány se nepodařilo ověřit." },
   // Files — backend code: file.content_type.not_allowed (UploadFileValidator.cs).
   // Keep file.type_not_allowed as alias in case it appears in older API responses.
   "file.too_large": { en: "File is too large (max 10 MB).", cs: "Soubor je příliš velký (max 10 MB)." },

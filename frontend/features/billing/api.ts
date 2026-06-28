@@ -79,6 +79,23 @@ export interface PromoCodeResponse {
   currency: string | null;
 }
 
+export interface ConfigurePaymentGatewayInput {
+  provider: "stripe" | "gopay";
+  currency: string;
+  stripeApiKey?: string | null;
+  stripeWebhookSecret?: string | null;
+  goPayGoid?: number | null;
+  goPayClientId?: string | null;
+  goPayClientSecret?: string | null;
+  sandbox: boolean;
+}
+
+export interface ConfigurePaymentGatewayResponse {
+  configurationId: string;
+  provider: string;
+  active: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Query factories — all keys extend queryRoots.billing
 // ---------------------------------------------------------------------------
@@ -203,4 +220,14 @@ export function cancelSubscription(): Promise<CancelSubscriptionResponse> {
 /** POST /v1/billing/portal → Stripe Customer Portal URL (manage cards + invoices). */
 export function createBillingPortalSession(): Promise<{ url: string }> {
   return apiFetch<{ url: string }>("billing/portal", { method: "POST" });
+}
+
+/** PUT /v1/billing/payment-gateway — configure this tenant's own checkout provider. */
+export function configurePaymentGateway(
+  input: ConfigurePaymentGatewayInput,
+): Promise<ConfigurePaymentGatewayResponse> {
+  return apiFetch<ConfigurePaymentGatewayResponse>("billing/payment-gateway", {
+    method: "PUT",
+    body: input,
+  });
 }

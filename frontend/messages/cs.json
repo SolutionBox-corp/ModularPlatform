@@ -208,6 +208,32 @@
       "emptyDescription": "Kreditní balíčky se zde objeví po nastavení.",
       "emptyTitle": "Žádné balíčky nejsou k dispozici"
     },
+    "paymentGateway": {
+      "currency": "Měna",
+      "description": "Nastavte platební bránu, kterou tento workspace používá, když mu platí jeho vlastní zákazníci.",
+      "goPayClientId": "GoPay client ID",
+      "goPayClientSecret": "GoPay client secret",
+      "goPayGoid": "GoPay goid",
+      "heading": "Platební brána workspace",
+      "provider": "Poskytovatel",
+      "sandbox": "Sandbox režim",
+      "save": "Uložit bránu",
+      "saved": "Platební brána byla uložena.",
+      "saving": "Ukládám…",
+      "secretHint": "Secrety se uloží zašifrovaně na serveru a po uložení se už nikdy znovu nezobrazí.",
+      "sectionDescription": "Tenant-plane nastavení checkoutu pro platby směřující tomuto workspace.",
+      "stripeApiKey": "Stripe API klíč",
+      "stripeWebhookSecret": "Stripe webhook signing secret",
+      "title": "Checkout provider",
+      "validation": {
+        "currency": "Zadejte 3písmenný kód měny.",
+        "goPayClientId": "Zadejte GoPay client ID.",
+        "goPayClientSecret": "Zadejte GoPay client secret.",
+        "goPayGoid": "Zadejte číselný GoPay goid.",
+        "stripeApiKey": "Zadejte Stripe API klíč.",
+        "stripeWebhookSecret": "Zadejte Stripe webhook signing secret."
+      }
+    },
     "portal": {
       "manage": "Spravovat platby a faktury",
       "opening": "Otevírání…",

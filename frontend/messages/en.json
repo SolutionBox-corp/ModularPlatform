@@ -208,6 +208,32 @@
       "emptyDescription": "Credit packages will appear here once configured.",
       "emptyTitle": "No packages available"
     },
+    "paymentGateway": {
+      "currency": "Currency",
+      "description": "Configure the checkout provider this workspace uses when its own customers pay it.",
+      "goPayClientId": "GoPay client ID",
+      "goPayClientSecret": "GoPay client secret",
+      "goPayGoid": "GoPay goid",
+      "heading": "Workspace payment gateway",
+      "provider": "Provider",
+      "sandbox": "Sandbox mode",
+      "save": "Save gateway",
+      "saved": "Payment gateway saved.",
+      "saving": "Saving…",
+      "secretHint": "Secrets are sealed on the server and are never shown again after saving.",
+      "sectionDescription": "Tenant-plane checkout settings for payments made to this workspace.",
+      "stripeApiKey": "Stripe API key",
+      "stripeWebhookSecret": "Stripe webhook signing secret",
+      "title": "Checkout provider",
+      "validation": {
+        "currency": "Enter a 3-letter currency code.",
+        "goPayClientId": "Enter the GoPay client ID.",
+        "goPayClientSecret": "Enter the GoPay client secret.",
+        "goPayGoid": "Enter a numeric GoPay goid.",
+        "stripeApiKey": "Enter the Stripe API key.",
+        "stripeWebhookSecret": "Enter the Stripe webhook signing secret."
+      }
+    },
     "portal": {
       "manage": "Manage billing & invoices",
       "opening": "Opening…",
