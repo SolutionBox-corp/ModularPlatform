@@ -433,6 +433,20 @@ public sealed class FilesUploadTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Missing_content_type_is_rejected()
+    {
+        var (userId, token) = await fixture.RegisterAndLoginAsync(
+            $"missing-ct-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+
+        var upload = await UploadWithoutContentTypeAsync(token, "unknown.bin", Encoding.UTF8.GetBytes("bytes"));
+
+        upload.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await upload.Content.ReadAsStringAsync()).ShouldContain("file.content_type.not_allowed");
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM file_objects WHERE \"UserId\" = '{userId}'")).ShouldBe(0);
+    }
+
+    [Fact]
     public async Task Oversized_file_is_rejected()
     {
         var (userId, token) = await fixture.RegisterAndLoginAsync($"big-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
@@ -478,6 +492,19 @@ public sealed class FilesUploadTests(PlatformApiFactory fixture)
         var filePart = new ByteArrayContent(bytes);
         filePart.Headers.ContentType = new MediaTypeHeaderValue(contentType);
         content.Add(filePart, "file", fileName);
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "/v1/files")
+        {
+            Content = content,
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return await fixture.Client.SendAsync(request);
+    }
+
+    private async Task<HttpResponseMessage> UploadWithoutContentTypeAsync(string token, string fileName, byte[] bytes)
+    {
+        var content = new MultipartFormDataContent(Boundary);
+        content.Add(new ByteArrayContent(bytes), "file", fileName);
 
         var request = new HttpRequestMessage(HttpMethod.Post, "/v1/files")
         {
