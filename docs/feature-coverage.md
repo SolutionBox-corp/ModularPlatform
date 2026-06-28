@@ -1625,13 +1625,13 @@ _JwtOptionsValidator now has direct fail-fast coverage. The missing name claim d
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
-| Headers set before next() so they apply even on error responses | ✓ | Headers written first, then await next() (SecurityHeadersMiddleware.cs:10-15); runs before GlobalExceptionMiddleware in the pipeline (PlatformWebExtensions.cs:114-123) |
+| Headers set before next() so they apply even on error responses | ✓ | Headers written first, then await next() (SecurityHeadersMiddleware.cs:10-15); runs before GlobalExceptionMiddleware in the pipeline (PlatformWebExtensions.cs:114-123). Proven by PlatformContractTests.PL10_security_headers_present_on_every_response. |
 | Response already started (header write after flush) | ◐ | Setting headers before next() is the correct ordering, but there is no guard if a later component already started the response on a re-entrant path; in practice safe given placement |
 | CSP suitable for an API (default-src none) vs a browser app | ✓ | default-src 'none'; frame-ancestors 'none' — appropriate for a pure JSON/SSE API |
 
-**Test gaps:** No test asserts the four security headers are present on a response (trivial integration assertion, currently absent)
+**Testy:** PlatformContractTests.PL10_security_headers_present_on_every_response
 
-_Correct and minimal; only gap is the total absence of a test asserting the headers._
+_Correct and minimal; the baseline header contract is covered by an integration test._
 
 ### SSE building block (SseStream + native SSE endpoint) — 🟢 minor-gaps
 *Per-connection bounded SSE buffer with incrementing event ids; the /v1/realtime/stream endpoint streams owner-scoped events with Last-Event-ID replay.*
