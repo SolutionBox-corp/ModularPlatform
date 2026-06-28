@@ -1598,12 +1598,13 @@ _The previously documented per-user partition and Retry-After defects are covere
 | Malformed proxy IP / CIDR | ✓ | TryParse guards fail in ANY environment with a clear message (validator lines 21-31) |
 | Enabled=false escape hatch must actually skip middleware | ✓ | UsePlatformWeb only calls UseForwardedHeaders when Enabled (PlatformWebExtensions.cs:109-112) |
 | Loopback defaults vs explicit trust list | ✓ | No trust list → keep ASP.NET loopback defaults; trust list → Clear() then add (PlatformWebExtensions.cs:76-95) |
+| Runtime ForwardedHeadersOptions mapping | ✓ | AddPlatformWeb maps KnownProxies/KnownNetworks/ForwardLimit into ForwardedHeadersOptions and clears loopback defaults; proven by ForwardedHeadersSettingsValidatorTests.AddPlatformWeb_maps_configured_trust_list_to_forwarded_headers_options |
 | ForwardLimit for chained proxies | ✓ | Configurable, default 1 (ForwardedHeadersSettings.cs:24) |
 
-**Testy:** ForwardedHeadersSettingsValidatorTests (7 cases: prod empty fail, known proxy/network succeed, disabled succeed, dev exempt, malformed proxy, malformed cidr); AuditIpMaskingTests (6 cases incl. ipv4-mapped-ipv6, truncation, drop); PlatformContractTests.PL8 satisfies the trust-list guard for a derived Production host
-**Test gaps:** No test that UseForwardedHeaders actually replaces loopback defaults with the configured KnownProxies at runtime (only the validator is unit-tested, not the Configure<ForwardedHeadersOptions> mapping)
+**Testy:** ForwardedHeadersSettingsValidatorTests (8 cases: prod empty fail, known proxy/network succeed, disabled succeed, dev exempt, malformed proxy, malformed cidr, runtime options mapping); AuditIpMaskingTests (6 cases incl. ipv4-mapped-ipv6, truncation, drop); PlatformContractTests.PL8 satisfies the trust-list guard for a derived Production host
+**Test gaps:** No remaining focused forwarded-headers/audit-IP gap in this slice.
 
-_Best-covered security feature in the area. Validator + IP masking both thoroughly unit-tested._
+_Best-covered security feature in the area. Validator, runtime options mapping, and IP masking are all directly tested._
 
 ### JWT bearer auth + options validation — 🟢 minor-gaps
 *Validates HMAC-signed access tokens (issuer/audience/lifetime/key) and fail-fasts a weak/missing signing key outside Development.*
