@@ -28,9 +28,8 @@ namespace ModularPlatform.Notifications.Tests;
 ///   migration 20260608064755_InitialNotifications.cs:30-51; notification_templates (Id, Key, Locale, Subject,
 ///   Body) — NotificationTemplate.cs:12-31, migration lines 14-28.
 /// - Welcome path: SendWelcomeHandler reacts to Identity's UserRegisteredIntegrationEvent and dispatches
-///   SendNotificationCommand("welcome", ["email","inapp"]); a MISSING "welcome" template is caught and logged,
-///   never dead-lettered — SendWelcomeHandler.cs:16-35. NO production code seeds a "welcome" template
-///   (grep verified), and the test host does not seed it either — so EV-2 is in the "missing template" case.
+///   SendNotificationCommand("welcome", ["email","inapp"]); NotificationsSeeder seeds welcome templates, and a
+///   missing template is caught and logged without dead-lettering — SendWelcomeHandler.cs:16-35.
 /// - Channel hand-off is via the outbox, never inline: SendNotificationHandler.cs:50-86 publishes
 ///   EmailDeliveryRequested / PushDeliveryRequested to the outbox and only the inapp row is written inline.
 /// </summary>
@@ -182,6 +181,36 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
         var item = (await PlatformApiFactory.ReadData(feed)).GetProperty("items").EnumerateArray()
             .Single(n => n.GetProperty("templateKey").GetString() == templateKey);
         item.GetProperty("title").GetString().ShouldBe("Hello Ada");
+    }
+
+    [Fact]
+    public async Task SendNotification_falls_back_to_english_template_when_requested_locale_is_missing()
+    {
+        var (recipientId, adminToken) = await AdminTokenAsync();
+
+        var templateKey = $"nt-locale-{Guid.CreateVersion7():N}";
+        await fixture.ExecuteSqlAsync(
+            $"INSERT INTO notification_templates (\"Id\", \"Key\", \"Locale\", \"Subject\", \"Body\") " +
+            $"VALUES ('{Guid.CreateVersion7()}', '{templateKey}', 'en', 'English {{displayName}}', 'Fallback body')");
+
+        var send = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/notifications/send", adminToken, new
+            {
+                userId = recipientId,
+                templateKey,
+                channels = new[] { "inapp" },
+                data = new Dictionary<string, string> { ["displayName"] = "Ada", ["locale"] = "cs" },
+            }));
+
+        send.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var feed = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/notifications/me", adminToken));
+        feed.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var item = (await PlatformApiFactory.ReadData(feed)).GetProperty("items").EnumerateArray()
+            .Single(n => n.GetProperty("templateKey").GetString() == templateKey);
+        item.GetProperty("title").GetString().ShouldBe("English Ada");
+        item.GetProperty("body").GetString().ShouldBe("Fallback body");
     }
 
     [Fact]
