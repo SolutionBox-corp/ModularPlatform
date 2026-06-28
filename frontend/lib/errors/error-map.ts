@@ -48,6 +48,8 @@ const CATALOG: Catalog = {
   "notification.not_found": { en: "Notification not found.", cs: "Oznámení nenalezeno." },
   // GDPR
   "gdpr.export_in_progress": { en: "An export is already in progress.", cs: "Export již probíhá." },
+  // Operations
+  "operations.invoke_timeout": { en: "The quick worker request timed out.", cs: "Rychlý požadavek na worker vypršel." },
 };
 
 /** Map an error code (and locale) to a user-facing message. Pure, side-effect free. */

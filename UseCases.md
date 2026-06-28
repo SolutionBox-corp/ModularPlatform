@@ -4494,7 +4494,9 @@ cross-module reaper.
 
 ### UC97 Kratky request-response pres bus
 
-**Status:** Blueprint/opatrny pattern; v base neni hlavni produkcni priklad, preferuj `IDispatcher` nebo Operations 202 flow.
+**Status:** Implementovano jako opatrny Operations demo pattern - `POST /operations/demo-invoke` vola
+`InvokeDemoCheckCommand`, ten pouzije `IMessageBus.InvokeAsync<DemoQuickCheckResult>` s kratkym timeoutem. Overeno
+`OperationsTests.Demo_invoke_runs_short_worker_request_and_times_out_predictably` a validacnim testem.
 
 **Pouzijes:** `IMessageBus.InvokeAsync<T>` jen pro kratkou worker-side praci s jasnym timeoutem.
 
@@ -4503,6 +4505,7 @@ cross-module reaper.
 **Mentalni model:** `InvokeAsync<T>` je request-response pres messaging, ne nahrada HTTP endpointu ani workflow enginu. User stale ceka. Timeout musi byt ocekavany stav, ne bug.
 
 **Priklad:** ExampleModule chce rychle spocitat izolovanou worker-side validaci, ktera nema externi API a typicky trva <1s.
+V base je konkretni priklad v Operations demo endpointu.
 
 ```csharp
 public sealed record ScoreLeadNow(Guid LeadId, Guid UserId);
@@ -4533,7 +4536,7 @@ var result = await bus.InvokeAsync<LeadScoreResult>(
 
 **UX:** pri timeoutu vrat userovi jasnou chybu nebo prejdi na async flow. Nenech frontend viset na spinneru bez moznosti retry.
 
-**Testy k novemu modulu:** happy path vrati response, timeout vrati predvidatelnou chybu, handler retry nezdvoji side effect, dlouha prace ma samostatny 202 test misto Invoke.
+**Testy k novemu modulu:** happy path vrati response, timeout vrati predvidatelnou chybu, handler retry nezdvoji side effect, dlouha prace ma samostatny 202 test misto Invoke. Operations demo testuje happy path, 422 `operations.invoke_timeout` a validaci pred invokem.
 
 **Nepouzijes:** long-running workflow, externi provider call bez statusu, side effect bez idempotence, nekonecny timeout, ani `InvokeAsync` pro komunikaci, kterou umi normalni dispatcher query/command.
 

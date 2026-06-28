@@ -6,6 +6,7 @@ using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Messaging;
 using ModularPlatform.Operations.Features.Demo;
+using ModularPlatform.Operations.Features.DemoInvoke;
 using ModularPlatform.Operations.Features.List;
 using ModularPlatform.Operations.Features.Status;
 using ModularPlatform.Operations.Persistence;
@@ -43,6 +44,7 @@ public sealed class OperationsModule : IModule
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
         endpoints.MapStartDemoOperation();
+        endpoints.MapInvokeDemoCheck();
         endpoints.MapGetOperationStatus();
         endpoints.MapListMyOperations();
     }
@@ -50,6 +52,7 @@ public sealed class OperationsModule : IModule
     public void ConfigureMessaging(WolverineOptions options)
     {
         options.Discovery.IncludeType<Messaging.RunDemoOperationHandler>();
+        options.Discovery.IncludeType<Messaging.DemoQuickCheckHandler>();
     }
 
     public async Task ApplyMigrationsAsync(IServiceProvider services, CancellationToken ct)

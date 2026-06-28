@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
@@ -46,6 +47,37 @@ public sealed class OperationsTests(PlatformApiFactory fixture)
         var (_, otherToken) = await fixture.RegisterAndLoginAsync($"other-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
         var foreign = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Get, $"/v1/operations/{operationId}", otherToken));
         foreign.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Demo_invoke_runs_short_worker_request_and_times_out_predictably()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync($"op-invoke-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+
+        var ok = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Post, "/v1/operations/demo-invoke", token, new { input = 7 }));
+        ok.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var data = await PlatformApiFactory.ReadData(ok);
+        data.GetProperty("score").GetInt32().ShouldBe(14);
+        data.GetProperty("reason").GetString().ShouldBe("computed-in-worker");
+
+        var timeout = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Post, "/v1/operations/demo-invoke", token,
+                new { input = 7, timeoutMs = 50, workDelayMs = 500 }));
+        timeout.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        var problem = await timeout.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        problem.GetProperty("errorCode").GetString().ShouldBe("operations.invoke_timeout");
+    }
+
+    [Fact]
+    public async Task Demo_invoke_validates_input_before_the_worker_message_is_invoked()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync($"op-invoke-invalid-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+
+        var response = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Post, "/v1/operations/demo-invoke", token, new { input = 99 }));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
     [Fact]

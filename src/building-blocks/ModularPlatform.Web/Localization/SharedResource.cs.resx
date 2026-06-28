@@ -76,6 +76,10 @@
   <data name="user.locale.unsupported" xml:space="preserve"><value>Tento jazyk není podporován.</value></data>
   <data name="role.not_found" xml:space="preserve"><value>Role nebyla nalezena.</value></data>
   <data name="operation.not_found" xml:space="preserve"><value>Operace nebyla nalezena.</value></data>
+  <data name="operations.invoke_timeout" xml:space="preserve"><value>Rychlý požadavek na worker vypršel.</value></data>
+  <data name="operations.demo_input_invalid" xml:space="preserve"><value>Demo vstup je mimo povolený rozsah.</value></data>
+  <data name="operations.demo_timeout_invalid" xml:space="preserve"><value>Demo timeout je mimo povolený rozsah.</value></data>
+  <data name="operations.demo_delay_invalid" xml:space="preserve"><value>Demo zpoždění workeru je mimo povolený rozsah.</value></data>
   <data name="auth.required" xml:space="preserve"><value>Vyžadováno přihlášení.</value></data>
 
   <data name="marketing.source_unknown" xml:space="preserve"><value>Neznámý marketingový zdroj.</value></data>
