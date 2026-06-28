@@ -668,16 +668,17 @@ _Thin, correctly-scoped passthrough; authoritative enforcement is rightly left t
 ### Stripe Tax flag — 🟢 minor-gaps
 *Toggle Stripe automatic Tax (merchant-of-record VAT) on every checkout session via config.*
 
-**Use cases:** Deployment sets Billing:Stripe:AutomaticTax=true; both package and subscription checkouts request AutomaticTax (PurchaseCreditPackageHandler.cs:67, CreateSubscriptionCheckoutHandler.cs:48)
+**Use cases:** Deployment sets Billing:Stripe:AutomaticTax=true; subscription checkout requests AutomaticTax through the Stripe anti-corruption port (CreateSubscriptionCheckoutHandler.cs:56-62). Package checkout now uses the tenant payment-gateway plane, not the module Stripe gateway.
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
 | AutomaticTax off (default) | ✓ | StripeGateway.cs:42 sets AutomaticTax to null when false (no tax) |
-| AutomaticTax on | ✓ | StripeGateway.cs:42 sets SessionAutomaticTaxOptions{Enabled=true}; comment notes it requires Stripe Tax enabled in dashboard (StripeOptions.cs) |
+| AutomaticTax on | ✓ | StripeGateway.cs:42 sets SessionAutomaticTaxOptions{Enabled=true}; comment notes it requires Stripe Tax enabled in dashboard (StripeOptions.cs); test Subscription_checkout_propagates_automatic_tax_config_to_provider_session |
 
-**Test gaps:** No test asserting the AutomaticTax flag is propagated into the created CheckoutSessionSpec (the fake captures specs in CreatedSessions, so this is easily testable)
+**Testy:** SubscriptionCheckoutTests.Subscription_checkout_propagates_automatic_tax_config_to_provider_session
+**Test gaps:** No remaining focused Stripe Tax flag gap for the module Stripe checkout path.
 
-_A simple config flag correctly threaded; only missing a propagation test. Real tax math is Stripe's responsibility._
+_A simple config flag correctly threaded for subscription checkout. Real tax math is Stripe's responsibility._
 
 ### Stripe reconcile sweep (3 passes, per-item isolation) — 🟢 minor-gaps
 *Periodic self-healing: requeue stuck events, correct subscription drift against live Stripe, and re-grant paid-but-stuck purchases.*
