@@ -4596,7 +4596,9 @@ public sealed class DealCreatedNotificationHandler
 
 ### UC99 Event s minimem PII
 
-**Status:** Base pravidlo aktivni; ExampleModule eventy musi byt navrzene jako minimalni durable fakta.
+**Status:** Base pravidlo aktivni a hlidane architecture testem -
+`MessageWireIdentityTests.Integration_events_do_not_gain_pii_shaped_fields_without_an_explicit_allowlist` blokuje nove
+PII/raw-looking fields v `IIntegrationEvent` payloadech, pokud nejsou vedome allowlistovane.
 
 **Pouzijes:** `IIntegrationEvent` DTO, minimal IDs, optional non-PII status, message wire identity tests.
 

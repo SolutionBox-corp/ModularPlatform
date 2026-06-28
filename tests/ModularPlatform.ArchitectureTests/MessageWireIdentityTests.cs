@@ -45,6 +45,34 @@ public sealed class MessageWireIdentityTests
         "ModularPlatform.Billing.Sagas.CreditPurchaseTimeout",
     ];
 
+    // Durable envelopes are not crypto-shreddable like encrypted DB rows. These are the only currently accepted
+    // PII-bearing event fields, all needed by the delivery/signup path and bounded by PlatformMessaging retention.
+    private static readonly HashSet<string> AllowedPiiBearingEventFields =
+    [
+        "ModularPlatform.Identity.Contracts.UserRegisteredIntegrationEvent.Email",
+        "ModularPlatform.Identity.Contracts.UserRegisteredIntegrationEvent.DisplayName",
+        "ModularPlatform.Notifications.Contracts.EmailDeliveryRequested.ToAddress",
+        "ModularPlatform.Notifications.Contracts.EmailDeliveryRequested.Subject",
+        "ModularPlatform.Notifications.Contracts.EmailDeliveryRequested.Body",
+        "ModularPlatform.Notifications.Contracts.PushDeliveryRequested.Title",
+        "ModularPlatform.Notifications.Contracts.PushDeliveryRequested.Body",
+    ];
+
+    private static readonly string[] SuspiciousDurablePayloadFieldNames =
+    [
+        "Email",
+        "Address",
+        "DisplayName",
+        "Subject",
+        "Title",
+        "Body",
+        "Content",
+        "Note",
+        "Raw",
+        "Payload",
+        "Json",
+    ];
+
     // Anchor types whose assemblies hold the integration-event contracts.
     private static readonly Assembly[] ContractAssemblies =
     [
@@ -83,5 +111,25 @@ public sealed class MessageWireIdentityTests
         Assert.True(missing.Count == 0,
             "These durable saga messages lost their frozen wire name (renamed/moved) — a breaking change for in-flight "
             + "checkout envelopes: " + string.Join(", ", missing));
+    }
+
+    [Fact]
+    public void Integration_events_do_not_gain_pii_shaped_fields_without_an_explicit_allowlist()
+    {
+        var offenders = ContractAssemblies
+            .SelectMany(a => a.GetExportedTypes())
+            .Where(t => t is { IsClass: true, IsAbstract: false } && typeof(IIntegrationEvent).IsAssignableFrom(t))
+            .SelectMany(t => t.GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                .Where(p => SuspiciousDurablePayloadFieldNames.Any(name =>
+                    p.Name.Contains(name, StringComparison.OrdinalIgnoreCase)))
+                .Select(p => $"{t.FullName}.{p.Name}"))
+            .Where(field => !AllowedPiiBearingEventFields.Contains(field))
+            .OrderBy(x => x)
+            .ToList();
+
+        Assert.True(offenders.Count == 0,
+            "Integration events should carry IDs/status, not PII/raw payload fields that can sit in durable "
+            + "envelopes. Either remove these fields or add a reviewed allowlist entry with a retention reason: "
+            + string.Join(", ", offenders));
     }
 }
