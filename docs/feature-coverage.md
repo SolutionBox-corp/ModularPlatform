@@ -795,12 +795,14 @@ _Standard, correct AES-GCM layout [nonce|tag|ciphertext]. AAD and malformed-blob
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
-| Placeholder/empty/short key outside Development | ✓ | GdprEncryptionOptionsValidator fails startup (ValidateOnStart) when key missing, == placeholder, or < 32 chars (HmacBlindIndexHasher.cs:22-43; GdprModule.cs:76-79) |
+| Placeholder/empty/short key outside Development | ✓ | GdprEncryptionOptionsValidator fails startup (ValidateOnStart) when key missing, == placeholder, or < 32 chars (HmacBlindIndexHasher.cs:22-43; GdprModule.cs:76-79); test BlindIndexHasherTests.Validator_rejects_missing_placeholder_or_short_key_outside_development |
 | Dev fallback when key unset | ✓ | falls back to DevKeyPlaceholder so dev/tests work (HmacBlindIndexHasher.cs:52-55) |
 | null normalizedValue | ✓ | ArgumentNullException.ThrowIfNull (HmacBlindIndexHasher.cs:59) |
+| Same input lookup stability | ✓ | HMAC-SHA256 over the caller-normalized value is deterministic and key-bound (HmacBlindIndexHasher.cs:57-63); test BlindIndexHasherTests.Hash_is_deterministic_for_same_normalized_value_and_changes_for_other_values |
 | Caller-side normalization (Trim/ToUpperInvariant) consistency | ◐ | hasher hashes the value as-given; normalization is the CALLER's contract (PersonalData.cs:28-29). Correct by design but no shared helper enforces it — a caller that forgets normalization silently misses lookups |
 
-**Test gaps:** No test in the Gdpr project that the same input -> same hash and different input -> different hash; No test that the prod validator rejects the placeholder/short key (fail-fast posture); Normalization-contract test (e.g. Email login is case-insensitive) lives in Identity, not asserted here
+**Testy:** BlindIndexHasherTests.Hash_is_deterministic_for_same_normalized_value_and_changes_for_other_values; BlindIndexHasherTests.Validator_rejects_missing_placeholder_or_short_key_outside_development; BlindIndexHasherTests.Validator_allows_dev_placeholder_in_development_only
+**Test gaps:** Normalization-contract test (e.g. Email login is case-insensitive) lives in Identity, not asserted here.
 
 _Key handling and fail-fast are correct. The normalization contract is the one soft spot — it relies on every caller normalizing identically; only Identity uses it today._
 
