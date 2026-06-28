@@ -4727,7 +4727,8 @@ internal sealed class ReconcileExampleModuleImportsHandler(ExampleModuleDbContex
 
 ### UC101 Novy modul
 
-**Status:** Repo pravidlo hotove; kazdy novy produktovy modul se dela jako standardni trio a registruje se do vsech hostu. ExampleModule je jen priklad nazvu.
+**Status:** Repo pravidlo hotove a hlidane host/architecture testy; kazdy novy produktovy modul se dela jako standardni
+trio, registruje se do vsech hostu a prida se do `ModuleBoundaryTests` matrixu. ExampleModule je jen priklad nazvu.
 
 **Pouzijes:** trio `ModularPlatform.{Module}`, `ModularPlatform.{Module}.Contracts`, `ModularPlatform.{Module}.Tests`, `IModule`, `PlatformDbContext`, host registrations, architecture tests. V ukazkach nize je `{Module} = ExampleModule`.
 
