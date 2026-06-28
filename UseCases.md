@@ -1276,7 +1276,7 @@ custom retry loop, nebo vlastni Stripe SDK volani mimo `IStripeGateway`.
 
 **Status:** Implemented — overeno `CreditBalanceTests`, `LedgerBackstopTests`, `RlsTests`; response vraci `posted/pending/available`.
 
-**Pouzijes:** `GET /billing/credits/balance` nebo public query.
+**Pouzijes:** `GET /billing/credits/balance` nebo `GetCreditBalanceQuery` z `ModularPlatform.Billing.Contracts`.
 
 **Co se stane:** Billing vrati autoritativni ulozenou projekci kreditu pro prihlaseneho usera:
 `posted`, `pending`, `available`. Hodnota `available` je presne to, co pozdejsi reservation dovoli utratit.
@@ -1295,7 +1295,8 @@ return <MoneyAmount value={balance?.available ?? 0} />;
 `CreditBalanceCard` uz pouziva `billingQueries.balance()` a realtime provider invaliduje billing root po credit eventech,
 takze karta po reserve/confirm/release refetchne.
 
-**Backend / ExampleModule pouziti:** Pro zobrazeni stavu volej query. Pro placenou akci pouzij lifecycle:
+**Backend / ExampleModule pouziti:** Pro zobrazeni stavu volej `GetCreditBalanceQuery` z `Billing.Contracts`.
+Pro placenou akci pouzij lifecycle:
 
 ```csharp
 var reservation = await dispatcher.Send(
@@ -1469,6 +1470,9 @@ await db.SaveChangesAsync(ct);
 
 **Co ulozit v ExampleModule:** `ReservationId`, `Amount`, vlastni operation id, stav (`Reserved`, `Completed`, `Failed`,
 `Released`) a idempotency/business key vlastni akce. Neulozuj kopii credit balance.
+
+**Namespace:** `ReserveCreditsCommand`, `ReserveCreditsResponse`, `ConfirmSpendCommand` a `ReleaseHoldCommand` jsou
+v `ModularPlatform.Billing.Contracts`, aby novy modul nereferencoval Billing Core.
 
 **Proc je to safe:** Handler pouziva EF `ExecuteUpdate` s `WHERE Available >= amount`. Update row zamkne a guard se
 vyhodnoti atomicky v DB. Kdyz neni dost kreditu, nevznikne hold ani ledger entry.
@@ -2497,13 +2501,13 @@ queryClient.invalidateQueries({ queryKey: ["deal", dealId, "attachments"] });
 
 **Pouzijes:** Files upload + generic Files link API, nebo backend contracty z `ModularPlatform.Files.Contracts`.
 
-**Co se stane:** Files modul vlastni blob, metadata souboru a obecnou vazbu `file_links`. Produktovy modul nejdriv overi, ze user vidi svoji domenovou entitu, napr. `Deal`, `Campaign`, `ImportRun` nebo `Case`. Potom zavola Files link API a rekne: `ownerType = "crm.deal"`, `ownerId = dealId`, `fileObjectId = uploaded.id`. Files overi, ze soubor patri aktualnimu userovi, ulozi link a vrati metadata pro UI. Files schvalne neoveruje, jestli `ownerId` existuje v CRM/Marketing/HR tabulce; to je odpovednost owner modulu.
+**Co se stane:** Files modul vlastni blob, metadata souboru a obecnou vazbu `file_links`. Produktovy modul nejdriv overi, ze user vidi svoji domenovou entitu, napr. `Project`, `Deal`, `Campaign`, `ImportRun` nebo `Case`. Potom zavola Files link API a rekne: `ownerType = "example.record"`, `ownerId = recordId`, `fileObjectId = uploaded.id`. Files overi, ze soubor patri aktualnimu userovi, ulozi link a vrati metadata pro UI. Files schvalne neoveruje, jestli `ownerId` existuje v tabulce owner modulu; to je odpovednost owner modulu.
 
 **Backend API base:**
 
 ```http
 POST /v1/files/{fileId}/links
-GET /v1/files/links?ownerType=crm.deal&ownerId={dealId}
+GET /v1/files/links?ownerType=example.record&ownerId={recordId}
 DELETE /v1/files/links/{linkId}
 ```
 
@@ -2511,26 +2515,26 @@ DELETE /v1/files/links/{linkId}
 
 ```json
 {
-  "ownerType": "crm.deal",
+  "ownerType": "example.record",
   "ownerId": "018f..."
 }
 ```
 
-**Napises v novem modulu:** endpoint/command porad overi domenovy object. Napriklad `AttachFileToDealCommand` overi `dealId && userId/tenantId`. Samotny vztah k souboru ulozis pres Files link API, ne pres vlastni storage key a ne pres join do `file_objects`.
+**Napises v novem modulu:** endpoint/command porad overi domenovy object. Napriklad `AttachFileToRecordCommand` overi `recordId && userId/tenantId`. Samotny vztah k souboru ulozis pres Files link API, ne pres vlastni storage key a ne pres join do `file_objects`.
 
 **Vzor backend/BFF orchestrace v produktovem modulu:**
 
 ```csharp
-var deal = await db.Deals
-    .Where(x => x.Id == command.DealId && x.UserId == command.UserId)
+var record = await db.Records
+    .Where(x => x.Id == command.RecordId && x.UserId == command.UserId)
     .FirstOrDefaultAsync(ct)
-    ?? throw new NotFoundException("example.deal_not_found", "Deal not found.");
+    ?? throw new NotFoundException("example.record_not_found", "Record not found.");
 
 var link = await dispatcher.Send(new LinkFileToOwnerCommand(
     command.FileObjectId,
     command.UserId,
-    "crm.deal",
-    deal.Id), ct);
+    "example.record",
+    record.Id), ct);
 ```
 
 **Poznamka:** pokud volas z jineho Core modulu, referencuj `ModularPlatform.Files.Contracts`, ne `ModularPlatform.Files` Core. HTTP/BFF flow muze volat API primo.
@@ -2541,11 +2545,11 @@ var link = await dispatcher.Send(new LinkFileToOwnerCommand(
 const uploaded = await uploadFile(file);
 await linkFileToOwner({
   fileObjectId: uploaded.id,
-  ownerType: "crm.deal",
-  ownerId: dealId,
+  ownerType: "example.record",
+  ownerId: recordId,
 });
 queryClient.invalidateQueries({
-  queryKey: [...queryRoots.files, "links", "crm.deal", dealId],
+  queryKey: [...queryRoots.files, "links", "example.record", recordId],
 });
 ```
 
@@ -2553,7 +2557,7 @@ queryClient.invalidateQueries({
 
 **EC:**
 
-- EC306 owner foreign user -> 404 → produktovy modul musi pred linkem overit vlastni entitu pres `OwnerId && UserId/TenantId`; cizi deal/case/campaign se tvari jako neexistujici.
+- EC306 owner foreign user -> 404 → produktovy modul musi pred linkem overit vlastni entitu pres `OwnerId && UserId/TenantId`; cizi record/deal/case/campaign se tvari jako neexistujici.
 - EC307 file foreign user -> 404 → `LinkFileHandler` hleda `FileObjectId && UserId`; cizi file nejde nalinkovat ani kdyz user zna GUID.
 - EC308 duplicate attachment → unique index `(UserId, OwnerType, OwnerId, FileObjectId)` + catch unique violation = idempotentni double-click.
 - EC309 owner deleted → produktovy modul uz attach endpoint nema pustit; Files link list sam o sobe owner existenci nevi, proto detail page ma list volat az po overeni owner entity.
@@ -4133,30 +4137,42 @@ services.AddScoped<IErasePersonalData, ExampleModulePersonalDataEraser>();
 
 **Mentalni model:** data maji vlastnika. Ten vlastnik rozhoduje scope, permission, tenant/user filtr a shape DTO. ExampleModule muze data pouzit, ale nesmi si je tajne joinovat z cizi DB. Pokud query contract chybi, nepras ho pres Core reference; nejdriv ho pridej do owner modulu.
 
-**Contract v owner modulu:** do `ModularPlatform.Billing.Contracts` nebo `Identity.Contracts` dej jen public recordy. Contracts nesmi referencovat Core.
+**Contract v owner modulu:** do `ModularPlatform.Billing.Contracts`, `Identity.Contracts` nebo jineho `{Module}.Contracts` dej jen public recordy. Contracts nesmi referencovat Core. Billing credit balance uz takhle vystavuje realny public query contract:
 
 ```csharp
 namespace ModularPlatform.Billing.Contracts;
 
-public sealed record GetCreditBalanceForUserQuery(Guid UserId)
-    : IQuery<CreditBalanceDto>;
+public sealed record GetCreditBalanceQuery(Guid UserId)
+    : IQuery<CreditBalanceResponse>;
 
-public sealed record CreditBalanceDto(long Available, long Pending, long Posted);
+public sealed record CreditBalanceResponse(
+    Guid AccountId,
+    Guid UserId,
+    long Posted,
+    long Pending,
+    long Available);
 ```
 
 **Handler v owner modulu:** Billing implementuje handler ve svem Core a resi svoji logiku/scope. ExampleModule nevi, jak ledger funguje.
 
 ```csharp
-internal sealed class GetCreditBalanceForUserHandler(BillingDbContext db)
-    : IQueryHandler<GetCreditBalanceForUserQuery, CreditBalanceDto>
+internal sealed class GetCreditBalanceHandler(IReadDbContextFactory<BillingDbContext> readFactory)
+    : IQueryHandler<GetCreditBalanceQuery, CreditBalanceResponse>
 {
-    public async Task<CreditBalanceDto> Handle(GetCreditBalanceForUserQuery query, CancellationToken ct)
+    public async Task<CreditBalanceResponse> Handle(GetCreditBalanceQuery query, CancellationToken ct)
     {
+        await using var db = await readFactory.CreateDbContextAsync(ct);
+
         var account = await db.CreditAccounts
             .FirstOrDefaultAsync(x => x.UserId == query.UserId, ct)
             ?? throw new NotFoundException("billing.account_not_found", "Credit account not found.");
 
-        return new CreditBalanceDto(account.Available, account.Pending, account.Posted);
+        return new CreditBalanceResponse(
+            account.Id,
+            account.UserId,
+            account.Posted,
+            account.Pending,
+            account.Available);
     }
 }
 ```
@@ -4167,7 +4183,7 @@ internal sealed class GetCreditBalanceForUserHandler(BillingDbContext db)
 var userId = tenant.UserId
     ?? throw new UnauthorizedException("auth.required", "Authentication required.");
 
-var balance = await dispatcher.Query(new GetCreditBalanceForUserQuery(userId), ct);
+var balance = await dispatcher.Query(new GetCreditBalanceQuery(userId), ct);
 ```
 
 **Casto ctena data:** pokud ExampleModule potrebuje data v kazdem listu nebo pro filtrovani/sort, query-per-row je spatne. Vytvor ExampleModule read model/projekci a synchronizuj ji eventy z owner modulu. Query contract pouzij pro detail nebo jednotlive rozhodnuti.

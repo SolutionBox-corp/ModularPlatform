@@ -1,4 +1,5 @@
 using FluentValidation.Results;
+using ModularPlatform.Billing.Contracts;
 using ModularPlatform.Billing.Features.Credits.CreditTopUp;
 using ModularPlatform.Billing.Features.Credits.ReserveCredits;
 using Shouldly;

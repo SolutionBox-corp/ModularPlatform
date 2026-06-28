@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using ModularPlatform.Billing.Contracts;
 using ModularPlatform.Billing.Persistence;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Persistence;

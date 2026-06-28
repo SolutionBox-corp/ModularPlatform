@@ -1,6 +1,6 @@
 using System.Net;
 using Microsoft.Extensions.DependencyInjection;
-using ModularPlatform.Billing.Features.Credits.GetCreditBalance;
+using ModularPlatform.Billing.Contracts;
 using ModularPlatform.Cqrs;
 using ModularPlatform.IntegrationTesting;
 using Shouldly;

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ModularPlatform.Abstractions;
+using ModularPlatform.Billing.Contracts;
 using ModularPlatform.Billing.Entities;
 using ModularPlatform.Billing.Persistence;
 using ModularPlatform.Cqrs;
