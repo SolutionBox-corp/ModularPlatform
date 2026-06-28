@@ -1522,12 +1522,12 @@ _Strong: the boot tests are an explicit regression guard for the A4 DI-graph con
 |---|:--:|---|
 | Quartz defaults cron to host local timezone (violates Law #7 UTC) | ✓ | Health trigger uses InTimeZone(TimeZoneInfo.Utc) at JobsHostBuilder.cs:88 |
 | In-memory job store does not coordinate across instances | ◐ | Documented: run replica=1; every job idempotent so duplicate run is safe-but-wasteful (JobsHostBuilder.cs:69-74). NOT enforced — a misconfigured replica=2 silently double-runs; relies on operator discipline + per-job idempotency |
-| A throwing job is silent until next cron fire | ✓ | JobFailureListener registered for AnyGroup (Jobs Program.cs:9-11) → ERROR log + platform.jobs.failures counter (JobFailureListener.cs:38-43) |
+| A throwing job is silent until next cron fire | ✓ | JobFailureListener registered for AnyGroup (Jobs Program.cs:9-11) → ERROR log + platform.jobs.failures counter (JobFailureListener.cs:38-43); direct listener path proven by JobFailureMetricsTests.JobWasExecuted_with_exception_logs_and_records_the_failed_job |
 | Graceful shutdown mid-job | ✓ | AddQuartzHostedService WaitForJobsToComplete=true (JobsHostBuilder.cs:90) |
 | Concurrent execution of the health job within one scheduler | ✓ | [DisallowConcurrentExecution] on MessagingHealthJob (line 20) |
 
-**Testy:** JobFailureMetricsTests.Recording_a_failure_increments_the_platform_jobs_failures_counter; Jobs_host_composes (HostBootTests)
-**Test gaps:** No test asserts the health trigger's cron is interpreted in UTC (the Law #7 fix); No test that JobFailureListener.JobWasExecuted with a non-null exception logs+records (only the static metric helper is tested directly); No test for [DisallowConcurrentExecution] / WaitForJobsToComplete wiring
+**Testy:** JobFailureMetricsTests.Recording_a_failure_increments_the_platform_jobs_failures_counter; JobFailureMetricsTests.JobWasExecuted_with_exception_logs_and_records_the_failed_job; Jobs_host_composes (HostBootTests)
+**Test gaps:** No test asserts the health trigger's cron is interpreted in UTC (the Law #7 fix); No test for [DisallowConcurrentExecution] / WaitForJobsToComplete wiring
 
 _Single-instance cross-instance coordination is a documented operational constraint, not a code-enforced one — acceptable given universal idempotency but worth noting._
 
