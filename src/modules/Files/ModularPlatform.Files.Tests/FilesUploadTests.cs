@@ -73,6 +73,38 @@ public sealed class FilesUploadTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task List_clamps_page_parameters_and_orders_newest_first_across_pages()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync(
+            $"list-order-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+
+        await UploadAsync(token, "oldest.txt", "text/plain", Encoding.UTF8.GetBytes("oldest"));
+        await Task.Delay(20);
+        await UploadAsync(token, "middle.txt", "text/plain", Encoding.UTF8.GetBytes("middle"));
+        await Task.Delay(20);
+        await UploadAsync(token, "newest.txt", "text/plain", Encoding.UTF8.GetBytes("newest"));
+
+        var clamped = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/files?page=0&pageSize=0", token));
+        clamped.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var clampedData = await PlatformApiFactory.ReadData(clamped);
+        clampedData.GetProperty("page").GetInt32().ShouldBe(1);
+        clampedData.GetProperty("pageSize").GetInt32().ShouldBe(1);
+        clampedData.GetProperty("totalCount").GetInt64().ShouldBe(3);
+        clampedData.GetProperty("items").GetArrayLength().ShouldBe(1);
+        clampedData.GetProperty("items")[0].GetProperty("fileName").GetString().ShouldBe("newest.txt");
+
+        var secondPage = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/files?page=2&pageSize=2", token));
+        secondPage.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var secondPageData = await PlatformApiFactory.ReadData(secondPage);
+        secondPageData.GetProperty("page").GetInt32().ShouldBe(2);
+        secondPageData.GetProperty("pageSize").GetInt32().ShouldBe(2);
+        secondPageData.GetProperty("items").GetArrayLength().ShouldBe(1);
+        secondPageData.GetProperty("items")[0].GetProperty("fileName").GetString().ShouldBe("oldest.txt");
+    }
+
+    [Fact]
     public async Task List_search_filters_by_filename_and_deleted_files_disappear()
     {
         var (_, token) = await fixture.RegisterAndLoginAsync(

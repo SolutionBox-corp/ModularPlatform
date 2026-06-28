@@ -1174,8 +1174,8 @@ _IDOR protection is dual-gated and well tested. Missing metadata and missing blo
 | Index supports the per-user ordered scan | ◐ | Migration IX_file_objects_UserId is on UserId only (InitialFiles.cs:55-58); the query filters UserId then orders by CreatedAt — for large per-user file counts a composite (UserId, CreatedAt) index would avoid a sort. Acceptable at expected scale; a perf note, not a correctness bug. |
 | CreatedAt tie ordering is non-deterministic | ◐ | Ordering only by CreatedAt DESC; two files uploaded in the same instant could swap pages. Ids are Guid v7 (time-ordered) and could be a tiebreaker but are not used here. Minor stability nit. |
 
-**Testy:** FilesUploadTests.List_is_paged_and_owner_scoped (pageSize, totalCount, items length, owner scoping)
-**Test gaps:** No test for page-clamping (negative/zero/oversized pageSize); No test for ordering (newest-first) correctness across pages
+**Testy:** FilesUploadTests.List_is_paged_and_owner_scoped (pageSize, totalCount, items length, owner scoping); FilesUploadTests.List_clamps_page_parameters_and_orders_newest_first_across_pages (query-string clamping + newest-first across pages)
+**Test gaps:** No remaining focused file-list paging/order gap; index/tiebreaker notes remain perf/stability nits, not correctness bugs.
 
 _Paging is clamped and owner-scoped. Index/tiebreaker notes are perf/stability nits, not bugs._
 
