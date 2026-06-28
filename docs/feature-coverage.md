@@ -1435,10 +1435,10 @@ _Intricate but disciplined; the restore-on-failure and refuse-without-protector 
 | Unordered query => unstable paging | ◐ | Documented requirement to OrderBy first (PagedQueryExtensions.cs:10-11) but not enforced in code |
 | Count + page in two round-trips (consistency) | ✓ | LongCountAsync then Skip/Take (PagedQueryExtensions.cs:16-17); acceptable for paging |
 
-**Testy:** NotificationsIntegrationTests exercises the feed PagedResponse envelope (items/page/pageSize/totalCount) end-to-end
-**Test gaps:** No direct unit test of PageRequest clamping (negative page -> 1, pageSize>100 -> 100, null -> default 20); No unit test of PagedResponse.TotalPages math including the PageSize<=0 guard
+**Testy:** PagingClampingTests directly covers PageRequest clamping (negative/null page, null/below-one/oversized pageSize, Skip) and PagedResponse.TotalPages math; NotificationsIntegrationTests exercises the feed PagedResponse envelope (items/page/pageSize/totalCount) end-to-end
+**Test gaps:** No direct test for `PagedQueryExtensions.ToPagedResponseAsync` preserving item order/count on an EF provider; core clamp/math is covered.
 
-_Pure, simple clamping logic with zero direct unit coverage — cheapest high-value test gap in the area._
+_Pure clamp/math logic is covered by focused unit tests; only the EF extension wrapper remains transitively covered by module list tests._
 
 ### Entity base + conventions (xmin, soft-delete, IUserOwned/ITenantScoped) — 🟢 minor-gaps
 *Boilerplate-free entities: Guid v7 ids, xmin concurrency, shadow TenantId, soft-delete filter, auto-config scan.*
@@ -1460,7 +1460,7 @@ _Conventions are solid; the `IUserOwned` -> `Guid UserId` contract is now enforc
 - Doc-vs-code drift: AddPlatformPersistence XML summary says it registers the pipeline 'once per host' (Persistence/DependencyInjection.cs:17-20,33), but it is actually invoked once PER MODULE (via AddModuleDbContext, Messaging/DependencyInjection.cs:28) and relies on TryAdd*/TryAddEnumerable dedup. The comment understates the per-module invocation that the dedup exists to neutralize.
 - Convention enforced at build: IUserOwned requires a 'Guid UserId' column (Entity.cs:25-31, used by RlsBootstrapper.cs:130 OwnerColumn='UserId') and `RlsConventionTests` asserts it before a mismarked entity can fail later during RLS bootstrap.
 - Mechanism-vs-test mismatch: BillingConcurrencyTests is the only concurrency test and it exercises the atomic ExecuteUpdate debit guard (the money path), NOT the xmin + ConcurrencyRetryBehavior retry loop (ConcurrencyRetryBehavior.cs). The retry-and-succeed and retry-exhaustion behaviors of the command-only retry behavior are asserted nowhere directly.
-- PageRequest/PagedResponse clamping (Paging.cs:16-30, 7-10) is referenced as the standard list envelope across modules but has no direct unit test; its correctness is only observed transitively via NotificationsIntegrationTests, so a regression in the clamp bounds (e.g. MaxPageSize) would not be caught by a focused test.
+- PageRequest/PagedResponse clamping (Paging.cs:16-30, 7-10) is now directly covered by `PagingClampingTests`; `PagedQueryExtensions.ToPagedResponseAsync` remains covered through module list queries rather than a focused EF extension test.
 
 
 ---
