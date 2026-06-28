@@ -232,8 +232,8 @@ _Logic is correct; the cross-user-no-op IDOR guard and unknown-token idempotency
 | Encrypted columns decrypted on read | ✓ | Model-level converter decrypts on the read factory — test Email_and_display_name...plaintext_through_the_api |
 | Missing user | ✓ | NotFoundException(user.not_found) — GetProfileHandler.cs:24 |
 
-**Testy:** IdentityE2ETests profile leg; PiiColumnEncryptionTests decrypt-on-read leg; TenantIsolationTests.A_user_reading_through_the_tenant_filter_sees_only_their_own_tenant_data; TenantIsolationTests.Anonymous_caller_with_no_tenant_claim_is_rejected_not_granted_global_visibility
-**Test gaps:** No direct test that an erased user's /me returns 404 (covered only indirectly by token revocation)
+**Testy:** IdentityE2ETests profile leg; PiiColumnEncryptionTests decrypt-on-read leg; TenantIsolationTests.A_user_reading_through_the_tenant_filter_sees_only_their_own_tenant_data; TenantIsolationTests.Anonymous_caller_with_no_tenant_claim_is_rejected_not_granted_global_visibility; TenantIsolationTests.My_profile_is_not_returned_after_the_account_is_soft_deleted; SessionRevocationTests.Erased_user_access_token_can_no_longer_read_profile
+**Test gaps:** No remaining focused profile-read gap in this slice.
 
 _Canonical read slice._
 
