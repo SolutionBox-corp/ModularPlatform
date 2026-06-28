@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ModularPlatform.Cqrs;
+using ModularPlatform.Files.Contracts;
 using ModularPlatform.Files.Persistence;
 using ModularPlatform.Web;
 

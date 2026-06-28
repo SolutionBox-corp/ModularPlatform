@@ -2495,7 +2495,7 @@ queryClient.invalidateQueries({ queryKey: ["deal", dealId, "attachments"] });
 
 **Status:** Implemented + tested 2026-06-28 — `FilesUploadTests.File_can_be_linked_listed_idempotently_and_unlinked_without_deleting_the_file`, `File_links_are_owner_scoped_and_validate_owner_type` a GDPR erasure test pokryvaji UC62/EC306-EC310.
 
-**Pouzijes:** Files upload + generic Files link API.
+**Pouzijes:** Files upload + generic Files link API, nebo backend contracty z `ModularPlatform.Files.Contracts`.
 
 **Co se stane:** Files modul vlastni blob, metadata souboru a obecnou vazbu `file_links`. Produktovy modul nejdriv overi, ze user vidi svoji domenovou entitu, napr. `Deal`, `Campaign`, `ImportRun` nebo `Case`. Potom zavola Files link API a rekne: `ownerType = "crm.deal"`, `ownerId = dealId`, `fileObjectId = uploaded.id`. Files overi, ze soubor patri aktualnimu userovi, ulozi link a vrati metadata pro UI. Files schvalne neoveruje, jestli `ownerId` existuje v CRM/Marketing/HR tabulce; to je odpovednost owner modulu.
 
@@ -2526,12 +2526,14 @@ var deal = await db.Deals
     .FirstOrDefaultAsync(ct)
     ?? throw new NotFoundException("example.deal_not_found", "Deal not found.");
 
-// Potom zavolej Files API:
-// POST /v1/files/{fileObjectId}/links
-// { "ownerType": "crm.deal", "ownerId": deal.Id }
+var link = await dispatcher.Send(new LinkFileToOwnerCommand(
+    command.FileObjectId,
+    command.UserId,
+    "crm.deal",
+    deal.Id), ct);
 ```
 
-**Poznamka:** pokud volas z jineho Core modulu, nesmis referencovat Files Core typy primo. Pouzij HTTP/BFF endpoint nebo dopln verejny `Files.Contracts` command/query contract, pokud ma byt cross-module volani in-process. Z frontend/BFF flow staci volat API.
+**Poznamka:** pokud volas z jineho Core modulu, referencuj `ModularPlatform.Files.Contracts`, ne `ModularPlatform.Files` Core. HTTP/BFF flow muze volat API primo.
 
 **Frontend flow:**
 

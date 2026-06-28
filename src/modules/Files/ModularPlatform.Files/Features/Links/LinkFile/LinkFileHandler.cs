@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Files.Entities;
+using ModularPlatform.Files.Contracts;
 using ModularPlatform.Files.Persistence;
 using ModularPlatform.Web;
 using Npgsql;
@@ -8,9 +9,9 @@ using Npgsql;
 namespace ModularPlatform.Files.Features.Links.LinkFile;
 
 internal sealed class LinkFileHandler(FilesDbContext db)
-    : ICommandHandler<LinkFileCommand, FileLinkItem>
+    : ICommandHandler<LinkFileToOwnerCommand, FileLinkItem>
 {
-    public async Task<FileLinkItem> Handle(LinkFileCommand command, CancellationToken ct)
+    public async Task<FileLinkItem> Handle(LinkFileToOwnerCommand command, CancellationToken ct)
     {
         var file = await db.Files
             .Where(f => f.Id == command.FileObjectId && f.UserId == command.UserId)
@@ -54,7 +55,7 @@ internal sealed class LinkFileHandler(FilesDbContext db)
         return ToItem(link, file);
     }
 
-    private Task<FileLink?> FindExistingAsync(LinkFileCommand command, CancellationToken ct) =>
+    private Task<FileLink?> FindExistingAsync(LinkFileToOwnerCommand command, CancellationToken ct) =>
         db.FileLinks
             .Where(l => l.UserId == command.UserId
                 && l.OwnerType == command.OwnerType

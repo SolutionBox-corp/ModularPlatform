@@ -39,6 +39,13 @@ users must first verify access to the owner entity and then call the Files link 
 
 ## API contract
 
+Backend modules can use the same capability through `ModularPlatform.Files.Contracts`:
+
+- `LinkFileToOwnerCommand`
+- `ListFileLinksQuery`
+- `UnlinkFileCommand`
+- `FileLinkItem`
+
 ### Link file
 
 `POST /v1/files/{fileId}/links`

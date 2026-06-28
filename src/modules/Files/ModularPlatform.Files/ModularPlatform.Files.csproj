@@ -13,6 +13,7 @@
     <ProjectReference Include="..\..\..\building-blocks\ModularPlatform.Messaging\ModularPlatform.Messaging.csproj" />
     <ProjectReference Include="..\..\..\building-blocks\ModularPlatform.Web\ModularPlatform.Web.csproj" />
     <ProjectReference Include="..\..\..\building-blocks\ModularPlatform.Storage\ModularPlatform.Storage.csproj" />
+    <ProjectReference Include="..\ModularPlatform.Files.Contracts\ModularPlatform.Files.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>

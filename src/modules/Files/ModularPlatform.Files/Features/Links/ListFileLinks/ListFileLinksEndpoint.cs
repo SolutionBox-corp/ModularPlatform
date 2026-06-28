@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
-using ModularPlatform.Files.Features.Links;
+using ModularPlatform.Files.Contracts;
 using ModularPlatform.Web;
 
 namespace ModularPlatform.Files.Features.Links.ListFileLinks;

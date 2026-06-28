@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
-using ModularPlatform.Files.Features.Links;
+using ModularPlatform.Files.Contracts;
 using ModularPlatform.Web;
 
 namespace ModularPlatform.Files.Features.Links.LinkFile;
@@ -24,7 +24,7 @@ internal static class LinkFileEndpoint
                 var userId = tenant.UserId
                     ?? throw new UnauthorizedException("auth.required", "Authentication required.");
                 var result = await dispatcher.Send(
-                    new LinkFileCommand(fileId, userId, request.OwnerType, request.OwnerId), ct);
+                    new LinkFileToOwnerCommand(fileId, userId, request.OwnerType, request.OwnerId), ct);
                 var location = links.GetPathByName(http, "ListFileLinks", new
                     {
                         ownerType = result.OwnerType,
@@ -38,4 +38,6 @@ internal static class LinkFileEndpoint
             .WithTags("Files")
             .WithName("LinkFile");
     }
+
+    private sealed record LinkFileRequest(string OwnerType, Guid OwnerId);
 }

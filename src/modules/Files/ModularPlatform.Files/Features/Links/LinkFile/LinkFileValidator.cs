@@ -1,8 +1,9 @@
 using FluentValidation;
+using ModularPlatform.Files.Contracts;
 
 namespace ModularPlatform.Files.Features.Links.LinkFile;
 
-internal sealed class LinkFileValidator : AbstractValidator<LinkFileCommand>
+internal sealed class LinkFileValidator : AbstractValidator<LinkFileToOwnerCommand>
 {
     public LinkFileValidator()
     {
