@@ -1253,14 +1253,14 @@ _Clean ~150 LOC mediator replacement. ICommandOnlyBehavior filtering is the key 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
 | No validators registered | ✓ | Short-circuits to next() (ValidationBehavior.cs:16-19) |
-| Validator with blank ErrorCode | ✓ | Falls back to 'validation.invalid' (ValidationBehavior.cs:29) |
-| Multiple validators / parallel run | ✓ | Task.WhenAll over all validators, errors flattened (ValidationBehavior.cs:22-24) |
+| Validator with blank ErrorCode | ✓ | Falls back to 'validation.invalid' (ValidationBehavior.cs:29); covered by ValidationBehaviorTests.Multiple_validators_are_aggregated_and_blank_error_code_falls_back |
+| Multiple validators / parallel run | ✓ | Task.WhenAll over all validators, each with its own ValidationContext so FluentValidation state cannot be shared across validators (ValidationBehavior.cs:22-23); covered by ValidationBehaviorTests.Multiple_validators_are_aggregated_and_blank_error_code_falls_back |
 | Runs for queries too (read-safe) | ✓ | Does NOT implement ICommandOnlyBehavior, so it runs for both commands and queries (intended per docstring lines 8-9) |
 
-**Testy:** ErrorCodeLocalizationTests (asserts error codes resolve to resx) — indirect; Module slice validators tested in module integration tests
-**Test gaps:** No direct unit test of the behavior aggregating multiple validators' failures or the blank-ErrorCode fallback to 'validation.invalid'
+**Testy:** ValidationBehaviorTests.No_validators_calls_next; ValidationBehaviorTests.Multiple_validators_are_aggregated_and_blank_error_code_falls_back; ErrorCodeLocalizationTests (asserts error codes resolve to resx) — indirect; Module slice validators tested in module integration tests
+**Test gaps:** No direct runtime query-pipeline test here; validation behavior itself now has direct coverage for no-validator short-circuit, multi-validator aggregation, and blank ErrorCode fallback.
 
-_Thin and correct; aggregation/fallback logic worth a 5-line unit test but covered indirectly end-to-end._
+_Thin and correct; the important invariant is one ValidationContext per validator, otherwise FluentValidation state can leak between parallel validators._
 
 ### Error types -> HTTP mapping — ✅ correct
 *Typed business exceptions carrying a stable errorCode + HTTP status, translated to RFC9457 by the Web middleware.*
