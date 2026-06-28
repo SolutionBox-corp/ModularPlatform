@@ -4550,7 +4550,9 @@ var result = await bus.InvokeAsync<LeadScoreResult>(
 
 ### UC98 Vice subscriberu na jeden event
 
-**Status:** Base pravidla popsana ve Wolverine setupu; ExampleModule subscribery musi byt idempotentni a order-independent.
+**Status:** Base pravidla implementovana a uzamcena testy - `CrossModuleEventTests` overuje vice subscriberu
+`UserRegisteredIntegrationEvent` (Billing + Notifications) a `PlatformMessagingPolicyTests` uzamyka aktualni
+`MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler`.
 
 **Pouzijes:** Wolverine durable handlers, inbox dedup, idempotency keys, optional `MultipleHandlerBehavior.Separated` rozhodnuti.
 
