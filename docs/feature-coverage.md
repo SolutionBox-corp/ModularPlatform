@@ -939,8 +939,8 @@ _Push being a no-op is by design and documented; worker-side channel handlers no
 | Seeder runs as a non-tenant hosted service | ✓ | NotificationTemplate is NOT ITenantScoped (NotificationTemplate.cs:9-11) so the seeder's plain context inserts platform-shared rows without a tenant filter. |
 | Placeholder value containing braces could re-trigger substitution | ✓ | Render iterates data once with Ordinal Replace (TemplateRenderer.cs:17-21); a value that itself contains '{otherKey}' is only replaced if a LATER dict key matches — order-dependent but values are short controlled strings; no infinite loop. Proven by TemplateRendererTests.Render_does_not_loop_when_value_contains_placeholder_text. |
 
-**Testy:** TemplateRendererTests.Render_replaces_all_matching_placeholders; TemplateRendererTests.Render_leaves_unmatched_placeholders_intact; TemplateRendererTests.Render_returns_empty_template_unchanged; TemplateRendererTests.Render_returns_template_unchanged_when_data_is_empty; TemplateRendererTests.Render_does_not_loop_when_value_contains_placeholder_text
-**Test gaps:** No test for the seeder's idempotency / concurrent-duplicate catch; No test for locale='cs' template selection
+**Testy:** TemplateRendererTests.Render_replaces_all_matching_placeholders; TemplateRendererTests.Render_leaves_unmatched_placeholders_intact; TemplateRendererTests.Render_returns_empty_template_unchanged; TemplateRendererTests.Render_returns_template_unchanged_when_data_is_empty; TemplateRendererTests.Render_does_not_loop_when_value_contains_placeholder_text; NotificationsIntegrationTests.SendNotification_uses_requested_locale_template_when_it_exists; NotificationsIntegrationTests.SendNotification_falls_back_to_english_template_when_requested_locale_is_missing
+**Test gaps:** No test for the seeder's idempotency / concurrent-duplicate catch
 
 _Rendering logic is now directly covered; remaining gaps are around seeding and locale selection._
 

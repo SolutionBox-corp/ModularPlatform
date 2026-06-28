@@ -214,6 +214,39 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task SendNotification_uses_requested_locale_template_when_it_exists()
+    {
+        var (recipientId, adminToken) = await AdminTokenAsync();
+
+        var templateKey = $"nt-locale-cs-{Guid.CreateVersion7():N}";
+        await fixture.ExecuteSqlAsync(
+            $"INSERT INTO notification_templates (\"Id\", \"Key\", \"Locale\", \"Subject\", \"Body\") " +
+            $"VALUES ('{Guid.CreateVersion7()}', '{templateKey}', 'en', 'English {{displayName}}', 'English body')");
+        await fixture.ExecuteSqlAsync(
+            $"INSERT INTO notification_templates (\"Id\", \"Key\", \"Locale\", \"Subject\", \"Body\") " +
+            $"VALUES ('{Guid.CreateVersion7()}', '{templateKey}', 'cs', 'Cesky {{displayName}}', 'Ceske telo')");
+
+        var send = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/notifications/send", adminToken, new
+            {
+                userId = recipientId,
+                templateKey,
+                channels = new[] { "inapp" },
+                data = new Dictionary<string, string> { ["displayName"] = "Ada", ["locale"] = "cs" },
+            }));
+
+        send.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var feed = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/notifications/me", adminToken));
+        feed.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var item = (await PlatformApiFactory.ReadData(feed)).GetProperty("items").EnumerateArray()
+            .Single(n => n.GetProperty("templateKey").GetString() == templateKey);
+        item.GetProperty("title").GetString().ShouldBe("Cesky Ada");
+        item.GetProperty("body").GetString().ShouldBe("Ceske telo");
+    }
+
+    [Fact]
     public async Task SendNotification_with_idempotency_key_is_exactly_once_over_http()
     {
         var (recipientId, adminToken) = await AdminTokenAsync();
