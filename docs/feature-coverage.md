@@ -252,10 +252,10 @@ _Canonical read slice._
 | Permission union across multiple roles | ✓ | Distinct join over RolePermissions — UserAuthorizationQuery.cs:32-35 |
 | Revoke does not invalidate already-issued tokens | ◐ | By design: a revoked role still authorizes until the access token expires (snapshot model). Documented (UserAuthorizationQuery.cs:8-10) but no forced-revocation path; acceptable given short access-token lifetime, no test asserts the bounded staleness window on revoke. |
 
-**Testy:** AuthzTests.Permission_gated_endpoint_rejects_non_admins_and_admins_can_grant_roles; AuthzTests.Concurrent_identical_role_grants_are_idempotent_not_a_500
-**Test gaps:** No test for RevokeRole (assign tested, revoke not); No test for AssignRole to a non-existent role -> role.not_found (404); No test that a revoked role no longer authorizes on the NEXT token (only grant->allow is covered)
+**Testy:** AuthzTests.Permission_gated_endpoint_rejects_non_admins_and_admins_can_grant_roles; AuthzTests.Refreshed_token_carries_role_changes_while_the_old_access_token_stays_a_snapshot; AuthzTests.Concurrent_identical_role_grants_are_idempotent_not_a_500; AuthzTests.Assign_role_returns_not_found_for_unknown_user_or_role; AuthzTests.Revoke_role_is_idempotent_and_removes_permission_only_from_new_tokens; AuthzTests.Revoke_role_is_a_tracked_delete_that_writes_audit
+**Test gaps:** No remaining focused assign/revoke role gap in this slice.
 
-_Revoke path (handler + endpoint) is entirely untested; assign path is well covered._
+_Snapshot semantics are intentional: revoke affects the next login/refresh token, not already-issued access tokens._
 
 ### Authorization seeding + admin bootstrap (IdentitySeeder + login-time grant) — 🟢 minor-gaps
 *Idempotently seed PlatformPermissions, the system admin role with all permissions, and grant admin to configured emails.*
@@ -556,12 +556,12 @@ _Strong defence-in-depth: app-level guard + DB CHECK + per-account UNIQUE idempo
 | Negative price / non-positive credit amount / non-positive expiry | ✓ | CreateCreditPackageValidator.cs / UpdateCreditPackageValidator.cs enforce GreaterThan(0)/GreaterThanOrEqualTo(0) with error codes |
 | Admin edits amount/price of a package with in-flight purchases | ✓ | Saga snapshots amounts at purchase time (CreditPurchaseSaga carries CreditAmount); documented at UpdateCreditPackageHandler.cs:8-9 — live purchases unaffected |
 | Inactive package shown to buyers | ✓ | ListCreditPackagesHandler.cs:18 filters p.Active; PurchaseCreditPackageHandler.cs:35-38 also rejects inactive on checkout (billing.package_inactive) |
-| StripePriceId left empty on an active package then bought | ✓ | PurchaseCreditPackageHandler.cs:40-44 throws billing.package.price_not_configured; FakeStripeGateway.cs:40-45 mirrors the guard |
+| Tenant payment gateway missing on checkout | ✓ | PurchaseCreditPackageHandler resolves the tenant gateway and maps PaymentGatewayUnavailableException to a BusinessRuleException (payment.gateway_not_configured); proven by PurchaseCreditPackageTests.Package_checkout_fails_when_tenant_gateway_is_not_configured. |
 
-**Testy:** BillingCommerceTests.Package_purchase_completes_end_to_end_via_checkout_webhook_and_saga (admin create + buyer list + checkout)
-**Test gaps:** No test for UpdateCreditPackage (toggling Active, changing amount/price, 404 on missing id); No test asserting a non-admin gets 403 on create/update packages; No test that an inactive package is excluded from the list AND rejected on checkout (billing.package_inactive); No test for billing.package.price_not_configured on checkout
+**Testy:** BillingCommerceTests.Package_purchase_completes_end_to_end_via_checkout_webhook_and_saga (admin create + buyer list + checkout); AdminPackageCatalogueTests.Admin_package_list_requires_billing_manage_permission; UpdateCreditPackageTests.Update_package_requires_billing_manage_permission; UpdateCreditPackageTests.Update_package_returns_not_found_for_unknown_or_foreign_package; UpdateCreditPackageTests.Update_package_can_disable_public_visibility_and_writes_audit_entry; UpdateCreditPackageTests.Update_package_does_not_rewrite_started_purchase_snapshot; PurchaseCreditPackageTests.Package_checkout_rejects_missing_or_disabled_package_before_provider_call
+**Test gaps:** No remaining focused catalogue CRUD/visibility/auth gap in this slice. The old billing.package.price_not_configured branch no longer exists in the provider-agnostic package checkout path; checkout now validates the tenant payment gateway instead.
 
-_Catalogue CRUD is correct and well-guarded; the only gap is test coverage of the admin-write/inactive/price-missing branches — all reachable through the fake gateway harness._
+_Catalogue CRUD is correct and guarded: admin writes require billing.manage, public listing excludes inactive packages, and checkout rejects inactive/missing packages before provider work._
 
 ### Package purchase checkout + CreditPurchaseSaga — ✅ correct
 *Accept a package purchase, create a Stripe Checkout session, and drive credit grant via the canonical self-healing saga.*

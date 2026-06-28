@@ -15,6 +15,19 @@ public sealed class UpdateCreditPackageTests(PlatformApiFactory fixture)
     private const string Password = "S3cure!pass";
 
     [Fact]
+    public async Task Update_package_requires_billing_manage_permission()
+    {
+        var adminToken = await EnsureAdminAsync();
+        var packageId = await CreatePackageAsync(adminToken, $"UC36 forbidden {Guid.CreateVersion7():N}", 100, 5.00m, active: true);
+        var (_, _, normalToken) = await RegisterUserAsync($"uc36-normal-{Guid.CreateVersion7():N}@example.test");
+
+        var response = await UpdatePackageRawAsync(
+            normalToken, packageId, $"UC36 forbidden update {Guid.CreateVersion7():N}", 200, 7.00m, active: false);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
     public async Task Update_package_returns_not_found_for_unknown_or_foreign_package()
     {
         var platformAdminToken = await EnsureAdminAsync();
