@@ -1150,14 +1150,14 @@ _Strong security posture. The previous orphan-blob path is now compensated and c
 |---|:--:|---|
 | Foreign user downloads another's file | ✓ | GetFileHandler.cs:22 WHERE Id && UserId + RLS; FilesUploadTests.A_different_user_cannot_download_another_users_file asserts 404 |
 | RLS-disabled deployment | ✓ | FilesUploadTests.File_download_is_owner_scoped_at_the_app_layer_even_when_rls_is_bypassed dispatches under system context with a foreign id and asserts NotFoundException |
-| Metadata row exists but the blob is missing (orphaned/expired/manually deleted) | ◐ | DownloadFileEndpoint.cs:28 awaits storage.GetAsync BEFORE Results.Stream; LocalFileStorage.GetAsync throws FileNotFoundException (LocalFileStorage.cs:37) and S3 throws AmazonS3Exception — neither is a ModularPlatformException, so GlobalExceptionMiddleware.cs:36-40 maps it to a generic 500 'error.unexpected' rather than a clean 404. Functionally safe (no leak, response not yet started) but a misleading status code. |
+| Metadata row exists but the blob is missing (orphaned/expired/manually deleted) | ✓ | LocalFileStorage and S3FileStorage map missing blobs to NotFoundException file.not_found, so the HTTP path returns a clean 404; proven by FilesUploadTests.Download_returns_404_when_metadata_exists_but_blob_is_missing. |
 | Response not wrapped in ApiResponse JSON envelope | ✓ | DownloadFileEndpoint.cs:29 returns Results.Stream directly with the stored content-type/filename |
 | Unauthenticated download | ✓ | RequireAuthorization() + UnauthorizedException at DownloadFileEndpoint.cs:25-26 |
 
-**Testy:** FilesUploadTests.Upload_then_download_round_trips_the_same_bytes_and_content_type; FilesUploadTests.A_different_user_cannot_download_another_users_file; FilesUploadTests.File_download_is_owner_scoped_at_the_app_layer_even_when_rls_is_bypassed
-**Test gaps:** No test for the metadata-present/blob-missing case (currently a 500 instead of 404); No test that an unknown fileId returns 404 (covered indirectly via foreign-id 404)
+**Testy:** FilesUploadTests.Upload_then_download_round_trips_the_same_bytes_and_content_type; FilesUploadTests.A_different_user_cannot_download_another_users_file; FilesUploadTests.File_download_is_owner_scoped_at_the_app_layer_even_when_rls_is_bypassed; FilesUploadTests.Download_returns_404_when_metadata_exists_but_blob_is_missing; FilesUploadTests.Download_of_a_nonexistent_file_id_returns_404_not_500
+**Test gaps:** No remaining focused file-download/404 gap in this slice.
 
-_IDOR protection is dual-gated and well tested. Gap: orphaned-metadata download yields 500 not 404._
+_IDOR protection is dual-gated and well tested. Missing metadata and missing blob both return the same clean 404 shape._
 
 ### File list (paged, owner-scoped) — ✅ correct
 *Return a paged, newest-first list of the caller's own file metadata.*
@@ -1244,10 +1244,10 @@ _Erasure correctly deletes (not anonymizes) and is idempotent. Untested exporter
 | Missing handler registration | ✓ | GetRequiredService throws a clear DI exception (Dispatcher.cs:47,75) |
 | Behavior registered once per module would nest N-deep (5^N retry amplification) | ✓ | AddPipelineBehavior uses TryAddEnumerable dedup by (serviceType,implType) (DependencyInjection.cs:40-44); documented rationale lines 41-43 |
 
-**Testy:** PipelineBehaviorRegistrationTests.ConcurrencyRetryBehavior_is_registered_once_regardless_of_module_count
-**Test gaps:** No direct test that the query pipeline actually EXCLUDES a command-only behavior at runtime (only structural registration-count is tested); No test asserting outer->inner execution ORDER of the folded chain (e.g. telemetry wraps validation)
+**Testy:** PipelineBehaviorRegistrationTests.ConcurrencyRetryBehavior_is_registered_once_regardless_of_module_count; DispatcherPipelineTests.Command_pipeline_runs_behaviors_in_registration_order; DispatcherPipelineTests.Query_pipeline_skips_command_only_behaviors_but_preserves_order
+**Test gaps:** No remaining focused dispatcher/pipeline-order gap in this slice.
 
-_Clean ~150 LOC mediator replacement. ICommandOnlyBehavior filtering is the key correctness invariant and is only indirectly exercised._
+_Clean ~150 LOC mediator replacement. Runtime tests now pin both execution order and the query exclusion of command-only behaviors._
 
 ### Validation behavior — ✅ correct
 *Run all FluentValidation validators for a request, aggregate failures into one RFC9457 400.*
