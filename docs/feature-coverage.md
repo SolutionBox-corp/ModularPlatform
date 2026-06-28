@@ -125,7 +125,7 @@ v tabulkách níže jsou **snapshot PŘED** těmito fixy:
 | messaging-hosts-web | Jobs host: Quartz cron (UTC), idempotency, single-instance posture | ✅ correct |
 | messaging-hosts-web | Messaging-health job + evaluation | ✅ correct |
 | messaging-hosts-web | RFC 9457 error contract + i18n (GlobalExceptionMiddleware + resx) | 🟢 minor-gaps |
-| messaging-hosts-web | Rate limiting (global + auth policy) | 🟡 has-gaps |
+| messaging-hosts-web | Rate limiting (global + auth policy) | ✅ correct |
 | messaging-hosts-web | Forwarded headers (proxy trust) + audit IP | ✅ correct |
 | messaging-hosts-web | JWT bearer auth + options validation | 🟢 minor-gaps |
 | messaging-hosts-web | Security headers middleware | 🟢 minor-gaps |
@@ -153,13 +153,13 @@ Legenda: ✅ correct · 🟢 minor-gaps · 🟡 has-gaps · 🔴 risky. Edge-cas
 | Email case/whitespace normalization | ✓ | Trim().ToUpperInvariant() before blind-index hash — RegisterUserHandler.cs:29; verified by Duplicate_email_is_still_rejected_through_the_blind_index |
 | PII at rest (email/displayName) | ✓ | User.Email/DisplayName [Encrypted]+[PersonalData]; sealed by interceptor — User.cs:18-28 |
 | Tenant name leaking PII | ✓ | tenant.Name is neutral tenant-{id:N}, never email/displayName — RegisterUserHandler.cs:42-43; test Registration_does_not_store_the_plaintext_email_in_the_tenant_name |
-| Abuse/DoS/enumeration via unthrottled signup | ✗ | GAP: MapRegisterUser has .AllowAnonymous() but NO .RequireRateLimiting("auth") (RegisterUserEndpoint.cs:29) unlike login/refresh — each call runs Argon2 hashing + a tenant INSERT, so it is an unthrottled CPU/row-creation surface and an account-enumeration vector (409 vs 201 distinguishes existing emails) |
+| Abuse/DoS/enumeration via unthrottled signup | ✓ | MapRegisterUser is anonymous but explicitly `.RequireRateLimiting("auth")`; `PlatformContractTests.Register_endpoint_uses_the_auth_rate_limit_policy` proves a low auth limit returns 429. |
 | Validation (email format, password length, displayName length) | ✓ | RegisterUserValidator.cs:9-21 with dotted error codes |
 
 **Testy:** IdentityE2ETests.Register_login_refresh_rotation_reuse_detection_and_profile; AuthRobustnessTests.Duplicate_email_registration_is_conflict_and_creates_exactly_one_user; PiiColumnEncryptionTests.Email_and_display_name_are_ciphertext_at_rest_but_plaintext_through_the_api; PiiColumnEncryptionTests.Duplicate_email_is_still_rejected_through_the_blind_index; TenancyTests.Registration_provisions_a_tenant_and_the_token_carries_it; TenancyTests.Registration_does_not_store_the_plaintext_email_in_the_tenant_name
-**Test gaps:** No test asserting registration is rate-limited (currently it is NOT — the gap is real, a test would document/fix it); No validator unit test for the dotted error codes (only happy-path + duplicate covered)
+**Test gaps:** No validator unit test for the dotted error codes (happy path, duplicate and rate-limit are covered).
 
-_Canonical write slice; the one genuine gap is the missing rate-limit on the anonymous signup endpoint relative to login/refresh._
+_Canonical write slice; anonymous signup now shares the auth limiter with login/refresh/reset/verify endpoints._
 
 ### Login (no-enumeration, timing-equalized verify, lockout) — ✅ correct
 *Verify credentials and issue access+refresh tokens while leaking neither account existence nor timing.*
@@ -371,7 +371,7 @@ _Logic mirrors the seeder's non-fatal retry pattern; untested because constructi
 _Primitives delegate to battle-tested libs; refresh tokens are hashed at rest, never logged._
 
 **Nekonzistence v oblasti (5):**
-- Rate-limiting drift: RegisterUserEndpoint.cs:29 is .AllowAnonymous() with NO RequireRateLimiting, whereas the sibling anonymous auth endpoints LoginEndpoint.cs:22 and RefreshTokenEndpoint.cs:23 both apply .RequireRateLimiting("auth"). Signup runs Argon2 + a tenant INSERT and returns 409-vs-201 (enumeration), so it is the unthrottled endpoint of the three.
+- Rate-limiting alignment: RegisterUserEndpoint now applies `.RequireRateLimiting("auth")` like login/refresh/reset/verify; `Register_endpoint_uses_the_auth_rate_limit_policy` covers the low-limit 429 path.
 - Admin-grant soft-delete guard divergence: IdentitySeeder.AssignAdminsAsync filters DeletedAt==null (IdentitySeeder.cs:109) to avoid re-granting a deactivated admin, but the login-time grant LoginHandler.EnsureConfiguredAdminAsync (LoginHandler.cs:118-140) has no such guard. Unreachable in practice (an erased admin has a blanked PasswordHash and fails auth before the grant runs), but the two paths that grant the same role apply different deactivation rules.
 - Refresh-token family revoke uses tracked SaveChanges in BOTH RefreshTokenHandler.cs:45-54 and LogoutHandler.cs:30-39 (so audit+xmin engage), but the GDPR eraser revokes tokens with a set-based ExecuteUpdate (IdentityPersonalDataEraser.cs:40-42). The divergence is justified in-comment (refresh_tokens carry no PII and the erasure path deliberately bypasses interceptors), so this is intentional code-vs-code drift, not a bug — noted for completeness.
 - Doc-vs-code (benign): AuthRobustnessTests.cs:16 XML comment references a 'users (NormalizedEmail)' column, but the User entity has no NormalizedEmail — the column is EmailHash (User.cs:23, the test SQL itself correctly uses EmailHash). Stale comment only.
@@ -1562,23 +1562,23 @@ _Pure evaluation cleanly extracted and unit-tested; the Scheduled-vs-Outgoing bu
 
 _Solid contract with build-time i18n parity guard. The only real gap is no HasStarted guard before writing the problem response (matters for SSE/streamed responses)._
 
-### Rate limiting (global + auth policy) — 🟡 has-gaps
+### Rate limiting (global + auth policy) — ✅ correct
 *Partitioned token/fixed-window limiting: per-user (or per-IP) global bucket + tight per-IP 'auth' policy for credential endpoints.*
 
 **Use cases:** Throttle abusive traffic per IP partition (anon); Brute-force defence on /login,/refresh (per-IP fixed window); Config-tunable limits per deployment; Stripe webhook opts out
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
-| Authenticated users must each get their OWN bucket (per-user partition) | ✗ | PlatformWebExtensions.cs:175-176 keys on context.User.Identity.Name, but TokenIssuer (TokenIssuer.cs:36-51) emits NO name/unique_name claim and NameClaimType is never configured → Identity.Name is null for EVERY authenticated user → all collapse into the single shared 'user' bucket. Comment claims 'Partition by authenticated user' but it does not. Real bug: one authenticated user can exhaust the global budget for all |
+| Authenticated users must each get their OWN bucket (per-user partition) | ✓ | PlatformWebExtensions keys authenticated requests by `ClaimTypes.NameIdentifier`, which TokenIssuer emits; PL11 proves user A exhausting a tiny bucket does not throttle user B's first request. |
 | Reject status code | ✓ | RejectionStatusCode=429 (PlatformWebExtensions.cs:169) |
 | Stripe webhook bursts from many IPs must never 429 | ✓ | StripeWebhookEndpoint.cs:94 .DisableRateLimiting(); asserted by PL9_ST5 test |
 | Multi-instance distributed limiting | ◐ | In-memory PartitionedRateLimiter only; comment notes Redis-backed swap is the seam (PlatformWebExtensions.cs:171-172) but not implemented — limits are per-instance |
-| Retry-After header on 429 | ✗ | No OnRejected handler and no metadata wiring; token/fixed-window with QueueLimit=0 emit no Retry-After. Test class docstring (PlatformContractTests.cs:13) claims '429 + Retry-After' but the test only asserts 429 — code-vs-comment drift |
+| Retry-After header on 429 | ✓ | `OnRejected` copies limiter lease `RetryAfter` metadata to the `Retry-After` header and returns an RFC9457-shaped 429 body; PL12 asserts the header exists. |
 
-**Testy:** PlatformContractTests.PL9_ST5_low_limit_host_throttles_normal_traffic_but_never_the_stripe_webhook
-**Test gaps:** No test that two DIFFERENT authenticated users get independent buckets (would have caught the null-Name collapse); No test asserting a Retry-After header (docstring claims it; none is set); No test for the 'auth' policy specifically isolating /login per IP
+**Testy:** PlatformContractTests.PL9_ST5_low_limit_host_throttles_normal_traffic_but_never_the_stripe_webhook; PlatformContractTests.Register_endpoint_uses_the_auth_rate_limit_policy; PlatformContractTests.PL11_rate_limit_bucket_is_per_user_not_shared; PlatformContractTests.PL12_throttled_response_carries_retry_after
+**Test gaps:** No focused test for the login endpoint's auth policy specifically; the auth policy itself is covered through registration/forgot-password low-limit tests.
 
-_Two concrete defects: (1) per-user partitioning is dead — all authenticated users share one bucket because no name claim/NameClaimType exists; (2) Retry-After is claimed in a docstring but never emitted. The per-IP anonymous path works (PL-9 passes)._
+_The previously documented per-user partition and Retry-After defects are covered by PL11/PL12. Multi-instance distributed limiting remains a deployment-scale seam, not an in-process correctness bug._
 
 ### Forwarded headers (proxy trust) + audit IP — ✅ correct
 *Resolves real client IP behind a proxy for audit + rate-limiting, with a fail-fast trust-list validator in Production.*
@@ -1610,12 +1610,12 @@ _Best-covered security feature in the area. Validator + IP masking both thorough
 | Role claim type mismatch (RequireRole/IsInRole) | ✓ | RoleClaimType=AuthorizationClaims.Role='role' (PlatformWebExtensions.cs:152); TokenIssuer emits role claims (TokenIssuer.cs:50) |
 | Clock skew | ✓ | ClockSkew=30s (PlatformWebExtensions.cs:150) |
 | Permission-based authz | ✓ | RequirePermission policy checks 'permission' claim (EndpointAuthorization.cs:23-27); claims emitted in TokenIssuer.cs:51 |
-| Identity.Name unavailable for downstream consumers (rate limiter) | ✗ | No 'name'/'unique_name' claim issued and NameClaimType not set → Identity.Name is null; breaks the rate-limiter per-user partition (see Rate limiting feature) |
+| Identity.Name unavailable for downstream consumers (rate limiter) | ✓ | Rate limiter no longer depends on `Identity.Name`; it uses the emitted `ClaimTypes.NameIdentifier` subject id. `Identity.Name` remaining null is acceptable because no platform contract relies on it. |
 
-**Testy:** PlatformContractTests.PL8 indirectly exercises a Production host that passes JWT validation; Auth/permission flows covered in Identity module tests (RequirePermission/RequireRole gating)
-**Test gaps:** No unit test for JwtOptionsValidator (parallel to ForwardedHeadersSettingsValidatorTests) — weak-key/missing-issuer/audience prod failure is unguarded by a test; No test asserting RoleClaimType wiring (RequireRole actually matching the 'role' claim)
+**Testy:** JwtOptionsValidatorTests cover missing/short signing key, missing issuer/audience, valid Production config and Development exemption; PlatformContractTests.PL8 indirectly exercises a Production host that passes JWT validation; Auth/permission flows covered in Identity module tests (RequirePermission/RequireRole gating)
+**Test gaps:** No direct test asserting `RequireRole` uses the configured `role` claim type.
 
-_JwtOptionsValidator mirrors the well-tested ForwardedHeaders validator but has zero direct tests. The missing name claim is the upstream cause of the rate-limiter defect._
+_JwtOptionsValidator now has direct fail-fast coverage. The missing name claim does not affect rate limiting because the limiter keys on `NameIdentifier`._
 
 ### Security headers middleware — 🟢 minor-gaps
 *Adds baseline hardening headers (nosniff, frame DENY, no-referrer, restrictive CSP) to every response.*
@@ -1668,8 +1668,8 @@ _Endpoint is sound (bounded, owner-scoped, auth-gated). SseStream<T> in Web look
 _Clean single-meter design; error-code tagging is a nice touch. Outer-most ordering is convention-enforced, not asserted._
 
 **Nekonzistence v oblasti (5):**
-- Rate-limiter per-user partitioning is broken: PlatformWebExtensions.cs:175-176 keys the global limiter on context.User.Identity.Name, but TokenIssuer.cs:36-51 issues NO name/unique_name claim and NameClaimType is never configured, so Identity.Name is null for every authenticated user — all authenticated users collapse into one shared 'user' token bucket. Code-vs-comment drift: the comment says 'Partition by authenticated user, else by remote IP'.
-- Retry-After drift: PlatformContractTests.cs:13 docstring states the rate limiter returns '429 + Retry-After', but PlatformWebExtensions.cs AddRateLimiter sets no OnRejected handler and the token/fixed-window limiters (QueueLimit=0) emit no Retry-After; the test itself only asserts 429. docs/test-scenarios.md PL-9 (line 99) correctly says only '429' — so the test docstring is the outlier.
+- Rate-limiter per-user partition is fixed: PlatformWebExtensions keys authenticated traffic on `ClaimTypes.NameIdentifier`; PL11 proves user-specific buckets.
+- Retry-After drift is fixed: PlatformWebExtensions `OnRejected` emits `Retry-After`; PL12 proves the header on a throttled response.
 - SseStream<T> (src/building-blocks/ModularPlatform.Web/Sse/SseStream.cs) appears to be an unused/parallel abstraction: the live browser endpoint (RealtimeStreamEndpoint.cs:57-62) builds its own inline bounded Channel rather than using SseStream<T>. Possible dead code or a duplicated SSE-buffer concern that should be unified.
 - GlobalExceptionMiddleware.WriteProblem (lines 72-73) writes status + JSON with no Response.HasStarted guard; for a streamed/SSE response that already flushed headers this throws instead of failing gracefully. Minor given current usage but an unhandled edge.
-- JwtOptionsValidator has no unit test while its sibling ForwardedHeadersSettingsValidator has a full 7-case suite (ForwardedHeadersSettingsValidatorTests) — asymmetric coverage of two fail-fast startup guards documented as mirrors of each other (JwtOptionsValidator.cs vs ForwardedHeadersSettingsValidator.cs:12 'Mirrors JwtOptionsValidator').
+- JwtOptionsValidator now has a focused unit suite (`JwtOptionsValidatorTests`) covering the startup fail-fast guard; this closes the previous asymmetry with `ForwardedHeadersSettingsValidatorTests`.
