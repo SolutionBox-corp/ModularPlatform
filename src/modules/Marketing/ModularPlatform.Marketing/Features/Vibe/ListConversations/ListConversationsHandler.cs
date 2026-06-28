@@ -10,9 +10,9 @@ namespace ModularPlatform.Marketing.Features.Vibe.ListConversations;
 /// the soft-delete query filter on the entity hides deleted threads automatically.
 /// </summary>
 internal sealed class ListConversationsHandler(IReadDbContextFactory<MarketingDbContext> readDb)
-    : IQueryHandler<ListConversationsQuery, IReadOnlyList<ConversationListItem>>
+    : IQueryHandler<ListConversationsQuery, PagedResponse<ConversationListItem>>
 {
-    public async Task<IReadOnlyList<ConversationListItem>> Handle(ListConversationsQuery query, CancellationToken ct)
+    public async Task<PagedResponse<ConversationListItem>> Handle(ListConversationsQuery query, CancellationToken ct)
     {
         await using var db = readDb.Create();
 
@@ -20,6 +20,6 @@ internal sealed class ListConversationsHandler(IReadDbContextFactory<MarketingDb
             .Where(c => c.UserId == query.UserId)
             .OrderByDescending(c => c.CreatedAt)
             .Select(c => new ConversationListItem(c.Id, c.Title, c.CreatedAt))
-            .ToListAsync(ct);
+            .ToPagedResponseAsync(query.Page, ct);
     }
 }

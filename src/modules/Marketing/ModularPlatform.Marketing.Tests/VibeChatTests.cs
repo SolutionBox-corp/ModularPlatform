@@ -75,7 +75,7 @@ public sealed class VibeChatTests(PlatformApiFactory fixture)
         var list = await fixture.Client.SendAsync(
             fixture.Authed(HttpMethod.Get, "/v1/marketing/vibe/conversations", token));
         list.StatusCode.ShouldBe(HttpStatusCode.OK);
-        (await PlatformApiFactory.ReadData(list)).EnumerateArray()
+        (await PlatformApiFactory.ReadData(list)).GetProperty("items").EnumerateArray()
             .Select(c => c.GetProperty("id").GetGuid())
             .ShouldContain(conversationId);
     }
@@ -134,7 +134,7 @@ public sealed class VibeChatTests(PlatformApiFactory fixture)
         var intruderList = await fixture.Client.SendAsync(
             fixture.Authed(HttpMethod.Get, "/v1/marketing/vibe/conversations", intruderToken));
         intruderList.StatusCode.ShouldBe(HttpStatusCode.OK);
-        (await PlatformApiFactory.ReadData(intruderList)).EnumerateArray()
+        (await PlatformApiFactory.ReadData(intruderList)).GetProperty("items").EnumerateArray()
             .Select(c => c.GetProperty("id").GetGuid())
             .ShouldNotContain(conversationId);
     }
@@ -148,7 +148,7 @@ public sealed class VibeChatTests(PlatformApiFactory fixture)
         // Present before deletion.
         var before = await fixture.Client.SendAsync(
             fixture.Authed(HttpMethod.Get, "/v1/marketing/vibe/conversations", token));
-        (await PlatformApiFactory.ReadData(before)).EnumerateArray()
+        (await PlatformApiFactory.ReadData(before)).GetProperty("items").EnumerateArray()
             .Select(c => c.GetProperty("id").GetGuid())
             .ShouldContain(conversationId);
 
@@ -161,9 +161,45 @@ public sealed class VibeChatTests(PlatformApiFactory fixture)
         var after = await fixture.Client.SendAsync(
             fixture.Authed(HttpMethod.Get, "/v1/marketing/vibe/conversations", token));
         after.StatusCode.ShouldBe(HttpStatusCode.OK);
-        (await PlatformApiFactory.ReadData(after)).EnumerateArray()
+        (await PlatformApiFactory.ReadData(after)).GetProperty("items").EnumerateArray()
             .Select(c => c.GetProperty("id").GetGuid())
             .ShouldNotContain(conversationId);
+    }
+
+    [Fact]
+    public async Task Conversation_list_and_thread_messages_are_paged()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync($"mkt-vibe-page-{Guid.CreateVersion7():N}@x.com", Password);
+        var first = await StartConversationAsync(token);
+        await Task.Delay(10);
+        var second = await StartConversationAsync(token);
+
+        var list = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/marketing/vibe/conversations?page=1&pageSize=1", token));
+        list.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var listData = await PlatformApiFactory.ReadData(list);
+        listData.GetProperty("page").GetInt32().ShouldBe(1);
+        listData.GetProperty("pageSize").GetInt32().ShouldBe(1);
+        listData.GetProperty("totalCount").GetInt64().ShouldBeGreaterThanOrEqualTo(2);
+        listData.GetProperty("items").GetArrayLength().ShouldBe(1);
+        listData.GetProperty("items")[0].GetProperty("id").GetGuid().ShouldBe(second);
+
+        for (var i = 0; i < 3; i++)
+        {
+            var send = await fixture.Client.SendAsync(
+                fixture.Authed(HttpMethod.Post, $"/v1/marketing/vibe/conversations/{first}/messages", token,
+                    new { content = $"message {i}" }));
+            send.StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        }
+
+        var detail = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, $"/v1/marketing/vibe/conversations/{first}?messagePage=1&messagePageSize=2", token));
+        detail.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var detailData = await PlatformApiFactory.ReadData(detail);
+        detailData.GetProperty("messagePage").GetInt32().ShouldBe(1);
+        detailData.GetProperty("messagePageSize").GetInt32().ShouldBe(2);
+        detailData.GetProperty("totalMessageCount").GetInt64().ShouldBeGreaterThanOrEqualTo(3);
+        detailData.GetProperty("messages").GetArrayLength().ShouldBe(2);
     }
 
     private async Task<Guid> StartConversationAsync(string token)

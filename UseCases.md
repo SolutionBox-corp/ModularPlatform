@@ -3904,9 +3904,12 @@ finally
 
 ### UC88 List conversations
 
-**Status:** Marketing ma jednoduchy owner-scoped list; ExampleModule by mel pouzit stejnou owner/soft-delete logiku a pridat paging/last activity.
+**Status:** Implementovano v Marketing jako owner-scoped paged list — overeno
+`VibeChatTests.Conversation_list_and_thread_messages_are_paged`. ExampleModule ma zkopirovat stejnou
+owner/soft-delete/paging logiku a pro realny sidebar doplnit `LastMessageAt`.
 
-**Pouzijes:** `GET /marketing/vibe/conversations`, `VibeConversation`, `IUserOwned`, `ISoftDeletable`, `IReadDbContextFactory`, pro ExampleModule radeji `PageRequest`.
+**Pouzijes:** `GET /marketing/vibe/conversations?page=&pageSize=`, `VibeConversation`, `IUserOwned`,
+`ISoftDeletable`, `IReadDbContextFactory`, `PageRequest`, `PagedResponse<T>`.
 
 **Co se stane:** User vidi seznam svych ne-smazanych assistant sessions pro sidebar nebo historii. Deleted/archived threads se defaultne nevraci. Backend cte jen metadata, ne celou message history.
 
@@ -3924,7 +3927,9 @@ internal sealed class ExampleModuleConversation : AuditableEntity, IUserOwned, I
 }
 ```
 
-**ExampleModule list query:** filtruj ownera, sortuj podle posledni aktivity a strankuj. Marketing dnes vraci simple list podle `CreatedAt`; pro ExampleModule sidebar s realnym pouzitim je lepsi `LastMessageAt desc`.
+**Marketing list query:** filtruje ownera, sortuje podle `CreatedAt desc` a vraci `PagedResponse<ConversationListItem>`.
+To je base vzor pro bounded sidebar list. Pro ExampleModule sidebar s realnym pouzitim je lepsi doplnit
+`LastMessageAt` a sortovat podle posledni aktivity.
 
 ```csharp
 return await db.Conversations
@@ -3939,7 +3944,9 @@ return await db.Conversations
 
 **Archived/deleted:** delete ze sidebaru delej jako soft delete. Pokud potrebujes archive, pridej `ArchivedAt` nebo `Status`; nemichej to s hard delete, protoze messages/history/GDPR export muzou jeste potrebovat data.
 
-**Frontend:** empty state je normalni. Po start conversation, send message, assistant ready a delete invaliduj conversation list. Pokud mas pending odpoved, list item muze ukazat spinner podle posledniho message/run statusu.
+**Frontend:** `useVibeConversations(page, pageSize)` cte `MarketingPaged<ConversationListItem>` a komponenta pouziva
+`items`, ne root array. Empty state je normalni. Po start conversation, send message, assistant ready a delete invaliduj
+conversation list. Pokud mas pending odpoved, list item muze ukazat spinner podle posledniho message/run statusu.
 
 **Testy k novemu modulu:** empty list 200, owner A nevidi owner B, soft-deleted thread zmizi, newest activity sort, pagination, po send message se `LastMessageAt` zmeni.
 
@@ -3947,7 +3954,7 @@ return await db.Conversations
 
 **EC:**
 
-- EC436 paging → pro ExampleModule pouzij `PageRequest`; assistant historie muze rust rychleji nez marketing demo.
+- EC436 paging → Marketing uz pouziva `PageRequest`/`PagedResponse`; novy modul nesmi vracet unbounded sidebar list.
 - EC437 owner scope → `WHERE UserId == token user` + `IUserOwned`; cizi conversation se nikdy neobjevi.
 - EC438 archived/deleted state → soft-deleted/archived threads defaultne skryj, ale nemaz fyzicky bez retention policy.
 - EC439 sort by recent activity → sortuj podle `LastMessageAt`/`UpdatedAt`, ne jen podle created date.
@@ -3955,9 +3962,12 @@ return await db.Conversations
 
 ### UC89 Get conversation
 
-**Status:** Implementovano v Marketing jako owner-scoped detail; novy modul ma kopirovat pattern a pridat paging/windowing pro dlouhe thready.
+**Status:** Implementovano v Marketing jako owner-scoped detail s bounded message window — overeno
+`VibeChatTests.Conversation_list_and_thread_messages_are_paged`. Novy modul ma kopirovat owner filter i
+`messagePage/messagePageSize` pattern.
 
-**Pouzijes:** `GET /marketing/vibe/conversations/{conversationId}`, `IReadDbContextFactory`, explicitni `UserId` filter na conversation i messages.
+**Pouzijes:** `GET /marketing/vibe/conversations/{conversationId}?messagePage=&messagePageSize=`,
+`IReadDbContextFactory`, explicitni `UserId` filter na conversation i messages, `PageRequest`.
 
 **Co se stane:** Backend vrati conversation metadata a messages serazene podle `CreatedAt`. Foreign, deleted nebo missing id je 404. GET jen cte; negeneruje assistant odpoved a neopravuje pending stav.
 
@@ -3977,10 +3987,12 @@ var messages = await db.Messages
     .OrderBy(x => x.CreatedAt)
     .Select(x => new ExampleModuleConversationMessage(
         x.Id, x.Role, x.Content, x.Status, x.ToolCallsJson, x.CreatedAt))
-    .ToListAsync(ct);
+    .ToPagedResponseAsync(query.MessagesPage, ct);
 ```
 
-**Large history:** Marketing vraci vsechny messages. ExampleModule by mel pro dlouhe thready pridat message paging nebo `beforeMessageId/limit`. AI worker si muze nacte vlastni zkracenou/context history; UI detail nemusi tahat tisice zprav najednou.
+**Large history:** Marketing vraci jen vyzadovanou message page a k tomu metadata `messagePage`, `messagePageSize`,
+`totalMessageCount`. AI worker si muze nacist vlastni zkracenou/context history; UI detail nemusi tahat tisice zprav
+najednou.
 
 **Pending/failed assistant message:** pokud async UC86 uklada pending/failed status, detail ho musi vratit. UI pak po `message_ready` invaliduje detail a spinner zmizi.
 
@@ -3994,7 +4006,7 @@ var messages = await db.Messages
 
 - EC441 foreign id → 404 pres `Id && UserId`, aby se nedaly enumerovat cizi thready.
 - EC442 not found → `NotFoundException("example.conversation_not_found", ...)`, ne prazdny thread.
-- EC443 large message history → pridej paging/windowing pro messages, pokud thread muze narust.
+- EC443 large message history → pouzij `messagePage/messagePageSize` nebo cursor window; netahej cely thread najednou.
 - EC444 erased PII → messages/content/tool traces musi projit GDPR erase/anonymizaci a frontend cache se cisti.
 - EC445 stale pending message → po realtime eventu nebo polling refreshi invaliduj detail; pending nesmi viset navzdy bez failed/timeout stavu.
 

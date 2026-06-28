@@ -39,11 +39,12 @@ export function VibeChat() {
   // via an effect) keeps the component React-Compiler-clean.
   const [selectedId, setSelectedId] = useState<string>("");
 
-  const { data: conversations, isLoading: listLoading } = useVibeConversations();
+  const { data: conversationsPage, isLoading: listLoading } = useVibeConversations();
   const startConversation = useStartConversation();
+  const conversations = conversationsPage?.items ?? [];
 
-  const selectionExists = !!selectedId && (conversations?.some((c) => c.id === selectedId) ?? true);
-  const activeId = selectionExists ? selectedId : (conversations?.[0]?.id ?? "");
+  const selectionExists = !!selectedId && conversations.some((c) => c.id === selectedId);
+  const activeId = selectionExists ? selectedId : (conversations[0]?.id ?? "");
 
   const onNewConversation = () => {
     startConversation.mutate(undefined, {
@@ -71,7 +72,7 @@ export function VibeChat() {
             <Skeleton className="h-8 w-full" />
             <Skeleton className="h-8 w-full" />
           </div>
-        ) : conversations && conversations.length > 0 ? (
+        ) : conversations.length > 0 ? (
           <ul className="space-y-0.5">
             {conversations.map((c) => (
               <li key={c.id}>

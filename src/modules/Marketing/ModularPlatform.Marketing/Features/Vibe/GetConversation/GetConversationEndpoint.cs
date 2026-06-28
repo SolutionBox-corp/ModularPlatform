@@ -14,13 +14,16 @@ internal static class GetConversationEndpoint
     {
         app.MapGet("/marketing/vibe/conversations/{conversationId:guid}", async (
                 Guid conversationId,
+                int? messagePage,
+                int? messagePageSize,
                 ITenantContext tenant,
                 IDispatcher dispatcher,
                 CancellationToken ct) =>
             {
                 var userId = tenant.UserId
                     ?? throw new UnauthorizedException("auth.required", "Authentication required.");
-                var result = await dispatcher.Query(new GetConversationQuery(conversationId, userId), ct);
+                var result = await dispatcher.Query(
+                    new GetConversationQuery(conversationId, userId, new PageRequest(messagePage, messagePageSize)), ct);
                 return Results.Ok(ApiResponse<ConversationDetail>.Ok(result));
             })
             .RequireAuthorization()
