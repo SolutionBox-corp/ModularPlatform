@@ -70,6 +70,7 @@ public sealed class MarketingModule : IModule
 
         // GDPR data-portability + erasure ports (fanned out by the Gdpr module). Both MUST be registered or the
         // module's personal data is silently skipped from export/erasure.
+        services.AddHostedService<ModularPlatform.Marketing.Gdpr.MarketingPiiEncryptionBackfill>();
         services.AddScoped<IExportPersonalData, ModularPlatform.Marketing.Gdpr.MarketingPersonalDataExporter>();
         services.AddScoped<IErasePersonalData, ModularPlatform.Marketing.Gdpr.MarketingPersonalDataEraser>();
     }

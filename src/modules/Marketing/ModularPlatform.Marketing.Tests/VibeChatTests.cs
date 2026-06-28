@@ -71,6 +71,18 @@ public sealed class VibeChatTests(PlatformApiFactory fixture)
         toolCalls.ShouldNotBeNull();
         toolCalls.ShouldContain("list_recent_pulls");
 
+        var rawUserContent = await fixture.ScalarAsync<string>(
+            $"SELECT \"Content\" FROM vibe_messages WHERE \"ConversationId\" = '{conversationId}' AND \"Role\" = 'user' LIMIT 1");
+        rawUserContent.ShouldStartWith("penc:v2:");
+
+        var rawAssistantContent = await fixture.ScalarAsync<string>(
+            $"SELECT \"Content\" FROM vibe_messages WHERE \"ConversationId\" = '{conversationId}' AND \"Role\" = 'assistant' LIMIT 1");
+        rawAssistantContent.ShouldStartWith("penc:v2:");
+
+        var rawToolCalls = await fixture.ScalarAsync<string>(
+            $"SELECT \"ToolCallsJson\" FROM vibe_messages WHERE \"ConversationId\" = '{conversationId}' AND \"Role\" = 'assistant' LIMIT 1");
+        rawToolCalls.ShouldStartWith("penc:v2:");
+
         // The conversation is listed for the owner.
         var list = await fixture.Client.SendAsync(
             fixture.Authed(HttpMethod.Get, "/v1/marketing/vibe/conversations", token));

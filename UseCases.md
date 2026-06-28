@@ -3074,7 +3074,9 @@ const currentMarketing = history.data
 
 ### UC75 PII v ExampleModule datech
 
-**Status:** Blueprint nad hotovym base mechanismem — ExampleModule modul ho zkopiruje z Identity/Notifications a overi vlastnimi testy.
+**Status:** Base mechanismus + canonical examples hotove — Identity/Notifications pokryvaji account/feed PII,
+Marketing Vibe pokryva user free-text chat a tool trace (`VibeMessage.Content`/`ToolCallsJson`) sifrovane v live
+sloupcich. Overeno `VibeChatTests.Start_send_and_the_durable_worker_persists_an_assistant_reply_with_a_tool_call_trace`.
 
 **Pouzijes:** `[PersonalData]`, `[Encrypted]`, `IDataSubject`, `IBlindIndexHasher`, GDPR crypto-shredder.
 
@@ -3133,7 +3135,7 @@ public sealed record ExampleModuleContactCreatedIntegrationEvent(
     DateTimeOffset OccurredAtUtc) : IIntegrationEvent;
 ```
 
-**Testy k novemu modulu:** pridej architecture test pro atributy, integracni test "DB obsahuje `penc:v2`, API vraci plaintext", duplicate email test pres `EmailHash` a GDPR erasure test, ze po shred API nevraci puvodni hodnotu.
+**Testy k novemu modulu:** pridej architecture test pro atributy, integracni test "DB obsahuje `penc:v2`, API vraci plaintext", duplicate email test pres `EmailHash` a GDPR erasure test, ze po shred API nevraci puvodni hodnotu. Marketing Vibe test overuje raw `vibe_messages.Content` i `ToolCallsJson` jako `penc:v2`.
 
 **Nepouzijes:** plaintext search nad encrypted sloupcem, vlastni AES helper, event payload s nepotrebnou PII, route/body `userId` jako subject, ani `[PersonalData]` bez `IDataSubject`.
 
@@ -4061,7 +4063,7 @@ await db.SaveChangesAsync(ct);
 
 **Pouzijes:** `IExportPersonalData`, `IErasePersonalData`, `IReadDbContextFactory`, EF/LINQ, GDPR fan-out.
 
-**Co se stane:** GDPR modul nevi nic o Core zadneho produktoveho modulu. Jen zavola vsechny registrovane exportery/erasery. Marketing exporter vraci sekce `pulls`, `snapshots`, `analyses`, `vibe_conversations`, `vibe_messages`. Marketing eraser maze vsechny subject-owned rows, protoze nema legal retention. Novy modul musi udelat stejne rozhodnuti pro svoje tabulky.
+**Co se stane:** GDPR modul nevi nic o Core zadneho produktoveho modulu. Jen zavola vsechny registrovane exportery/erasery. Marketing exporter vraci sekce `pulls`, `snapshots`, `analyses`, `vibe_conversations`, `vibe_messages`; encrypted live columns se pri exportu ctou pres converter jako plaintext, dokud subject key existuje. Marketing eraser maze vsechny subject-owned rows, protoze nema legal retention. Novy modul musi udelat stejne rozhodnuti pro svoje tabulky.
 
 **Mentalni model:** kazdy modul je vlastnik svych dat, takze je vlastnik i GDPR export/erase. GDPR modul je orchestrator, ne cross-module reaper. Pokud ExampleModule obsahuje kontakty, notes, AI chats, files vazby nebo importy, ExampleModule samo rekne, co exportuje a co maze/anonymizuje.
 
