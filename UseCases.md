@@ -2321,7 +2321,7 @@ await dispatcher.Send(new SendNotificationCommand(
 
 ### UC57 Upload souboru
 
-**Status:** Implemented + tested — `FilesUploadTests` pokryva roundtrip, allowlist, size cap, owner scope a server-generated storage key.
+**Status:** Implemented + tested — `FilesUploadTests` pokryva roundtrip, allowlist, size cap, owner scope, server-generated storage key a orphan-blob cleanup pri selhani metadata persistu.
 
 **Pouzijes:** `POST /files`.
 

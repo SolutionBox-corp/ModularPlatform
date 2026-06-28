@@ -1,9 +1,13 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
+using ModularPlatform.Files.Features.Upload;
+using ModularPlatform.Files.Persistence;
 using ModularPlatform.Files.Features.Download;
 using ModularPlatform.IntegrationTesting;
 using Shouldly;
@@ -444,6 +448,30 @@ public sealed class FilesUploadTests(PlatformApiFactory fixture)
             $"SELECT count(*)::bigint FROM file_objects WHERE \"UserId\" = '{userId}'")).ShouldBe(0);
     }
 
+    [Fact]
+    public async Task Upload_cleans_up_blob_when_metadata_persistence_fails()
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<FilesDbContext>();
+        var storage = new RecordingFileStorage();
+        var handler = new UploadFileHandler(db, storage, NullLogger<UploadFileHandler>.Instance);
+        var userId = Guid.CreateVersion7();
+
+        await Should.ThrowAsync<DbUpdateException>(() => handler.Handle(
+            new UploadFileCommand(
+                userId,
+                new MemoryStream(Encoding.UTF8.GetBytes("orphan candidate")),
+                new string('x', 600) + ".txt",
+                "text/plain",
+                16),
+            CancellationToken.None));
+
+        storage.PutKeys.Count.ShouldBe(1);
+        storage.DeleteKeys.ShouldBe([storage.PutKeys.Single()]);
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM file_objects WHERE \"UserId\" = '{userId}'")).ShouldBe(0);
+    }
+
     private async Task<HttpResponseMessage> UploadAsync(string token, string fileName, string contentType, byte[] bytes)
     {
         var content = new MultipartFormDataContent(Boundary);
@@ -477,5 +505,26 @@ public sealed class FilesUploadTests(PlatformApiFactory fixture)
     {
         public const int BadRequest = 400;
         public const int PayloadTooLarge = 413;
+    }
+
+    private sealed class RecordingFileStorage : IFileStorage
+    {
+        public List<string> PutKeys { get; } = [];
+        public List<string> DeleteKeys { get; } = [];
+
+        public async Task PutAsync(string key, Stream content, string contentType, CancellationToken ct)
+        {
+            PutKeys.Add(key);
+            await content.CopyToAsync(Stream.Null, ct);
+        }
+
+        public Task<Stream> GetAsync(string key, CancellationToken ct) =>
+            Task.FromResult<Stream>(new MemoryStream());
+
+        public Task DeleteAsync(string key, CancellationToken ct)
+        {
+            DeleteKeys.Add(key);
+            return Task.CompletedTask;
+        }
     }
 }

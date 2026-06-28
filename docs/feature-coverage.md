@@ -1128,13 +1128,13 @@ _Dual-gated ownership (app filter + RLS) is exemplary._
 | Empty / zero-byte file | ✓ | UploadFileValidator.cs:18 GreaterThan(0) → file.empty |
 | Owner from token not body | ✓ | UploadFileEndpoint.cs:34 userId from ITenantContext; UploadFileCommand.UserId set there |
 | Missing/empty content-type on the form part | ◐ | UploadFileEndpoint.cs:39 passes file.ContentType ?? string.Empty; empty string is not on the allowlist so it is rejected with file.content_type.not_allowed — correct outcome, but the error code is content-type-related rather than a clearer 'missing content type'. Minor. |
-| Bytes written to storage but metadata SaveChanges fails (orphan blob) | ✗ | UploadFileHandler.cs:22 PutAsync runs first, then db.SaveChangesAsync at line 35 with no compensating storage.DeleteAsync on failure → an orphaned blob is left in storage if the DB write throws. No outbox/transaction spans storage. Low impact (key is unreferenced, GDPR erase won't find it since no row), but it is a real orphan/leak gap. |
+| Bytes written to storage but metadata SaveChanges fails (orphan blob) | ✓ | UploadFileHandler.cs:35 catches SaveChanges failure, best-effort deletes the just-written storage key, logs cleanup failure, then rethrows the original DB error. Tested by FilesUploadTests.Upload_cleans_up_blob_when_metadata_persistence_fails. |
 | Declared Size vs actual stream length mismatch | ◐ | UploadFileEndpoint.cs:39 uses file.Length (server-measured by Kestrel), not a client-claimed value, so Size is trustworthy; the validator caps Size but the stream itself is also body-size-limited. No independent re-count after copy, but file.Length is authoritative for IFormFile. |
 
-**Testy:** FilesUploadTests.Upload_then_download_round_trips_the_same_bytes_and_content_type; FilesUploadTests.Disallowed_content_type_is_rejected; FilesUploadTests.Oversized_file_is_rejected; FilesUploadTests.Upload_location_header_is_versioned_and_points_at_the_download_route
-**Test gaps:** No test for the orphan-blob path (PutAsync succeeds, metadata write fails); No test for empty/missing content-type behavior; No test that the storage key is NOT derived from the client filename (asserted only by code/comment)
+**Testy:** FilesUploadTests.Upload_then_download_round_trips_the_same_bytes_and_content_type; FilesUploadTests.Disallowed_content_type_is_rejected; FilesUploadTests.Oversized_file_is_rejected; FilesUploadTests.Upload_location_header_is_versioned_and_points_at_the_download_route; FilesUploadTests.Upload_cleans_up_blob_when_metadata_persistence_fails
+**Test gaps:** No test for empty/missing content-type behavior; No test that the storage key is NOT derived from the client filename (asserted only by code/comment)
 
-_Strong security posture. The only genuine gap is no compensation if metadata persistence fails after the blob is written (orphan blob)._
+_Strong security posture. The previous orphan-blob path is now compensated and covered by a direct handler test._
 
 ### File download (stream, IDOR/404) — 🟢 minor-gaps
 *Stream a file's bytes with stored content-type to its owner; foreign id is a 404.*
