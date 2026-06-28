@@ -1043,16 +1043,16 @@ _Local path is well covered; the Redis (production) replay path has solid code b
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
-| Erasure idempotency / re-run | ✓ | NotificationsPersonalDataEraser.cs:24-33 ExecuteUpdate blanks Title/Body to string.Empty (NOT NULL columns); re-running is a harmless no-op. |
+| Erasure idempotency / re-run | ✓ | NotificationsPersonalDataEraser.cs:24-33 ExecuteUpdate blanks Title/Body to string.Empty (NOT NULL columns); re-running is a harmless no-op; test Notifications_gdpr_export_and_erasure_ports_return_feed_and_scrub_only_the_subject. |
 | Erasure runs without a tenant/user context | ✓ | Runs in the Worker system context so the tenant filter doesn't restrict the match; filters by UserId explicitly (documented Realtime/eraser comment, line 16-18). |
 | ExecuteUpdate bypasses audit + xmin + the live-column encryption interceptor | ✓ | Intentional for a set-based scrub (CLAUDE.md notes ExecuteUpdate bypasses the interceptor); the audit trail PII was already crypto-shredded via the subject DEK, and erasure shreds that DEK elsewhere, so audit PII is unrecoverable regardless. Live Title/Body are blanked here. |
-| Export ordering / empty feed | ✓ | NotificationsPersonalDataExporter.cs:21-39 read-factory, OrderByDescending(CreatedAt), returns a dict (empty list if no rows). |
+| Export ordering / empty feed | ✓ | NotificationsPersonalDataExporter.cs:21-39 read-factory, OrderByDescending(CreatedAt), returns a dict (empty list if no rows); test Notifications_gdpr_export_and_erasure_ports_return_feed_and_scrub_only_the_subject. |
 | Both ports registered for fan-out | ✓ | NotificationsModule.cs:47-48 registers both IExportPersonalData and IErasePersonalData (CLAUDE.md warns fan-out only works if both are registered). |
 
-**Testy:** NotificationsIntegrationTests.Notification_pii_is_crypto_shredded_in_the_audit_trail (covers audit-PII shredding, not the eraser/exporter ports directly)
-**Test gaps:** No test that NotificationsPersonalDataEraser blanks Title/Body for a user (and leaves other users' rows intact); No test that NotificationsPersonalDataExporter returns the user's feed; No test that erasure is idempotent on re-run
+**Testy:** NotificationsIntegrationTests.Notification_pii_is_crypto_shredded_in_the_audit_trail; NotificationsIntegrationTests.Notifications_gdpr_export_and_erasure_ports_return_feed_and_scrub_only_the_subject
+**Test gaps:** No remaining focused Notifications GDPR export/erasure port gap in this slice.
 
-_Implementation is correct and matches platform conventions; the eraser/exporter ports themselves have no dedicated test (only the audit-shred path is asserted)._
+_Implementation is correct and matches platform conventions; exporter and eraser ports are now pinned through the same DI fan-out interfaces GDPR uses._
 
 **Nekonzistence v oblasti (6):**
 - Test-file-name vs content drift: src/modules/Notifications/.../TemplateRendererTests.cs is named for the TemplateRenderer but its only test (lines 12-22) asserts SendNotificationCommand record construction and never calls TemplateRenderer.Render. The class doc-comment (lines 6-9) even calls itself a 'Placeholder slice test'. TemplateRenderer.Render therefore has zero unit coverage despite the apparent test file.

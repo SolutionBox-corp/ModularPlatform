@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using ModularPlatform.Abstractions;
 using ModularPlatform.Billing.Contracts;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Identity.Contracts;
@@ -514,6 +515,46 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
             $"AND \"EntityId\" = '{notificationId}' AND \"Action\" = 'Create' LIMIT 1");
         rawAudit.ShouldContain("penc:v2:");
         rawAudit.ShouldNotContain(marker);
+    }
+
+    [Fact]
+    public async Task Notifications_gdpr_export_and_erasure_ports_return_feed_and_scrub_only_the_subject()
+    {
+        var (aliceId, _) = await fixture.RegisterAndLoginAsync(
+            $"gdpr-notif-alice-{Guid.CreateVersion7():N}@example.com", Password);
+        var (bobId, _) = await fixture.RegisterAndLoginAsync(
+            $"gdpr-notif-bob-{Guid.CreateVersion7():N}@example.com", Password);
+
+        await fixture.ExecuteSqlAsync($"UPDATE notifications SET \"ReadAt\" = now() WHERE \"UserId\" IN ('{aliceId}', '{bobId}')");
+
+        var aliceTemplate = $"gdpr-notif-alice-{Guid.CreateVersion7():N}";
+        var bobTemplate = $"gdpr-notif-bob-{Guid.CreateVersion7():N}";
+        await SeedTemplateAsync(aliceTemplate, "Alice export marker");
+        await SeedTemplateAsync(bobTemplate, "Bob export marker");
+        await SendDirectAsync(aliceId, aliceTemplate);
+        await SendDirectAsync(bobId, bobTemplate);
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var exporter = scope.ServiceProvider.GetServices<IExportPersonalData>()
+            .Single(e => e.ModuleName == "Notifications");
+        var eraser = scope.ServiceProvider.GetServices<IErasePersonalData>()
+            .Single(e => e.ModuleName == "Notifications");
+
+        var export = await exporter.ExportAsync(aliceId, CancellationToken.None);
+        var rows = ((IEnumerable<object>)export["notifications"]!).ToArray();
+        rows.ShouldContain(row => row.ToString()!.Contains(aliceTemplate, StringComparison.Ordinal));
+        rows.ShouldNotContain(row => row.ToString()!.Contains(bobTemplate, StringComparison.Ordinal));
+
+        await eraser.EraseAsync(aliceId, CancellationToken.None);
+        await eraser.EraseAsync(aliceId, CancellationToken.None);
+
+        var aliceScrubbed = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM notifications WHERE \"UserId\" = '{aliceId}' AND \"Title\" = '' AND \"Body\" = ''");
+        aliceScrubbed.ShouldBeGreaterThanOrEqualTo(1);
+
+        var bobStillHasContent = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM notifications WHERE \"UserId\" = '{bobId}' AND \"TemplateKey\" = '{bobTemplate}' AND \"Title\" <> '' AND \"Body\" <> ''");
+        bobStillHasContent.ShouldBe(1);
     }
 
     // purchase_completed consumer — publishing CreditPurchaseCompletedIntegrationEvent via IMessageBus
