@@ -27,7 +27,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useDeleteFile, useRenameFile } from "@/features/files/hooks";
-import type { FileListItem } from "@/features/files/api";
+import { getFileDownloadHref, type FileListItem } from "@/features/files/api";
 
 /**
  * Per-row file actions: a kebab menu with Download / Rename / Delete. Rename and
@@ -92,7 +92,7 @@ export function FileRowActions({ file }: { file: FileListItem }) {
         <DropdownMenuContent align="end">
           <DropdownMenuItem
             render={
-              <a href={`/api/bff/files/${file.id}`} download={file.fileName} />
+              <a href={getFileDownloadHref(file.id)} download={file.fileName} />
             }
           >
             <DownloadIcon className="h-4 w-4" aria-hidden="true" />

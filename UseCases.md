@@ -4876,7 +4876,7 @@ export default async function ExampleModulePage() {
 
 ### UC103 Frontend API file
 
-**Status:** Frontend pattern existuje v `features/marketing/api.ts`, `features/files/api.ts`; novy modul ma mit stejny centralizovany API soubor. ExampleModule je jen priklad feature slozky.
+**Status:** Frontend pattern existuje v `features/marketing/api.ts`, `features/files/api.ts`; novy modul ma mit stejny centralizovany API soubor. Guard `FrontendArchitectureTests.Feature_api_files_use_bff_relative_api_fetch_paths` hlida, ze `apiFetch` nepouziva `/v1` ani absolutni backend URL. ExampleModule je jen priklad feature slozky.
 
 **Pouzijes:** `frontend/features/{module}/api.ts`, `apiFetch`, `queryOptions`, `queryRoots`, TypeScript response/request typy. V ukazce je `{module} = example`.
 
@@ -4979,7 +4979,7 @@ export function deleteContact(contactId: string): Promise<void> {
 
 ### UC104 Frontend hooks
 
-**Status:** Frontend pattern existuje v Marketing/Files; novy modul ma mit tenkou hook vrstvu nad `api.ts`.
+**Status:** Frontend pattern existuje v Marketing/Files; novy modul ma mit tenkou hook vrstvu nad `api.ts`. Guard `FrontendArchitectureTests.Feature_components_do_not_call_backend_clients_directly` hlida, ze feature komponenty nevolaji `fetch`, `apiFetch`, `/api/bff` ani `/v1` primo.
 
 **Pouzijes:** `frontend/features/{module}/hooks.ts`, `useQuery`, `useMutation`, `useQueryClient`, `toast`, `queryRoots.{module}`. V ukazce je `{module} = example`.
 

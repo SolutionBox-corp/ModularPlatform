@@ -62,6 +62,10 @@ export async function uploadFile(file: File): Promise<UploadFileResponse> {
   return apiFetch<UploadFileResponse>("files", { method: "POST", body });
 }
 
+export function getFileDownloadHref(fileId: string): string {
+  return `/api/bff/files/${fileId}`;
+}
+
 /** DELETE /v1/files/{id} — removes the caller's own file (blob + metadata). */
 export async function deleteFile(id: string): Promise<void> {
   await apiFetch<void>(`files/${id}`, { method: "DELETE" });
