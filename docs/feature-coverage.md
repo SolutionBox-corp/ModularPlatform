@@ -154,10 +154,10 @@ Legenda: ✅ correct · 🟢 minor-gaps · 🟡 has-gaps · 🔴 risky. Edge-cas
 | PII at rest (email/displayName) | ✓ | User.Email/DisplayName [Encrypted]+[PersonalData]; sealed by interceptor — User.cs:18-28 |
 | Tenant name leaking PII | ✓ | tenant.Name is neutral tenant-{id:N}, never email/displayName — RegisterUserHandler.cs:42-43; test Registration_does_not_store_the_plaintext_email_in_the_tenant_name |
 | Abuse/DoS/enumeration via unthrottled signup | ✓ | MapRegisterUser is anonymous but explicitly `.RequireRateLimiting("auth")`; `PlatformContractTests.Register_endpoint_uses_the_auth_rate_limit_policy` proves a low auth limit returns 429. |
-| Validation (email format, password length, displayName length) | ✓ | RegisterUserValidator.cs:9-21 with dotted error codes |
+| Validation (email format, password length, displayName length, accepted terms version length) | ✓ | RegisterUserValidator.cs:9-22 with dotted error codes; terms version now uses user.accepted_terms_version.too_long instead of FluentValidation's default code. |
 
-**Testy:** IdentityE2ETests.Register_login_refresh_rotation_reuse_detection_and_profile; AuthRobustnessTests.Duplicate_email_registration_is_conflict_and_creates_exactly_one_user; PiiColumnEncryptionTests.Email_and_display_name_are_ciphertext_at_rest_but_plaintext_through_the_api; PiiColumnEncryptionTests.Duplicate_email_is_still_rejected_through_the_blind_index; TenancyTests.Registration_provisions_a_tenant_and_the_token_carries_it; TenancyTests.Registration_does_not_store_the_plaintext_email_in_the_tenant_name
-**Test gaps:** No validator unit test for the dotted error codes (happy path, duplicate and rate-limit are covered).
+**Testy:** RegisterUserValidatorTests.Registration_validator_uses_stable_dotted_error_codes; RegisterUserValidatorTests.Registration_validator_accepts_valid_input; IdentityE2ETests.Register_login_refresh_rotation_reuse_detection_and_profile; AuthRobustnessTests.Duplicate_email_registration_is_conflict_and_creates_exactly_one_user; PiiColumnEncryptionTests.Email_and_display_name_are_ciphertext_at_rest_but_plaintext_through_the_api; PiiColumnEncryptionTests.Duplicate_email_is_still_rejected_through_the_blind_index; TenancyTests.Registration_provisions_a_tenant_and_the_token_carries_it; TenancyTests.Registration_does_not_store_the_plaintext_email_in_the_tenant_name
+**Test gaps:** No remaining focused registration validator gap in this slice.
 
 _Canonical write slice; anonymous signup now shares the auth limiter with login/refresh/reset/verify endpoints._
 
