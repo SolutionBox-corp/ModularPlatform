@@ -394,8 +394,8 @@ _Primitives delegate to battle-tested libs; refresh tokens are hashed at rest, n
 | Event redelivery (same UserRegistered twice) | ✓ | Wolverine inbox dedup + EnsureCreditAccount is an idempotent no-op; ProvisionCreditAccountHandler.cs:15-16 is a thin public shell. |
 | DbUpdateConcurrencyException (xmin) on provisioning insert | – | An insert has no xmin conflict; the when-filter deliberately excludes DbUpdateConcurrencyException (EnsureCreditAccountCommand.cs:23) so only the unique-violation race is swallowed. |
 
-**Testy:** LedgerBackstopTests.EV5_concurrent_account_provisioning_yields_exactly_one_account; CrossModuleEventTests (EV-1, register -> account provisioned)
-**Test gaps:** No test asserts the EnsureCreditAccount no-op path (account already exists) returns without adding a second row in the single-threaded case — covered only implicitly by the concurrent test
+**Testy:** LedgerBackstopTests.EV5_concurrent_account_provisioning_yields_exactly_one_account; LedgerBackstopTests.EV5_existing_account_provisioning_is_a_noop; CrossModuleEventTests (EV-1, register -> account provisioned)
+**Test gaps:** No remaining focused account-provisioning idempotency gap in this slice.
 
 _Two independent provisioning paths exist (EnsureCreditAccountHandler and an inline create inside CreditTopUpHandler.cs:28-42); both are individually correct and converge on the same UNIQUE(UserId) guard, but the logic is duplicated rather than the top-up handler dispatching EnsureCreditAccount._
 
