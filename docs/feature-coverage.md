@@ -1488,10 +1488,10 @@ _Conventions are solid; the `IUserOwned` -> `Guid UserId` contract is now enforc
 | Module handlers not discovered → events publish but never consumed | ✓ | Discovery.IncludeAssembly per module + module.ConfigureMessaging at PlatformMessaging.cs:101-107 |
 | DLQ expiration permanently deletes a genuinely lost grant | ✓ | Comment PlatformMessaging.cs:73-75: grant recovery is via ReconcileStripe from live Stripe state, not the dead-letter; acceptable by design |
 
-**Testy:** HostBootTests.AssertPiiRetention (DLQ expiration + KeepAfterMessageHandling on Worker/Jobs/Migration); CrossModuleEventTests (referenced in CLAUDE.md — proves end-to-end event delivery, lives in module tests)
-**Test gaps:** No test asserts ServiceLocationPolicy=AlwaysAllowed (the #1 silent-failure gotcha) on the built WolverineOptions; No test asserts the RetryWithCooldown→MoveToErrorQueue policy or ScheduledJobPollingTime=1s; No test asserts Api listen==soloMode wiring (Balanced Api must not listen)
+**Testy:** HostBootTests.AssertPiiRetention (DLQ expiration + KeepAfterMessageHandling on Worker/Jobs/Migration); PlatformMessagingPolicyTests.Multiple_subscribers_are_combined_until_we_make_an_explicit_separated_decision (also pins ServiceLocationPolicy=AlwaysAllowed); PlatformMessagingPolicyTests.Durable_queue_polling_is_fast_enough_for_event_driven_work; PlatformMessagingPolicyTests.Solo_mode_is_enabled_only_for_single_node_hosts; DeadLetterTests.EV3_throwing_handler_dead_letters_after_retries_instead_of_silently_handling; CrossModuleEventTests (referenced in CLAUDE.md — proves end-to-end event delivery, lives in module tests)
+**Test gaps:** No test asserts Api listen==soloMode wiring (Balanced Api must not listen)
 
-_Well-reasoned, heavily-commented. Retention asserted; service-location/retry/poll only documented, not regression-guarded._
+_Well-reasoned and regression-guarded for retention, service-location, retry-to-DLQ, Solo mode and polling cadence. Remaining gap is Api listen-mode wiring._
 
 ### Host composition & DI graph (Api/Worker/Jobs/Migration builders) — ✅ correct
 *Each host discovers the same module set, registers identical cross-cutting + module services, and wires Wolverine consistently so DI graphs stay uniform and validatable.*
