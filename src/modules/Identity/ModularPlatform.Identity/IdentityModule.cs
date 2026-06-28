@@ -21,7 +21,9 @@ using ModularPlatform.Identity.Features.Auth.Login;
 using ModularPlatform.Identity.Features.Auth.Logout;
 using ModularPlatform.Identity.Features.Auth.RefreshToken;
 using ModularPlatform.Identity.Features.Auth.ResetPassword;
+using ModularPlatform.Identity.Features.Auth.VerifyEmail;
 using ModularPlatform.Identity.Features.Users.GetProfile;
+using ModularPlatform.Identity.Features.Users.RequestEmailVerification;
 using ModularPlatform.Identity.Features.Users.RegisterUser;
 using ModularPlatform.Identity.Features.Users.UpdateProfile;
 using ModularPlatform.Identity.Features.Users.ChangePassword;
@@ -58,6 +60,7 @@ public sealed class IdentityModule : IModule
         services.AddScoped<IPasswordHasher, Argon2PasswordHasher>();
         services.AddScoped<ITokenIssuer, JwtTokenIssuer>();
         services.AddOptions<PasswordResetOptions>().BindConfiguration(PasswordResetOptions.SectionName);
+        services.AddOptions<EmailVerificationOptions>().BindConfiguration(EmailVerificationOptions.SectionName);
 
         // Authorization seeding: permissions catalog + system admin role + admin assignment (config-driven).
         services.AddOptions<IdentityAuthOptions>().BindConfiguration(IdentityAuthOptions.SectionName);
@@ -80,8 +83,10 @@ public sealed class IdentityModule : IModule
         endpoints.MapLogin();
         endpoints.MapForgotPassword();
         endpoints.MapResetPassword();
+        endpoints.MapVerifyEmail();
         endpoints.MapRefreshToken();
         endpoints.MapLogout();
+        endpoints.MapRequestEmailVerification();
         endpoints.MapAssignRole();
         endpoints.MapRevokeRole();
         endpoints.MapGetUserDetail();

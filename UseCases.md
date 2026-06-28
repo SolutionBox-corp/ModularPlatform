@@ -319,6 +319,41 @@ router.push("/login?reason=password-reset");
 - EC035e reset nesmi pouzit `SendNotificationCommand` → reset link by se jinak ulozil do in-app feedu.
 - EC035f forgot/reset endpointy pouzivaji auth rate-limit policy → chrani drahe auth/security flow.
 
+### UC07c Ověření e-mailu
+
+**Status:** Implemented + Verified 2026-06-28 — EC035g/EC035h/EC035i overuji `Register_creates_unverified_user_and_hash_only_verification_token`, `Profile_exposes_email_confirmation_status`, `Verify_email_with_valid_token_marks_user_confirmed_and_consumes_tokens`, `Verify_email_rejects_expired_or_consumed_token` a `Resend_email_verification_consumes_old_tokens_and_already_verified_is_noop`.
+
+**Pouzijes:** `POST /identity/auth/verify-email`, `POST /identity/users/me/email-verification`, `GET /identity/users/me`, frontend `/verify-email?token=...` a account profile verification card.
+
+**Co se stane:** registrace zalozi usera jako `EmailConfirmed = false`, vytvori jednorazovy verification token, ulozi jen hash tokenu a pres outbox posle email s linkem. Verify endpoint token spotrebuje a nastavi `EmailConfirmed = true`.
+
+**Napises v novem modulu (napr. ExampleModule):** nic. Ověření adresy je Identity/account concern.
+
+**Mentalni model:** email adresa je credential/contact point. Dokud neni overena, UI to ukazuje userovi a nabizi resend. Productovy modul nema drzet vlastni "email verified" stav; cte Identity profile/session stav nebo explicitni projection, pokud to opravdu potrebuje pro UX.
+
+**Co dela Identity:** register i resend pouzivaji `EmailDeliveryRequested` z `Notifications.Contracts`, ne `SendNotificationCommand`, aby se verification link neulozil do in-app feedu. Starší nevyuzite verification tokeny se pri resend spotrebuji.
+
+**Co dela frontend:** profile page ukazuje verification card jen kdyz `emailConfirmed === false`. Verify page zpracuje token z query stringu a po uspechu posle usera na login/account flow.
+
+```ts
+if (!profile.emailConfirmed) {
+  await requestEmailVerification();
+}
+
+await verifyEmailAction(token);
+```
+
+**Co nepises:** email verification v ExampleModule, plaintext token v DB, verification link v in-app notification, feature-specific bypass typu "tento modul email overovat nebude".
+
+**EC:**
+
+- EC035g novy user startuje jako `EmailConfirmed = false` → UI nesmi tvrdit, ze email je trusted.
+- EC035h raw token je jen v emailu, DB drzi hash → zadne logovani/verejne ulozeni verification URL.
+- EC035i expired/consumed/unknown token vraci `auth.email_verification_invalid` → neprozrazuj stav tokenu.
+- EC035j resend pro jiz overeneho usera je no-op accepted → nespamuj emaily pro confirmed account.
+- EC035k resend spotrebuje stare outstanding tokeny → platny je jen posledni verification link.
+- EC035l product modul cte stav z Identity, ale nevlastni ho → zadna druha `EmailConfirmed` tabulka.
+
 ### UC08 Admin priradi roli
 
 **Status:** Implemented + Verified 2026-06-25 — EC036 overuje `Permission_gated_endpoint_rejects_non_admins_and_admins_can_grant_roles`, EC037 overuje `Assign_role_returns_not_found_for_unknown_user_or_role`, EC038 overuje `Concurrent_identical_role_grants_are_idempotent_not_a_500`, EC039 overuje `Refreshed_token_carries_role_changes_while_the_old_access_token_stays_a_snapshot`, EC040 je architektonicky pokryte tim, ze role assignment patri do Identity `AssignRole`/`user_roles`; ExampleModule prida jen permission constants, ne vlastni UserRole store.

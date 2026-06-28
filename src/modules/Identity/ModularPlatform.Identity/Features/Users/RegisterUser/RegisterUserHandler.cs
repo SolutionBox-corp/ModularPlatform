@@ -1,8 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
+using ModularPlatform.Identity.Authorization;
 using ModularPlatform.Identity.Contracts;
 using ModularPlatform.Identity.Entities;
 using ModularPlatform.Identity.Persistence;
@@ -24,7 +26,9 @@ internal sealed class RegisterUserHandler(
     ITenantProvisioning tenantProvisioning,
     IClock clock,
     ILogger<RegisterUserHandler> logger,
-    IServiceProvider services)
+    IServiceProvider services,
+    ITokenIssuer tokenIssuer,
+    IOptions<EmailVerificationOptions> emailVerificationOptions)
     : ICommandHandler<RegisterUserCommand, RegisterUserResponse>
 {
     public async Task<RegisterUserResponse> Handle(RegisterUserCommand command, CancellationToken ct)
@@ -87,6 +91,16 @@ internal sealed class RegisterUserHandler(
             TenantId: tenantId,
             Email: user.Email,
             DisplayName: user.DisplayName));
+
+        await EmailVerificationIssuer.IssueAsync(
+            db,
+            outbox,
+            tokenIssuer,
+            clock,
+            emailVerificationOptions.Value,
+            user,
+            clock.UtcNow,
+            ct);
 
         try
         {

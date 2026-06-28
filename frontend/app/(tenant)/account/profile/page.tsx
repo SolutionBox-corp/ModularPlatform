@@ -4,6 +4,7 @@ import { getQueryClient } from "@/lib/api/query-client";
 import { accountQueries } from "@/features/account/api";
 import { ProfileForm } from "@/features/account/components/profile-form";
 import { ChangePasswordForm } from "@/features/account/components/change-password-form";
+import { EmailVerificationCard } from "@/features/account/components/email-verification-card";
 import type { Metadata } from "next";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -17,8 +18,7 @@ export default async function ProfilePage() {
   const queryClient = getQueryClient();
   const t = await getTranslations("account");
 
-  // Prefetch without awaiting — streams profile data to the client island.
-  void queryClient.prefetchQuery(accountQueries.profile());
+  const profile = await queryClient.fetchQuery(accountQueries.profile());
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
@@ -32,6 +32,7 @@ export default async function ProfilePage() {
           </p>
         </div>
 
+        <EmailVerificationCard profile={profile} />
         <ProfileForm />
         <ChangePasswordForm />
       </div>

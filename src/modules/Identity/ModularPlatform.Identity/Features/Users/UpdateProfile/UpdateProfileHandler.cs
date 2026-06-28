@@ -27,6 +27,6 @@ internal sealed class UpdateProfileHandler(IdentityDbContext db)
 
         await db.SaveChangesAsync(ct);
 
-        return new UserProfileResponse(user.Id, user.Email, user.DisplayName, user.Locale);
+        return new UserProfileResponse(user.Id, user.Email, user.DisplayName, user.Locale, user.EmailConfirmed);
     }
 }

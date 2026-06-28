@@ -304,6 +304,15 @@ export async function resetPasswordAction(
   }
 }
 
+export async function verifyEmailAction(token: string): Promise<AuthResult> {
+  try {
+    await postAuth("/identity/auth/verify-email", { token });
+    return { ok: true };
+  } catch (err) {
+    return toResult(err);
+  }
+}
+
 /**
  * Logs out: best-effort POST /v1/identity/auth/logout with the refresh token,
  * then destroys the session unconditionally.

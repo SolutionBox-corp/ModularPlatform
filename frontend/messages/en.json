@@ -40,6 +40,15 @@
       "tooLong": "New password is too long.",
       "mismatch": "The passwords do not match."
     },
+    "emailVerification": {
+      "title": "Verify your email",
+      "description": "The email {email} is not verified yet.",
+      "hint": "Verification protects your account and lets the platform trust security and billing emails.",
+      "resend": "Resend verification email",
+      "sending": "Sending…",
+      "sent": "Verification email sent.",
+      "error": "Could not send verification email. Please try again."
+    },
     "page": {
       "heading": "Profile",
       "metaTitle": "Profile — ModularPlatform",
@@ -103,6 +112,14 @@
       "submitting": "Saving…",
       "subtitle": "Choose a new password for your account.",
       "success": "Password changed. Sign in with the new password."
+    },
+    "verifyEmail": {
+      "heading": "Verify email",
+      "metaTitle": "Verify email — ModularPlatform",
+      "missingToken": "This verification link is missing a token.",
+      "subtitle": "Confirm the email address on your account.",
+      "success": "Email verified. You can sign in or return to your account.",
+      "verifying": "Verifying email…"
     },
     "termsConjunction": "and",
     "termsLink": "Terms",

@@ -40,6 +40,15 @@
       "tooLong": "Nové heslo je příliš dlouhé.",
       "mismatch": "Hesla se neshodují."
     },
+    "emailVerification": {
+      "title": "Ověřte e-mail",
+      "description": "E-mail {email} zatím není ověřený.",
+      "hint": "Ověření chrání účet a umožní platformě důvěřovat bezpečnostním a fakturačním e-mailům.",
+      "resend": "Poslat ověřovací e-mail znovu",
+      "sending": "Odesílám…",
+      "sent": "Ověřovací e-mail byl odeslán.",
+      "error": "Ověřovací e-mail se nepodařilo odeslat. Zkuste to prosím znovu."
+    },
     "page": {
       "heading": "Profil",
       "metaTitle": "Profil — ModularPlatform",
@@ -103,6 +112,14 @@
       "submitting": "Ukládám…",
       "subtitle": "Zvolte nové heslo pro svůj účet.",
       "success": "Heslo bylo změněno. Přihlaste se novým heslem."
+    },
+    "verifyEmail": {
+      "heading": "Ověření e-mailu",
+      "metaTitle": "Ověření e-mailu — ModularPlatform",
+      "missingToken": "Tomuto ověřovacímu odkazu chybí token.",
+      "subtitle": "Potvrďte e-mailovou adresu svého účtu.",
+      "success": "E-mail byl ověřen. Můžete se přihlásit nebo se vrátit do účtu.",
+      "verifying": "Ověřuji e-mail…"
     },
     "termsConjunction": "a",
     "termsLink": "podmínkami",
