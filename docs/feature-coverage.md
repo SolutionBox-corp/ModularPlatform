@@ -1434,12 +1434,12 @@ _Intricate but disciplined; the restore-on-failure and refuse-without-protector 
 | Oversized page size (DoS) | ✓ | Clamped to MaxPageSize=100 (Paging.cs:19,24) |
 | TotalPages with zero/negative page size | ✓ | Returns 0 when PageSize<=0 (Paging.cs:9) |
 | Unordered query => unstable paging | ◐ | Documented requirement to OrderBy first (PagedQueryExtensions.cs:10-11) but not enforced in code |
-| Count + page in two round-trips (consistency) | ✓ | LongCountAsync then Skip/Take (PagedQueryExtensions.cs:16-17); acceptable for paging |
+| Count + page in two round-trips (consistency) | ✓ | LongCountAsync then Skip/Take (PagedQueryExtensions.cs:16-17); acceptable for paging and directly covered by PagingClampingTests.ToPagedResponseAsync_counts_total_and_preserves_ordered_page |
 
-**Testy:** PagingClampingTests directly covers PageRequest clamping (negative/null page, null/below-one/oversized pageSize, Skip) and PagedResponse.TotalPages math; NotificationsIntegrationTests exercises the feed PagedResponse envelope (items/page/pageSize/totalCount) end-to-end
-**Test gaps:** No direct test for `PagedQueryExtensions.ToPagedResponseAsync` preserving item order/count on an EF provider; core clamp/math is covered.
+**Testy:** PagingClampingTests directly covers PageRequest clamping (negative/null page, null/below-one/oversized pageSize, Skip), PagedResponse.TotalPages math, and PagedQueryExtensions.ToPagedResponseAsync preserving ordered EF page items + total count; NotificationsIntegrationTests exercises the feed PagedResponse envelope (items/page/pageSize/totalCount) end-to-end
+**Test gaps:** No remaining focused paging test gap; unordered IQueryable stability remains a documented caller contract, not enforced by code.
 
-_Pure clamp/math logic is covered by focused unit tests; only the EF extension wrapper remains transitively covered by module list tests._
+_Clamp/math and the EF extension wrapper are now covered by focused building-block tests._
 
 ### Entity base + conventions (xmin, soft-delete, IUserOwned/ITenantScoped) — 🟢 minor-gaps
 *Boilerplate-free entities: Guid v7 ids, xmin concurrency, shadow TenantId, soft-delete filter, auto-config scan.*
