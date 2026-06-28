@@ -1114,9 +1114,10 @@ _State machine is solid and idempotent. The only soft spot: no in-process concur
 | RLS disabled deployment still must not leak | ✓ | OperationsTests.Operation_status_is_owner_scoped_at_the_app_layer_even_when_rls_is_bypassed dispatches under system context with a foreign id and asserts NotFoundException |
 | Read uses no-tracking read factory (no accidental write/tenant write context) | ✓ | GetOperationStatusHandler.cs:14,19 uses IReadDbContextFactory<OperationsDbContext> |
 | Unauthenticated poll | ✓ | RequireAuthorization() + UnauthorizedException at GetOperationStatusEndpoint.cs:21-26 |
+| Failed terminal state returns safe error payload to the owner | ✓ | OperationStore.FailAsync persists Status=Failed, ErrorCode, ErrorDetail, CompletedAt; GetOperationStatusHandler returns those fields; covered by OperationsTests.Operation_status_surfaces_failed_terminal_state_with_safe_error_details |
 
-**Testy:** OperationsTests RLS-isolated 404 assertion; OperationsTests.Operation_status_is_owner_scoped_at_the_app_layer_even_when_rls_is_bypassed
-**Test gaps:** No test asserting the Failed branch surfaces errorCode/errorDetail through the status response (only the success path is polled end-to-end)
+**Testy:** OperationsTests RLS-isolated 404 assertion; OperationsTests.Operation_status_is_owner_scoped_at_the_app_layer_even_when_rls_is_bypassed; OperationsTests.Operation_status_surfaces_failed_terminal_state_with_safe_error_details
+**Test gaps:** No remaining focused status-polling gap; deeper worker-transition gaps are tracked in the operation state machine section above.
 
 _Dual-gated ownership (app filter + RLS) is exemplary._
 

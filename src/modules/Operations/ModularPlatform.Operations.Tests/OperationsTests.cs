@@ -101,6 +101,30 @@ public sealed class OperationsTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Operation_status_surfaces_failed_terminal_state_with_safe_error_details()
+    {
+        var (userId, token) = await fixture.RegisterAndLoginAsync($"opfailed-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IOperationStore>();
+
+        var operationId = await store.CreateAsync("generic-module-import", userId, CancellationToken.None);
+        await store.MarkRunningAsync(operationId, CancellationToken.None);
+        await store.FailAsync(operationId, "module.import_failed", "The import failed.", CancellationToken.None);
+
+        var poll = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Get, $"/v1/operations/{operationId}", token));
+
+        poll.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var data = await PlatformApiFactory.ReadData(poll);
+        data.GetProperty("id").GetGuid().ShouldBe(operationId);
+        data.GetProperty("type").GetString().ShouldBe("generic-module-import");
+        data.GetProperty("status").GetString().ShouldBe("Failed");
+        data.GetProperty("errorCode").GetString().ShouldBe("module.import_failed");
+        data.GetProperty("errorDetail").GetString().ShouldBe("The import failed.");
+        data.GetProperty("completedAt").ValueKind.ShouldNotBe(System.Text.Json.JsonValueKind.Null);
+    }
+
+    [Fact]
     public async Task Operations_list_is_paged_owner_scoped_newest_first_and_has_empty_state()
     {
         var (_, token) = await fixture.RegisterAndLoginAsync($"op-list-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
