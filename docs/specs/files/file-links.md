@@ -12,7 +12,7 @@ Product modules also need a repeatable way to say: this uploaded file belongs to
 
 Examples:
 
-- a contract file belongs to a CRM deal;
+- a contract file belongs to a product module record;
 - an invoice file belongs to a billing import;
 - a source spreadsheet belongs to a marketing pull;
 - a screenshot belongs to an operation report.
@@ -27,7 +27,7 @@ Files module provides a generic user-owned link table:
 
 `OwnerType` is a small stable string owned by the product module, for example:
 
-- `crm.deal`
+- `example.record`
 - `marketing.pull`
 - `operations.report`
 
@@ -54,7 +54,7 @@ Request:
 
 ```json
 {
-  "ownerType": "crm.deal",
+  "ownerType": "example.record",
   "ownerId": "018f4b35-..."
 }
 ```
@@ -65,7 +65,7 @@ Response: `201 Created`
 {
   "id": "018f4b36-...",
   "fileObjectId": "018f4b35-...",
-  "ownerType": "crm.deal",
+  "ownerType": "example.record",
   "ownerId": "018f4b35-...",
   "fileName": "contract.pdf",
   "contentType": "application/pdf",
@@ -78,7 +78,7 @@ Duplicate link is idempotent: the existing link is returned.
 
 ### List links for owner
 
-`GET /v1/files/links?ownerType=crm.deal&ownerId={id}`
+`GET /v1/files/links?ownerType=example.record&ownerId={id}`
 
 Returns `PagedResponse<FileLinkItem>`.
 
@@ -103,7 +103,7 @@ Deletes only the link, not the file object and not the blob.
 - Foreign link id returns `file.link_not_found`.
 - Unlink removes only the relation. The file remains downloadable/listed under Files.
 - GDPR erasure deletes both file metadata/blobs and the user's link rows.
-- Product module must still verify owner access before linking. Files cannot know if `ownerId` is a real CRM deal.
+- Product module must still verify owner access before linking. Files cannot know if `ownerId` is a real product module record.
 
 ## Acceptance criteria
 
