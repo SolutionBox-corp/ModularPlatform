@@ -22,22 +22,24 @@ internal sealed class BeginStreamMessageHandler(IDbContextOutbox<MarketingDbCont
         var db = outbox.DbContext;
 
         // RLS already isolates the caller's rows; the explicit owner predicate makes the 404 deterministic.
-        var owns = await db.VibeConversations
-            .AnyAsync(c => c.Id == command.ConversationId && c.UserId == command.UserId, ct);
-        if (!owns)
+        var conversation = await db.VibeConversations
+            .FirstOrDefaultAsync(c => c.Id == command.ConversationId && c.UserId == command.UserId, ct);
+        if (conversation is null)
         {
             throw new NotFoundException("marketing.vibe.conversation_not_found", "Conversation not found.");
         }
 
+        var now = clock.UtcNow;
         var userMessage = new VibeMessage
         {
             UserId = command.UserId,
             ConversationId = command.ConversationId,
             Role = "user",
             Content = command.Content,
-            CreatedAt = clock.UtcNow,
+            CreatedAt = now,
         };
         db.VibeMessages.Add(userMessage);
+        conversation.LastMessageAt = now;
         await db.SaveChangesAsync(ct);
 
         var history = await db.VibeMessages
@@ -62,13 +64,14 @@ internal sealed class CompleteStreamMessageHandler(IDbContextOutbox<MarketingDbC
     {
         var db = outbox.DbContext;
 
-        var owns = await db.VibeConversations
-            .AnyAsync(c => c.Id == command.ConversationId && c.UserId == command.UserId, ct);
-        if (!owns)
+        var conversation = await db.VibeConversations
+            .FirstOrDefaultAsync(c => c.Id == command.ConversationId && c.UserId == command.UserId, ct);
+        if (conversation is null)
         {
             throw new NotFoundException("marketing.vibe.conversation_not_found", "Conversation not found.");
         }
 
+        var now = clock.UtcNow;
         var assistantMessage = new VibeMessage
         {
             UserId = command.UserId,
@@ -76,9 +79,10 @@ internal sealed class CompleteStreamMessageHandler(IDbContextOutbox<MarketingDbC
             Role = "assistant",
             Content = command.FullText,
             ToolCallsJson = null,
-            CreatedAt = clock.UtcNow,
+            CreatedAt = now,
         };
         db.VibeMessages.Add(assistantMessage);
+        conversation.LastMessageAt = now;
         await db.SaveChangesAsync(ct);
 
         return new CompleteStreamMessageResult(assistantMessage.Id);

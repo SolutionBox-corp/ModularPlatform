@@ -202,6 +202,32 @@ public sealed class VibeChatTests(PlatformApiFactory fixture)
         detailData.GetProperty("messages").GetArrayLength().ShouldBe(2);
     }
 
+    [Fact]
+    public async Task Sending_a_message_moves_the_conversation_to_the_top_of_the_list()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync($"mkt-vibe-active-{Guid.CreateVersion7():N}@x.com", Password);
+        var first = await StartConversationAsync(token);
+        await Task.Delay(10);
+        var second = await StartConversationAsync(token);
+
+        var before = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/marketing/vibe/conversations?page=1&pageSize=2", token));
+        before.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PlatformApiFactory.ReadData(before)).GetProperty("items")[0].GetProperty("id").GetGuid().ShouldBe(second);
+
+        var send = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Post, $"/v1/marketing/vibe/conversations/{first}/messages", token,
+                new { content = "bring this thread back to the top" }));
+        send.StatusCode.ShouldBe(HttpStatusCode.Accepted);
+
+        var after = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/marketing/vibe/conversations?page=1&pageSize=2", token));
+        after.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var firstItem = (await PlatformApiFactory.ReadData(after)).GetProperty("items")[0];
+        firstItem.GetProperty("id").GetGuid().ShouldBe(first);
+        firstItem.GetProperty("lastMessageAt").GetDateTimeOffset().ShouldBeGreaterThan(DateTimeOffset.MinValue);
+    }
+
     private async Task<Guid> StartConversationAsync(string token)
     {
         var start = await fixture.Client.SendAsync(

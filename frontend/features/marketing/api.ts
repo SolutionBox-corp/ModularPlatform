@@ -65,6 +65,7 @@ export interface ConversationListItem {
   id: string;
   title: string;
   createdAt: string;
+  lastMessageAt: string | null;
 }
 
 /** ConversationMessage — one row in a thread. */

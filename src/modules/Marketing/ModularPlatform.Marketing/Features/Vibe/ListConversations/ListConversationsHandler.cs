@@ -18,8 +18,8 @@ internal sealed class ListConversationsHandler(IReadDbContextFactory<MarketingDb
 
         return await db.VibeConversations
             .Where(c => c.UserId == query.UserId)
-            .OrderByDescending(c => c.CreatedAt)
-            .Select(c => new ConversationListItem(c.Id, c.Title, c.CreatedAt))
+            .OrderByDescending(c => c.LastMessageAt ?? c.CreatedAt)
+            .Select(c => new ConversationListItem(c.Id, c.Title, c.CreatedAt, c.LastMessageAt))
             .ToPagedResponseAsync(query.Page, ct);
     }
 }

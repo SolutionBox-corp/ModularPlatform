@@ -3904,9 +3904,10 @@ finally
 
 ### UC88 List conversations
 
-**Status:** Implementovano v Marketing jako owner-scoped paged list — overeno
-`VibeChatTests.Conversation_list_and_thread_messages_are_paged`. ExampleModule ma zkopirovat stejnou
-owner/soft-delete/paging logiku a pro realny sidebar doplnit `LastMessageAt`.
+**Status:** Implementovano v Marketing jako owner-scoped paged list serazeny podle posledni aktivity — overeno
+`VibeChatTests.Conversation_list_and_thread_messages_are_paged` a
+`VibeChatTests.Sending_a_message_moves_the_conversation_to_the_top_of_the_list`. ExampleModule ma zkopirovat stejnou
+owner/soft-delete/paging/`LastMessageAt` logiku.
 
 **Pouzijes:** `GET /marketing/vibe/conversations?page=&pageSize=`, `VibeConversation`, `IUserOwned`,
 `ISoftDeletable`, `IReadDbContextFactory`, `PageRequest`, `PagedResponse<T>`.
@@ -3927,9 +3928,8 @@ internal sealed class ExampleModuleConversation : AuditableEntity, IUserOwned, I
 }
 ```
 
-**Marketing list query:** filtruje ownera, sortuje podle `CreatedAt desc` a vraci `PagedResponse<ConversationListItem>`.
-To je base vzor pro bounded sidebar list. Pro ExampleModule sidebar s realnym pouzitim je lepsi doplnit
-`LastMessageAt` a sortovat podle posledni aktivity.
+**Marketing list query:** filtruje ownera, sortuje podle `LastMessageAt ?? CreatedAt desc` a vraci
+`PagedResponse<ConversationListItem>`. To je base vzor pro bounded sidebar list.
 
 ```csharp
 return await db.Conversations
@@ -3945,8 +3945,9 @@ return await db.Conversations
 **Archived/deleted:** delete ze sidebaru delej jako soft delete. Pokud potrebujes archive, pridej `ArchivedAt` nebo `Status`; nemichej to s hard delete, protoze messages/history/GDPR export muzou jeste potrebovat data.
 
 **Frontend:** `useVibeConversations(page, pageSize)` cte `MarketingPaged<ConversationListItem>` a komponenta pouziva
-`items`, ne root array. Empty state je normalni. Po start conversation, send message, assistant ready a delete invaliduj
-conversation list. Pokud mas pending odpoved, list item muze ukazat spinner podle posledniho message/run statusu.
+`items`, ne root array. Sidebar zobrazuje `lastMessageAt ?? createdAt` jako posledni aktivitu. Empty state je normalni.
+Po start conversation, send message, assistant ready a delete invaliduj conversation list. Pokud mas pending odpoved,
+list item muze ukazat spinner podle posledniho message/run statusu.
 
 **Testy k novemu modulu:** empty list 200, owner A nevidi owner B, soft-deleted thread zmizi, newest activity sort, pagination, po send message se `LastMessageAt` zmeni.
 
