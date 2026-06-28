@@ -244,18 +244,18 @@ public sealed class FilesUploadTests(PlatformApiFactory fixture)
             HttpMethod.Post,
             $"/v1/files/{fileId}/links",
             token,
-            new { ownerType = "crm.deal", ownerId }));
+            new { ownerType = "example.record", ownerId }));
         first.StatusCode.ShouldBe(HttpStatusCode.Created);
         var firstData = await PlatformApiFactory.ReadData(first);
         var linkId = firstData.GetProperty("id").GetGuid();
         firstData.GetProperty("fileObjectId").GetGuid().ShouldBe(fileId);
-        firstData.GetProperty("ownerType").GetString().ShouldBe("crm.deal");
+        firstData.GetProperty("ownerType").GetString().ShouldBe("example.record");
 
         var duplicate = await fixture.Client.SendAsync(fixture.Authed(
             HttpMethod.Post,
             $"/v1/files/{fileId}/links",
             token,
-            new { ownerType = "crm.deal", ownerId }));
+            new { ownerType = "example.record", ownerId }));
         duplicate.StatusCode.ShouldBe(HttpStatusCode.Created);
         (await PlatformApiFactory.ReadData(duplicate)).GetProperty("id").GetGuid().ShouldBe(linkId);
         (await fixture.ScalarAsync<long>(
@@ -263,7 +263,7 @@ public sealed class FilesUploadTests(PlatformApiFactory fixture)
 
         var list = await fixture.Client.SendAsync(fixture.Authed(
             HttpMethod.Get,
-            $"/v1/files/links?ownerType=crm.deal&ownerId={ownerId}",
+            $"/v1/files/links?ownerType=example.record&ownerId={ownerId}",
             token));
         list.StatusCode.ShouldBe(HttpStatusCode.OK, await list.Content.ReadAsStringAsync());
         var listData = await PlatformApiFactory.ReadData(list);
@@ -296,7 +296,7 @@ public sealed class FilesUploadTests(PlatformApiFactory fixture)
             HttpMethod.Post,
             $"/v1/files/{fileId}/links",
             ownerToken,
-            new { ownerType = "CRM Deal", ownerId }));
+            new { ownerType = "Example Record", ownerId }));
         invalid.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         (await invalid.Content.ReadAsStringAsync()).ShouldContain("file.link.owner_type.invalid");
 
@@ -306,14 +306,14 @@ public sealed class FilesUploadTests(PlatformApiFactory fixture)
             HttpMethod.Post,
             $"/v1/files/{fileId}/links",
             otherToken,
-            new { ownerType = "crm.deal", ownerId }));
+            new { ownerType = "example.record", ownerId }));
         foreignFile.StatusCode.ShouldBe(HttpStatusCode.NotFound);
 
         var create = await fixture.Client.SendAsync(fixture.Authed(
             HttpMethod.Post,
             $"/v1/files/{fileId}/links",
             ownerToken,
-            new { ownerType = "crm.deal", ownerId }));
+            new { ownerType = "example.record", ownerId }));
         create.StatusCode.ShouldBe(HttpStatusCode.Created);
         var linkId = (await PlatformApiFactory.ReadData(create)).GetProperty("id").GetGuid();
 
@@ -344,7 +344,7 @@ public sealed class FilesUploadTests(PlatformApiFactory fixture)
 
         var upload = await UploadAsync(
             token,
-            "../crm/contracts/q4.txt",
+            "../example/contracts/q4.txt",
             "text/plain",
             Encoding.UTF8.GetBytes("contract body"));
         upload.StatusCode.ShouldBe(HttpStatusCode.Created);

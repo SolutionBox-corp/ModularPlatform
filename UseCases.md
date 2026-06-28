@@ -14,7 +14,7 @@ Format je zamerne prakticky:
 
 Pravidlo pro cteni: kdyz delas novy produktovy modul, modul vlastni jen svoji domenu. Identity, tenanty, kredity, soubory, notifikace, GDPR, realtime, outbox, worker a audit uz existuji v base.
 
-Poznamka k nazvum: `ExampleModule` a `example` jsou v dokumentu jen placeholdery. Stejny postup plati pro libovolny modul, napr. Projects, Helpdesk, Marketing, Scheduling nebo CRM. Kdyz delas jiny modul, prepis prefixy `example`, `ExampleModule`, `ModularPlatform.ExampleModule` a routy `/example` na svoji domenu.
+Poznamka k nazvum: `ExampleModule` a `example` jsou v dokumentu jen placeholdery. Stejny postup plati pro libovolny produktovy modul, napr. Projects, Helpdesk, Marketing, Scheduling nebo CRM. CRM je tady jen priklad domeny, ne specialni cil platformy. Kdyz delas jiny modul, prepis prefixy `example`, `ExampleModule`, `ModularPlatform.ExampleModule` a routy `/example` na svoji domenu.
 
 ## Identity
 
@@ -30,7 +30,7 @@ Poznamka k nazvum: `ExampleModule` a `example` jsou v dokumentu jen placeholdery
 
 **Mentalni model:** Registrace je vstup do platformy, ne do ExampleModule. Identity resi email, heslo, tenant a tokeny. ExampleModule se maximalne dozvi fakt "vznikl user/tenant" a zalozi si vlastni vychozi ExampleModule data.
 
-**Kdy novy modul neco dela:** jen pokud produkt potrebuje napr. default pipeline, ukazkovy seznam kontaktu nebo ExampleModule onboarding checklist. To se dela jako consumer eventu, ne jako kod uvnitr `RegisterUserHandler`.
+**Kdy novy modul neco dela:** jen pokud produkt potrebuje napr. default pipeline, ukazkovy seznam zaznamu nebo ExampleModule onboarding checklist. To se dela jako consumer eventu, ne jako kod uvnitr `RegisterUserHandler`.
 
 ```csharp
 public sealed class CreateExampleModuleWorkspaceOnUserRegisteredHandler
@@ -77,8 +77,8 @@ public sealed class CreateExampleModuleWorkspaceOnUserRegisteredHandler
 **Co dela frontend:** `loginAction` vola Identity, ulozi access/refresh token do server session a z access tokenu vytahne `roles`/`permissions` pro UI. ExampleModule komponenty potom pouzivaji session permissions jen pro UX guardy; backend endpointy porad rozhoduji samy.
 
 ```tsx
-const canCreateContact = user.permissions.includes("example.contacts.create");
-return canCreateContact ? <CreateContactButton /> : null;
+const canCreateRecord = user.permissions.includes("example.records.create");
+return canCreateRecord ? <CreateRecordButton /> : null;
 ```
 
 **Co dela backend noveho modulu:** v handleru beres usera/tenant z `ITenantContext`, ne z login requestu ani z body.
@@ -108,7 +108,7 @@ var userId = tenantContext.UserId
 
 **Napises v novem modulu (napr. ExampleModule):** nic, jen pocitas s tim, ze permissions jsou snapshot v access tokenu.
 
-**Mentalni model:** Access token je fotka opravneni v case vydani. Refresh je okamzik, kdy se fotka obnovi. Kdyz admin prida userovi `example.contacts.delete`, stare taby to neuvidi magicky hned; uvidi to po refreshi tokenu, novem loginu nebo po expiraci stareho access tokenu.
+**Mentalni model:** Access token je fotka opravneni v case vydani. Refresh je okamzik, kdy se fotka obnovi. Kdyz admin prida userovi `example.records.delete`, stare taby to neuvidi magicky hned; uvidi to po refreshi tokenu, novem loginu nebo po expiraci stareho access tokenu.
 
 **Co dela Identity:** refresh token je jednorazovy. Pri refreshi se stary token oznaci jako consumed, vyda se novy refresh token ve stejne family a access token se vyda s aktualnimi rolemi/permissions.
 
@@ -119,7 +119,7 @@ var userId = tenantContext.UserId
 ```ts
 // ExampleModule komponenta nema resit refresh token.
 // Volas normalne apiFetch/useQuery; BFF/browser vrstva vyresi refresh nebo redirect.
-const contacts = useContacts();
+const records = useRecords();
 ```
 
 **Co dela backend noveho modulu:** endpoint se diva na aktualni claims v requestu. Pokud token jeste obsahuje starou permission, backend ji pro tento request bere jako snapshot. Pro okamzite revokace citlivych akci navrhni kratkou expiraci nebo server-side revocation policy v Identity, ne lokalni ExampleModule hack.
@@ -329,7 +329,7 @@ router.push("/login?reason=password-reset");
 
 **Napises v novem modulu (napr. ExampleModule):** nic. Ověření adresy je Identity/account concern.
 
-**Mentalni model:** email adresa je credential/contact point. Dokud neni overena, UI to ukazuje userovi a nabizi resend. Productovy modul nema drzet vlastni "email verified" stav; cte Identity profile/session stav nebo explicitni projection, pokud to opravdu potrebuje pro UX.
+**Mentalni model:** email adresa je credential/record point. Dokud neni overena, UI to ukazuje userovi a nabizi resend. Productovy modul nema drzet vlastni "email verified" stav; cte Identity profile/session stav nebo explicitni projection, pokud to opravdu potrebuje pro UX.
 
 **Co dela Identity:** register i resend pouzivaji `EmailDeliveryRequested` z `Notifications.Contracts`, ne `SendNotificationCommand`, aby se verification link neulozil do in-app feedu. Starší nevyuzite verification tokeny se pri resend spotrebuji.
 
@@ -369,16 +369,16 @@ await verifyEmailAction(token);
 **Permission noveho modulu:** novy permission pridej do `PlatformPermissions`. Seeder ho na startupu zalozi v Identity a system `admin` role ho dostane automaticky.
 
 ```csharp
-public const string ExampleModuleContactsRead = "example.contacts.read";
-public const string ExampleModuleContactsWrite = "example.contacts.write";
-public const string ExampleModuleDealsManage = "example.deals.manage";
+public const string ExampleModuleRecordsRead = "example.records.read";
+public const string ExampleModuleRecordsWrite = "example.records.write";
+public const string ExampleModuleRecordsManage = "example.records.manage";
 ```
 
 **Endpoint guard noveho modulu:** endpoint gated pres permission claim z tokenu.
 
 ```csharp
-app.MapPost("/example/contacts", ...)
-   .RequirePermission(PlatformPermissions.ExampleModuleContactsWrite)
+app.MapPost("/example/records", ...)
+   .RequirePermission(PlatformPermissions.ExampleModuleRecordsWrite)
    .WithTags("ExampleModule");
 ```
 
@@ -450,11 +450,11 @@ void queryClient.invalidateQueries({ queryKey: queryRoots.admin });
 const user = useQuery(identityAdminQueries.userDetail(userId));
 ```
 
-**Backend pouziti v novem modulu:** pokud ExampleModule endpoint vraci deal s assigned userem, vrat `AssignedToUserId` nebo vlastni DTO/projekci. Nevracej EF `User` entity ani nedelaj join do Identity Core tabulek.
+**Backend pouziti v novem modulu:** pokud ExampleModule endpoint vraci record s assigned userem, vrat `AssignedToUserId` nebo vlastni DTO/projekci. Nevracej EF `User` entity ani nedelaj join do Identity Core tabulek.
 
 ```csharp
-public sealed record DealDetailResponse(
-    Guid DealId,
+public sealed record RecordDetailResponse(
+    Guid RecordId,
     string Name,
     Guid? AssignedToUserId);
 ```
@@ -492,8 +492,8 @@ app.MapPost("/example/import-agent/push", ...)
    .RequireRole(AuthorizationClaims.MachineRole)
    .RequireModule("example");
 
-app.MapPost("/example/deals/{id}/checkout", ...)
-   .RequirePermission(PlatformPermissions.ExampleModuleDealsManage)
+app.MapPost("/example/records/{id}/checkout", ...)
+   .RequirePermission(PlatformPermissions.ExampleModuleRecordsManage)
    .DenyMachinePrincipals();
 ```
 
@@ -523,10 +523,10 @@ app.MapPost("/example/deals/{id}/checkout", ...)
 
 **Mentalni model:** Audit je platform capability, ale data jsou per-module. Identity audit endpoint cte `identity_audit_entries`. ExampleModule audit endpoint ma cist `example_audit_entries`. Centralni "audit vsech modulu pres vsechny tabulky" by porusil boundary law.
 
-**Kdy audit v novem modulu potrebujes:** napr. admin chce videt zmeny kontaktu, dealu nebo AI runu v danem modulu. Endpoint patri do toho modulu a vraci jen entity, ktere modul vlastni.
+**Kdy audit v novem modulu potrebujes:** napr. admin chce videt zmeny zaznamu, prirazeni nebo AI runu v danem modulu. Endpoint patri do toho modulu a vraci jen entity, ktere modul vlastni.
 
 ```csharp
-app.MapGet("/example/admin/contacts/{contactId:guid}/audit", ...)
+app.MapGet("/example/admin/records/{recordId:guid}/audit", ...)
    .RequirePermission(PlatformPermissions.AuditRead)
    .RequireModule("example");
 ```
@@ -535,7 +535,7 @@ app.MapGet("/example/admin/contacts/{contactId:guid}/audit", ...)
 
 ```csharp
 var rows = await db.AuditEntries
-    .Where(a => a.EntityType == "ExampleModuleContact" && a.EntityId == contactId.ToString())
+    .Where(a => a.EntityType == "ExampleModuleRecord" && a.EntityId == recordId.ToString())
     .OrderByDescending(a => a.Timestamp)
     .ToListAsync(ct);
 ```
@@ -673,9 +673,9 @@ if (!isModuleEnabled(ent, "example")) notFound();
 **Backend endpoint guard:** kazdy ExampleModule endpoint pridej pod live entitlement guard. To je security vrstva; menu guard je jen UX.
 
 ```csharp
-app.MapPost("/example/contacts", ...)
+app.MapPost("/example/records", ...)
    .RequireModule("example")
-   .RequirePermission(PlatformPermissions.ExampleModuleContactsWrite);
+   .RequirePermission(PlatformPermissions.ExampleModuleRecordsWrite);
 ```
 
 **Cache:** po platform-admin zmene entitlementu invaliduj `queryRoots.entitlements`, aby sidebar a route guards nacetly aktualni stav. Backend guard funguje hned na dalsi request i pri stale UI.
@@ -843,19 +843,19 @@ uvnitr modulu. Entitlement rika jen "tenhle workspace ma ExampleModule vubec dos
 **Backend pouziti v novem ExampleModule modulu:** Kazdy ExampleModule endpoint, ktery patri do placeneho ExampleModule produktu, dostane guard:
 
 ```csharp
-app.MapPost("/example/contacts", async (
-        CreateContactRequest request,
+app.MapPost("/example/records", async (
+        CreateRecordRequest request,
         IDispatcher dispatcher,
         CancellationToken ct) =>
     {
         var result = await dispatcher.Send(
-            new CreateContactCommand(request.Name, request.Email), ct);
-        return Results.Ok(ApiResponse<CreateContactResponse>.Ok(result));
+            new CreateRecordCommand(request.Name, request.Email), ct);
+        return Results.Ok(ApiResponse<CreateRecordResponse>.Ok(result));
     })
     .RequireAuthorization()
     .RequireModule("example")
-    .RequirePermission("example.contacts.write")
-    .WithName("CreateExampleModuleContact");
+    .RequirePermission("example.records.write")
+    .WithName("CreateExampleModuleRecord");
 ```
 
 **Frontend pouziti v platform admin UI:**
@@ -883,7 +883,7 @@ handleru, nebo mazani ExampleModule dat pri vypnuti modulu.
 
 - EC091 preklep v module key → `examplem` vrati 422 `tenant.module_unknown` a nevytvori typo radek v
   `tenant_entitlements`.
-- EC092 vypnuti ExampleModule nema mazat ExampleModule data → toggle meni jen dostupnost modulu. Kontakty, deals a soubory zustanou v ExampleModule
+- EC092 vypnuti ExampleModule nema mazat ExampleModule data → toggle meni jen dostupnost modulu. Zaznamy a soubory zustanou v ExampleModule
   tabulkach pro pripadne pozdejsi znovuzapnuti nebo export.
 - EC093 UI musi refetchnout entitlements → `useSetEntitlement` invaliduje `queryRoots.admin` i
   `queryRoots.entitlements`; jinak by sidebar porad ukazoval stary stav.
@@ -1306,7 +1306,7 @@ var reservation = await dispatcher.Send(
 
 try
 {
-    await dispatcher.Send(new RunExampleModuleAiEnrichmentCommand(contactId), ct);
+    await dispatcher.Send(new RunExampleModuleAiEnrichmentCommand(recordId), ct);
     await dispatcher.Send(new ConfirmSpendCommand(userId, reservation.ReservationId), ct);
 }
 catch
@@ -1461,7 +1461,7 @@ var run = new ExampleModuleAiRun
 {
     Id = Guid.CreateVersion7(),
     UserId = userId,
-    ContactId = contactId,
+    RecordId = recordId,
     CreditReservationId = reservation.ReservationId,
     CreditAmount = 25,
     Status = ExampleModuleAiRunStatus.Reserved,
@@ -2204,31 +2204,31 @@ price id, nebo druhy checkout button bez pending disable.
 
 **Co se stane:** Billing po uspesnem nakupu publikuje `CreditPurchaseCompletedIntegrationEvent`. Notifications ma public Wolverine handler `SendPurchaseCompletedHandler`, ktery nevezme zadnou Billing tabulku, ale jen payload eventu (`UserId`, `PurchaseId`, `CreditAmount`). Handler zavola `SendNotificationCommand` z `ModularPlatform.Notifications.Contracts` s template `purchase_completed`, channel `inapp` a `IdempotencyKey = purchase-completed:{purchaseId}`. Tim se pouzije normalni Notifications flow: render template, ulozit in-app row, pripadne predat email/push pres outbox.
 
-**Napises v novem modulu (napr. ExampleModule):** kdyz ExampleModule dokonci obchod nebo AI beh, nevkladej notifikaci primo. ExampleModule publikuje treba `DealWonIntegrationEvent` nebo `AiRunCompletedEvent`. V Notifications napises handler `SendDealWonHandler`, ktery z eventu posklada `data` pro template a zavola `SendNotificationCommand(..., IdempotencyKey: $"deal-won:{dealId:N}")`. Dulezite je, ze ExampleModule zustane vlastnik obchodu a Notifications zustane vlastnik doruceni.
+**Napises v novem modulu (napr. ExampleModule):** kdyz ExampleModule dokonci domenovou akci nebo AI beh, nevkladej notifikaci primo. ExampleModule publikuje treba `RecordCompletedIntegrationEvent` nebo `AiRunCompletedEvent`. V Notifications napises handler `SendRecordCompletedHandler`, ktery z eventu posklada `data` pro template a zavola `SendNotificationCommand(..., IdempotencyKey: $"record-completed:{recordId:N}")`. Dulezite je, ze ExampleModule zustane vlastnik domenoveho stavu a Notifications zustane vlastnik doruceni.
 
 **Vzor kodu:**
 
 ```csharp
-public sealed class SendDealWonHandler(ILogger<SendDealWonHandler> logger)
+public sealed class SendRecordCompletedHandler(ILogger<SendRecordCompletedHandler> logger)
 {
-    public async Task Handle(DealWonIntegrationEvent message, IDispatcher dispatcher, CancellationToken ct)
+    public async Task Handle(RecordCompletedIntegrationEvent message, IDispatcher dispatcher, CancellationToken ct)
     {
         try
         {
             await dispatcher.Send(new SendNotificationCommand(
                 message.UserId,
-                "deal_won",
+                "record_won",
                 ["inapp"],
                 new Dictionary<string, string>
                 {
                     ["locale"] = "en",
-                    ["dealName"] = message.DealName,
+                    ["recordName"] = message.RecordName,
                 },
-                IdempotencyKey: $"deal-won:{message.DealId:N}"), ct);
+                IdempotencyKey: $"record-completed:{message.RecordId:N}"), ct);
         }
         catch (NotFoundException)
         {
-            logger.LogWarning("Deal-won notification skipped: template missing for {DealId}.", message.DealId);
+            logger.LogWarning("Record-won notification skipped: template missing for {RecordId}.", message.RecordId);
         }
     }
 }
@@ -2259,14 +2259,14 @@ public sealed class SendDealWonHandler(ILogger<SendDealWonHandler> logger)
 ```csharp
 await dispatcher.Send(new SendNotificationCommand(
     userId,
-    "deal_assigned",
+    "record_assigned",
     ["email", "inapp"],
     new Dictionary<string, string>
     {
         ["email"] = assigneeEmail,
-        ["dealName"] = dealName,
+        ["recordName"] = recordName,
     },
-    IdempotencyKey: $"deal-assigned:{dealId:N}:{assigneeUserId:N}"), ct);
+    IdempotencyKey: $"record-assigned:{recordId:N}:{assigneeUserId:N}"), ct);
 ```
 
 **Co si pohlidas:** email adresa jde do `data["email"]`, subject/body se berou z template, a PII v body zustava v durable envelope jen po omezenou dobu podle Wolverine retention. Pokud SMTP spadne, nesmis delat `try/catch` a oznacit to za hotove; exception musi spadnout do Wolverine retry/DLQ.
@@ -2296,13 +2296,13 @@ await dispatcher.Send(new SendNotificationCommand(
 ```csharp
 await dispatcher.Send(new SendNotificationCommand(
     userId,
-    "deal_due",
+    "record_due",
     ["push", "inapp"],
     new Dictionary<string, string>
     {
-        ["dealName"] = dealName,
+        ["recordName"] = recordName,
     },
-    IdempotencyKey: $"deal-due:{dealId:N}"), ct);
+    IdempotencyKey: $"record-due:{recordId:N}"), ct);
 ```
 
 **Co si pohlidas:** push je best-effort delivery channel. Trvaly fakt musi zustat v ExampleModule nebo v in-app notification/feedu. Push samotny nesmi byt jedine misto, kde user zjisti dulezitou vec.
@@ -2327,7 +2327,7 @@ await dispatcher.Send(new SendNotificationCommand(
 
 **Co se stane:** Frontend posle multipart `file` na `POST /files`. Endpoint vezme usera z tokenu, otevre stream a posle `UploadFileCommand`. Handler vygeneruje nove `fileId`, z nej serverovy `StorageKey = {userId:N}/{fileId:N}`, ulozi bytes pres `IFileStorage.PutAsync(...)` a potom ulozi metadata do `file_objects`. Response vrati `id`, `fileName`, `contentType`, `size` a `Location: /v1/files/{id}`.
 
-**Napises v novem modulu (napr. ExampleModule):** po uploadu neukladas bytes ani storage key. ExampleModule si ulozi jen `FileObjectId` do vlastni join entity, napr. `DealAttachment(DealId, FileObjectId, UploadedByUserId)`. Kdyz user klikne download, ExampleModule pouzije `/files/{fileId}` nebo vlastni endpoint, ktery si overi ExampleModule permission a pak odkazuje na Files.
+**Napises v novem modulu (napr. ExampleModule):** po uploadu neukladas bytes ani storage key. ExampleModule si ulozi jen `FileObjectId` do vlastni join entity, napr. `RecordAttachment(RecordId, FileObjectId, UploadedByUserId)`. Kdyz user klikne download, ExampleModule pouzije `/files/{fileId}` nebo vlastni endpoint, ktery si overi ExampleModule permission a pak odkazuje na Files.
 
 **Vzor frontendu:**
 
@@ -2341,8 +2341,8 @@ await api.post("/v1/files", body);
 **Vzor ExampleModule vazby:**
 
 ```csharp
-await dispatcher.Send(new AttachFileToDealCommand(
-    dealId,
+await dispatcher.Send(new AttachFileToRecordCommand(
+    recordId,
     uploadResponse.Id,
     tenant.UserId!.Value), ct);
 ```
@@ -2367,7 +2367,7 @@ await dispatcher.Send(new AttachFileToDealCommand(
 
 **Co se stane:** Files vrati metadata souboru pro prihlaseneho usera: `id`, `fileName`, `contentType`, `size`, `createdAt`. Handler pouziva read DbContext, filtruje `UserId == token user`, radi nejnovsi prvni a vraci `PagedResponse`. Kdyz posles `search`, filtruje se case-insensitive podle `FileName`; bytes se nikdy necitaji.
 
-**Napises v novem modulu (napr. ExampleModule):** ExampleModule si udela vlastni list attachmentu z ExampleModule tabulky, napr. `DealAttachment`, kde ma `DealId` a `FileObjectId`. Files `GET /files` je obecny "moje soubory" list, ne ExampleModule attachment list. Pro deal detail nejdriv over ExampleModule permission na deal a az potom zobraz file ids prirazene k dealu.
+**Napises v novem modulu (napr. ExampleModule):** ExampleModule si udela vlastni list attachmentu z ExampleModule tabulky, napr. `RecordAttachment`, kde ma `RecordId` a `FileObjectId`. Files `GET /files` je obecny "moje soubory" list, ne ExampleModule attachment list. Pro record detail nejdriv over ExampleModule permission na record a az potom zobraz file ids prirazene k recordu.
 
 **Vzor frontendu:**
 
@@ -2380,13 +2380,13 @@ const files = await api.get("/v1/files", {
 **Vzor ExampleModule query:**
 
 ```csharp
-var attachments = await db.DealAttachments
-    .Where(x => x.DealId == dealId && x.UserId == tenant.UserId)
+var attachments = await db.RecordAttachments
+    .Where(x => x.RecordId == recordId && x.UserId == tenant.UserId)
     .OrderByDescending(x => x.CreatedAt)
     .ToListAsync(ct);
 ```
 
-**Co si pohlidas:** `GET /files` neni admin endpoint. Neexistuje parametr `userId`. Kdyz ExampleModule potrebuje "soubory na dealu", patri to do ExampleModule modelu jako vazba na `FileObjectId`.
+**Co si pohlidas:** `GET /files` neni admin endpoint. Neexistuje parametr `userId`. Kdyz ExampleModule potrebuje "soubory na recordu", patri to do ExampleModule modelu jako vazba na `FileObjectId`.
 
 **Nepouzijes:** cross-module JOIN na `file_objects`, route/body user id, ani frontend filtrovani jako security.
 
@@ -2406,7 +2406,7 @@ var attachments = await db.DealAttachments
 
 **Co se stane:** Download endpoint vezme `fileId` z route a usera z tokenu. `GetFileQuery(fileId, userId)` vrati jen metadata vlastnene tim userem: `StorageKey`, display `FileName`, `ContentType`. Endpoint potom otevre stream pres `IFileStorage.GetAsync(storageKey)` a vrati `Results.Stream(...)` s ulozenym content type a file name. Response neni `ApiResponse`, je to realny stream.
 
-**Napises v novem modulu (napr. ExampleModule):** v detailu dealu zobrazis attachment button/link s `FileObjectId`. Pred zobrazenim overis ExampleModule permission na deal. Samotny Files endpoint jeste znovu overi, ze file patri prihlasenemu userovi.
+**Napises v novem modulu (napr. ExampleModule):** v detailu recordu zobrazis attachment button/link s `FileObjectId`. Pred zobrazenim overis ExampleModule permission na record. Samotny Files endpoint jeste znovu overi, ze file patri prihlasenemu userovi.
 
 **Vzor frontendu:**
 
@@ -2417,7 +2417,7 @@ window.open(`/v1/files/${fileObjectId}`, "_blank");
 **Vzor ExampleModule endpointu, kdyz chces vlastni routing:**
 
 ```csharp
-// ExampleModule overi, ze user vidi deal a ten ma prirazeny FileObjectId.
+// ExampleModule overi, ze user vidi record a ten ma prirazeny FileObjectId.
 // Bytes ale porad streamuje Files endpoint/building block, ne ExampleModule storage klient.
 ```
 
@@ -2448,10 +2448,10 @@ window.open(`/v1/files/${fileObjectId}`, "_blank");
 ```ts
 await api.patch(`/v1/files/${fileId}`, { fileName: nextName });
 queryClient.invalidateQueries({ queryKey: ["files"] });
-queryClient.invalidateQueries({ queryKey: ["deal", dealId, "attachments"] });
+queryClient.invalidateQueries({ queryKey: ["record", recordId, "attachments"] });
 ```
 
-**Vzor ExampleModule:** kdyz chces rename z deal detailu, nejdriv over, ze user vidi deal a attachment patri k dealu. Potom zavolej `PATCH /files/{fileId}`. Neobchazej Files modul.
+**Vzor ExampleModule:** kdyz chces rename z record detailu, nejdriv over, ze user vidi record a attachment patri k recordu. Potom zavolej `PATCH /files/{fileId}`. Neobchazej Files modul.
 
 **Co si pohlidas:** rename je display metadata, ne presun blobu. Kdyz user posle stejny nazev znovu, je to bezpecna idempotentni aktualizace.
 
@@ -2473,17 +2473,17 @@ queryClient.invalidateQueries({ queryKey: ["deal", dealId, "attachments"] });
 
 **Co se stane:** Endpoint vezme `fileId` z route a usera z tokenu. `DeleteFileHandler` najde jen soubor vlastneny userem. Nejdřív smaze blob pres `IFileStorage.DeleteAsync(storageKey)`, potom smaze metadata row `file_objects`. Kdyz blob delete selze, exception propadne ven a metadata zustanou, aby se dal problem dohledat a opravit.
 
-**Napises v novem modulu (napr. ExampleModule):** kdyz user odstrani soubor z dealu, vetsinou nema ExampleModule hned mazat Files blob, ale odstranit/deaktivovat vazbu `DealAttachment`. Fyzicky `DELETE /files/{fileId}` volej jen kdyz ma user opravdu mazat svuj soubor z Files. Po uspesnem delete invaliduj ExampleModule attachment list i `GET /files`.
+**Napises v novem modulu (napr. ExampleModule):** kdyz user odstrani soubor z recordu, vetsinou nema ExampleModule hned mazat Files blob, ale odstranit/deaktivovat vazbu `RecordAttachment`. Fyzicky `DELETE /files/{fileId}` volej jen kdyz ma user opravdu mazat svuj soubor z Files. Po uspesnem delete invaliduj ExampleModule attachment list i `GET /files`.
 
 **Vzor frontendu:**
 
 ```ts
 await api.delete(`/v1/files/${fileId}`);
 queryClient.invalidateQueries({ queryKey: ["files"] });
-queryClient.invalidateQueries({ queryKey: ["deal", dealId, "attachments"] });
+queryClient.invalidateQueries({ queryKey: ["record", recordId, "attachments"] });
 ```
 
-**Vzor ExampleModule:** `RemoveDealAttachmentCommand` ma smazat vazbu. `DeleteFileCommand` pouzij jen pro product akci "smazat soubor", ne pro "odebrat z dealu".
+**Vzor ExampleModule:** `RemoveRecordAttachmentCommand` ma smazat vazbu. `DeleteFileCommand` pouzij jen pro product akci "smazat soubor", ne pro "odebrat z recordu".
 
 **Co si pohlidas:** delete neni global admin delete. Cizi `fileId` je 404. Druhe smazani je taky 404, proto UI musi po uspesnem delete refreshnout cache.
 
@@ -2503,7 +2503,7 @@ queryClient.invalidateQueries({ queryKey: ["deal", dealId, "attachments"] });
 
 **Pouzijes:** Files upload + generic Files link API, nebo backend contracty z `ModularPlatform.Files.Contracts`.
 
-**Co se stane:** Files modul vlastni blob, metadata souboru a obecnou vazbu `file_links`. Produktovy modul nejdriv overi, ze user vidi svoji domenovou entitu, napr. `Project`, `Deal`, `Campaign`, `ImportRun` nebo `Case`. Potom zavola Files link API a rekne: `ownerType = "example.record"`, `ownerId = recordId`, `fileObjectId = uploaded.id`. Files overi, ze soubor patri aktualnimu userovi, ulozi link a vrati metadata pro UI. Files schvalne neoveruje, jestli `ownerId` existuje v tabulce owner modulu; to je odpovednost owner modulu.
+**Co se stane:** Files modul vlastni blob, metadata souboru a obecnou vazbu `file_links`. Produktovy modul nejdriv overi, ze user vidi svoji domenovou entitu, napr. `Project`, `Record`, `Campaign`, `ImportRun` nebo `Case`. Potom zavola Files link API a rekne: `ownerType = "example.record"`, `ownerId = recordId`, `fileObjectId = uploaded.id`. Files overi, ze soubor patri aktualnimu userovi, ulozi link a vrati metadata pro UI. Files schvalne neoveruje, jestli `ownerId` existuje v tabulce owner modulu; to je odpovednost owner modulu.
 
 **Backend API base:**
 
@@ -2559,7 +2559,7 @@ queryClient.invalidateQueries({
 
 **EC:**
 
-- EC306 owner foreign user -> 404 → produktovy modul musi pred linkem overit vlastni entitu pres `OwnerId && UserId/TenantId`; cizi record/deal/case/campaign se tvari jako neexistujici.
+- EC306 owner foreign user -> 404 → produktovy modul musi pred linkem overit vlastni entitu pres `OwnerId && UserId/TenantId`; cizi record/record/case/campaign se tvari jako neexistujici.
 - EC307 file foreign user -> 404 → `LinkFileHandler` hleda `FileObjectId && UserId`; cizi file nejde nalinkovat ani kdyz user zna GUID.
 - EC308 duplicate attachment → unique index `(UserId, OwnerType, OwnerId, FileObjectId)` + catch unique violation = idempotentni double-click.
 - EC309 owner deleted → produktovy modul uz attach endpoint nema pustit; Files link list sam o sobe owner existenci nevi, proto detail page ma list volat az po overeni owner entity.
@@ -2822,23 +2822,23 @@ internal sealed class ReconcileExampleModuleCommandHandler
 
 **Co se stane:** Browser otevře auth-gated SSE stream `/v1/realtime/stream`. Server posila eventy pro prihlaseneho usera. Pri reconnectu browser posle `Last-Event-ID`; platforma nejdriv pusti best-effort replay z Redis Streamu nebo local ring bufferu a pak live events.
 
-**Napises v novem modulu (napr. ExampleModule):** event type mapping na invalidaci `queryRoots.example`. Realtime event nema byt jediny zdroj dat; je to signal "refetchni query". Napriklad `example.deal_updated` invaliduje detail dealu a list deals.
+**Napises v novem modulu (napr. ExampleModule):** event type mapping na invalidaci `queryRoots.example`. Realtime event nema byt jediny zdroj dat; je to signal "refetchni query". Napriklad `example.record_updated` invaliduje detail recordu a list records.
 
 **Vzor frontendu:**
 
 ```ts
 const es = new EventSource("/v1/realtime/stream", { withCredentials: true });
-es.addEventListener("example.deal_updated", (event) => {
+es.addEventListener("example.record_updated", (event) => {
   const payload = JSON.parse((event as MessageEvent).data);
-  queryClient.invalidateQueries({ queryKey: ["example", "deal", payload.dealId] });
-  queryClient.invalidateQueries({ queryKey: ["example", "deals"] });
+  queryClient.invalidateQueries({ queryKey: ["example", "record", payload.recordId] });
+  queryClient.invalidateQueries({ queryKey: ["example", "records"] });
 });
 ```
 
 **Vzor backend publish:** publikuj az po commitu. Pokud pouzivas outbox worker, publikuj v workeru po ulozeni stavu; pokud je to rychla in-request mutace, zavolej realtime az po `SaveChanges`.
 
 ```csharp
-await realtime.PublishToUserAsync(userId, "example.deal_updated", new { dealId }, ct);
+await realtime.PublishToUserAsync(userId, "example.record_updated", new { recordId }, ct);
 ```
 
 **Co si pohlidas:** replay je UX smoothing, ne guarantee. Durable pravda je DB/API. Kdyz user byl dlouho offline a replay buffer uz event nema, frontend stejne musi refetchnout pri focusu/navratu.
@@ -2876,14 +2876,14 @@ internal sealed class ExampleModulePersonalDataExporter(IReadDbContextFactory<Ex
     public async Task<IReadOnlyDictionary<string, object?>> ExportAsync(Guid userId, CancellationToken ct)
     {
         await using var db = readDb.Create();
-        var contacts = await db.Contacts
+        var records = await db.Records
             .Where(x => x.UserId == userId)
             .Select(x => new { x.Id, x.Name, x.Email, x.CreatedAt })
             .ToListAsync(ct);
 
         return new Dictionary<string, object?>
         {
-            ["contacts"] = contacts,
+            ["records"] = records,
         };
     }
 }
@@ -2905,7 +2905,7 @@ services.AddScoped<IExportPersonalData, ExampleModulePersonalDataExporter>();
 - EC347 exporter throw nesmi shodit cely export → handler izoluje exporter exception a vlozi `error=export_failed`.
 - EC348 export foreign user zakazan → subject id je vzdy `ITenantContext.UserId`, ne route/body.
 - EC349 PII z encrypted columns se cte pres converter → pouzij EF/read DbContext, ne raw SQL.
-- EC350 export format musi byt stabilni → sekce keyed by `ModuleName`, polozky pojmenuj stabilne (`contacts`, `deals`, `attachments`).
+- EC350 export format musi byt stabilni → sekce keyed by `ModuleName`, polozky pojmenuj stabilne (`records`, `records`, `attachments`).
 
 ### UC71 Request erasure
 
@@ -2926,14 +2926,14 @@ internal sealed class ExampleModulePersonalDataEraser(ExampleModuleDbContext db)
 
     public async Task EraseAsync(Guid userId, CancellationToken ct)
     {
-        var contacts = await db.Contacts
+        var records = await db.Records
             .Where(x => x.UserId == userId)
             .ToListAsync(ct);
 
-        foreach (var contact in contacts)
+        foreach (var record in records)
         {
-            contact.Name = "";
-            contact.Email = "";
+            record.Name = "";
+            record.Email = "";
         }
 
         await db.SaveChangesAsync(ct);
@@ -3080,14 +3080,14 @@ sloupcich. Overeno `VibeChatTests.Start_send_and_the_durable_worker_persists_an_
 
 **Pouzijes:** `[PersonalData]`, `[Encrypted]`, `IDataSubject`, `IBlindIndexHasher`, GDPR crypto-shredder.
 
-**Co se stane:** ExampleModule kontakt muze mit email, jmeno, telefon nebo poznamku s osobnimi udaji, ale v databazi nelezi jako cisty text. Live sloupec se ulozi jako encrypted envelope `penc:v2...`, audit PII hodnoty jsou chranene pres subject key a po GDPR erasure se daji znecitelnit crypto-shreddem. Aplikace pri normalnim cteni dostane plaintext; po shred vrati `[erased]`.
+**Co se stane:** ExampleModule zaznam muze mit email, jmeno, telefon nebo poznamku s osobnimi udaji, ale v databazi nelezi jako cisty text. Live sloupec se ulozi jako encrypted envelope `penc:v2...`, audit PII hodnoty jsou chranene pres subject key a po GDPR erasure se daji znecitelnit crypto-shreddem. Aplikace pri normalnim cteni dostane plaintext; po shred vrati `[erased]`.
 
-**Mentalni model:** `[Encrypted]` chrani aktualni hodnotu v tabulce, `[PersonalData]` rika auditu/GDPR "tohle je osobni udaj" a `IDataSubject.SubjectId` rika, komu ten udaj patri. U ExampleModule kontaktu typicky nechces subjectem delat samotny kontakt, ale ownera z tokenu (`UserId`), aby erasure uzivatele znicila jeho ExampleModule PII.
+**Mentalni model:** `[Encrypted]` chrani aktualni hodnotu v tabulce, `[PersonalData]` rika auditu/GDPR "tohle je osobni udaj" a `IDataSubject.SubjectId` rika, komu ten udaj patri. U ExampleModule zaznamu typicky nechces subjectem delat samotny zaznam, ale ownera z tokenu (`UserId`), aby erasure uzivatele znicila jeho ExampleModule PII.
 
 **Napises v novem modulu (napr. ExampleModule):** entity oznacis atributy, pridas hash sloupec pro lookup a v handleru nikdy nehledas podle encrypted hodnoty.
 
 ```csharp
-internal sealed class ExampleModuleContact : AuditableEntity, ITenantScoped, IUserOwned, IDataSubject
+internal sealed class ExampleModuleRecord : AuditableEntity, ITenantScoped, IUserOwned, IDataSubject
 {
     public Guid UserId { get; set; }
 
@@ -3111,7 +3111,7 @@ internal sealed class ExampleModuleContact : AuditableEntity, ITenantScoped, IUs
 var normalizedEmail = request.Email.Trim().ToUpperInvariant();
 var emailHash = blindIndexHasher.Hash(normalizedEmail);
 
-var contact = await db.Contacts
+var record = await db.Records
     .Where(x => x.UserId == tenant.UserId)
     .FirstOrDefaultAsync(x => x.EmailHash == emailHash, ct);
 ```
@@ -3119,18 +3119,18 @@ var contact = await db.Contacts
 **Create/update:** pred ulozenim nastav plaintext do `Email`; interceptor ho pri `SaveChanges` zasifruje. Zaroven nastav `EmailHash`, protoze ten se pouziva na duplicate check a lookup. Hash neni plaintext email, ale porad se k nemu chovej jako k citlivemu technickemu identifikatoru.
 
 ```csharp
-contact.Email = normalizedEmail;
-contact.EmailHash = blindIndexHasher.Hash(normalizedEmail);
-contact.DisplayName = request.DisplayName.Trim();
+record.Email = normalizedEmail;
+record.EmailHash = blindIndexHasher.Hash(normalizedEmail);
+record.DisplayName = request.DisplayName.Trim();
 
 await db.SaveChangesAsync(ct);
 ```
 
-**Cross-module event:** kdyz ExampleModule publikuje `ExampleModuleContactCreatedIntegrationEvent`, neposilej v nem email/body/poznamku jen proto, ze se to hodi consumerovi. Posli `ContactId`, `OwnerUserId`, pripadne ne-PII business stav. Consumer si PII dotahne pres povoleny query/contract, pokud k tomu ma opravneni.
+**Cross-module event:** kdyz ExampleModule publikuje `ExampleModuleRecordCreatedIntegrationEvent`, neposilej v nem email/body/poznamku jen proto, ze se to hodi consumerovi. Posli `RecordId`, `OwnerUserId`, pripadne ne-PII business stav. Consumer si PII dotahne pres povoleny query/contract, pokud k tomu ma opravneni.
 
 ```csharp
-public sealed record ExampleModuleContactCreatedIntegrationEvent(
-    Guid ContactId,
+public sealed record ExampleModuleRecordCreatedIntegrationEvent(
+    Guid RecordId,
     Guid OwnerUserId,
     DateTimeOffset OccurredAtUtc) : IIntegrationEvent;
 ```
@@ -3160,7 +3160,7 @@ public sealed record ExampleModuleContactCreatedIntegrationEvent(
 **Napises v novem modulu (napr. ExampleModule):** entity dej `AuditableEntity`, zmeny delaj v command handleru pres tracked load a `SaveChanges`.
 
 ```csharp
-internal sealed class ExampleModuleContact : AuditableEntity, ITenantScoped, IUserOwned
+internal sealed class ExampleModuleRecord : AuditableEntity, ITenantScoped, IUserOwned
 {
     public Guid UserId { get; set; }
     public string CompanyName { get; set; } = string.Empty;
@@ -3169,25 +3169,25 @@ internal sealed class ExampleModuleContact : AuditableEntity, ITenantScoped, IUs
 ```
 
 ```csharp
-var contact = await db.Contacts
-    .FirstOrDefaultAsync(x => x.Id == command.ContactId
+var record = await db.Records
+    .FirstOrDefaultAsync(x => x.Id == command.RecordId
                               && x.UserId == tenant.UserId, ct)
-    ?? throw new NotFoundException("example.contact_not_found", "Contact not found.");
+    ?? throw new NotFoundException("example.record_not_found", "Record not found.");
 
-contact.Stage = command.Stage;
-contact.CompanyName = command.CompanyName.Trim();
+record.Stage = command.Stage;
+record.CompanyName = command.CompanyName.Trim();
 
 await db.SaveChangesAsync(ct);
 ```
 
 **Jak to bude v auditu:** update ulozi napr. `ChangedColumns = ["Stage","CompanyName"]` a `NewValues` jen pro tyto zmenene hodnoty. `CreatedAt/CreatedBy/UpdatedAt/UpdatedBy` doplni interceptor automaticky u `AuditableEntity`.
 
-**Audit read endpoint pro ExampleModule:** kdyz chces ukazat historii kontaktu, udelej samostatnou query slice, napr. `GetContactAuditTrail`. Query cte `db.AuditEntries` no-tracking, filtruje `EntityType == "ExampleModuleContact"` a `EntityId == contactId.ToString()`. Endpoint musi mit `.RequirePermission(PlatformPermissions.AuditRead)`.
+**Audit read endpoint pro ExampleModule:** kdyz chces ukazat historii zaznamu, udelej samostatnou query slice, napr. `GetRecordAuditTrail`. Query cte `db.AuditEntries` no-tracking, filtruje `EntityType == "ExampleModuleRecord"` a `EntityId == recordId.ToString()`. Endpoint musi mit `.RequirePermission(PlatformPermissions.AuditRead)`.
 
 ```csharp
-var entityId = query.ContactId.ToString();
+var entityId = query.RecordId.ToString();
 var rows = await db.AuditEntries
-    .Where(a => a.EntityType == "ExampleModuleContact" && a.EntityId == entityId)
+    .Where(a => a.EntityType == "ExampleModuleRecord" && a.EntityId == entityId)
     .OrderByDescending(a => a.Timestamp)
     .ToListAsync(ct);
 ```
@@ -3220,7 +3220,7 @@ var rows = await db.AuditEntries
 
 **Mentalni model:** per-module eraser uklidi ciste texty nebo business radky, ktere musi zustat. Crypto-shred je autoritativni privacy akt pro encrypted PII a audit PII. Backupy nebo append-only audit nemusi fyzicky prepisovat stare ciphertexty, protoze bez DEK jsou nepouzitelne.
 
-**Napises v novem modulu (napr. ExampleModule):** pokud ExampleModule drzi kontakty, poznamky, import snapshots nebo AI analyzy s PII, zaregistruj `IErasePersonalData` v `ExampleModuleModule.RegisterServices`.
+**Napises v novem modulu (napr. ExampleModule):** pokud ExampleModule drzi zaznamy, poznamky, import snapshots nebo AI analyzy s PII, zaregistruj `IErasePersonalData` v `ExampleModuleModule.RegisterServices`.
 
 ```csharp
 services.AddScoped<IErasePersonalData, ExampleModulePersonalDataEraser>();
@@ -3233,7 +3233,7 @@ internal sealed class ExampleModulePersonalDataEraser(ExampleModuleDbContext db)
 
     public async Task EraseAsync(Guid userId, CancellationToken ct)
     {
-        await db.Contacts
+        await db.Records
             .Where(x => x.UserId == userId)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(x => x.Email, string.Empty)
@@ -3252,7 +3252,7 @@ internal sealed class ExampleModulePersonalDataEraser(ExampleModuleDbContext db)
 
 **Frontend UX:** po `POST /gdpr/me/erase` ber user account jako terminalni stav. Odhlas ho, zrus local cache, nepokousej se znovu nacitat ExampleModule detail. Pokud UI nekde uvidi `[erased]`, zobrazi privacy-safe placeholder a nepusti editaci erased profilu.
 
-**Testy k novemu modulu:** vytvor kontakt s PII, zavolej erasure, over ze ExampleModule plaintext/lookup sloupce jsou anonymizovane, encrypted/audit read vraci `[erased]`, opakovany erasure je no-op a cizi user data zustanou nedotcena.
+**Testy k novemu modulu:** vytvor zaznam s PII, zavolej erasure, over ze ExampleModule plaintext/lookup sloupce jsou anonymizovane, encrypted/audit read vraci `[erased]`, opakovany erasure je no-op a cizi user data zustanou nedotcena.
 
 **Nepouzijes:** fyzicky delete ledger/audit rows, custom crypto shred v ExampleModule, mazani `subject_keys` radku, novy DEK po erasure, ani cross-module direct calls.
 
@@ -3303,7 +3303,7 @@ internal sealed class ExampleModuleRetentionSweepHandler(ExampleModuleDbContext 
 
 **Registrace jobu:** v `ExampleModuleModule.RegisterJobs` pridej trigger s cronem z configu, napr. `Modules:ExampleModule:Jobs:RetentionSweepCron`. Cron interpretuj jako UTC a dej cap per run, pokud ma tabulka rust hodne.
 
-**Co purgeovat v ExampleModule:** do doc/spec si u kazde tabulky rekni, jestli je to legal/audit/business record nebo jen temporary cache. Temporary import chunks ano. ExampleModule contacts vetsinou ne, dokud existuje owner nebo legal/business retention. Audit rows ne.
+**Co purgeovat v ExampleModule:** do doc/spec si u kazde tabulky rekni, jestli je to legal/audit/business record nebo jen temporary cache. Temporary import chunks ano. ExampleModule records vetsinou ne, dokud existuje owner nebo legal/business retention. Audit rows ne.
 
 **Testy k novemu modulu:** testuj, ze sweep smaze jen stare purgeable ExampleModule rows, nesmaze nove rows, je idempotentni, nesaha na subject key tombstones a Jobs host nabootuje s registovanou job dependency graph.
 
@@ -3545,7 +3545,7 @@ app.MapGet("/example/imports", async (
 
 **Co se stane:** Worker po pullu prevede raw provider vysledek na normalizovane snapshots. UI pak necita raw JSON z externiho API, ale rychly read model: source, metricName, dimension, value, detailJson, recordedAt. Endpoint vraci paged list, owner-scoped a volitelne filtrovany podle source.
 
-**Mentalni model:** snapshot je stav k precteni, ne prikaz a ne log chyby. U ExampleModule to muze byt napr. "importovane firmy", "enrichment score", "deduplikacni kandidat", "lead score v case" nebo "stav kontaktu z externiho systemu". Kdyz data budes ukazovat casto, preloz je ve workeru do vlastni tabulky misto toho, aby frontend pokazde parsoval raw import payload.
+**Mentalni model:** snapshot je stav k precteni, ne prikaz a ne log chyby. U ExampleModule to muze byt napr. "importovane firmy", "enrichment score", "deduplikacni kandidat", "item score v case" nebo "stav zaznamu z externiho systemu". Kdyz data budes ukazovat casto, preloz je ve workeru do vlastni tabulky misto toho, aby frontend pokazde parsoval raw import payload.
 
 **Entity pattern:** high-volume read model muze dedit `Entity` misto `AuditableEntity`, pokud nepotrebujes audit kazdeho bodu. Musi byt `IUserOwned` nebo `ITenantScoped` podle toho, kdo snapshot vlastni.
 
@@ -3606,7 +3606,7 @@ return await snapshots
 
 **Co se stane:** Worker po completed pullu nacte snapshots, zavola AI gateway, ulozi `MarketingAnalysis` a az pak UI cte list analyz. List endpoint uz AI nevola; jen vraci ulozene zaznamy od nejnovejsiho.
 
-**Mentalni model:** AI vystup je domenovy artefakt. Kdyz ExampleModule vygeneruje "deal risk analysis", "lead quality insight" nebo "next best action", uloz ho do DB s vazbou na vstupni import/kontakt/deal. Jinak ho neumi GDPR export, audit, detail endpoint ani historie UI.
+**Mentalni model:** AI vystup je domenovy artefakt. Kdyz ExampleModule vygeneruje "record risk analysis", "lead quality insight" nebo "next best action", uloz ho do DB s vazbou na vstupni import/record/analysis source. Jinak ho neumi GDPR export, audit, detail endpoint ani historie UI.
 
 **Entity pattern:** dej ownera, vazbu na zdroj dat, kratky summary pro list a strukturovany JSON pro detail.
 
@@ -3615,7 +3615,7 @@ internal sealed class ExampleModuleAnalysis : AuditableEntity, IUserOwned
 {
     public Guid UserId { get; set; }
     public Guid? ImportId { get; set; }
-    public Guid? DealId { get; set; }
+    public Guid? RecordId { get; set; }
     public string AnalysisType { get; set; } = string.Empty;
     public string Summary { get; set; } = string.Empty;
     public string? InsightsJson { get; set; }
@@ -3715,15 +3715,15 @@ return new ExampleModuleAnalysisDetail(
 
 **Co se stane:** Backend vytvori prazdnou conversation owned by token user, ulozi title a vrati `201 Created + Location` na detail threadu. AI se tady jeste nevola; message/odpoved resi dalsi UC.
 
-**Mentalni model:** conversation je kontejner. U ExampleModule assistantu to muze byt chat nad dealem, kontaktem, pipeline nebo obecny workspace chat. Start endpoint nema generovat odpoved, jen zalozit thread, aby UI melo stabilni `ConversationId`.
+**Mentalni model:** conversation je kontejner. U ExampleModule assistantu to muze byt chat nad recordem, workflow nebo domenovym kontextem nebo obecny workspace chat. Start endpoint nema generovat odpoved, jen zalozit thread, aby UI melo stabilni `ConversationId`.
 
-**Entity pattern:** owner z tokenu, title, soft delete pro sidebar, pripadne context vazba (`DealId`, `ContactId`, `PromptVersion`).
+**Entity pattern:** owner z tokenu, title, soft delete pro sidebar, pripadne context vazba (`RecordId`, `RecordId`, `PromptVersion`).
 
 ```csharp
 internal sealed class ExampleModuleConversation : AuditableEntity, IUserOwned, ISoftDeletable
 {
     public Guid UserId { get; set; }
-    public Guid? DealId { get; set; }
+    public Guid? RecordId { get; set; }
     public string Title { get; set; } = string.Empty;
     public string PromptVersion { get; set; } = "example-assistant-v1";
     public DateTimeOffset? DeletedAt { get; set; }
@@ -3740,7 +3740,7 @@ var title = string.IsNullOrWhiteSpace(command.Title)
 var conversation = new ExampleModuleConversation
 {
     UserId = command.UserId,
-    DealId = command.DealId,
+    RecordId = command.RecordId,
     Title = title,
     PromptVersion = "example-assistant-v1",
 };
@@ -4065,7 +4065,7 @@ await db.SaveChangesAsync(ct);
 
 **Co se stane:** GDPR modul nevi nic o Core zadneho produktoveho modulu. Jen zavola vsechny registrovane exportery/erasery. Marketing exporter vraci sekce `pulls`, `snapshots`, `analyses`, `vibe_conversations`, `vibe_messages`; encrypted live columns se pri exportu ctou pres converter jako plaintext, dokud subject key existuje. Marketing eraser maze vsechny subject-owned rows, protoze nema legal retention. Novy modul musi udelat stejne rozhodnuti pro svoje tabulky.
 
-**Mentalni model:** kazdy modul je vlastnik svych dat, takze je vlastnik i GDPR export/erase. GDPR modul je orchestrator, ne cross-module reaper. Pokud ExampleModule obsahuje kontakty, notes, AI chats, files vazby nebo importy, ExampleModule samo rekne, co exportuje a co maze/anonymizuje.
+**Mentalni model:** kazdy modul je vlastnik svych dat, takze je vlastnik i GDPR export/erase. GDPR modul je orchestrator, ne cross-module reaper. Pokud ExampleModule obsahuje zaznamy, notes, AI chats, files vazby nebo importy, ExampleModule samo rekne, co exportuje a co maze/anonymizuje.
 
 **Exporter:** read-only, owner filter, pojmenovane sekce. Nevracej provider raw payloady, secrets ani interni tool traces, pokud nejsou osobni data uzivatele k exportu.
 
@@ -4079,7 +4079,7 @@ internal sealed class ExampleModulePersonalDataExporter(IReadDbContextFactory<Ex
     {
         await using var db = readFactory.Create();
 
-        var contacts = await db.Contacts
+        var records = await db.Records
             .Where(x => x.UserId == userId)
             .Select(x => new { x.Id, x.DisplayName, x.Email, x.CreatedAt })
             .ToListAsync(ct);
@@ -4092,7 +4092,7 @@ internal sealed class ExampleModulePersonalDataExporter(IReadDbContextFactory<Ex
 
         return new Dictionary<string, object?>
         {
-            ["contacts"] = contacts,
+            ["records"] = records,
             ["conversations"] = conversations,
         };
     }
@@ -4111,7 +4111,7 @@ internal sealed class ExampleModulePersonalDataEraser(ExampleModuleDbContext db)
         await db.Messages.Where(x => x.UserId == userId).ExecuteDeleteAsync(ct);
         await db.Conversations.IgnoreQueryFilters().Where(x => x.UserId == userId).ExecuteDeleteAsync(ct);
 
-        await db.Contacts
+        await db.Records
             .Where(x => x.UserId == userId)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(x => x.Email, string.Empty)
@@ -4288,7 +4288,7 @@ catch
 
 **Pouzijes:** `IIntegrationEvent` v `ModularPlatform.ExampleModule.Contracts`, `IDbContextOutbox<ExampleModuleDbContext>`, `PublishAsync`, `SaveChangesAndFlushMessagesAsync`.
 
-**Co se stane:** ExampleModule ulozi vlastni stav, napr. deal/contact/import, a ve stejne transakci publikuje fakt pro ostatni moduly. Worker pozdeji doruci event subscriberum. Kdyz DB commit selze, event se neodesle. Kdyz event doruceni selze, zustane v durable outboxu/retry.
+**Co se stane:** ExampleModule ulozi vlastni stav, napr. record/record/import, a ve stejne transakci publikuje fakt pro ostatni moduly. Worker pozdeji doruci event subscriberum. Kdyz DB commit selze, event se neodesle. Kdyz event doruceni selze, zustane v durable outboxu/retry.
 
 **Mentalni model:** event je oznameni "tohle se uz stalo", ne prosba "udelej neco". ExampleModule nema vedet, kdo vsechno posloucha. Notifications muze poslat zpravu, Marketing muze aktualizovat projekci, Billing muze merit spotrebu. ExampleModule jen publikuje fakt.
 
@@ -4297,10 +4297,10 @@ catch
 ```csharp
 namespace ModularPlatform.ExampleModule.Contracts;
 
-public sealed record DealCreatedIntegrationEvent(
+public sealed record RecordCreatedIntegrationEvent(
     Guid EventId,
     DateTimeOffset OccurredAt,
-    Guid DealId,
+    Guid RecordId,
     Guid OwnerUserId,
     Guid TenantId) : IIntegrationEvent;
 ```
@@ -4308,19 +4308,19 @@ public sealed record DealCreatedIntegrationEvent(
 **Handler publish ve ExampleModule:** nejdriv priprav entitu, publishni event pres outbox a commitni pres `SaveChangesAndFlushMessagesAsync`.
 
 ```csharp
-var deal = new Deal
+var record = new Record
 {
     UserId = command.UserId,
     Name = command.Name.Trim(),
-    Stage = DealStage.New,
+    Stage = RecordStage.New,
 };
 
-outbox.DbContext.Deals.Add(deal);
+outbox.DbContext.Records.Add(record);
 
-await outbox.PublishAsync(new DealCreatedIntegrationEvent(
+await outbox.PublishAsync(new RecordCreatedIntegrationEvent(
     EventId: Guid.CreateVersion7(),
     OccurredAt: clock.UtcNow,
-    DealId: deal.Id,
+    RecordId: record.Id,
     OwnerUserId: command.UserId,
     TenantId: tenant.TenantId!.Value));
 
@@ -4329,15 +4329,15 @@ await outbox.SaveChangesAndFlushMessagesAsync();
 
 **Payload:** posilej hlavne IDs, cas a minimalni stav. Neposilej cele ExampleModule entity, dlouhe notes, PII ani provider raw payload. Consumer si detail dotahne pres povoleny query contract, pokud ho potrebuje.
 
-**Ordering:** nepocitej, ze eventy prijdou v poradi. Kdyz publishnes `DealCreated` a pak `DealUpdated`, consumer musi byt idempotentni a order-independent nebo si dotahnout live stav.
+**Ordering:** nepocitej, ze eventy prijdou v poradi. Kdyz publishnes `RecordCreated` a pak `RecordUpdated`, consumer musi byt idempotentni a order-independent nebo si dotahnout live stav.
 
 **Testy k novemu modulu:** po create existuje DB row i outgoing envelope/event, pri failed save event nevznikne, payload neobsahuje PII, wire name je zmrazeny v message identity testech, handler subscriberu je idempotentni.
 
-**Nepouzijes:** event jako request-response, present-tense `CreateDealEvent`, payload s celou entitou, publish pred ulozenim stavu, ani in-memory event bus mimo outbox.
+**Nepouzijes:** event jako request-response, present-tense `CreateRecordEvent`, payload s celou entitou, publish pred ulozenim stavu, ani in-memory event bus mimo outbox.
 
 **EC:**
 
-- EC466 event je past-tense fact → `DealCreatedIntegrationEvent`, ne `CreateDealIntegrationEvent`.
+- EC466 event je past-tense fact → `RecordCreatedIntegrationEvent`, ne `CreateRecordIntegrationEvent`.
 - EC467 event payload minimalni, hlavne IDs → PII/detail si consumer dotahne pres query contract.
 - EC468 publish az po DB state → publish pres outbox a commitni s `SaveChangesAndFlushMessagesAsync`.
 - EC469 event handler order neni garantovany → consumers musi byt idempotentni/order-independent.
@@ -4556,23 +4556,23 @@ var result = await bus.InvokeAsync<LeadScoreResult>(
 
 **Pouzijes:** Wolverine durable handlers, inbox dedup, idempotency keys, optional `MultipleHandlerBehavior.Separated` rozhodnuti.
 
-**Co se stane:** Jeden event, napr. `UserRegisteredIntegrationEvent` nebo `DealCreatedIntegrationEvent`, muze poslouchat vic modulu. Kazdy subscriber ma vlastni side effect: Billing provisionuje ucet, Notifications posle welcome, ExampleModule vytvori snapshot. Wolverine event doruci durable; retry muze zopakovat cely handler set podle aktualniho behavioru.
+**Co se stane:** Jeden event, napr. `UserRegisteredIntegrationEvent` nebo `RecordCreatedIntegrationEvent`, muze poslouchat vic modulu. Kazdy subscriber ma vlastni side effect: Billing provisionuje ucet, Notifications posle welcome, ExampleModule vytvori snapshot. Wolverine event doruci durable; retry muze zopakovat cely handler set podle aktualniho behavioru.
 
 **Mentalni model:** event bus neni choreografie v pevnem poradi. Handler nesmi rikat "pockam, az Notifications uz poslaly email" nebo "Billing handler urcite bezi pred ExampleModule". Pokud neco potrebujes, dotahni live stav pres query contract nebo si udelej vlastni idempotentni projekci.
 
 **Priklad handleru v novem modulu:** kazdy handler dela jednu vec a je bezpecny pri redelivery.
 
 ```csharp
-public sealed class DealCreatedAnalyticsHandler
+public sealed class RecordCreatedAnalyticsHandler
 {
-    public Task Handle(DealCreatedIntegrationEvent message, IDispatcher dispatcher, CancellationToken ct) =>
-        dispatcher.Send(new RecordDealCreatedMetricCommand(message.DealId, message.EventId), ct);
+    public Task Handle(RecordCreatedIntegrationEvent message, IDispatcher dispatcher, CancellationToken ct) =>
+        dispatcher.Send(new RecordRecordCreatedMetricCommand(message.RecordId, message.EventId), ct);
 }
 
-public sealed class DealCreatedNotificationHandler
+public sealed class RecordCreatedNotificationHandler
 {
-    public Task Handle(DealCreatedIntegrationEvent message, IDispatcher dispatcher, CancellationToken ct) =>
-        dispatcher.Send(new SendDealCreatedNotificationCommand(message.DealId, message.EventId), ct);
+    public Task Handle(RecordCreatedIntegrationEvent message, IDispatcher dispatcher, CancellationToken ct) =>
+        dispatcher.Send(new SendRecordCreatedNotificationCommand(message.RecordId, message.EventId), ct);
 }
 ```
 
@@ -4607,10 +4607,10 @@ PII/raw-looking fields v `IIntegrationEvent` payloadech, pokud nejsou vedome all
 **Dobry event:** minimalni, past-tense, bez PII.
 
 ```csharp
-public sealed record DealWonIntegrationEvent(
+public sealed record RecordCompletedIntegrationEvent(
     Guid EventId,
     DateTimeOffset OccurredAt,
-    Guid DealId,
+    Guid RecordId,
     Guid OwnerUserId,
     Guid TenantId,
     decimal Amount,
@@ -4620,20 +4620,20 @@ public sealed record DealWonIntegrationEvent(
 **Spatny event:** nese vsechno, co bylo po ruce.
 
 ```csharp
-// Nepouzivat: email, customer note, full deal object a raw AI text budou lezet v durable envelope.
-public sealed record DealWonIntegrationEvent(
-    Guid DealId,
+// Nepouzivat: email, customer note, full record object a raw AI text budou lezet v durable envelope.
+public sealed record RecordCompletedIntegrationEvent(
+    Guid RecordId,
     string CustomerEmail,
     string CustomerPrivateNote,
     string AiSummaryJson,
-    DealDto FullDeal) : IIntegrationEvent;
+    RecordDto FullRecord) : IIntegrationEvent;
 ```
 
 **Kdy PII v eventu tolerovat:** jen kdyz je to nutne pro send path, napr. email delivery message potrebuje `ToAddress` a body. I tam se spolehni na platform retention pro durable envelopes a neposilej vic nez delivery potrebuje.
 
-**Consumer potrebuje PII:** dej mu query contract s permission/scope. Event nese `DealId`; consumer zavola `GetDealNotificationDataQuery`, pokud je to povolene. Tak zustane PII v DB s encryption/erasure pravidly, ne v message envelope.
+**Consumer potrebuje PII:** dej mu query contract s permission/scope. Event nese `RecordId`; consumer zavola `GetRecordNotificationDataQuery`, pokud je to povolene. Tak zustane PII v DB s encryption/erasure pravidly, ne v message envelope.
 
-**Wire compatibility:** prejmenovani event typu nebo namespace je breaking change pro durable messages. Kdyz musis zmenit payload breaking zpusobem, pridej novy event typ `DealWonV2IntegrationEvent` nebo kompatibilni optional fields a aktualizuj frozen wire name testy vedome.
+**Wire compatibility:** prejmenovani event typu nebo namespace je breaking change pro durable messages. Kdyz musis zmenit payload breaking zpusobem, pridej novy event typ `RecordCompletedV2IntegrationEvent` nebo kompatibilni optional fields a aktualizuj frozen wire name testy vedome.
 
 **Testy k novemu modulu:** event payload neobsahuje PII fields, serialization wire name je zmrazeny, consumer umi dotahnout detail pres query, stary event shape zustava kompatibilni nebo ma V2 migration rozhodnuti.
 
@@ -4743,8 +4743,8 @@ src/modules/ExampleModule/
   ModularPlatform.ExampleModule/
     ExampleModuleModule.cs
     Persistence/ExampleModuleDbContext.cs
-    Entities/Contact.cs
-    Features/Contacts/CreateContact/...
+    Entities/Record.cs
+    Features/Records/CreateRecord/...
     Messaging/...
     Jobs/...
     Gdpr/...
@@ -4780,7 +4780,7 @@ internal sealed class ExampleModuleDbContext(DbContextOptions<ExampleModuleDbCon
     : PlatformDbContext(options, tenant)
 {
     protected override string ModuleName => "ExampleModule";
-    public DbSet<Contact> Contacts => Set<Contact>();
+    public DbSet<Record> Records => Set<Record>();
 }
 ```
 
@@ -4823,7 +4823,7 @@ import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
 import { getQueryClient } from "@/lib/api/query-client";
 import { entitlementQueries, isModuleEnabled } from "@/features/entitlements/api";
 import { exampleQueries } from "@/features/example/api";
-import { ExampleModuleContactsPanel } from "@/features/example/components/contacts-panel";
+import { ExampleModuleRecordsPanel } from "@/features/example/components/records-panel";
 import { ExampleModuleAssistantPanel } from "@/features/example/components/assistant-panel";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -4838,7 +4838,7 @@ export default async function ExampleModulePage() {
   const ent = await queryClient.fetchQuery(entitlementQueries.me());
   if (!isModuleEnabled(ent, "example")) notFound();
 
-  void queryClient.prefetchQuery(exampleQueries.contacts());
+  void queryClient.prefetchQuery(exampleQueries.records());
   void queryClient.prefetchQuery(exampleQueries.imports());
 
   return (
@@ -4848,7 +4848,7 @@ export default async function ExampleModulePage() {
           <h1 className="text-xl font-semibold tracking-tight">{t("page.heading")}</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">{t("page.description")}</p>
         </div>
-        <ExampleModuleContactsPanel />
+        <ExampleModuleRecordsPanel />
         <ExampleModuleAssistantPanel />
       </div>
     </HydrationBoundary>
@@ -4880,7 +4880,7 @@ export default async function ExampleModulePage() {
 
 **Pouzijes:** `frontend/features/{module}/api.ts`, `apiFetch`, `queryOptions`, `queryRoots`, TypeScript response/request typy. V ukazce je `{module} = example`.
 
-**Co se stane:** Vsechny endpoint paths, request/response typy, query factories a mutation functions modulu jsou na jednom miste. Komponenty a hooky uz jen importuji query factories a mutation functions, napr. `exampleQueries`, `createContact`, `startImport`, `sendExampleModuleMessage`.
+**Co se stane:** Vsechny endpoint paths, request/response typy, query factories a mutation functions modulu jsou na jednom miste. Komponenty a hooky uz jen importuji query factories a mutation functions, napr. `exampleQueries`, `createRecord`, `startImport`, `sendExampleModuleMessage`.
 
 **Mentalni model:** `api.ts` je frontend contract mirror backend recordu. Kdyz se zmeni C# response shape, upravis tady typ. Komponenty nesmi skladat URL stringy nebo volat `fetch` primo.
 
@@ -4896,7 +4896,7 @@ export interface ExampleModulePaged<T> {
   totalCount: number;
 }
 
-export interface ContactListItem {
+export interface RecordListItem {
   id: string;
   displayName: string;
   companyName: string | null;
@@ -4904,19 +4904,19 @@ export interface ContactListItem {
   updatedAt: string | null;
 }
 
-export interface ContactDetail extends ContactListItem {
+export interface RecordDetail extends RecordListItem {
   email: string | null;
   notes: string | null;
 }
 
-export interface CreateContactRequest {
+export interface CreateRecordRequest {
   displayName: string;
   email?: string;
   companyName?: string;
 }
 
-export interface CreateContactResponse {
-  contactId: string;
+export interface CreateRecordResponse {
+  recordId: string;
 }
 ```
 
@@ -4924,21 +4924,21 @@ export interface CreateContactResponse {
 
 ```ts
 export const exampleQueries = {
-  contacts: (page = 1, pageSize = 20, search?: string) =>
+  records: (page = 1, pageSize = 20, search?: string) =>
     queryOptions({
-      queryKey: [...queryRoots.example, "contacts", page, pageSize, search ?? null],
+      queryKey: [...queryRoots.example, "records", page, pageSize, search ?? null],
       queryFn: () => {
         const sp = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
         if (search) sp.set("search", search);
-        return apiFetch<ExampleModulePaged<ContactListItem>>(`example/contacts?${sp.toString()}`);
+        return apiFetch<ExampleModulePaged<RecordListItem>>(`example/records?${sp.toString()}`);
       },
       staleTime: 30_000,
     }),
 
-  contact: (id: string) =>
+  record: (id: string) =>
     queryOptions({
-      queryKey: [...queryRoots.example, "contacts", id],
-      queryFn: () => apiFetch<ContactDetail>(`example/contacts/${id}`),
+      queryKey: [...queryRoots.example, "records", id],
+      queryFn: () => apiFetch<RecordDetail>(`example/records/${id}`),
       staleTime: 30_000,
     }),
 };
@@ -4947,19 +4947,19 @@ export const exampleQueries = {
 **Mutation functions:** bez React hook logiky; jen volani API.
 
 ```ts
-export function createContact(body: CreateContactRequest): Promise<CreateContactResponse> {
-  return apiFetch<CreateContactResponse>("example/contacts", {
+export function createRecord(body: CreateRecordRequest): Promise<CreateRecordResponse> {
+  return apiFetch<CreateRecordResponse>("example/records", {
     method: "POST",
     body,
   });
 }
 
-export function deleteContact(contactId: string): Promise<void> {
-  return apiFetch<void>(`example/contacts/${contactId}`, { method: "DELETE" });
+export function deleteRecord(recordId: string): Promise<void> {
+  return apiFetch<void>(`example/records/${recordId}`, { method: "DELETE" });
 }
 ```
 
-**BFF path:** neposilej `/v1`. `apiFetch("example/contacts")` jde pres `/api/bff/example/contacts`; BFF/backend resi `/v1`.
+**BFF path:** neposilej `/v1`. `apiFetch("example/records")` jde pres `/api/bff/example/records`; BFF/backend resi `/v1`.
 
 **404 mapping:** API file jen hazi `ApiError`. Rozhodnuti, jestli 404 znamena empty state, missing detail nebo redirect, patri do hooku/komponenty podle use case.
 
@@ -4983,7 +4983,7 @@ export function deleteContact(contactId: string): Promise<void> {
 
 **Pouzijes:** `frontend/features/{module}/hooks.ts`, `useQuery`, `useMutation`, `useQueryClient`, `toast`, `queryRoots.{module}`. V ukazce je `{module} = example`.
 
-**Co se stane:** Komponenty nepouzivaji `apiFetch` ani query factories primo. Importuji hooky, napr. `useContacts`, `useContact`, `useCreateContact`, `useDeleteContact`, `useStartExampleModuleImport`, `useSendExampleModuleMessage`. Hooky resi query enabled flags, invalidace cache, toast a pending states.
+**Co se stane:** Komponenty nepouzivaji `apiFetch` ani query factories primo. Importuji hooky, napr. `useRecords`, `useRecord`, `useCreateRecord`, `useDeleteRecord`, `useStartExampleModuleImport`, `useSendExampleModuleMessage`. Hooky resi query enabled flags, invalidace cache, toast a pending states.
 
 **Mentalni model:** `api.ts` vi "jak volat backend"; `hooks.ts` vi "jak to zapojit do React Query UX". Komponenta vi jen "mam data, pending, error, mutate".
 
@@ -4996,48 +4996,48 @@ import { toast } from "sonner";
 import { queryRoots } from "@/lib/api/query-keys";
 import {
   exampleQueries,
-  createContact,
-  deleteContact,
-  type CreateContactRequest,
+  createRecord,
+  deleteRecord,
+  type CreateRecordRequest,
 } from "@/features/example/api";
 
-export function useContacts(page = 1, pageSize = 20, search?: string) {
-  return useQuery(exampleQueries.contacts(page, pageSize, search));
+export function useRecords(page = 1, pageSize = 20, search?: string) {
+  return useQuery(exampleQueries.records(page, pageSize, search));
 }
 
-export function useContact(id: string, enabled = true) {
-  return useQuery({ ...exampleQueries.contact(id), enabled: enabled && id.length > 0 });
+export function useRecord(id: string, enabled = true) {
+  return useQuery({ ...exampleQueries.record(id), enabled: enabled && id.length > 0 });
 }
 ```
 
 **Mutation hook:** disable double click pres `isPending` v komponentach a invaliduj vsechny dotcene query.
 
 ```ts
-export function useCreateContact() {
+export function useCreateRecord() {
   const t = useTranslations("example");
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (body: CreateContactRequest) => createContact(body),
+    mutationFn: (body: CreateRecordRequest) => createRecord(body),
     onSuccess: (result) => {
-      toast.success(t("contacts.created"));
-      void queryClient.invalidateQueries({ queryKey: [...queryRoots.example, "contacts"] });
+      toast.success(t("records.created"));
+      void queryClient.invalidateQueries({ queryKey: [...queryRoots.example, "records"] });
       void queryClient.invalidateQueries({
-        queryKey: [...queryRoots.example, "contacts", result.contactId],
+        queryKey: [...queryRoots.example, "records", result.recordId],
       });
     },
   });
 }
 
-export function useDeleteContact() {
+export function useDeleteRecord() {
   const t = useTranslations("example");
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (contactId: string) => deleteContact(contactId),
+    mutationFn: (recordId: string) => deleteRecord(recordId),
     onSuccess: () => {
-      toast.success(t("contacts.deleted"));
-      void queryClient.invalidateQueries({ queryKey: [...queryRoots.example, "contacts"] });
+      toast.success(t("records.deleted"));
+      void queryClient.invalidateQueries({ queryKey: [...queryRoots.example, "records"] });
     },
   });
 }
@@ -5076,7 +5076,7 @@ export function useDeleteContact() {
 ```ts
 import { z } from "zod";
 
-export const createContactSchema = z.object({
+export const createRecordSchema = z.object({
   companyName: z.string().trim().min(1, { message: "companyNameRequired" }).max(200, {
     message: "companyNameTooLong",
   }),
@@ -5091,26 +5091,26 @@ export const createContactSchema = z.object({
   note: z.string().trim().max(2000, { message: "noteTooLong" }).optional(),
 });
 
-export type CreateContactValues = z.infer<typeof createContactSchema>;
+export type CreateRecordValues = z.infer<typeof createRecordSchema>;
 ```
 
 **Ve formulari:** pouzij `useForm`, `zodResolver`, `noValidate`, `aria-invalid`, `aria-describedby`, `disabled={mutation.isPending}`.
 
 ```tsx
-const form = useForm<CreateContactValues>({
-  resolver: zodResolver(createContactSchema),
+const form = useForm<CreateRecordValues>({
+  resolver: zodResolver(createRecordSchema),
   defaultValues: { companyName: "", email: "", phone: "", note: "" },
 });
 
-const createContact = useCreateContact();
+const createRecord = useCreateRecord();
 
-function onSubmit(values: CreateContactValues) {
-  createContact.mutate(values, {
+function onSubmit(values: CreateRecordValues) {
+  createRecord.mutate(values, {
     onError: (error) => {
       if (isApiError(error) && error.fieldErrors) {
         for (const [field, messages] of Object.entries(error.fieldErrors)) {
           const key = field[0].toLowerCase() + field.slice(1);
-          form.setError(key as keyof CreateContactValues, {
+          form.setError(key as keyof CreateRecordValues, {
             message: messages[0] ?? "invalid",
           });
         }
@@ -5161,15 +5161,15 @@ export const queryRoots = {
 
 // frontend/features/example/api.ts
 export const exampleQueries = {
-  contacts: (page = 1, pageSize = 20, search?: string) =>
+  records: (page = 1, pageSize = 20, search?: string) =>
     queryOptions({
-      queryKey: [...queryRoots.example, "contacts", { page, pageSize, search }],
-      queryFn: () => getContacts(page, pageSize, search),
+      queryKey: [...queryRoots.example, "records", { page, pageSize, search }],
+      queryFn: () => getRecords(page, pageSize, search),
     }),
-  contact: (id: string) =>
+  record: (id: string) =>
     queryOptions({
-      queryKey: [...queryRoots.example, "contacts", id],
-      queryFn: () => getContact(id),
+      queryKey: [...queryRoots.example, "records", id],
+      queryFn: () => getRecord(id),
     }),
   dashboard: () =>
     queryOptions({
@@ -5179,34 +5179,34 @@ export const exampleQueries = {
 };
 ```
 
-**Create contact:** invaliduj listy a dashboard. Detail noveho kontaktu bud nastav pres `setQueryData`, nebo nech detail refetchnout po navigaci.
+**Create record:** invaliduj listy a dashboard. Detail noveho zaznamu bud nastav pres `setQueryData`, nebo nech detail refetchnout po navigaci.
 
 ```ts
 onSuccess: (created) => {
-  toast.success(t("contacts.created"));
-  void queryClient.invalidateQueries({ queryKey: [...queryRoots.example, "contacts"] });
+  toast.success(t("records.created"));
+  void queryClient.invalidateQueries({ queryKey: [...queryRoots.example, "records"] });
   void queryClient.invalidateQueries({ queryKey: [...queryRoots.example, "dashboard"] });
-  queryClient.setQueryData([...queryRoots.example, "contacts", created.contactId], created);
+  queryClient.setQueryData([...queryRoots.example, "records", created.recordId], created);
 }
 ```
 
-**Update contact:** invaliduj detail i listy. Detail potrebuje nove hodnoty, list potrebuje jmeno/status/sort.
+**Update record:** invaliduj detail i listy. Detail potrebuje nove hodnoty, list potrebuje jmeno/status/sort.
 
 ```ts
 onSuccess: (_, variables) => {
   void queryClient.invalidateQueries({
-    queryKey: [...queryRoots.example, "contacts", variables.contactId],
+    queryKey: [...queryRoots.example, "records", variables.recordId],
   });
-  void queryClient.invalidateQueries({ queryKey: [...queryRoots.example, "contacts"] });
+  void queryClient.invalidateQueries({ queryKey: [...queryRoots.example, "records"] });
 }
 ```
 
-**Delete contact:** invaliduj listy a odstran detail z cache, aby back navigation neukazal smazany zaznam.
+**Delete record:** invaliduj listy a odstran detail z cache, aby back navigation neukazal smazany zaznam.
 
 ```ts
-onSuccess: (_, contactId) => {
-  void queryClient.invalidateQueries({ queryKey: [...queryRoots.example, "contacts"] });
-  queryClient.removeQueries({ queryKey: [...queryRoots.example, "contacts", contactId] });
+onSuccess: (_, recordId) => {
+  void queryClient.invalidateQueries({ queryKey: [...queryRoots.example, "records"] });
+  queryClient.removeQueries({ queryKey: [...queryRoots.example, "records", recordId] });
 }
 ```
 
@@ -5236,7 +5236,7 @@ void queryClient.invalidateQueries({ queryKey: [...queryRoots.files, "list"] });
 
 **Pouzijes:** `frontend/lib/realtime/event-map.ts`, `RealtimeProvider`, `queryRoots.example`, backend `IRealtimePublisher`.
 
-**Co se stane:** Backend po commitu publikuje napr. `example.contact_changed`, `example.import_completed`, `example.ai_message_ready`. Frontend event nepouzije jako zdroj dat. Jen podle event name invaliduje query keys a React Query si nacte aktualni stav z API.
+**Co se stane:** Backend po commitu publikuje napr. `example.record_changed`, `example.import_completed`, `example.ai_message_ready`. Frontend event nepouzije jako zdroj dat. Jen podle event name invaliduje query keys a React Query si nacte aktualni stav z API.
 
 **Mentalni model:** Realtime event rika "neco se zmenilo, refetchni si to". Nerika "tady mas kompletni novy stav".
 
@@ -5254,9 +5254,9 @@ export const queryRoots = {
 ```ts
 export const eventTypeToQueryKeys: Record<string, QueryKey[]> = {
   // ...
-  "example.contact_changed": [[...queryRoots.example, "contacts"], [...queryRoots.example, "dashboard"]],
-  "example.contact_deleted": [[...queryRoots.example, "contacts"], [...queryRoots.example, "dashboard"]],
-  "example.import_completed": [[...queryRoots.example, "imports"], [...queryRoots.example, "contacts"]],
+  "example.record_changed": [[...queryRoots.example, "records"], [...queryRoots.example, "dashboard"]],
+  "example.record_deleted": [[...queryRoots.example, "records"], [...queryRoots.example, "dashboard"]],
+  "example.import_completed": [[...queryRoots.example, "imports"], [...queryRoots.example, "records"]],
   "example.ai_message_ready": [[...queryRoots.example, "conversations"]],
 };
 ```
@@ -5271,7 +5271,7 @@ await realtime.PublishToUserAsync(
     ct);
 ```
 
-**Kdy pouzit detail key:** pokud event payload spolehlive obsahuje `contactId`, muzes invalidovat i detail pres specializovany handler. Zakladni mapa je jednoducha a invaliduje prefixy; detail-optimalizaci pridej az kdyz je potreba.
+**Kdy pouzit detail key:** pokud event payload spolehlive obsahuje `recordId`, muzes invalidovat i detail pres specializovany handler. Zakladni mapa je jednoducha a invaliduje prefixy; detail-optimalizaci pridej az kdyz je potreba.
 
 **Reconnect:** `RealtimeProvider` pouziva BFF `/api/bff/realtime/stream`, reconnect/backoff a Last-Event-ID resume. Komponenta nema otevirat vlastni `EventSource`.
 
@@ -5330,7 +5330,7 @@ export default async function ExampleModulePage() {
   const entitlements = await queryClient.fetchQuery(entitlementQueries.me());
   if (!isModuleEnabled(entitlements, "example")) notFound();
 
-  void queryClient.prefetchQuery(exampleQueries.contacts());
+  void queryClient.prefetchQuery(exampleQueries.records());
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
@@ -5340,14 +5340,14 @@ export default async function ExampleModulePage() {
 }
 ```
 
-**Permission guard v UI:** pro akce typu "Delete contact" nebo "Export ExampleModule data" filtruj podle `user.permissions` nebo server-provided capability. Stejny permission musi byt na backend endpointu.
+**Permission guard v UI:** pro akce typu "Delete record" nebo "Export ExampleModule data" filtruj podle `user.permissions` nebo server-provided capability. Stejny permission musi byt na backend endpointu.
 
 ```tsx
-const canDelete = user.permissions.includes("example.contacts.delete");
-return canDelete ? <DeleteContactButton contactId={id} /> : null;
+const canDelete = user.permissions.includes("example.records.delete");
+return canDelete ? <DeleteRecordButton recordId={id} /> : null;
 ```
 
-**Backend je autorita:** endpoint musi mit `.RequirePermission("example.contacts.delete")` nebo odpovidajici permission const. Frontend permission jen brani tomu, aby user videl tlacitko, ktere by stejne skoncilo 403.
+**Backend je autorita:** endpoint musi mit `.RequirePermission("example.records.delete")` nebo odpovidajici permission const. Frontend permission jen brani tomu, aby user videl tlacitko, ktere by stejne skoncilo 403.
 
 **Entitlement disabled while on page:** realtime/cache invalidace entitlements nebo route refresh muze modul schovat z nav. Otevrena page musi pri dalsim server renderu vratit 404; client komponenty maji zvladnout 403/404 z API pres Error UX.
 
@@ -5378,9 +5378,9 @@ return canDelete ? <DeleteContactButton contactId={id} /> : null;
 ```tsx
 const [serverError, setServerError] = useState<unknown>(null);
 
-function onSubmit(values: CreateContactValues) {
+function onSubmit(values: CreateRecordValues) {
   setServerError(null);
-  createContact.mutate(values, {
+  createRecord.mutate(values, {
     onError: (error) => {
       if (isApiError(error) && error.fieldErrors) {
         for (const [field, messages] of Object.entries(error.fieldErrors)) {
@@ -5397,20 +5397,20 @@ function onSubmit(values: CreateContactValues) {
 **List error:** list ma mit loading, empty, error a normal state. Empty neni chyba; 403/500 chyba je `ProblemDetails` nebo query error panel.
 
 ```tsx
-const contacts = useContacts(page, pageSize, search);
+const records = useRecords(page, pageSize, search);
 
-if (contacts.isError) return <ProblemDetails error={contacts.error} />;
+if (records.isError) return <ProblemDetails error={records.error} />;
 
 return (
   <DataTable
-    data={contacts.data?.items}
-    isLoading={contacts.isLoading}
-    emptyTitle={t(search ? "contacts.noMatch" : "contacts.empty")}
+    data={records.data?.items}
+    isLoading={records.isLoading}
+    emptyTitle={t(search ? "records.noMatch" : "records.empty")}
   />
 );
 ```
 
-**Detail 404:** kdyz kontakt neexistuje nebo patri jinemu userovi/tenantovi, backend vrati 404. UI nesmi prozradit "existuje, ale nemas pristup". Zobraz not found/empty state nebo pouzij route `notFound()`.
+**Detail 404:** kdyz zaznam neexistuje nebo patri jinemu userovi/tenantovi, backend vrati 404. UI nesmi prozradit "existuje, ale nemas pristup". Zobraz not found/empty state nebo pouzij route `notFound()`.
 
 **401:** `apiFetch` v browseru sam presmeruje na `/login?reason=expired`. ExampleModule komponenta nema delat vlastni redirect pro 401.
 
@@ -5436,7 +5436,7 @@ return (
 
 **Pouzijes:** `src/building-blocks/ModularPlatform.Web/Localization/SharedResource.resx`, `SharedResource.cs.resx`, `frontend/lib/errors/error-map.ts`, FluentValidation `.WithErrorCode(...)`.
 
-**Co se stane:** Handler/validator vrati stable `errorCode` jako `example.contact_not_found`. Global exception middleware podle `Accept-Language` najde text v resx a posle ho v ProblemDetails. Frontend si stejny code umi namapovat na bezpecny text, pokud potrebuje vlastni fallback.
+**Co se stane:** Handler/validator vrati stable `errorCode` jako `example.record_not_found`. Global exception middleware podle `Accept-Language` najde text v resx a posle ho v ProblemDetails. Frontend si stejny code umi namapovat na bezpecny text, pokud potrebuje vlastni fallback.
 
 **Mentalni model:** Error code je API kontrakt. Text se muze zmenit, code ne. Code musi byt kratky, dotted, lowercase a domenovy.
 
@@ -5444,12 +5444,12 @@ return (
 
 ```csharp
 throw new NotFoundException(
-    "example.contact_not_found",
-    "ExampleModule contact was not found.");
+    "example.record_not_found",
+    "ExampleModule record was not found.");
 
 throw new BusinessRuleException(
-    "example.contact_has_open_deals",
-    "Contact cannot be deleted while it has open deals.");
+    "example.record_has_open_records",
+    "Record cannot be deleted while it has open records.");
 ```
 
 **Backend validator:** validator pouziva stejny naming. Field error code musi sedet s resx klicem.
@@ -5466,13 +5466,13 @@ RuleFor(x => x.CompanyName)
 
 ```xml
 <!-- SharedResource.resx -->
-<data name="example.contact_not_found" xml:space="preserve">
-  <value>ExampleModule contact was not found.</value>
+<data name="example.record_not_found" xml:space="preserve">
+  <value>ExampleModule record was not found.</value>
 </data>
 
 <!-- SharedResource.cs.resx -->
-<data name="example.contact_not_found" xml:space="preserve">
-  <value>ExampleModule kontakt nebyl nalezen.</value>
+<data name="example.record_not_found" xml:space="preserve">
+  <value>ExampleModule zaznam nebyl nalezen.</value>
 </data>
 ```
 
@@ -5481,13 +5481,13 @@ RuleFor(x => x.CompanyName)
 ```ts
 const CATALOG: Catalog = {
   // ...
-  "example.contact_not_found": {
-    en: "ExampleModule contact was not found.",
-    cs: "ExampleModule kontakt nebyl nalezen.",
+  "example.record_not_found": {
+    en: "ExampleModule record was not found.",
+    cs: "ExampleModule zaznam nebyl nalezen.",
   },
-  "example.contact_has_open_deals": {
-    en: "Close or move open deals before deleting this contact.",
-    cs: "Pred smazanim kontaktu uzavrete nebo presunte otevrene obchody.",
+  "example.record_has_open_records": {
+    en: "Close or move open records before deleting this record.",
+    cs: "Pred smazanim zaznamu vyreste navazany stav.",
   },
 };
 ```
@@ -5583,7 +5583,7 @@ dotnet run --project src/hosts/ModularPlatform.MigrationService
 
 ### UC112 Testy noveho flow
 
-**Status:** Test harness existuje; novy modul nesmi zakladat vlastni Testcontainers fixture.
+**Status:** Test harness existuje; novy modul nesmi zakladat vlastni Testcontainers fixture. Guard `TestHarnessArchitectureTests` hlida, ze module test projekty referencuji shared `ModularPlatform.IntegrationTesting` a nemaji vlastni Testcontainers/WebApplicationFactory dependency ani source usage.
 
 **Pouzijes:** `tests/ModularPlatform.IntegrationTesting/PlatformApiFactory`, module test projekt `src/modules/ExampleModule/ModularPlatform.ExampleModule.Tests`, `HostBootTests`, `ModuleBoundaryTests`, `MessageWireIdentityTests`, `ErrorCodeLocalizationTests`.
 
@@ -5594,11 +5594,11 @@ dotnet run --project src/hosts/ModularPlatform.MigrationService
 **Test projekt noveho modulu:** reference na ExampleModule Core, ExampleModule Contracts a `ModularPlatform.IntegrationTesting`. Pouzij collection fixture podle existujicich module tests.
 
 ```csharp
-public sealed class ExampleModuleContactTests(PlatformApiFactory factory)
+public sealed class ExampleModuleRecordTests(PlatformApiFactory factory)
     : IClassFixture<PlatformApiFactory>
 {
     [Fact]
-    public async Task Create_contact_stamps_owner_and_returns_detail()
+    public async Task Create_record_stamps_owner_and_returns_detail()
     {
         var (_, token) = await factory.RegisterAndLoginAsync(
             "example-user@test.local",
@@ -5606,7 +5606,7 @@ public sealed class ExampleModuleContactTests(PlatformApiFactory factory)
 
         using var request = factory.Authed(
             HttpMethod.Post,
-            "/v1/example/contacts",
+            "/v1/example/records",
             token,
             new { companyName = "Acme", email = "buyer@acme.test" });
 
@@ -5614,7 +5614,7 @@ public sealed class ExampleModuleContactTests(PlatformApiFactory factory)
 
         response.EnsureSuccessStatusCode();
         var data = await PlatformApiFactory.ReadData(response);
-        data.GetProperty("contactId").GetGuid().ShouldNotBe(Guid.Empty);
+        data.GetProperty("recordId").GetGuid().ShouldNotBe(Guid.Empty);
     }
 }
 ```
@@ -5636,7 +5636,7 @@ public sealed class ExampleModuleContactTests(PlatformApiFactory factory)
 ```csharp
 var visible = await factory.ScalarAsUserAsync<long>(
     otherUserId,
-    "select count(*) from example_contacts where id = '...'");
+    "select count(*) from example_records where id = '...'");
 visible.ShouldBe(0);
 ```
 

@@ -5,7 +5,7 @@ using Shouldly;
 namespace ModularPlatform.Billing.Tests;
 
 /// <summary>
-/// UC30: reserve credits is the only safe "pay tokens" entry point for a module like CRM. It performs the atomic
+/// UC30: reserve credits is the only safe "pay tokens" entry point for any product module. It performs the atomic
 /// balance guard in Billing; callers must never read the balance and then write their own local reservation.
 /// </summary>
 [Collection("Integration")]

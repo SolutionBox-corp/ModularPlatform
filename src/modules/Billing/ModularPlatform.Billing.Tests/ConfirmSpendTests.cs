@@ -6,7 +6,7 @@ using Shouldly;
 namespace ModularPlatform.Billing.Tests;
 
 /// <summary>
-/// UC31: confirm spend is called only after the external/CRM action really succeeded. It converts an active hold into
+/// UC31: confirm spend is called only after the product-module action really succeeded. It converts an active hold into
 /// posted spend exactly once; invalid or already-released reservations must not spend anything.
 /// </summary>
 [Collection("Integration")]

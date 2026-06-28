@@ -18,7 +18,7 @@ public sealed class AdminPackageCatalogueTests(PlatformApiFactory fixture)
     [Fact]
     public async Task Admin_package_list_requires_billing_manage_permission()
     {
-        var token = await RegisterAndLoginAsync($"crm-user-{Guid.CreateVersion7():N}@example.test");
+        var token = await RegisterAndLoginAsync($"product-user-{Guid.CreateVersion7():N}@example.test");
 
         var response = await fixture.Client.SendAsync(fixture.Authed(
             HttpMethod.Get, "/v1/billing/admin/packages?page=1&pageSize=10", token));

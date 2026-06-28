@@ -10,7 +10,7 @@ using Shouldly;
 namespace ModularPlatform.Billing.Tests;
 
 /// <summary>
-/// UC41: /subscriptions/me is the UI/API read model for the caller's current subscription. CRM does not keep a local
+/// UC41: /subscriptions/me is the UI/API read model for the caller's current subscription. Product modules do not keep a local
 /// subscription copy; it reads this endpoint or reacts to platform entitlement policy.
 /// </summary>
 [Collection("Integration")]
