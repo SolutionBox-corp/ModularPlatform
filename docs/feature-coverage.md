@@ -504,13 +504,13 @@ _Logic is careful and well-commented; the untested per-account isolation branch 
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
-| Returns stored projection, not a live ledger recompute | ✓ | Selects stored Posted/Available via the no-tracking read factory (GetCreditBalanceHandler.cs:20-23). Proven by LedgerBackstopTests.BL10 (skewed stored value is what is returned). |
-| Account not found | ✓ | FirstOrDefault null -> NotFoundException credit.account_not_found (GetCreditBalanceHandler.cs:24). |
-| Identity from token not route/body | ✓ | Endpoint uses tenant.UserId (GetCreditBalanceEndpoint.cs:19-21); no client-supplied subject id. |
+| Returns stored projection, not a live ledger recompute | ✓ | Selects stored Posted/Pending/Available via the no-tracking read factory (GetCreditBalanceHandler.cs:20-23). Proven by LedgerBackstopTests.BL10 (skewed stored value is what is returned) and CreditBalanceTests.Balance_is_token_scoped_and_tracks_reserve_release_confirm (Posted remains stable while Pending lowers Available). |
+| Account not found | ✓ | FirstOrDefault null -> NotFoundException credit.account_not_found (GetCreditBalanceHandler.cs:24). Proven directly at query level and through the HTTP endpoint by CreditBalanceTests.Missing_account_returns_a_clear_not_found_from_the_endpoint. |
+| Identity from token not route/body | ✓ | Endpoint uses tenant.UserId (GetCreditBalanceEndpoint.cs:19-21); no client-supplied subject id. CreditBalanceTests.Balance_is_token_scoped_and_tracks_reserve_release_confirm proves Alice cannot read Bob's projection by passing any body/route id because there is none. |
 | Expired-but-unswept holds make available slightly conservative | ✓ | Documented intentional (GetCreditBalanceHandler.cs:10-11): available stays conservative until the sweep reconciles; never over-reports spendable. |
 
-**Testy:** LedgerBackstopTests.BL10_balance_read_returns_the_stored_projection_not_a_recompute
-**Test gaps:** No test for the balance endpoint returning 404 for a user with no provisioned account; No test asserting Posted vs Available are both surfaced correctly when pending > 0 (only available is asserted in BL10)
+**Testy:** CreditBalanceTests.Fresh_user_gets_a_provisioned_zero_balance; Missing_account_returns_a_clear_not_found_from_the_query; Missing_account_returns_a_clear_not_found_from_the_endpoint; Balance_is_token_scoped_and_tracks_reserve_release_confirm; LedgerBackstopTests.BL10_balance_read_returns_the_stored_projection_not_a_recompute
+**Test gaps:** No remaining focused gap for the balance read slice.
 
 _Pure query, no transaction; uses the read factory per the platform law._
 
