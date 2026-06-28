@@ -1271,12 +1271,11 @@ _Thin and correct; aggregation/fallback logic worth a 5-line unit test but cover
 |---|:--:|---|
 | Cqrs must not depend on ASP.NET | ✓ | Status codes are local int constants (Errors.cs:62-70), not Microsoft.AspNetCore.Http.StatusCodes |
 | Validation aggregate vs single business error | ✓ | ValidationException carries IReadOnlyList<ValidationError> (Errors.cs:17-23); others carry a single code |
-| 422 business-rule vs 409 conflict separation | ✓ | BusinessRuleException=422 (Errors.cs:54-58), ConflictException=409 (Errors.cs:32-37) |
+| 422 business-rule vs 409 conflict separation | ✓ | BusinessRuleException=422 (Errors.cs:65-70), ConflictException=409 (Errors.cs:32-37). Proven by ModularPlatformExceptionTests.Exception_subtypes_map_to_the_documented_http_status_codes. |
 
-**Testy:** ErrorCodeLocalizationTests (every errorCode used has en+cs resx entries)
-**Test gaps:** No assertion that each exception subtype maps to the documented StatusCode (trivial but untested)
+**Testy:** ErrorCodeLocalizationTests (every errorCode used has en+cs resx entries); ModularPlatformExceptionTests.Exception_subtypes_map_to_the_documented_http_status_codes; ModularPlatformExceptionTests.Validation_exception_carries_validation_failed_code_and_field_errors
 
-_errorCode==resx-key contract is enforced by ErrorCodeLocalizationTests, which is the load-bearing invariant._
+_errorCode==resx-key and status-code mapping are now both covered by focused tests._
 
 ### Logging behavior (PII-safe) — ✅ correct
 *Structured request/response/error log with elapsed time, never logging the request body.*
