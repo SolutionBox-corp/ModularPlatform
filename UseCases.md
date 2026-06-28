@@ -5508,7 +5508,7 @@ const CATALOG: Catalog = {
 
 ### UC111 Migrace modulu
 
-**Status:** Pattern existuje ve vsech modulech; ExampleModule kopiruje `IdentityDbContextDesignTimeFactory` a `ApplyMigrationsAsync`.
+**Status:** Pattern existuje ve vsech modulech; ExampleModule kopiruje `IdentityDbContextDesignTimeFactory` a `ApplyMigrationsAsync`. Guard `ModuleMigrationArchitectureTests` hlida design-time factory, `SystemTenantContext` a `PlatformMigrator.MigrateAsync<TContext>` pro kazdy module DbContext.
 
 **Pouzijes:** EF Core migrations, `IDesignTimeDbContextFactory<TContext>`, `PlatformMigrator.MigrateAsync<TContext>`, `MigrationService`, local/Testcontainers Postgres nebo per-branch DB clone.
 
