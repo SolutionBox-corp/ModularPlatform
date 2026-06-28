@@ -56,7 +56,7 @@ must be set in `.env.local`.
 | **TanStack Query** | `lib/api/query-client.ts` + per-feature `hooks.ts` files — client-side data fetching and cache |
 | **Server Actions** | `features/auth/actions.ts` and per-feature `actions.ts` — mutations that touch the backend |
 | **Error mapper** | `lib/errors/error-map.ts` — translates RFC 9457 error codes to user-facing messages; all errors flow through `sonner` toasts |
-| **SSE / Realtime** | `features/realtime/` — `EventSource` to `GET /api/bff/realtime/stream`; the BFF proxies the .NET SSE stream |
+| **SSE / Realtime** | `lib/realtime/` - one `EventSourcePlus` stream to `GET /api/bff/realtime/stream`; feature modules only add event-map invalidation rows |
 | **Origins / multi-tenancy** | `lib/origins.ts` — derives allowed origins from `ROOT_DOMAIN`; every `*.lvh.me:3000` subdomain is a separate tenant in dev |
 | **Cookie consent** | `components/app/cookie-consent.tsx` — vanilla-cookieconsent v3; necessary cookies always on, analytics/marketing opt-in |
 

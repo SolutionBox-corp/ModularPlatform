@@ -5232,7 +5232,7 @@ void queryClient.invalidateQueries({ queryKey: [...queryRoots.files, "list"] });
 
 ### UC107 Realtime frontend refresh
 
-**Status:** Realtime provider existuje; ExampleModule jen prida event names do centralni mapy.
+**Status:** Realtime provider existuje; ExampleModule jen prida event names do centralni mapy. Guard `FrontendArchitectureTests.Realtime_stream_is_owned_by_the_central_provider` hlida, ze feature moduly neoteviraji vlastni `EventSource`/`WebSocket` ani realtime stream URL.
 
 **Pouzijes:** `frontend/lib/realtime/event-map.ts`, `RealtimeProvider`, `queryRoots.example`, backend `IRealtimePublisher`.
 

@@ -71,11 +71,50 @@ public sealed class FrontendArchitectureTests
             + string.Join(", ", violations));
     }
 
+    [Fact]
+    public void Realtime_stream_is_owned_by_the_central_provider()
+    {
+        const string provider = "frontend/lib/realtime/realtime-provider.tsx";
+        var violations = FindFrontendSourceFiles()
+            .Where(file => RelativeToRepo(file) != provider)
+            .Select(file => new
+            {
+                File = file,
+                Source = StripComments(File.ReadAllText(file)),
+            })
+            .Where(item =>
+                Regex.IsMatch(item.Source, @"\b(new\s+)?EventSource(Plus)?\b")
+                || Regex.IsMatch(item.Source, @"\bnew\s+WebSocket\s*\(")
+                || item.Source.Contains("/api/bff/realtime/stream", StringComparison.Ordinal)
+                || item.Source.Contains("/v1/realtime/stream", StringComparison.Ordinal))
+            .Select(item => RelativeToRepo(item.File))
+            .Order()
+            .ToList();
+
+        Assert.True(
+            violations.Count == 0,
+            "Realtime SSE/WebSocket ownership must stay in frontend/lib/realtime/realtime-provider.tsx; modules add event-map rows and invalidate queries instead: "
+            + string.Join(", ", violations));
+    }
+
     private static IReadOnlyList<string> FindFrontendFiles(string glob)
     {
         var frontend = Path.Combine(FindRepoRoot(), "frontend");
         return Directory.GetFiles(frontend, "*", SearchOption.AllDirectories)
             .Where(path => GlobMatches(frontend, glob, path))
+            .Order()
+            .ToList();
+    }
+
+    private static IReadOnlyList<string> FindFrontendSourceFiles()
+    {
+        var frontend = Path.Combine(FindRepoRoot(), "frontend");
+        return Directory.GetFiles(frontend, "*", SearchOption.AllDirectories)
+            .Where(path => path.EndsWith(".ts", StringComparison.Ordinal) || path.EndsWith(".tsx", StringComparison.Ordinal))
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}node_modules{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}.next{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}playwright-report{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}test-results{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
             .Order()
             .ToList();
     }
