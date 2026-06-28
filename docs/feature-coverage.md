@@ -1540,12 +1540,13 @@ _Single-instance cross-instance coordination is a documented operational constra
 |---|:--:|---|
 | Watching Scheduled (saga timeouts) instead of Outgoing hides a stuck outbox and false-alarms | ✓ | Evaluate uses counts.Outgoing for outbox backlog, never Scheduled (MessagingHealthEvaluation.cs:40-44); root-caused in comment lines 10-14 |
 | Dead-letter threshold | ✓ | Any DeadLetter>0 warns (MessagingHealthEvaluation.cs:28-32) |
+| Incoming backlog threshold | ✓ | Incoming-pending branch warns independently from outgoing backlog; proven by MessagingHealthEvaluationTests.Incoming_pending_above_threshold_warns_separately_from_outgoing_backlog |
 | ObservableGauge pull model vs per-fire job instance | ✓ | Static gauges registered once at class load; job refreshes static backing fields via Interlocked.Exchange (MessagingHealthJob.cs:27-62) |
 | Queries Wolverine internal tables directly | ✓ | Always via IMessageStore.Admin.FetchCountsAsync (MessagingHealthJob.cs:54); documented constraint line 18 |
 | Warnings are LogWarning only — no paging/alert routing | ◐ | By design alerting belongs to infrastructure (CLAUDE.md); the WARN + gauge is the signal. A deployment with no OTel/log alerting wired would not be paged — operational gap, not a code gap |
 
-**Testy:** MessagingHealthEvaluationTests.A_stuck_outbox_is_reported_via_outgoing_not_scheduled; MessagingHealthEvaluationTests.Scheduled_messages_alone_do_not_raise_a_false_outbox_alarm; MessagingHealthEvaluationTests.Dead_letters_always_warn
-**Test gaps:** No test for the incoming-pending > threshold branch (only outgoing + dead-letter are covered); No test that the job itself wires evaluation results into the three gauges (the Interlocked refresh path is untested)
+**Testy:** MessagingHealthEvaluationTests.A_stuck_outbox_is_reported_via_outgoing_not_scheduled; MessagingHealthEvaluationTests.Scheduled_messages_alone_do_not_raise_a_false_outbox_alarm; MessagingHealthEvaluationTests.Dead_letters_always_warn; MessagingHealthEvaluationTests.Incoming_pending_above_threshold_warns_separately_from_outgoing_backlog
+**Test gaps:** No test that the job itself wires evaluation results into the three gauges (the Interlocked refresh path is untested)
 
 _Pure evaluation cleanly extracted and unit-tested; the Scheduled-vs-Outgoing bug fix is well-guarded._
 

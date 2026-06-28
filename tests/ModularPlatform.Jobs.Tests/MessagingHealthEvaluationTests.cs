@@ -45,4 +45,17 @@ public sealed class MessagingHealthEvaluationTests
         result.DeadLetters.ShouldBe(3);
         result.Warnings.ShouldContain(w => w.Contains("dead-letter"));
     }
+
+    [Fact]
+    public void Incoming_pending_above_threshold_warns_separately_from_outgoing_backlog()
+    {
+        var counts = new PersistedCounts { Incoming = 250, Outgoing = 0, Scheduled = 0, DeadLetter = 0 };
+
+        var result = MessagingHealthEvaluation.Evaluate(counts, stuckThreshold: 100);
+
+        result.IncomingPending.ShouldBe(250);
+        result.OutgoingPending.ShouldBe(0);
+        result.Warnings.ShouldHaveSingleItem();
+        result.Warnings[0].ShouldContain("incoming-pending messages exceed stuck threshold 100");
+    }
 }
