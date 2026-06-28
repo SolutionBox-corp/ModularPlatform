@@ -448,16 +448,16 @@ _This is the money-critical path and it is the best-covered. Reservation entry u
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
 | Concurrent double-confirm of one reservation | ✓ | hold.Status==Confirmed early return (ConfirmSpendHandler.cs:33-36); xmin on tracked hold/account serializes; UNIQUE spend:{holdId} is the final guard, loser catches DbUpdateException and returns committed state (ConfirmSpendHandler.cs:97-111). Proven by BillingLedgerTests (10 parallel, exactly one Spend, posted -1 once). |
-| Confirming an expired or non-active reservation | ✓ | Status != Active OR ExpiresAt <= now -> BusinessRuleException credit.reservation_not_active (ConfirmSpendHandler.cs:38-41). |
+| Confirming an expired or non-active reservation | ✓ | Status != Active OR ExpiresAt <= now -> BusinessRuleException credit.reservation_not_active (ConfirmSpendHandler.cs:41-44). Proven by ConfirmSpendTests.Confirm_released_reservation_is_rejected_without_spend and ConfirmSpendTests.Confirm_expired_but_unswept_reservation_is_rejected_without_spend. |
 | FIFO ordering soonest-to-expire, non-expiring last | ✓ | OrderBy(ExpiresAt==null) ThenBy(ExpiresAt) ThenBy(CreatedAt) (ConfirmSpendHandler.cs:47-49). Proven by LedgerLifecycleTests.Confirm_draws_buckets_soonest_to_expire_first. |
 | Account / reservation not found | ✓ | NotFoundException credit.account_not_found / credit.reservation_not_found (ConfirmSpendHandler.cs:26-31). |
-| Reservation belongs to another user (IDOR) | ✓ | Hold looked up by h.AccountId == account.Id where account is resolved from token UserId (ConfirmSpendHandler.cs:26-31); a foreign reservationId resolves to NotFound. |
-| Buckets exhausted before the hold amount is fully drawn (remaining > 0 after loop) | ◐ | ConfirmSpendHandler.cs:51-61 silently stops when buckets run out yet still posts the full hold.Amount (account.Posted -= hold.Amount, line 80). In normal flow the expire sweep skips buckets backing active holds so backing credits survive, but there is NO assertion/guard that sum-drawn == hold.Amount; an inconsistency (manual bucket edit or future code path that destroys a backing bucket) would post more than was drawn and break posted == sum(bucket.Remaining) without erroring. |
+| Reservation belongs to another user (IDOR) | ✓ | Hold looked up by h.AccountId == account.Id where account is resolved from token UserId (ConfirmSpendHandler.cs:29-34); a foreign reservationId resolves to NotFound. Proven by ConfirmSpendTests.Confirm_foreign_reservation_is_a_404_and_does_not_spend. |
+| Buckets exhausted before the hold amount is fully drawn (remaining > 0 after loop) | ✓ | The FIFO loop tracks `remaining`; if active buckets cannot fully cover the hold, the handler throws credit.bucket_underflow before writing Spend/account changes (ConfirmSpendHandler.cs:46-73). Proven by ConfirmSpendTests.Confirm_fails_loudly_when_buckets_no_longer_cover_the_hold. |
 
-**Testy:** BillingLedgerTests.Confirming_a_reservation_is_exactly_once_under_concurrency; LedgerLifecycleTests.Confirm_draws_buckets_soonest_to_expire_first; LedgerLifecycleTests.Ledger_invariants_hold_after_a_mixed_run
-**Test gaps:** No test for confirming an EXPIRED-but-not-swept reservation -> credit.reservation_not_active (ConfirmSpendHandler.cs:38-41 ExpiresAt<=now branch is unasserted); No test for the 'buckets short of hold.Amount' edge — would document whether the silent-undershoot is acceptable or a latent invariant break; No test asserting a foreign user's reservationId yields 404 (IDOR negative case)
+**Testy:** BillingLedgerTests.Confirming_a_reservation_is_exactly_once_under_concurrency; LedgerLifecycleTests.Confirm_draws_buckets_soonest_to_expire_first; LedgerLifecycleTests.Ledger_invariants_hold_after_a_mixed_run; ConfirmSpendTests.Confirm_expired_but_unswept_reservation_is_rejected_without_spend; ConfirmSpendTests.Confirm_foreign_reservation_is_a_404_and_does_not_spend; ConfirmSpendTests.Confirm_fails_loudly_when_buckets_no_longer_cover_the_hold
+**Test gaps:** No remaining confirm-spend correctness gap in this slice; broader ledger-entry immutability is tracked in the ledger read section.
 
-_The undershoot edge is the only real soft spot; it is masked by the expire sweep's skip-active-hold rule, so it is currently unreachable in normal operation but undefended in code._
+_The previous undershoot soft spot is now defended in code and covered by a direct integration test._
 
 ### Release hold — ✅ correct
 *Cancel an active reservation, restoring availability; idempotent.*
