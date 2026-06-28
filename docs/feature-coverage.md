@@ -778,14 +778,14 @@ _Crypto seam is careful and well-reasoned. Tests cover the raw shredder primitiv
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
-| Blob too short to hold nonce+tag | ✓ | throws CryptographicException with clear message (CryptoShredder.cs:69-72) |
+| Blob too short to hold nonce+tag | ✓ | throws CryptographicException with clear message (CryptoShredder.cs:69-72); test CryptoShredderTests.Decrypt_rejects_blob_too_short_for_nonce_and_tag |
 | null plaintext/dek | ✓ | ArgumentNullException.ThrowIfNull guards (CryptoShredder.cs:42-43,67-68) |
-| Tamper / wrong key / wrong AAD | ✓ | AesGcm.Decrypt throws CryptographicException (caller catches) |
+| Tamper / wrong key / wrong AAD | ✓ | AesGcm.Decrypt throws CryptographicException (caller catches); test CryptoShredderTests.Decrypt_with_matching_aad_round_trips_and_wrong_aad_fails |
 
-**Testy:** CryptoShredderTests.Encrypt_then_Decrypt_with_same_dek_round_trips; CryptoShredderTests.Decrypt_with_a_different_dek_fails_modeling_crypto_shredding
-**Test gaps:** No test for the too-short-blob CryptographicException; No round-trip test exercising the aad parameter (encrypt with aad, decrypt with same vs different aad)
+**Testy:** CryptoShredderTests.Encrypt_then_Decrypt_with_same_dek_round_trips; CryptoShredderTests.Decrypt_with_a_different_dek_fails_modeling_crypto_shredding; CryptoShredderTests.Decrypt_with_matching_aad_round_trips_and_wrong_aad_fails; CryptoShredderTests.Decrypt_rejects_blob_too_short_for_nonce_and_tag
+**Test gaps:** No remaining focused CryptoShredder primitive gap in this slice.
 
-_Standard, correct AES-GCM layout [nonce|tag|ciphertext]. AAD path untested but used only via the protector which is integration-exercised end to end._
+_Standard, correct AES-GCM layout [nonce|tag|ciphertext]. AAD and malformed-blob behavior are pinned directly at the primitive level._
 
 ### Blind index (HMAC) + fail-fast key validation — 🟢 minor-gaps
 *Deterministic HMAC-SHA256 keyed hash enabling equality lookups on encrypted columns (login by email).*
