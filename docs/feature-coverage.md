@@ -929,16 +929,16 @@ _Push being a no-op is by design and documented; worker-side channel handlers no
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
-| Unmatched {placeholder} in template | ✓ | TemplateRenderer.cs:9-23 leaves unmatched placeholders intact (only replaces keys present in data). Documented as intended. |
-| Empty template or empty data dict | ✓ | TemplateRenderer.cs:11-14 early-returns the template unchanged. |
+| Unmatched {placeholder} in template | ✓ | TemplateRenderer.cs:9-23 leaves unmatched placeholders intact (only replaces keys present in data). Proven by TemplateRendererTests.Render_leaves_unmatched_placeholders_intact. |
+| Empty template or empty data dict | ✓ | TemplateRenderer.cs:11-14 early-returns the template unchanged. Proven by TemplateRendererTests.Render_returns_empty_template_unchanged and Render_returns_template_unchanged_when_data_is_empty. |
 | Concurrent seed across multiple hosts | ✓ | NotificationsSeeder.cs:46-67 checks AnyAsync then relies on UNIQUE(Key,Locale) (NotificationTemplate.cs:30); a concurrent duplicate insert is caught as DbUpdateException and logged benign. |
 | Seeder runs as a non-tenant hosted service | ✓ | NotificationTemplate is NOT ITenantScoped (NotificationTemplate.cs:9-11) so the seeder's plain context inserts platform-shared rows without a tenant filter. |
-| Placeholder value containing braces could re-trigger substitution | ✓ | Render iterates data once with Ordinal Replace (TemplateRenderer.cs:17-21); a value that itself contains '{otherKey}' is only replaced if a LATER dict key matches — order-dependent but values are short controlled strings; no infinite loop. Minor theoretical injection-of-placeholder, not a security issue. |
+| Placeholder value containing braces could re-trigger substitution | ✓ | Render iterates data once with Ordinal Replace (TemplateRenderer.cs:17-21); a value that itself contains '{otherKey}' is only replaced if a LATER dict key matches — order-dependent but values are short controlled strings; no infinite loop. Proven by TemplateRendererTests.Render_does_not_loop_when_value_contains_placeholder_text. |
 
-**Testy:** TemplateRendererTests.cs (only asserts the command record shape — does NOT actually test TemplateRenderer.Render)
-**Test gaps:** TemplateRenderer.Render has NO direct unit test despite a test file literally named TemplateRendererTests — the file is a mislabeled placeholder asserting SendNotificationCommand construction instead (TemplateRendererTests.cs:6-22). Render's unmatched-placeholder, empty-data, and multi-key paths are all untested.; No test for the seeder's idempotency / concurrent-duplicate catch; No test for locale='cs' template selection
+**Testy:** TemplateRendererTests.Render_replaces_all_matching_placeholders; TemplateRendererTests.Render_leaves_unmatched_placeholders_intact; TemplateRendererTests.Render_returns_empty_template_unchanged; TemplateRendererTests.Render_returns_template_unchanged_when_data_is_empty; TemplateRendererTests.Render_does_not_loop_when_value_contains_placeholder_text
+**Test gaps:** No test for the seeder's idempotency / concurrent-duplicate catch; No test for locale='cs' template selection
 
-_Rendering logic is correct but completely untested; the test file name is misleading (code-vs-name drift)._
+_Rendering logic is now directly covered; remaining gaps are around seeding and locale selection._
 
 ### In-app feed (get / mark-read) — ✅ correct
 *Per-user paged feed of in-app notifications with unread filter and an idempotent mark-as-read.*
