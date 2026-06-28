@@ -432,6 +432,50 @@ public sealed class FilesUploadTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Gdpr_export_contains_file_inventory_and_links_without_raw_bytes()
+    {
+        var (userId, token) = await fixture.RegisterAndLoginAsync(
+            $"gdpr-export-files-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+
+        var bytes = Encoding.UTF8.GetBytes("contract bytes that must not be embedded in export");
+        var upload = await UploadAsync(token, "contract.pdf", "application/pdf", bytes);
+        upload.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var fileId = (await PlatformApiFactory.ReadData(upload)).GetProperty("id").GetGuid();
+        var ownerId = Guid.CreateVersion7();
+
+        var link = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post,
+            $"/v1/files/{fileId}/links",
+            token,
+            new { ownerType = "crm.deal", ownerId }));
+        link.StatusCode.ShouldBe(HttpStatusCode.Created);
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var exporter = scope.ServiceProvider
+            .GetServices<IExportPersonalData>()
+            .Single(x => x.ModuleName == "Files");
+
+        var export = await exporter.ExportAsync(userId, CancellationToken.None);
+
+        using var filesJson = System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(export["files"]));
+        var files = filesJson.RootElement;
+        files.GetArrayLength().ShouldBe(1);
+        files[0].GetProperty("Id").GetGuid().ShouldBe(fileId);
+        files[0].GetProperty("FileName").GetString().ShouldBe("contract.pdf");
+        files[0].GetProperty("ContentType").GetString().ShouldBe("application/pdf");
+        files[0].GetProperty("Size").GetInt64().ShouldBe(bytes.LongLength);
+        files[0].TryGetProperty("StorageKey", out _).ShouldBeFalse();
+        files[0].TryGetProperty("Bytes", out _).ShouldBeFalse();
+
+        using var linksJson = System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(export["fileLinks"]));
+        var links = linksJson.RootElement;
+        links.GetArrayLength().ShouldBe(1);
+        links[0].GetProperty("FileObjectId").GetGuid().ShouldBe(fileId);
+        links[0].GetProperty("OwnerType").GetString().ShouldBe("crm.deal");
+        links[0].GetProperty("OwnerId").GetGuid().ShouldBe(ownerId);
+    }
+
+    [Fact]
     public async Task File_download_is_owner_scoped_at_the_app_layer_even_when_rls_is_bypassed()
     {
         var (_, owner) = await fixture.RegisterAndLoginAsync($"appf-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");

@@ -1213,8 +1213,8 @@ _Defence-in-depth path guard (validate + resolved-path re-check) is excellent; S
 | Ports registered so the DI-driven fan-out actually runs | ✓ | FilesModule.cs:46-47 registers both IExportPersonalData and IErasePersonalData (doc warns omission makes files immortal) |
 | ExecuteDeleteAsync bypasses audit/xmin | ✓ | FilesPersonalDataEraser.cs:34 uses ExecuteDeleteAsync — intentional for a GDPR scrub (consistent with the platform caveat that scrubs may bypass the interceptor); file_objects are not an append-only retained ledger |
 
-**Testy:** FilesUploadTests.Gdpr_erasure_deletes_the_users_files_and_metadata (blobs+rows gone after subject-key shred)
-**Test gaps:** No test asserting the export payload actually contains the file inventory (FilesPersonalDataExporter has no direct test); No test for partial blob-delete failure during erasure (orphaned blob if a delete permanently fails after metadata is gone)
+**Testy:** FilesUploadTests.Gdpr_erasure_deletes_the_users_files_and_metadata (blobs+rows gone after subject-key shred); FilesUploadTests.Gdpr_export_contains_file_inventory_and_links_without_raw_bytes (DI-registered exporter returns files + fileLinks metadata, not storage keys/raw bytes)
+**Test gaps:** No test for partial blob-delete failure during erasure (orphaned blob if a delete permanently fails after metadata is gone)
 
 _Erasure correctly deletes (not anonymizes) and is idempotent. Untested exporter payload + the blob-delete-fails-after-row-delete orphan window are the only gaps._
 
