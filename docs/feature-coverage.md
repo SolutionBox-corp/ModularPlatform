@@ -1552,15 +1552,15 @@ _Pure evaluation cleanly extracted and unit-tested; the Scheduled-vs-Outgoing bu
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
 | Resx manifest probing broke localization (ResourcesPath bug, PL-3) | ✓ | AddLocalization with NO ResourcesPath (PlatformWebExtensions.cs:36-40); namespace mirrors folder |
-| errorCode has no resx entry | ✓ | detail.ResourceNotFound → falls back to ex.Message (GlobalExceptionMiddleware.cs:52); ArchitectureTests.ErrorCodeLocalizationTests fails the build if any thrown code lacks en+cs entry |
-| Leaking internals in production 500s | ✓ | exception extension only when IsDevelopment (GlobalExceptionMiddleware.cs:67-70) |
-| traceId correlation | ✓ | problem.Extensions['traceId']=context.TraceIdentifier (line 55) |
-| Response already started when exception thrown (e.g. mid-SSE-stream) | ✗ | WriteProblem unconditionally sets StatusCode + WriteAsJsonAsync (GlobalExceptionMiddleware.cs:72-73); if next() already flushed headers (SSE/streaming) this throws InvalidOperationException. No HasStarted guard. Low-probability but unguarded |
+| errorCode has no resx entry | ✓ | detail.ResourceNotFound → falls back to safe `error.unexpected`, never `ex.Message` (GlobalExceptionMiddleware.cs:50); ArchitectureTests.ErrorCodeLocalizationTests fails the build if any thrown code lacks en+cs entry |
+| Leaking internals in production 500s | ✓ | exception extension only when IsDevelopment (GlobalExceptionMiddleware.cs:85-88) |
+| traceId correlation | ✓ | problem.Extensions['traceId']=context.TraceIdentifier (GlobalExceptionMiddleware.cs:73) |
+| Response already started when exception thrown (e.g. mid-SSE-stream) | ✓ | Catch blocks check `Response.HasStarted` before writing ProblemDetails; middleware rethrows the original exception and leaves the already-started stream untouched (GlobalExceptionMiddleware.cs:32-51) |
 
-**Testy:** PlatformContractTests.PL3_domain_errors_are_rfc9457_with_stable_code_and_localized_detail; ArchitectureTests.ErrorCodeLocalizationTests.Every_thrown_error_code_is_localized_in_en_and_cs
-**Test gaps:** No test for the unhandled-exception→500 error.unexpected path or the Development-only exception extension; No test for the validation errors[] extension shape; No test for Response.HasStarted (streaming) edge case
+**Testy:** PlatformContractTests.PL3_domain_errors_are_rfc9457_with_stable_code_and_localized_detail; ArchitectureTests.ErrorCodeLocalizationTests.Every_thrown_error_code_is_localized_in_en_and_cs; GlobalExceptionMiddlewareTests.Unhandled_exception_returns_safe_problem_details; GlobalExceptionMiddlewareTests.Development_500_includes_exception_extension; GlobalExceptionMiddlewareTests.Started_response_rethrows_original_exception_without_overwriting_stream
+**Test gaps:** No direct unit test for the validation errors[] extension shape; domain validation is still covered through endpoint-level contract tests.
 
-_Solid contract with build-time i18n parity guard. The only real gap is no HasStarted guard before writing the problem response (matters for SSE/streamed responses)._
+_Solid contract with build-time i18n parity guard. The streaming `HasStarted` edge case is now guarded and directly tested._
 
 ### Rate limiting (global + auth policy) — ✅ correct
 *Partitioned token/fixed-window limiting: per-user (or per-IP) global bucket + tight per-IP 'auth' policy for credential endpoints.*
