@@ -1619,10 +1619,10 @@ _Best-covered security feature in the area. Validator + IP masking both thorough
 | Permission-based authz | ✓ | RequirePermission policy checks 'permission' claim (EndpointAuthorization.cs:23-27); claims emitted in TokenIssuer.cs:51 |
 | Identity.Name unavailable for downstream consumers (rate limiter) | ✓ | Rate limiter no longer depends on `Identity.Name`; it uses the emitted `ClaimTypes.NameIdentifier` subject id. `Identity.Name` remaining null is acceptable because no platform contract relies on it. |
 
-**Testy:** JwtOptionsValidatorTests cover missing/short signing key, missing issuer/audience, valid Production config and Development exemption; PlatformContractTests.PL8 indirectly exercises a Production host that passes JWT validation; Auth/permission flows covered in Identity module tests (RequirePermission/RequireRole gating)
-**Test gaps:** No direct test asserting `RequireRole` uses the configured `role` claim type.
+**Testy:** JwtOptionsValidatorTests cover missing/short signing key, missing issuer/audience, valid Production config, Development exemption, and `Jwt_bearer_uses_platform_role_claim_type_for_require_role`; PlatformContractTests.PL8 indirectly exercises a Production host that passes JWT validation; Auth/permission flows covered in Identity module tests (RequirePermission/RequireRole gating)
+**Test gaps:** No remaining focused JWT bearer/options gap in this slice.
 
-_JwtOptionsValidator now has direct fail-fast coverage. The missing name claim does not affect rate limiting because the limiter keys on `NameIdentifier`._
+_JwtOptionsValidator now has direct fail-fast coverage, and the JWT bearer options pin the platform `"role"` claim type used by RequireRole. The missing name claim does not affect rate limiting because the limiter keys on `NameIdentifier`._
 
 ### Security headers middleware — 🟢 minor-gaps
 *Adds baseline hardening headers (nosniff, frame DENY, no-referrer, restrictive CSP) to every response.*
