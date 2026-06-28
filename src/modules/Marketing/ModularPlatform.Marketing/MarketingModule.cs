@@ -97,6 +97,7 @@ public sealed class MarketingModule : IModule
         options.Discovery.IncludeType<Messaging.RunDataPullHandler>();
         options.Discovery.IncludeType<Messaging.MarketingDataPulledHandler>();
         options.Discovery.IncludeType<Messaging.RunVibeAgentTurnHandler>();
+        options.Discovery.IncludeType<Messaging.TenantProvisionedForMarketingHandler>();
     }
 
     public async Task ApplyMigrationsAsync(IServiceProvider services, CancellationToken ct)

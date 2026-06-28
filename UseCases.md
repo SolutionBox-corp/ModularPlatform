@@ -4424,11 +4424,16 @@ public void ConfigureMessaging(WolverineOptions options)
 
 ### UC96 Lokalni projekce cizich dat
 
-**Status:** Blueprint pattern nad event handlers; pouzij pro rychle ExampleModule listy, ne jako novy source of truth.
+**Status:** Implementovano jako canonical Marketing projection - `TenantProvisionedIntegrationEvent` vytvari/aktualizuje
+`MarketingTenantSnapshot`, updater ignoruje starsi eventy a `ReconcileTenantSnapshotsCommand` opravuje projekci pres
+public `ITenantDirectory` port. Overeno `TenantSnapshotProjectionTests`.
 
-**Pouzijes:** integration event handler, ExampleModule read/projection table, `SourceEventId`, `SourceUpdatedAt`, reconciliation job/command.
+**Pouzijes:** integration event handler, ExampleModule read/projection table, `SourceEventId`, `SourceUpdatedAt`, reconciliation command.
 
-**Co se stane:** ExampleModule si ulozi malou kopii dat z jineho modulu, aby nemuselo pri kazdem listu volat query nebo joinovat. Napr. `ExampleModuleUserSnapshot` pro jmeno/email ownera, `ExampleModuleBillingSnapshot` pro cached credit tier, `ExampleModuleTenantEntitlementSnapshot` pro UI filtrovani.
+**Co se stane:** Modul si ulozi malou kopii dat z jineho modulu, aby nemusel pri kazdem listu volat query nebo joinovat.
+Marketing priklad: Tenancy vlastni tenant registry, ale Marketing si drzi `MarketingTenantSnapshot` se subdomain/name pro
+rychle vlastni listy a repair flow. U jineho modulu to muze byt treba `ExampleModuleUserSnapshot` pro owner display,
+`ExampleModuleBillingSnapshot` pro cached plan/tier nebo `ExampleModuleTenantEntitlementSnapshot` pro UI filtrovani.
 
 **Mentalni model:** projekce je cache/read model. Source module je porad vlastnik pravdy. ExampleModule projekci pouziva pro rychlost a ergonomii, ale nesmi podle ni delat nevratna rozhodnuti bez revalidace u owner modulu.
 
@@ -4468,11 +4473,14 @@ snapshot.SchemaVersion = 1;
 await db.SaveChangesAsync(ct);
 ```
 
-**Reconcile:** pokud event ztratis, handler byl v DLQ, nebo zmenis schema projekce, potrebujes command/job, ktery projde ExampleModule projections a dotahne live data pres query contract owner modulu. Nedelat generic cross-module reaper.
+**Reconcile:** pokud event ztratis, handler byl v DLQ, nebo zmenis schema projekce, potrebujes command/job, ktery projde
+modulove projections nebo prijme konkretni owner id a dotahne live data pres query/port owner modulu. Marketing to dela
+pres `ReconcileTenantSnapshotsCommand(Guid? TenantId)`, ktery vola `ITenantDirectory.GetByIdAsync`. Nedelat generic
+cross-module reaper.
 
 **Minimal PII:** nedavej do projekce vic PII, nez list opravdu potrebuje. Email casto staci masked nebo hash. Pokud ulozis plaintext, musi platit UC75/UC91.
 
-**Testy k novemu modulu:** event vytvori/aktualizuje projekci, duplicate event neni duplicita, out-of-order starsi event neprepise novejsi stav, reconcile opravi stale projekci, GDPR erase smaze/anonymizuje PII v projekci.
+**Testy k novemu modulu:** event vytvori/aktualizuje projekci, duplicate event neni duplicita, out-of-order starsi event neprepise novejsi stav, reconcile opravi stale projekci, GDPR erase smaze/anonymizuje PII v projekci. Marketing testuje end-to-end event z registrace tenantu, duplicate/out-of-order upsert a reconcile pres `ITenantDirectory`.
 
 **Nepouzijes:** projekci jako autoritativni billing/permission zdroj, cross-module join, kopii cele cizi entity, PII pro pohodli, ani read model bez repair cesty.
 
