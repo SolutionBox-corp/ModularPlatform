@@ -430,14 +430,14 @@ _CreditsToppedUpIntegrationEvent is published in the same outbox transaction (Cr
 |---|:--:|---|
 | Concurrent reservations draining the balance (double-spend) | ✓ | Atomic ExecuteUpdate guard (ReserveCreditsHandler.cs:37-41); rows==0 -> 422. Proven by BillingConcurrencyTests (20 parallel, exactly 10 succeed, available never < 0). |
 | Insufficient available balance | ✓ | debited==0 -> BusinessRuleException credit.insufficient_balance -> 422 with NO hold/entry written (the guard runs before the hold insert). Proven by LedgerLifecycleTests.Reserving_more_than_available_is_rejected_with_no_side_effects. |
-| Account not found | ✓ | FirstOrDefault accountId == Guid.Empty -> NotFoundException (ReserveCreditsHandler.cs:29-32). |
+| Account not found | ✓ | FirstOrDefault accountId == Guid.Empty -> NotFoundException (ReserveCreditsHandler.cs:29-32); test Reserve_without_credit_account_returns_not_found. |
 | Negative/zero/oversized amount | ✓ | ReserveCreditsValidator.cs:17-18. Proven by CreditAmountBoundsTests. |
-| HoldMinutes <= 0 / default | ✓ | Validator GreaterThan(0).When(HasValue) (ReserveCreditsValidator.cs:19-21); null -> DefaultHoldMinutes 15 (ReserveCreditsHandler.cs:19,54). |
+| HoldMinutes <= 0 / default/custom | ✓ | Validator GreaterThan(0).When(HasValue) (ReserveCreditsValidator.cs:19-21); null -> DefaultHoldMinutes 15 (ReserveCreditsHandler.cs:19,54); custom value sets ExpiresAt (Reserve_honors_custom_hold_minutes). |
 | Hold + ledger entry must be atomic with the debit | ✓ | Explicit BeginTransaction wraps the ExecuteUpdate debit + hold + Reservation entry, commit at ReserveCreditsHandler.cs:34,71-72. |
 | No upper bound on number/total of simultaneous active holds per account | – | By design availability is the only cap; pending can grow only as far as available allows, so no separate hold-count limit is needed. |
 
-**Testy:** BillingConcurrencyTests.Concurrent_reservations_never_exceed_balance; LedgerLifecycleTests.Reserving_more_than_available_is_rejected_with_no_side_effects; CreditAmountBoundsTests (Reserve bounds)
-**Test gaps:** No explicit test for reserve against a non-existent account returning 404 credit.account_not_found (the not-found path ReserveCreditsHandler.cs:29-32 is unasserted); No test that a custom HoldMinutes value is honored (only the default path is exercised via lifecycle tests)
+**Testy:** BillingConcurrencyTests.Concurrent_reservations_never_exceed_balance; LedgerLifecycleTests.Reserving_more_than_available_is_rejected_with_no_side_effects; CreditAmountBoundsTests (Reserve bounds); ReserveCreditsTests.Reserve_without_credit_account_returns_not_found; ReserveCreditsTests.Reserve_honors_custom_hold_minutes
+**Test gaps:** No remaining focused reserve-credits gap in this slice.
 
 _This is the money-critical path and it is the best-covered. Reservation entry uses IdempotencyKey reserve:{holdId}; the holdId is fresh per reserve so re-reservations are distinct by design._
 
@@ -467,13 +467,13 @@ _The previous undershoot soft spot is now defended in code and covered by a dire
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
-| Releasing an already-resolved hold (released/confirmed/expired) | ✓ | Status != Active -> returns current available unchanged (ReleaseHoldHandler.cs:28-31). Proven idempotent by LedgerLifecycleTests.Releasing_a_hold_restores_availability_and_is_idempotent (exactly one Release entry). |
+| Releasing an already-resolved hold (released/confirmed/expired) | ✓ | Status != Active -> returns current available unchanged (ReleaseHoldHandler.cs:28-31). Proven idempotent by LedgerLifecycleTests.Releasing_a_hold_restores_availability_and_is_idempotent and ReleaseHoldTests.Release_after_confirm_does_not_restore_spent_credits. |
 | Concurrent double-release | ✓ | xmin on tracked entities + UNIQUE release:{holdId}; loser catches DbUpdateException and returns committed available (ReleaseHoldHandler.cs:52-67). |
-| Account / reservation not found / IDOR | ✓ | NotFoundException both cases; hold scoped to token-derived account (ReleaseHoldHandler.cs:21-26). |
-| Releasing a CONFIRMED hold tries to double-restore availability | ✓ | The Status != Active guard (ReleaseHoldHandler.cs:28) covers Confirmed too, so a confirmed reservation cannot be released back into availability. |
+| Account / reservation not found / IDOR | ✓ | NotFoundException both cases; hold scoped to token-derived account (ReleaseHoldHandler.cs:21-26); test Release_unknown_reservation_is_a_404. |
+| Releasing a CONFIRMED hold tries to double-restore availability | ✓ | The Status != Active guard (ReleaseHoldHandler.cs:28) covers Confirmed too, so a confirmed reservation cannot be released back into availability; test Release_after_confirm_does_not_restore_spent_credits. |
 
-**Testy:** LedgerLifecycleTests.Releasing_a_hold_restores_availability_and_is_idempotent; LedgerBackstopTests.PL2 (release flips hold Active->Released, audit assertion)
-**Test gaps:** No explicit test that releasing a CONFIRMED hold is a no-op (only released-twice idempotency is covered); No 404 test for release of a foreign/non-existent reservationId
+**Testy:** LedgerLifecycleTests.Releasing_a_hold_restores_availability_and_is_idempotent; LedgerBackstopTests.PL2 (release flips hold Active->Released, audit assertion); ReleaseHoldTests.Release_unknown_reservation_is_a_404; ReleaseHoldTests.Release_after_confirm_does_not_restore_spent_credits
+**Test gaps:** No remaining focused release-hold gap in this slice.
 
 _Symmetric with confirm; both rely on the same xmin + UNIQUE-key idempotency pattern._
 
