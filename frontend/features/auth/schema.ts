@@ -37,3 +37,31 @@ export function buildRegisterSchema(t: Translate) {
 }
 
 export type RegisterFormValues = z.infer<ReturnType<typeof buildRegisterSchema>>;
+
+export function buildForgotPasswordSchema(t: Translate) {
+  return z.object({
+    email: z
+      .string()
+      .min(1, t("validation.emailRequired"))
+      .refine((v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), t("validation.emailInvalid")),
+  });
+}
+
+export type ForgotPasswordFormValues = z.infer<ReturnType<typeof buildForgotPasswordSchema>>;
+
+export function buildResetPasswordSchema(t: Translate) {
+  return z
+    .object({
+      newPassword: z
+        .string()
+        .min(8, t("validation.passwordMin"))
+        .max(128, t("validation.passwordMax")),
+      confirmPassword: z.string().min(1, t("validation.passwordRequired")),
+    })
+    .refine((value) => value.newPassword === value.confirmPassword, {
+      path: ["confirmPassword"],
+      message: t("validation.passwordsMustMatch"),
+    });
+}
+
+export type ResetPasswordFormValues = z.infer<ReturnType<typeof buildResetPasswordSchema>>;

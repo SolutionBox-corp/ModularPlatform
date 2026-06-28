@@ -29,6 +29,7 @@
   <data name="error.unexpected" xml:space="preserve"><value>Došlo k neočekávané chybě.</value></data>
   <data name="validation.failed" xml:space="preserve"><value>Vyskytla se jedna nebo více chyb validace.</value></data>
   <data name="auth.invalid_credentials" xml:space="preserve"><value>Neplatný e-mail nebo heslo.</value></data>
+  <data name="auth.password_reset_invalid" xml:space="preserve"><value>Odkaz pro obnovení hesla je neplatný nebo vypršel.</value></data>
   <data name="auth.refresh_token_invalid" xml:space="preserve"><value>Obnovovací token je neplatný nebo byl odvolán.</value></data>
   <data name="auth.refresh_token_reused" xml:space="preserve"><value>Tato relace byla z bezpečnostních důvodů odvolána. Přihlaste se prosím znovu.</value></data>
   <data name="user.not_found" xml:space="preserve"><value>Uživatel nenalezen.</value></data>

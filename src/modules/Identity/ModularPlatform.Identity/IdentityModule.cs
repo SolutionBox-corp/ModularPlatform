@@ -16,9 +16,11 @@ using ModularPlatform.Identity.Features.Admin.RevokeRole;
 using ModularPlatform.Identity.Features.Audit.GetUserAuditTrail;
 using ModularPlatform.Identity.Features.PlatformAdmin.GetPlatformUserAudit;
 using ModularPlatform.Identity.Features.PlatformAdmin.ListPlatformUsers;
+using ModularPlatform.Identity.Features.Auth.ForgotPassword;
 using ModularPlatform.Identity.Features.Auth.Login;
 using ModularPlatform.Identity.Features.Auth.Logout;
 using ModularPlatform.Identity.Features.Auth.RefreshToken;
+using ModularPlatform.Identity.Features.Auth.ResetPassword;
 using ModularPlatform.Identity.Features.Users.GetProfile;
 using ModularPlatform.Identity.Features.Users.RegisterUser;
 using ModularPlatform.Identity.Features.Users.UpdateProfile;
@@ -55,6 +57,7 @@ public sealed class IdentityModule : IModule
 
         services.AddScoped<IPasswordHasher, Argon2PasswordHasher>();
         services.AddScoped<ITokenIssuer, JwtTokenIssuer>();
+        services.AddOptions<PasswordResetOptions>().BindConfiguration(PasswordResetOptions.SectionName);
 
         // Authorization seeding: permissions catalog + system admin role + admin assignment (config-driven).
         services.AddOptions<IdentityAuthOptions>().BindConfiguration(IdentityAuthOptions.SectionName);
@@ -75,6 +78,8 @@ public sealed class IdentityModule : IModule
         endpoints.MapUpdateProfile();
         endpoints.MapChangePassword();
         endpoints.MapLogin();
+        endpoints.MapForgotPassword();
+        endpoints.MapResetPassword();
         endpoints.MapRefreshToken();
         endpoints.MapLogout();
         endpoints.MapAssignRole();

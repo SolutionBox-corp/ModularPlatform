@@ -280,6 +280,45 @@ router.push("/login?reason=password-changed");
 - EC034 frontend musi vycistit auth state a query cache → `logoutAction` + route refresh/login, user-specific cache se bere jako stale.
 - EC035 zmena hesla nesmi byt dostupna pres cizi user id → endpoint bere usera z tokenu, nikdy z route/body.
 
+### UC07b Zapomenute heslo a reset hesla
+
+**Status:** Implemented + Verified 2026-06-28 — EC035a/EC035b/EC035c overuji `Forgot_password_returns_same_accepted_response_for_existing_and_unknown_email`, `Forgot_password_stores_only_token_hash_not_raw_token`, `Reset_password_with_valid_token_changes_password_consumes_tokens_and_revokes_sessions`, `Reset_password_rejects_expired_or_consumed_token`, `Reset_password_rejects_reused_token` a `Password_reset_endpoints_use_the_auth_rate_limit_policy`.
+
+**Pouzijes:** `POST /identity/auth/forgot-password`, `POST /identity/auth/reset-password`, frontend routy `/forgot-password` a `/reset-password?token=...`.
+
+**Co se stane:** user bez prihlaseni pozada o reset link. Identity pro existujici aktivni ucet vytvori jednorazovy token, ulozi jen hash tokenu, pres outbox publikuje `EmailDeliveryRequested` a pri resetu zmeni heslo, spotrebuje token a revoke vsechny refresh tokeny usera.
+
+**Napises v novem modulu (napr. ExampleModule):** nic. Reset hesla je platform auth flow, ne domenova funkce produktu.
+
+**Mentalni model:** forgot endpoint nikdy nerika, jestli email existuje. Pro syntakticky validni email vraci stejny accepted response. Pokud ucet existuje, email prijde. Pokud neexistuje, UI ukaze stejnou neutralni hlasku.
+
+**Co dela Identity:** lookup emailu jde pres blind index. Raw reset token se nikdy neuklada do DB, jen jeho SHA-256 hash. Stare nevyuzite reset tokeny usera se pri novem requestu spotrebuji, aby byl platny jen posledni link.
+
+**Co dela Notifications:** Identity neposila `SendNotificationCommand`, protoze ten by ulozil reset link do in-app feedu. Identity publikuje primo `EmailDeliveryRequested` z `Notifications.Contracts`; Worker potom doruci email.
+
+**Co dela frontend:** login formular ma link "Forgot password?". Forgot page po accepted requestu ukaze neutralni success. Reset page bere token z query stringu, zada nove heslo a po uspechu redirectuje na `/login?reason=password-reset`.
+
+```ts
+const result = await forgotPasswordAction(email);
+if (result.ok) showNeutralAcceptedMessage();
+
+await resetPasswordAction(token, newPassword);
+router.push("/login?reason=password-reset");
+```
+
+**Co dela backend noveho modulu:** nic. Pokud ExampleModule vidi 401 po resetu hesla, zachazi s tim stejne jako s expirovanou session: zahodit user-specific cache a poslat usera na login.
+
+**Co nepises:** vlastni reset endpoint v ExampleModule, vlastni password reset table, plaintext token v DB, reset link v in-app notifikaci, rozdilne hlasky pro existujici/neexistujici email.
+
+**EC:**
+
+- EC035a neexistujici email vraci stejny accepted response jako existujici email → UI nesmi delat account enumeration.
+- EC035b raw token je jen v emailu, DB drzi jen hash → nikdy neloguj ani neukladej reset URL do domenovych tabulek.
+- EC035c expired/consumed/unknown token vraci stejne `auth.password_reset_invalid` → zadne rozliseni "token existoval, ale vyprsel".
+- EC035d successful reset revoke vsechny refresh tokeny → stare taby a stare sessions musi znovu na login.
+- EC035e reset nesmi pouzit `SendNotificationCommand` → reset link by se jinak ulozil do in-app feedu.
+- EC035f forgot/reset endpointy pouzivaji auth rate-limit policy → chrani drahe auth/security flow.
+
 ### UC08 Admin priradi roli
 
 **Status:** Implemented + Verified 2026-06-25 — EC036 overuje `Permission_gated_endpoint_rejects_non_admins_and_admins_can_grant_roles`, EC037 overuje `Assign_role_returns_not_found_for_unknown_user_or_role`, EC038 overuje `Concurrent_identical_role_grants_are_idempotent_not_a_500`, EC039 overuje `Refreshed_token_carries_role_changes_while_the_old_access_token_stays_a_snapshot`, EC040 je architektonicky pokryte tim, ze role assignment patri do Identity `AssignRole`/`user_roles`; ExampleModule prida jen permission constants, ne vlastni UserRole store.

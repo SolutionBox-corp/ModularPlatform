@@ -63,6 +63,8 @@
     "email": "Email",
     "expired": "Your session expired. Please sign in again.",
     "haveAccount": "Already have an account?",
+    "backToLogin": "Back to sign in",
+    "confirmPassword": "Confirm password",
     "login": {
       "heading": "Sign in",
       "metaTitle": "Sign in — ModularPlatform",
@@ -71,7 +73,18 @@
       "success": "Welcome back!",
       "label": "Sign in"
     },
+    "forgotPassword": {
+      "accepted": "If an account exists for that email, a reset link has been sent.",
+      "heading": "Reset password",
+      "label": "Send reset link",
+      "link": "Forgot password?",
+      "metaTitle": "Reset password — ModularPlatform",
+      "submitting": "Sending…",
+      "subtitle": "Enter your email and we'll send a password reset link.",
+      "toast": "Reset request accepted."
+    },
     "noAccount": "Don't have an account?",
+    "newPassword": "New password",
     "password": "Password",
     "privacyLink": "Privacy Policy",
     "register": {
@@ -82,6 +95,15 @@
       "success": "Account created! Welcome.",
       "label": "Create account"
     },
+    "resetPassword": {
+      "heading": "Set new password",
+      "label": "Set new password",
+      "metaTitle": "Set new password — ModularPlatform",
+      "missingToken": "This reset link is missing a token. Request a new link.",
+      "submitting": "Saving…",
+      "subtitle": "Choose a new password for your account.",
+      "success": "Password changed. Sign in with the new password."
+    },
     "termsConjunction": "and",
     "termsLink": "Terms",
     "termsPrefix": "I accept the",
@@ -91,7 +113,8 @@
       "emailRequired": "Email is required",
       "passwordMax": "Password too long",
       "passwordMin": "Password must be at least 8 characters",
-      "passwordRequired": "Password is required"
+      "passwordRequired": "Password is required",
+      "passwordsMustMatch": "Passwords must match"
     }
   },
   "billing": {

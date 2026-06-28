@@ -63,6 +63,8 @@
     "email": "E-mail",
     "expired": "Vaše relace vypršela. Přihlaste se prosím znovu.",
     "haveAccount": "Už máte účet?",
+    "backToLogin": "Zpět na přihlášení",
+    "confirmPassword": "Potvrzení hesla",
     "login": {
       "heading": "Přihlásit se",
       "metaTitle": "Přihlášení — ModularPlatform",
@@ -71,7 +73,18 @@
       "success": "Vítejte zpět!",
       "label": "Přihlásit se"
     },
+    "forgotPassword": {
+      "accepted": "Pokud pro tento e-mail existuje účet, poslali jsme odkaz pro obnovení hesla.",
+      "heading": "Obnovení hesla",
+      "label": "Poslat odkaz",
+      "link": "Zapomenuté heslo?",
+      "metaTitle": "Obnovení hesla — ModularPlatform",
+      "submitting": "Odesílám…",
+      "subtitle": "Zadejte e-mail a pošleme vám odkaz pro nastavení nového hesla.",
+      "toast": "Žádost o obnovení hesla byla přijata."
+    },
     "noAccount": "Nemáte účet?",
+    "newPassword": "Nové heslo",
     "password": "Heslo",
     "privacyLink": "zásadami ochrany osobních údajů",
     "register": {
@@ -82,6 +95,15 @@
       "success": "Účet byl vytvořen! Vítejte.",
       "label": "Vytvořit účet"
     },
+    "resetPassword": {
+      "heading": "Nastavit nové heslo",
+      "label": "Nastavit nové heslo",
+      "metaTitle": "Nastavení nového hesla — ModularPlatform",
+      "missingToken": "Tomuto odkazu chybí token. Požádejte o nový odkaz.",
+      "submitting": "Ukládám…",
+      "subtitle": "Zvolte nové heslo pro svůj účet.",
+      "success": "Heslo bylo změněno. Přihlaste se novým heslem."
+    },
     "termsConjunction": "a",
     "termsLink": "podmínkami",
     "termsPrefix": "Souhlasím s",
@@ -91,7 +113,8 @@
       "emailRequired": "E-mail je povinný",
       "passwordMax": "Heslo je příliš dlouhé",
       "passwordMin": "Heslo musí mít alespoň 8 znaků",
-      "passwordRequired": "Heslo je povinné"
+      "passwordRequired": "Heslo je povinné",
+      "passwordsMustMatch": "Hesla se musí shodovat"
     }
   },
   "billing": {
