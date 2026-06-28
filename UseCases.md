@@ -4649,7 +4649,9 @@ public sealed record DealWonIntegrationEvent(
 
 ### UC100 Module jobs
 
-**Status:** Base pattern hotovy v Billing/GDPR/Identity; novy modul ma kopirovat thin Quartz job -> command.
+**Status:** Base pattern hotovy v Billing/GDPR/Identity a hlidany architecture testem -
+`ModuleJobArchitectureTests.Module_quartz_jobs_are_thin_non_overlapping_dispatcher_adapters` vyzaduje
+`[DisallowConcurrentExecution]` a constructor pouze s `IDispatcher`.
 
 **Pouzijes:** `IModule.RegisterJobs`, Quartz `IJob`, `IDispatcher`, UTC cron config, `[DisallowConcurrentExecution]`.
 
