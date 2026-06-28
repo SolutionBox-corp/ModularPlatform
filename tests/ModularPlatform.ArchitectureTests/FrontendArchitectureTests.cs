@@ -53,6 +53,24 @@ public sealed class FrontendArchitectureTests
             + string.Join(", ", violations));
     }
 
+    [Fact]
+    public void Feature_mutation_hooks_declare_cache_effects()
+    {
+        var hookFiles = FindFrontendFiles("features/*/hooks.ts");
+        var violations = hookFiles
+            .SelectMany(file => FindExportedHookFunctions(file)
+                .Where(hook => hook.Source.Contains("useMutation", StringComparison.Ordinal))
+                .Where(hook => !DeclaresMutationCacheEffect(hook.Source))
+                .Select(hook => $"{RelativeToRepo(file)}::{hook.Name}"))
+            .Order()
+            .ToList();
+
+        Assert.True(
+            violations.Count == 0,
+            "Feature useMutation hooks must invalidate/remove/clear/set query cache, redirect away, or explicitly document why no invalidation is needed: "
+            + string.Join(", ", violations));
+    }
+
     private static IReadOnlyList<string> FindFrontendFiles(string glob)
     {
         var frontend = Path.Combine(FindRepoRoot(), "frontend");
@@ -71,8 +89,37 @@ public sealed class FrontendArchitectureTests
                 Regex.IsMatch(relative, @"^features/[^/]+/components/[^/]+\.(ts|tsx)$"),
             "features/*/api.ts" =>
                 Regex.IsMatch(relative, @"^features/[^/]+/api\.ts$"),
+            "features/*/hooks.ts" =>
+                Regex.IsMatch(relative, @"^features/[^/]+/hooks\.ts$"),
             _ => throw new ArgumentOutOfRangeException(nameof(glob), glob, "Unsupported frontend test glob."),
         };
+    }
+
+    private static IReadOnlyList<ExportedHook> FindExportedHookFunctions(string file)
+    {
+        var source = File.ReadAllText(file);
+        var matches = Regex.Matches(source, @"export function (use[A-Za-z0-9_]+)\s*\(");
+        var hooks = new List<ExportedHook>();
+
+        for (var i = 0; i < matches.Count; i++)
+        {
+            var start = matches[i].Index;
+            var end = i + 1 < matches.Count ? matches[i + 1].Index : source.Length;
+            hooks.Add(new ExportedHook(
+                matches[i].Groups[1].Value,
+                source[start..end]));
+        }
+
+        return hooks;
+    }
+
+    private static bool DeclaresMutationCacheEffect(string hookSource)
+    {
+        return hookSource.Contains("invalidateQueries", StringComparison.Ordinal)
+            || hookSource.Contains("removeQueries", StringComparison.Ordinal)
+            || Regex.IsMatch(hookSource, @"\b(setQueryData|clear)\s*\(")
+            || hookSource.Contains("safeExternalRedirect", StringComparison.Ordinal)
+            || hookSource.Contains("No invalidation needed", StringComparison.Ordinal);
     }
 
     private static string StripComments(string source)
@@ -102,4 +149,6 @@ public sealed class FrontendArchitectureTests
     {
         return Path.GetRelativePath(FindRepoRoot(), path).Replace(Path.DirectorySeparatorChar, '/');
     }
+
+    private sealed record ExportedHook(string Name, string Source);
 }

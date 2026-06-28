@@ -47,12 +47,17 @@ export function useWithdrawConsent() {
 
 export function useExportPersonalData() {
   return useMutation({
+    // No invalidation needed - export returns a one-off JSON document and does not change server state.
     mutationFn: () => exportPersonalData(),
   });
 }
 
 export function useEraseAccount() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: () => eraseAccount(),
+    onSuccess: () => {
+      qc.clear();
+    },
   });
 }

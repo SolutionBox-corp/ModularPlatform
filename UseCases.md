@@ -5142,7 +5142,7 @@ function onSubmit(values: CreateContactValues) {
 
 ### UC106 Cache invalidace po mutaci
 
-**Status:** Frontend pattern existuje v Marketing/Files; ExampleModule mutace musi vzdy rict, ktere query jsou po akci stare.
+**Status:** Frontend pattern existuje v Marketing/Files; ExampleModule mutace musi vzdy rict, ktere query jsou po akci stare. Guard `FrontendArchitectureTests.Feature_mutation_hooks_declare_cache_effects` hlida, ze `useMutation` hook invaliduje/maze/clearuje cache, redirectuje ven, nebo ma explicitni `No invalidation needed` vyjimku.
 
 **Pouzijes:** React Query `queryClient.invalidateQueries`, `queryRoots.example`, feature query factory v `frontend/features/example/api.ts`, hooky v `frontend/features/example/hooks.ts`.
 
