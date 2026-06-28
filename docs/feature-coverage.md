@@ -358,15 +358,16 @@ _Logic mirrors the seeder's non-fatal retry pattern; untested because constructi
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
-| Refresh token stored as plaintext | ✓ | Only TokenHash (SHA-256 hex) persisted; raw returned once to client — TokenIssuer.cs:67-77, RefreshToken.cs:16 |
+| Refresh token stored as plaintext | ✓ | Only TokenHash (SHA-256 hex) persisted; raw returned once to client — TokenIssuer.cs:67-77, RefreshToken.cs:16; test TokenIssuerTests.Refresh_token_hash_is_deterministic_sha256_hex_and_never_the_raw_token |
 | Tenant claim omitted when null | ✓ | Claim added only if tenantId!=null — TokenIssuer.cs:43-46 |
 | Multi-valued role/permission claims | ✓ | One Claim per role + per permission — TokenIssuer.cs:50-51; test AuthzTests ClaimValues handles scalar+array |
 | Password hashing rolled by hand | ✓ | Isopoh Argon2id (battle-tested) — PasswordHasher.cs:12-16 |
 | Refresh token entropy | ✓ | RandomNumberGenerator.GetBytes(64) base64url — TokenIssuer.cs:69 |
+| Access-token expiry drift | ✓ | ExpiresAt comes from IClock.UtcNow + JwtOptions.AccessTokenMinutes — TokenIssuer.cs:34-36; test TokenIssuerTests.Access_token_expiry_honors_configured_lifetime |
 | JWT signing key fail-fast outside Dev | ✓ | JwtOptionsValidator enforces signing key at startup (Web building-block, per CLAUDE.md §8) — not in Identity but covers this primitive |
 
-**Testy:** AuthzTests JWT claim decoding (role/permission); TenancyTests JWT tenant_id claim decode
-**Test gaps:** No unit test for refresh-token hashing determinism / collision resistance (covered indirectly via rotation tests); No unit test for access-token expiry value (AccessTokenMinutes) being honored
+**Testy:** AuthzTests JWT claim decoding (role/permission); TenancyTests JWT tenant_id claim decode; TokenIssuerTests.Access_token_expiry_honors_configured_lifetime; TokenIssuerTests.Refresh_token_hash_is_deterministic_sha256_hex_and_never_the_raw_token
+**Test gaps:** No remaining focused token-issuer primitive gap in this slice.
 
 _Primitives delegate to battle-tested libs; refresh tokens are hashed at rest, never logged._
 
