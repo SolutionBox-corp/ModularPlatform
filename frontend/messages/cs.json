@@ -19,7 +19,7 @@
         "label": "Jazyk"
       },
       "save": "Uložit změny",
-      "saving": "Ukládání...",
+      "saving": "Ukládání…",
       "saved": "Profil aktualizován.",
       "saveError": "Profil se nepodařilo uložit. Zkuste to prosím znovu.",
       "title": "Profil"
@@ -31,7 +31,7 @@
       "new": "Nové heslo",
       "confirm": "Potvrďte nové heslo",
       "submit": "Změnit heslo",
-      "saving": "Měním...",
+      "saving": "Měním…",
       "changed": "Heslo změněno. Přihlaste se prosím znovu.",
       "error": "Heslo se nepodařilo změnit. Zkuste to prosím znovu.",
       "currentRequired": "Zadejte aktuální heslo.",
@@ -95,6 +95,29 @@
     }
   },
   "billing": {
+    "ledger": {
+      "heading": "Historie transakcí",
+      "description": "Každý pohyb kreditů na vašem účtu, od nejnovějších.",
+      "credit": "Připsání",
+      "debit": "Odepsání",
+      "emptyTitle": "Zatím žádné transakce",
+      "emptyDescription": "Vaše dobití a útraty kreditů se zobrazí zde.",
+      "columns": {
+        "type": "Typ",
+        "amount": "Částka",
+        "direction": "Směr",
+        "date": "Datum"
+      },
+      "types": {
+        "topup": "Dobití",
+        "spend": "Útrata",
+        "reservation": "Rezervace",
+        "release": "Uvolnění",
+        "expiry": "Expirace",
+        "adjustment": "Úprava",
+        "refund": "Vrácení"
+      }
+    },
     "balance": {
       "columns": {
         "category": "Kategorie",
@@ -145,6 +168,25 @@
       "emptyDescription": "Kreditní balíčky se zde objeví po nastavení.",
       "emptyTitle": "Žádné balíčky nejsou k dispozici"
     },
+    "portal": {
+      "manage": "Spravovat platby a faktury",
+      "opening": "Otevírání…",
+      "noAccount": "Zatím nemáte fakturační účet. Nejprve si předplaťte nebo kupte kredity.",
+      "error": "Fakturační portál se nepodařilo otevřít. Zkuste to prosím znovu."
+    },
+    "plans": {
+      "heading": "Vyberte si plán",
+      "description": "Předplaťte si pravidelné kredity v každém zúčtovacím období.",
+      "emptyTitle": "Žádné plány nejsou k dispozici",
+      "emptyDescription": "Předplatné plány se zde objeví po nastavení.",
+      "current": "Aktuální",
+      "currentPlan": "Aktuální plán",
+      "subscribe": "Předplatit",
+      "redirecting": "Přesměrování…",
+      "perPeriod": "kreditů za období",
+      "creditsExpireIn": "{credits} kreditů/období · vyprší za {days} d",
+      "creditsNoExpiry": "{credits} kreditů/období · bez expirace"
+    },
     "promo": {
       "amountOffSuffix": "sleva",
       "apply": "Použít",
@@ -186,6 +228,25 @@
     "search": "Hledat"
   },
   "files": {
+    "actions": {
+      "menuAria": "Akce pro {name}",
+      "download": "Stáhnout",
+      "rename": "Přejmenovat",
+      "delete": "Smazat",
+      "cancel": "Zrušit",
+      "save": "Uložit",
+      "saving": "Ukládání…",
+      "deleting": "Mazání…",
+      "renamed": "Soubor přejmenován.",
+      "renameError": "Soubor se nepodařilo přejmenovat.",
+      "deleted": "Smazáno „{name}“.",
+      "deleteError": "Soubor se nepodařilo smazat.",
+      "renameTitle": "Přejmenovat soubor",
+      "renameDescription": "Zadejte nový název tohoto souboru.",
+      "renameLabel": "Název souboru",
+      "deleteTitle": "Smazat soubor?",
+      "deleteDescription": "„{name}“ bude trvale smazán. Tuto akci nelze vrátit zpět."
+    },
     "dropzone": {
       "ariaLabel": "Nahrát soubor — přetáhněte sem nebo klikněte pro výběr",
       "hint": "{types} — až {maxMb} MB",
@@ -207,7 +268,11 @@
       "name": "Název",
       "size": "Velikost",
       "type": "Typ",
-      "uploaded": "Nahráno"
+      "uploaded": "Nahráno",
+      "searchPlaceholder": "Hledat soubory…",
+      "searchAria": "Hledat soubory podle názvu",
+      "noMatchTitle": "Žádné odpovídající soubory",
+      "noMatchDescription": "Vašemu hledání neodpovídají žádné soubory. Zkuste jiný název."
     },
     "validation": {
       "tooLarge": "Soubor je příliš velký. Maximální velikost je {maxMb} MB.",
@@ -446,11 +511,24 @@
     "empty": {
       "feedDescription": "Máte vše přečteno — zatím žádná oznámení.",
       "recentDescription": "Máte vše přečteno.",
-      "title": "Žádná oznámení"
+      "title": "Žádná oznámení",
+      "noUnreadTitle": "Žádná nepřečtená oznámení",
+      "noUnreadDescription": "Máte vše přečteno. Přepněte na Vše pro starší oznámení."
+    },
+    "filter": {
+      "all": "Vše",
+      "unread": "Nepřečtené"
     },
     "markRead": {
       "ariaLabel": "Označit „{title}“ jako přečtené"
     },
+    "markAll": {
+      "action": "Označit vše",
+      "pending": "Označuji…",
+      "done": "{count, plural, =0 {Není co označit} one {Označeno 1 oznámení jako přečtené} few {Označena # oznámení jako přečtená} other {Označeno # oznámení jako přečtených}}"
+    },
+    "unreadSummary": "{count, plural, one {1 nepřečtené} few {# nepřečtená} other {# nepřečtených}}",
+    "allRead": "Vše přečteno",
     "page": {
       "description": "Vaše nedávná aktivita a systémové zprávy.",
       "heading": "Oznámení",
@@ -637,6 +715,15 @@
     "consents": {
       "description": "Určete, jak používáme vaše data. Změny se projeví okamžitě.",
       "heading": "Předvolby souhlasů",
+      "history": {
+        "heading": "Historie souhlasů",
+        "description": "Všechna vaše rozhodnutí o souhlasech, od nejnovějších.",
+        "granted": "uděleno",
+        "withdrawn": "odvoláno",
+        "policyVersion": "zásady {version}",
+        "emptyTitle": "Žádná historie souhlasů",
+        "emptyDescription": "Vaše změny souhlasů se zde zaznamenají."
+      },
       "toast": {
         "granted": "Souhlas udělen.",
         "withdrawn": "Souhlas odvolán."
@@ -727,8 +814,7 @@
     "operationStatus": {
       "inProgress": "Operace probíhá",
       "status": {
-        "cancelled": "Zrušeno",
-        "completed": "Dokončeno",
+        "succeeded": "Dokončeno",
         "failed": "Selhalo",
         "pending": "Čeká",
         "running": "Probíhá"

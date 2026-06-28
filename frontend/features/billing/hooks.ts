@@ -9,7 +9,10 @@ import {
   checkoutPackage,
   subscribeCheckout,
   cancelSubscription,
+  createBillingPortalSession,
 } from "@/features/billing/api";
+import { ApiError } from "@/lib/api/types";
+import { toDisplayMessage, currentLocale } from "@/lib/errors/error-map";
 
 interface CheckoutRedirectMessages {
   invalidRedirect: string;
@@ -98,6 +101,35 @@ export function useSubscribeCheckout() {
         invalidRedirect: t("checkout.invalidRedirect"),
         unexpectedRedirect: t("checkout.unexpectedRedirect"),
       });
+    },
+  });
+}
+
+/**
+ * Open the Stripe Customer Portal (manage payment methods + view/download invoices).
+ * On success redirects to Stripe's hosted page; a user with no billing account yet
+ * gets a friendly toast instead of an error screen.
+ */
+export function useBillingPortal() {
+  const t = useTranslations("billing");
+  return useMutation({
+    mutationFn: () => createBillingPortalSession(),
+    onSuccess: (data) => {
+      safeExternalRedirect(data.url, {
+        invalidRedirect: t("checkout.invalidRedirect"),
+        unexpectedRedirect: t("checkout.unexpectedRedirect"),
+      });
+    },
+    onError: (err) => {
+      if (err instanceof ApiError && err.errorCode === "billing.no_billing_account") {
+        toast.error(t("portal.noAccount"));
+        return;
+      }
+      toast.error(
+        err instanceof ApiError
+          ? toDisplayMessage(err, currentLocale())
+          : t("portal.error"),
+      );
     },
   });
 }

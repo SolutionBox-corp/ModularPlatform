@@ -12,7 +12,6 @@ import {
 } from "@/components/ui/card";
 import { EntitlementToggles } from "./entitlement-toggles";
 import { CreateInviteDialog } from "./create-invite-dialog";
-import { PlatformBillingCard } from "./platform-billing-card";
 import { useTenantDetail } from "@/features/platform/hooks";
 
 interface TenantDetailContentProps {
@@ -79,10 +78,8 @@ export function TenantDetailContent({ tenantId }: TenantDetailContentProps) {
           </CardContent>
         </Card>
 
-        {/* Platform billing */}
+        {/* Invites */}
         <div className="space-y-4">
-          <PlatformBillingCard />
-
           <Card>
             <CardHeader>
               <CardTitle className="text-sm font-medium">

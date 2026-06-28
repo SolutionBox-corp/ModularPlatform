@@ -4,8 +4,10 @@ import { getQueryClient } from "@/lib/api/query-client";
 import { billingQueries } from "@/features/billing/api";
 import { entitlementQueries, isModuleEnabled } from "@/features/entitlements/api";
 import { CreditBalanceCard, SubscriptionCard } from "@/features/billing/components/cards";
+import { SubscriptionPlans } from "@/features/billing/components/subscription-plans";
 import { PackagesGrid } from "@/features/billing/components/packages-grid";
 import { CreditSummaryTable } from "@/features/billing/components/credit-summary-table";
+import { CreditLedgerTable } from "@/features/billing/components/credit-ledger-table";
 import { PromoCodeInput } from "@/features/billing/components/promo-code-input";
 import { Separator } from "@/components/ui/separator";
 import { getTranslations } from "next-intl/server";
@@ -51,6 +53,19 @@ export default async function BillingPage() {
 
         <Separator />
 
+        {/* Subscription plans */}
+        <section id="plans" className="space-y-4 scroll-mt-20">
+          <div>
+            <h2 className="text-base font-semibold">{t("plans.heading")}</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {t("plans.description")}
+            </p>
+          </div>
+          <SubscriptionPlans />
+        </section>
+
+        <Separator />
+
         {/* Credit packages */}
         <section className="space-y-4">
           <div>
@@ -86,6 +101,19 @@ export default async function BillingPage() {
             </p>
           </div>
           <CreditSummaryTable />
+        </section>
+
+        <Separator />
+
+        {/* Credit transaction ledger */}
+        <section className="space-y-4">
+          <div>
+            <h2 className="text-base font-semibold">{t("ledger.heading")}</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {t("ledger.description")}
+            </p>
+          </div>
+          <CreditLedgerTable />
         </section>
       </div>
     </HydrationBoundary>

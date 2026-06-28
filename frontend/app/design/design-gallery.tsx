@@ -202,15 +202,15 @@ function FakeOperationStatus({
   status,
   errorDetail,
 }: {
-  status: "Pending" | "Running" | "Completed" | "Failed" | "Cancelled";
+  status: "Pending" | "Running" | "Succeeded" | "Failed";
   errorDetail?: string;
 }) {
-  const terminal = status === "Completed" || status === "Failed" || status === "Cancelled";
+  const terminal = status === "Succeeded" || status === "Failed";
   return (
     <div className="flex flex-col gap-2" aria-label={`Operation: ${status}`}>
       <div className="flex items-center gap-2 text-sm">
         {terminal ? (
-          status === "Completed" ? (
+          status === "Succeeded" ? (
             <CheckCircle2Icon className="h-4 w-4 text-success" aria-hidden />
           ) : (
             <XCircleIcon className="h-4 w-4 text-destructive" aria-hidden />
@@ -220,9 +220,9 @@ function FakeOperationStatus({
         )}
         <span
           className={
-            status === "Completed"
+            status === "Succeeded"
               ? "font-medium text-success"
-              : status === "Failed" || status === "Cancelled"
+              : status === "Failed"
                 ? "font-medium text-destructive"
                 : "font-medium text-muted-foreground"
           }
@@ -233,7 +233,7 @@ function FakeOperationStatus({
       {!terminal && (
         <Progress value={null} className="h-1 animate-pulse" aria-label="In progress" />
       )}
-      {(status === "Failed" || status === "Cancelled") && errorDetail && (
+      {status === "Failed" && errorDetail && (
         <p className="text-xs text-destructive">{errorDetail}</p>
       )}
     </div>
@@ -1012,9 +1012,8 @@ export function DesignGallery() {
               [
                 { label: "Pending", status: "Pending" as const },
                 { label: "Running", status: "Running" as const },
-                { label: "Completed", status: "Completed" as const },
+                { label: "Succeeded", status: "Succeeded" as const },
                 { label: "Failed", status: "Failed" as const, errorDetail: "Upstream service unavailable." },
-                { label: "Cancelled", status: "Cancelled" as const, errorDetail: "Cancelled by user." },
               ] satisfies Array<{ label: string; status: Parameters<typeof FakeOperationStatus>[0]["status"]; errorDetail?: string }>
             ).map(({ label, status, errorDetail }) => (
               <Card key={label} size="sm">

@@ -4,8 +4,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
+using ModularPlatform.Files.Features.Delete;
 using ModularPlatform.Files.Features.Download;
 using ModularPlatform.Files.Features.List;
+using ModularPlatform.Files.Features.Rename;
 using ModularPlatform.Files.Features.Upload;
 using ModularPlatform.Files.Gdpr;
 using ModularPlatform.Files.Persistence;
@@ -52,6 +54,8 @@ public sealed class FilesModule : IModule
         endpoints.MapUploadFile();
         endpoints.MapDownloadFile();
         endpoints.MapListFiles();
+        endpoints.MapDeleteFile();
+        endpoints.MapRenameFile();
     }
 
     // No cross-module integration events — the module owns only its own metadata + storage.

@@ -7,6 +7,8 @@ using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Notifications.Channels;
 using ModularPlatform.Notifications.Features.Notifications.GetMyNotifications;
+using ModularPlatform.Notifications.Features.Notifications.GetUnreadCount;
+using ModularPlatform.Notifications.Features.Notifications.MarkAllRead;
 using ModularPlatform.Notifications.Features.Notifications.MarkNotificationRead;
 using ModularPlatform.Notifications.Features.Notifications.SendNotification;
 using ModularPlatform.Notifications.Gdpr;
@@ -54,7 +56,9 @@ public sealed class NotificationsModule : IModule
     {
         endpoints.MapSendNotification();
         endpoints.MapGetMyNotifications();
+        endpoints.MapGetUnreadCount();
         endpoints.MapMarkNotificationRead();
+        endpoints.MapMarkAllRead();
     }
 
     public void ConfigureMessaging(WolverineOptions options)

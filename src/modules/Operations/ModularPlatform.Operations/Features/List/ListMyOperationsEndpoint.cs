@@ -5,17 +5,16 @@ using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Web;
 
-namespace ModularPlatform.Files.Features.List;
+namespace ModularPlatform.Operations.Features.List;
 
-/// <summary>Paged list of the caller's own files (metadata only). Owner from the token; RLS-scoped.</summary>
-internal static class ListFilesEndpoint
+/// <summary>Paged list of the caller's own operations, newest first. Owner from the token; RLS-scoped.</summary>
+internal static class ListMyOperationsEndpoint
 {
-    public static void MapListFiles(this IEndpointRouteBuilder app)
+    public static void MapListMyOperations(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/files", async (
+        app.MapGet("/operations", async (
                 int? page,
                 int? pageSize,
-                string? search,
                 ITenantContext tenant,
                 IDispatcher dispatcher,
                 CancellationToken ct) =>
@@ -23,12 +22,12 @@ internal static class ListFilesEndpoint
                 var userId = tenant.UserId
                     ?? throw new UnauthorizedException("auth.required", "Authentication required.");
                 var result = await dispatcher.Query(
-                    new ListFilesQuery(userId, new PageRequest(page, pageSize), search), ct);
-                return Results.Ok(ApiResponse<PagedResponse<FileListItem>>.Ok(result));
+                    new ListMyOperationsQuery(userId, new PageRequest(page, pageSize)), ct);
+                return Results.Ok(ApiResponse<PagedResponse<OperationListItem>>.Ok(result));
             })
             .RequireAuthorization()
-            .RequireModule("files")
-            .WithTags("Files")
-            .WithName("ListFiles");
+            .RequireModule("operations")
+            .WithTags("Operations")
+            .WithName("ListMyOperations");
     }
 }

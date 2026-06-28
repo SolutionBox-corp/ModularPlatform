@@ -19,7 +19,7 @@
         "label": "Language"
       },
       "save": "Save changes",
-      "saving": "Saving...",
+      "saving": "Saving…",
       "saved": "Profile updated.",
       "saveError": "Could not save your profile. Please try again.",
       "title": "Profile"
@@ -31,7 +31,7 @@
       "new": "New password",
       "confirm": "Confirm new password",
       "submit": "Change password",
-      "saving": "Changing...",
+      "saving": "Changing…",
       "changed": "Password changed. Please sign in again.",
       "error": "Could not change your password. Please try again.",
       "currentRequired": "Enter your current password.",
@@ -95,6 +95,29 @@
     }
   },
   "billing": {
+    "ledger": {
+      "heading": "Transaction history",
+      "description": "Every credit movement on your account, newest first.",
+      "credit": "Credit",
+      "debit": "Debit",
+      "emptyTitle": "No transactions yet",
+      "emptyDescription": "Your credit top-ups and spends will appear here.",
+      "columns": {
+        "type": "Type",
+        "amount": "Amount",
+        "direction": "Direction",
+        "date": "Date"
+      },
+      "types": {
+        "topup": "Top-up",
+        "spend": "Spend",
+        "reservation": "Reservation",
+        "release": "Release",
+        "expiry": "Expiry",
+        "adjustment": "Adjustment",
+        "refund": "Refund"
+      }
+    },
     "balance": {
       "columns": {
         "category": "Category",
@@ -145,6 +168,25 @@
       "emptyDescription": "Credit packages will appear here once configured.",
       "emptyTitle": "No packages available"
     },
+    "portal": {
+      "manage": "Manage billing & invoices",
+      "opening": "Opening…",
+      "noAccount": "No billing account yet. Subscribe or buy credits first.",
+      "error": "Could not open the billing portal. Please try again."
+    },
+    "plans": {
+      "heading": "Choose a plan",
+      "description": "Subscribe for recurring credits every billing period.",
+      "emptyTitle": "No plans available",
+      "emptyDescription": "Subscription plans will appear here once configured.",
+      "current": "Current",
+      "currentPlan": "Current plan",
+      "subscribe": "Subscribe",
+      "redirecting": "Redirecting…",
+      "perPeriod": "credits per period",
+      "creditsExpireIn": "{credits} credits/period · expire in {days}d",
+      "creditsNoExpiry": "{credits} credits/period · no expiry"
+    },
     "promo": {
       "amountOffSuffix": "off",
       "apply": "Apply",
@@ -186,6 +228,25 @@
     "search": "Search"
   },
   "files": {
+    "actions": {
+      "menuAria": "Actions for {name}",
+      "download": "Download",
+      "rename": "Rename",
+      "delete": "Delete",
+      "cancel": "Cancel",
+      "save": "Save",
+      "saving": "Saving…",
+      "deleting": "Deleting…",
+      "renamed": "File renamed.",
+      "renameError": "Could not rename the file.",
+      "deleted": "Deleted \"{name}\".",
+      "deleteError": "Could not delete the file.",
+      "renameTitle": "Rename file",
+      "renameDescription": "Enter a new name for this file.",
+      "renameLabel": "File name",
+      "deleteTitle": "Delete file?",
+      "deleteDescription": "\"{name}\" will be permanently deleted. This cannot be undone."
+    },
     "dropzone": {
       "ariaLabel": "Upload a file — drag and drop or click to browse",
       "hint": "{types} — up to {maxMb} MB",
@@ -207,7 +268,11 @@
       "name": "Name",
       "size": "Size",
       "type": "Type",
-      "uploaded": "Uploaded"
+      "uploaded": "Uploaded",
+      "searchPlaceholder": "Search files…",
+      "searchAria": "Search files by name",
+      "noMatchTitle": "No matching files",
+      "noMatchDescription": "No files match your search. Try a different name."
     },
     "validation": {
       "tooLarge": "File is too large. Maximum size is {maxMb} MB.",
@@ -446,11 +511,24 @@
     "empty": {
       "feedDescription": "You're all caught up — no notifications yet.",
       "recentDescription": "You're all caught up.",
-      "title": "No notifications"
+      "title": "No notifications",
+      "noUnreadTitle": "No unread notifications",
+      "noUnreadDescription": "You're all caught up. Switch to All to see earlier notifications."
+    },
+    "filter": {
+      "all": "All",
+      "unread": "Unread"
     },
     "markRead": {
       "ariaLabel": "Mark \"{title}\" as read"
     },
+    "markAll": {
+      "action": "Mark all read",
+      "pending": "Marking…",
+      "done": "{count, plural, =0 {Nothing to mark} one {Marked 1 notification as read} other {Marked # notifications as read}}"
+    },
+    "unreadSummary": "{count, plural, one {1 unread} other {# unread}}",
+    "allRead": "All caught up",
     "page": {
       "description": "Your recent activity and system messages.",
       "heading": "Notifications",
@@ -637,6 +715,15 @@
     "consents": {
       "description": "Control how we use your data. Changes take effect immediately.",
       "heading": "Consent preferences",
+      "history": {
+        "heading": "Consent history",
+        "description": "Every consent decision you have made, newest first.",
+        "granted": "granted",
+        "withdrawn": "withdrawn",
+        "policyVersion": "policy {version}",
+        "emptyTitle": "No consent history",
+        "emptyDescription": "Your consent changes will be recorded here."
+      },
       "toast": {
         "granted": "Consent granted.",
         "withdrawn": "Consent withdrawn."
@@ -727,8 +814,7 @@
     "operationStatus": {
       "inProgress": "Operation in progress",
       "status": {
-        "cancelled": "Cancelled",
-        "completed": "Completed",
+        "succeeded": "Completed",
         "failed": "Failed",
         "pending": "Pending",
         "running": "Running"

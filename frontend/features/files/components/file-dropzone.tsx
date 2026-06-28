@@ -28,28 +28,38 @@ export function FileDropzone() {
   const [progress, setProgress] = useState(0);
 
   const handleUpload = useCallback(
-    async (file: File) => {
-      const err = validateFile(file);
-      if (err) {
-        toast.error(err);
-        return;
-      }
+    // Uploads one or more files SEQUENTIALLY. Each file is validated independently; invalid
+    // files are reported and skipped so a single bad file never blocks the rest of the batch.
+    async (files: File[]) => {
+      if (files.length === 0) return;
 
       setIsUploading(true);
       setProgress(0);
 
       // Fake smooth progress — the BFF is a simple proxy so we can't track real upload bytes.
-      // We animate to 90% while awaiting, then jump to 100 on success.
+      // We animate to 90% while awaiting each file, then jump to 100 on success.
       const intervalId = setInterval(() => {
         setProgress((p) => (p < 90 ? p + 10 : p));
       }, 200);
 
       try {
-        await uploadFile(file);
-        setProgress(100);
-        toast.success(t("dropzone.uploadSuccess", { name: file.name }));
-        // Invalidate all pages of the files list.
-        await queryClient.invalidateQueries({ queryKey: [...queryRoots.files, "list"] });
+        let uploaded = false;
+        for (const file of files) {
+          const err = validateFile(file);
+          if (err) {
+            toast.error(err);
+            continue;
+          }
+          setProgress(0);
+          await uploadFile(file);
+          setProgress(100);
+          toast.success(t("dropzone.uploadSuccess", { name: file.name }));
+          uploaded = true;
+        }
+        if (uploaded) {
+          // Invalidate all pages of the files list once, after the whole batch.
+          await queryClient.invalidateQueries({ queryKey: [...queryRoots.files, "list"] });
+        }
       } finally {
         clearInterval(intervalId);
         setTimeout(() => {
@@ -63,8 +73,8 @@ export function FileDropzone() {
 
   const onFileSelected = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) handleUpload(file);
+      const files = Array.from(e.target.files ?? []);
+      if (files.length > 0) handleUpload(files);
       // Reset so the same file can be re-selected after an error.
       e.target.value = "";
     },
@@ -75,8 +85,8 @@ export function FileDropzone() {
     (e: React.DragEvent<HTMLDivElement>) => {
       e.preventDefault();
       setIsDragging(false);
-      const file = e.dataTransfer.files[0];
-      if (file) handleUpload(file);
+      const files = Array.from(e.dataTransfer.files);
+      if (files.length > 0) handleUpload(files);
     },
     [handleUpload],
   );
@@ -120,6 +130,7 @@ export function FileDropzone() {
         type="file"
         className="sr-only"
         accept={ACCEPTED_ATTR}
+        multiple
         tabIndex={-1}
         aria-hidden="true"
         onChange={onFileSelected}

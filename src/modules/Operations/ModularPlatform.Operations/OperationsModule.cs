@@ -6,6 +6,7 @@ using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Messaging;
 using ModularPlatform.Operations.Features.Demo;
+using ModularPlatform.Operations.Features.List;
 using ModularPlatform.Operations.Features.Status;
 using ModularPlatform.Operations.Persistence;
 using ModularPlatform.Persistence;
@@ -43,6 +44,7 @@ public sealed class OperationsModule : IModule
     {
         endpoints.MapStartDemoOperation();
         endpoints.MapGetOperationStatus();
+        endpoints.MapListMyOperations();
     }
 
     public void ConfigureMessaging(WolverineOptions options)

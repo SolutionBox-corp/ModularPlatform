@@ -2,6 +2,7 @@ import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
 import { getQueryClient } from "@/lib/api/query-client";
 import { privacyQueries } from "@/features/privacy/api";
 import { ConsentToggles } from "@/features/privacy/components/consent-toggles";
+import { ConsentHistory } from "@/features/privacy/components/consent-history";
 import { ExportDataFlow } from "@/features/privacy/components/export-data-flow";
 import { EraseAccountDialog } from "@/features/privacy/components/erase-account-dialog";
 import { Separator } from "@/components/ui/separator";
@@ -44,6 +45,21 @@ export default async function PrivacyPage() {
             </p>
           </div>
           <ConsentToggles />
+        </section>
+
+        <Separator />
+
+        {/* Consent history */}
+        <section aria-labelledby="consent-history-heading" className="space-y-3">
+          <div>
+            <h2 id="consent-history-heading" className="text-sm font-medium">
+              {t("consents.history.heading")}
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {t("consents.history.description")}
+            </p>
+          </div>
+          <ConsentHistory />
         </section>
 
         <Separator />

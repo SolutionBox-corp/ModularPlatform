@@ -19,8 +19,8 @@ interface OperationStatusProps {
 
 /**
  * Polls GET /operations/{id} at 2-second intervals until the operation reaches a
- * terminal status (Completed | Failed | Cancelled), then calls onDone. Driven
- * entirely by TanStack Query refetchInterval; no manual timers.
+ * terminal status (Succeeded | Failed), then calls onDone. Driven entirely by
+ * TanStack Query refetchInterval; no manual timers.
  */
 export function OperationStatus({
   operationId,
@@ -46,9 +46,8 @@ export function OperationStatus({
   const STATUS_KEYS: Record<string, string> = {
     Pending: "operationStatus.status.pending",
     Running: "operationStatus.status.running",
-    Completed: "operationStatus.status.completed",
+    Succeeded: "operationStatus.status.succeeded",
     Failed: "operationStatus.status.failed",
-    Cancelled: "operationStatus.status.cancelled",
   };
   const statusLabel = STATUS_KEYS[status] ? t(STATUS_KEYS[status]) : status;
 
@@ -56,7 +55,7 @@ export function OperationStatus({
     <div className={cn("flex flex-col gap-2", className)} aria-live="polite">
       <div className="flex items-center gap-2 text-sm">
         {terminal ? (
-          status === "Completed" ? (
+          status === "Succeeded" ? (
             <CheckCircle2Icon className="h-4 w-4 text-success" aria-hidden />
           ) : (
             <XCircleIcon className="h-4 w-4 text-destructive" aria-hidden />
@@ -70,8 +69,8 @@ export function OperationStatus({
         <span
           className={cn(
             "font-medium",
-            status === "Completed" && "text-success",
-            (status === "Failed" || status === "Cancelled") && "text-destructive",
+            status === "Succeeded" && "text-success",
+            status === "Failed" && "text-destructive",
             !terminal && "text-muted-foreground",
           )}
         >

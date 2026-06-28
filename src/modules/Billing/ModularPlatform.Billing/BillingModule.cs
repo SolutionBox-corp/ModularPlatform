@@ -9,6 +9,7 @@ using ModularPlatform.Billing.Features.Coupons.ValidatePromoCode;
 using ModularPlatform.Billing.Features.Credits.ConfirmSpend;
 using ModularPlatform.Billing.Features.Credits.CreditTopUp;
 using ModularPlatform.Billing.Features.Credits.GetCreditBalance;
+using ModularPlatform.Billing.Features.Credits.GetCreditLedger;
 using ModularPlatform.Billing.Features.Credits.ReleaseHold;
 using ModularPlatform.Billing.Features.Credits.ReserveCredits;
 using ModularPlatform.Billing.Features.PaymentGateway.ConfigureGateway;
@@ -104,6 +105,7 @@ public sealed class BillingModule : IModule
         endpoints.MapConfigureGateway();
         endpoints.MapCreateTenantCheckout();
         endpoints.MapGetCreditBalance();
+        endpoints.MapGetCreditLedger();
         endpoints.MapCreditTopUp();
         endpoints.MapReserveCredits();
         endpoints.MapConfirmSpend();

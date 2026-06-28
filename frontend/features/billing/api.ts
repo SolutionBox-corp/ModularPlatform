@@ -1,6 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/types";
+import type { Paged } from "@/lib/api/types";
 import { queryRoots } from "@/lib/api/query-keys";
 
 // ---------------------------------------------------------------------------
@@ -24,6 +25,19 @@ export interface CreditPackageResponse {
   currency: string;
   /** null means credits don't expire. */
   bucketExpiryDays: number | null;
+}
+
+/** One entry of the append-only credit ledger (GET /billing/credits/entries). */
+export interface CreditLedgerEntry {
+  id: string;
+  /** "Credit" | "Debit" — the sign meaning of `amount` (always positive). */
+  direction: string;
+  amount: number;
+  /** Business reason: Topup | Spend | Reservation | Release | Expiry | Adjustment | Refund. */
+  type: string;
+  transactionId: string;
+  idempotencyKey: string;
+  createdAt: string;
 }
 
 export interface SubscriptionPlanResponse {
@@ -75,6 +89,32 @@ export const billingQueries = {
     queryOptions({
       queryKey: [...queryRoots.billing, "balance"],
       queryFn: () => apiFetch<CreditBalanceResponse>("billing/credits/balance"),
+      staleTime: 30_000,
+    }),
+
+  /**
+   * GET /v1/billing/credits/entries — the caller's append-only credit ledger, paged.
+   * The backend 404s with `credit.account_not_found` when the user has no wallet yet;
+   * we map that to an empty page so a brand-new user sees an empty ledger, not an error.
+   */
+  ledger: (page = 1, pageSize = 20) =>
+    queryOptions({
+      queryKey: [...queryRoots.billing, "ledger", page, pageSize],
+      queryFn: async (): Promise<Paged<CreditLedgerEntry>> => {
+        try {
+          return await apiFetch<Paged<CreditLedgerEntry>>(
+            `billing/credits/entries?page=${page}&pageSize=${pageSize}`,
+          );
+        } catch (err) {
+          if (
+            err instanceof ApiError &&
+            (err.status === 404 || err.errorCode === "credit.account_not_found")
+          ) {
+            return { items: [], page, pageSize, totalCount: 0 };
+          }
+          throw err;
+        }
+      },
       staleTime: 30_000,
     }),
 
@@ -158,4 +198,9 @@ export function cancelSubscription(): Promise<CancelSubscriptionResponse> {
     "billing/subscriptions/cancel",
     { method: "POST" },
   );
+}
+
+/** POST /v1/billing/portal → Stripe Customer Portal URL (manage cards + invoices). */
+export function createBillingPortalSession(): Promise<{ url: string }> {
+  return apiFetch<{ url: string }>("billing/portal", { method: "POST" });
 }

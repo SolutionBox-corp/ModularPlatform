@@ -12,6 +12,10 @@ export interface NotificationItem {
   createdAt: string;
 }
 
+export interface UnreadCountResponse {
+  count: number;
+}
+
 export const notificationQueries = {
   /** GET /v1/notifications/me — paginated feed. */
   feed: (params?: { unreadOnly?: boolean; page?: number; pageSize?: number }) =>
@@ -39,9 +43,25 @@ export const notificationQueries = {
   /** Backwards-compat alias used by the dashboard prefetch. */
   list: (params?: { unreadOnly?: boolean; page?: number; pageSize?: number }) =>
     notificationQueries.feed(params),
+
+  /** GET /v1/notifications/me/unread-count — the unread badge counter. */
+  unreadCount: () =>
+    queryOptions({
+      queryKey: [...queryRoots.notifications, "unread-count"],
+      queryFn: () =>
+        apiFetch<UnreadCountResponse>("notifications/me/unread-count"),
+      staleTime: 30_000,
+    }),
 };
 
 /** POST /v1/notifications/{id}/read — marks a single notification as read. */
 export function markNotificationRead(id: string): Promise<void> {
   return apiFetch<void>(`notifications/${id}/read`, { method: "POST" });
+}
+
+/** POST /v1/notifications/me/read-all — marks all of the caller's unread notifications read. */
+export function markAllNotificationsRead(): Promise<{ marked: number }> {
+  return apiFetch<{ marked: number }>("notifications/me/read-all", {
+    method: "POST",
+  });
 }

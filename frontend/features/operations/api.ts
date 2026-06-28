@@ -5,7 +5,7 @@ import { queryRoots } from "@/lib/api/query-keys";
 export interface OperationStatusResponse {
   id: string;
   type: string;
-  /** "Pending" | "Running" | "Completed" | "Failed" | "Cancelled" */
+  /** Backend OperationStatus enum: "Pending" | "Running" | "Succeeded" | "Failed" */
   status: string;
   resultJson: string | null;
   errorCode: string | null;
@@ -13,7 +13,7 @@ export interface OperationStatusResponse {
   completedAt: string | null;
 }
 
-export const TERMINAL_STATUSES = new Set(["Completed", "Failed", "Cancelled"]);
+export const TERMINAL_STATUSES = new Set(["Succeeded", "Failed"]);
 
 export function isTerminal(status: string): boolean {
   return TERMINAL_STATUSES.has(status);
