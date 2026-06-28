@@ -303,6 +303,51 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task My_notifications_default_feed_includes_read_and_unread_and_clamps_page_bounds()
+    {
+        var (userId, token) = await fixture.RegisterAndLoginAsync(
+            $"notif-default-{Guid.CreateVersion7():N}@example.com", Password);
+
+        await fixture.ExecuteSqlAsync($"UPDATE notifications SET \"ReadAt\" = now() WHERE \"UserId\" = '{userId}'");
+
+        var readTemplate = $"feed-read-{Guid.CreateVersion7():N}";
+        var unreadTemplate = $"feed-unread-{Guid.CreateVersion7():N}";
+        await SeedTemplateAsync(readTemplate, "Read");
+        await SeedTemplateAsync(unreadTemplate, "Unread");
+        await SendDirectAsync(userId, readTemplate);
+        await SendDirectAsync(userId, unreadTemplate);
+
+        var readId = await fixture.ScalarAsync<Guid>(
+            $"SELECT \"Id\" FROM notifications WHERE \"UserId\" = '{userId}' AND \"TemplateKey\" = '{readTemplate}'");
+        var markRead = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Post, $"/v1/notifications/{readId}/read", token));
+        markRead.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var defaultFeed = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/notifications/me?page=0&pageSize=999", token));
+
+        defaultFeed.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var data = await PlatformApiFactory.ReadData(defaultFeed);
+        data.GetProperty("page").GetInt32().ShouldBe(1);
+        data.GetProperty("pageSize").GetInt32().ShouldBe(100);
+
+        var templateKeys = data.GetProperty("items").EnumerateArray()
+            .Select(n => n.GetProperty("templateKey").GetString())
+            .ToArray();
+        templateKeys.ShouldContain(readTemplate);
+        templateKeys.ShouldContain(unreadTemplate);
+
+        var unreadOnly = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/notifications/me?unreadOnly=true", token));
+        unreadOnly.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var unreadKeys = (await PlatformApiFactory.ReadData(unreadOnly)).GetProperty("items").EnumerateArray()
+            .Select(n => n.GetProperty("templateKey").GetString())
+            .ToArray();
+        unreadKeys.ShouldNotContain(readTemplate);
+        unreadKeys.ShouldContain(unreadTemplate);
+    }
+
+    [Fact]
     public async Task Unread_count_is_owner_scoped_and_updates_after_mark_read()
     {
         var (aliceId, aliceToken) = await fixture.RegisterAndLoginAsync(

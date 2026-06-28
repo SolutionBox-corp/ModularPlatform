@@ -952,15 +952,15 @@ _Rendering logic is now directly covered; remaining gaps are around seeding and 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
 | Identity must come from token, not body | ✓ | Both endpoints derive userId from ITenantContext.UserId (GetMyNotificationsEndpoint.cs:22-23, MarkNotificationReadEndpoint.cs:20-21); no client-supplied subject id. RLS on IUserOwned adds DB-level isolation. |
-| Mark-read on another user's notification | ✓ | MarkNotificationReadHandler.cs:17-19 filters n.UserId == command.UserId; a foreign id -> NotFoundException (and RLS would 404 it regardless). |
-| Mark-read called twice (idempotency) | ✓ | MarkNotificationReadHandler.cs:21-25 only stamps ReadAt when null and only then SaveChanges — second call is a no-op, no spurious audit/concurrency write. |
-| Pagination bounds (page<=0, oversized pageSize) | ◐ | GetMyNotificationsHandler.cs:29 delegates to ToPagedResponseAsync(query.Page,...) with a PageRequest(page,pageSize) built from nullable query params (GetMyNotificationsEndpoint.cs:25). Clamping lives in the shared PageRequest/Paging helper (not in this slice) — not verified here; assumed handled by the building-block. |
-| unreadOnly default | ✓ | Endpoint defaults unreadOnly to false (GetMyNotificationsEndpoint.cs:25); handler applies ReadAt==null filter only when true (GetMyNotificationsHandler.cs:21-24). |
+| Mark-read on another user's notification | ✓ | MarkNotificationReadHandler.cs:17-19 filters n.UserId == command.UserId; a foreign id -> NotFoundException (and RLS would 404 it regardless); test Mark_notification_read_is_owner_scoped_and_idempotent. |
+| Mark-read called twice (idempotency) | ✓ | MarkNotificationReadHandler.cs:21-25 only stamps ReadAt when null and only then SaveChanges — second call is a no-op, no spurious audit/concurrency write; test Mark_notification_read_is_owner_scoped_and_idempotent. |
+| Pagination bounds (page<=0, oversized pageSize) | ✓ | GetMyNotificationsHandler.cs:29 delegates to ToPagedResponseAsync(query.Page,...) with a PageRequest(page,pageSize); PageRequest clamps page/pageSize; test My_notifications_default_feed_includes_read_and_unread_and_clamps_page_bounds. |
+| unreadOnly default | ✓ | Endpoint defaults unreadOnly to false (GetMyNotificationsEndpoint.cs:25); handler applies ReadAt==null filter only when true (GetMyNotificationsHandler.cs:21-24); test My_notifications_default_feed_includes_read_and_unread_and_clamps_page_bounds. |
 
-**Testy:** NotificationsIntegrationTests.Unread_feed_and_mark_read_round_trip (NT-4)
-**Test gaps:** No test that marking another user's notification returns 404 (cross-user isolation on mark-read); No test for mark-read idempotency (second call no-op); No pagination boundary test (page=0, large pageSize clamping); No test that the unreadOnly=false default returns read+unread together
+**Testy:** NotificationsIntegrationTests.Unread_feed_and_mark_read_round_trip (NT-4); NotificationsIntegrationTests.Mark_notification_read_is_owner_scoped_and_idempotent; NotificationsIntegrationTests.My_notifications_default_feed_includes_read_and_unread_and_clamps_page_bounds; NotificationsIntegrationTests.My_notifications_feed_is_paged_and_owner_scoped
+**Test gaps:** No remaining focused in-app feed / mark-read gap in this slice.
 
-_Solid identity-from-token + idempotent design; pagination clamping is the only unverified-here concern (lives in the shared helper)._
+_Solid identity-from-token + idempotent design; owner scoping, unread filtering, default feed and clamping are pinned end-to-end._
 
 ### Cross-module reaction handlers (welcome + purchase-completed) — ✅ correct
 *React to Identity UserRegistered and Billing CreditPurchaseCompleted by dispatching SendNotificationCommand, reusing the one delivery slice.*
