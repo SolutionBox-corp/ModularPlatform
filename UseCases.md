@@ -11,7 +11,9 @@ Format je zamerne prakticky:
 - **Napises** = co patri do noveho modulu.
 - **EC** = edge cases primo k danemu UC, ne obecny seznam bokem.
 
-Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, tenanty, kredity, soubory, notifikace, GDPR, realtime, outbox, worker a audit uz existuji v base.
+Pravidlo pro cteni: kdyz delas novy produktovy modul, napr. CRM, modul vlastni jen svoji domenu. Identity, tenanty, kredity, soubory, notifikace, GDPR, realtime, outbox, worker a audit uz existuji v base.
+
+Poznamka k nazvum: `CRM`/`Crm` je v dokumentu jen konkretni priklad nazvu modulu. Stejny postup plati pro libovolny modul, napr. Projects, Helpdesk, Marketing nebo Scheduling. Kdyz delas jiny modul, prepis prefixy `crm`, `Crm`, `ModularPlatform.Crm` a routy `/crm` na svoji domenu.
 
 ## Identity
 
@@ -23,11 +25,11 @@ Pravidlo pro cteni: kdyz delas CRM modul, CRM vlastni jen CRM domenu. Identity, 
 
 **Co se stane:** Identity vytvori usera, zalozi tenant, vyda tokeny a pres outbox publikuje `UserRegisteredIntegrationEvent`.
 
-**Napises v CRM:** nic do registrace. Pokud CRM potrebuje onboarding, napises handler na `UserRegisteredIntegrationEvent`.
+**Napises v novem modulu (napr. CRM):** nic do registrace. Pokud CRM potrebuje onboarding, napises handler na `UserRegisteredIntegrationEvent`.
 
 **Mentalni model:** Registrace je vstup do platformy, ne do CRM. Identity resi email, heslo, tenant a tokeny. CRM se maximalne dozvi fakt "vznikl user/tenant" a zalozi si vlastni vychozi CRM data.
 
-**Kdy CRM neco dela:** jen pokud produkt potrebuje napr. default pipeline, ukazkovy seznam kontaktu nebo CRM onboarding checklist. To se dela jako consumer eventu, ne jako kod uvnitr `RegisterUserHandler`.
+**Kdy novy modul neco dela:** jen pokud produkt potrebuje napr. default pipeline, ukazkovy seznam kontaktu nebo CRM onboarding checklist. To se dela jako consumer eventu, ne jako kod uvnitr `RegisterUserHandler`.
 
 ```csharp
 public sealed class CreateCrmWorkspaceOnUserRegisteredHandler
@@ -43,7 +45,7 @@ public sealed class CreateCrmWorkspaceOnUserRegisteredHandler
 }
 ```
 
-**CRM command:** `EnsureCrmWorkspaceCommand` musi byt idempotentni. Idealni je unique index na `UserId`/`TenantId` nebo vlastni stable idempotency key. Event muze prijit znovu po retry.
+**Priklad commandu v novem modulu:** `EnsureCrmWorkspaceCommand` musi byt idempotentni. Idealni je unique index na `UserId`/`TenantId` nebo vlastni stable idempotency key. Event muze prijit znovu po retry.
 
 **Co nepises:** vlastni registracni endpoint v CRM, vlastni hash hesla, vlastni tenant provisioning, vlastni JWT, primy zapis do Identity/Tenancy tabulek.
 
@@ -65,7 +67,7 @@ public sealed class CreateCrmWorkspaceOnUserRegisteredHandler
 
 **Co se stane:** Identity overi heslo, zkontroluje lockout, vyda access token a refresh token.
 
-**Napises v CRM:** nic. CRM nikdy neoveruje heslo a nikdy nevydava JWT.
+**Napises v novem modulu (napr. CRM):** nic. CRM nikdy neoveruje heslo a nikdy nevydava JWT.
 
 **Mentalni model:** Login je security flow. CRM az potom dostane request s platnym bearer tokenem. CRM se nepta "je heslo spravne?", ale "co rika token a ma user permission na tuto CRM akci?".
 
@@ -78,7 +80,7 @@ const canCreateContact = user.permissions.includes("crm.contacts.create");
 return canCreateContact ? <CreateContactButton /> : null;
 ```
 
-**Co dela CRM backend:** v handleru beres usera/tenant z `ITenantContext`, ne z login requestu ani z body.
+**Co dela backend noveho modulu:** v handleru beres usera/tenant z `ITenantContext`, ne z login requestu ani z body.
 
 ```csharp
 var userId = tenantContext.UserId
@@ -103,7 +105,7 @@ var userId = tenantContext.UserId
 
 **Co se stane:** Refresh token se rotuje a token claims se znovu nactou z aktualnich roli a permissions.
 
-**Napises v CRM:** nic, jen pocitas s tim, ze permissions jsou snapshot v access tokenu.
+**Napises v novem modulu (napr. CRM):** nic, jen pocitas s tim, ze permissions jsou snapshot v access tokenu.
 
 **Mentalni model:** Access token je fotka opravneni v case vydani. Refresh je okamzik, kdy se fotka obnovi. Kdyz admin prida userovi `crm.contacts.delete`, stare taby to neuvidi magicky hned; uvidi to po refreshi tokenu, novem loginu nebo po expiraci stareho access tokenu.
 
@@ -111,7 +113,7 @@ var userId = tenantContext.UserId
 
 **Co dela BFF/frontend:** kdyz server-side fetch vidi expirovany access token, zkusi refresh. Kdyz refresh selze, session se vycisti. Browser `apiFetch` pri 401 presmeruje na `/login?reason=expired`.
 
-**Co dela CRM UI:** po 401 nedrzi stare CRM query jako pravdu. Po navratu na login nebo po refresh failure se user-specific cache bere jako neduveryhodna.
+**Co dela UI noveho modulu:** po 401 nedrzi stare CRM query jako pravdu. Po navratu na login nebo po refresh failure se user-specific cache bere jako neduveryhodna.
 
 ```ts
 // CRM komponenta nema resit refresh token.
@@ -119,7 +121,7 @@ var userId = tenantContext.UserId
 const contacts = useContacts();
 ```
 
-**Co dela CRM backend:** endpoint se diva na aktualni claims v requestu. Pokud token jeste obsahuje starou permission, backend ji pro tento request bere jako snapshot. Pro okamzite revokace citlivych akci navrhni kratkou expiraci nebo server-side revocation policy v Identity, ne lokalni CRM hack.
+**Co dela backend noveho modulu:** endpoint se diva na aktualni claims v requestu. Pokud token jeste obsahuje starou permission, backend ji pro tento request bere jako snapshot. Pro okamzite revokace citlivych akci navrhni kratkou expiraci nebo server-side revocation policy v Identity, ne lokalni CRM hack.
 
 **Co nepises:** vlastni refresh endpoint v CRM, vlastni token family table, polling Identity DB pro permissions v kazdem CRM requestu, specialni "force refresh" business logiku v CRM handleru.
 
@@ -127,7 +129,7 @@ const contacts = useContacts();
 
 - EC011 replay stareho refresh tokenu revoke celou token family → CRM pri 401 nenabizi retry donekonecna; user se musi znovu prihlasit.
 - EC012 pri soubeznem refreshi vyhraje jen jeden request → frontend/BFF musi pocitat s tim, ze paralelni taby mohou dostat 401 a udelat redirect.
-- EC013 refresh po erasure nebo soft-delete vraci 401 → CRM nesmi zobrazit cached PII po session invalidaci.
+- EC013 refresh po erasure nebo soft-delete vraci 401 → novy modul nesmi zobrazit cached PII po session invalidaci.
 - EC014 zmena role se projevi az po refreshi/loginu nebo expiraci stareho access tokenu → UI permissions jsou snapshot, backend permission guard je stale autorita.
 - EC015 frontend musi po 401 zahodit session a cache → neukazuj stale CRM data z React Query/local state po auth failure.
 
@@ -139,7 +141,7 @@ const contacts = useContacts();
 
 **Co se stane:** Identity revoke refresh-token family. Logout je idempotentni.
 
-**Napises v CRM:** nic.
+**Napises v novem modulu (napr. CRM):** nic.
 
 **Mentalni model:** Logout je security revocation + UX cleanup. Server zneplatni refresh token family, frontend zahodi session/cookies/cache. CRM nema vlastni predstavu "user je odhlaseny"; jen vidi, ze dalsi request nema validni token.
 
@@ -174,7 +176,7 @@ router.refresh();
 
 **Co se stane:** Identity vezme user id z tokenu a vrati profil.
 
-**Napises v CRM:** nic. Nepises vlastni `/crm/me`.
+**Napises v novem modulu (napr. CRM):** nic. Nepises vlastni `/crm/me`.
 
 **Mentalni model:** "Kdo jsem?" je Identity otazka. CRM nema mit vlastni profil usera, pokud opravdu nepotrebuje CRM-specificke preference. Pro email, display name a locale pouzij Identity DTO.
 
@@ -212,7 +214,7 @@ var userId = tenant.UserId
 
 **Co se stane:** Identity ulozi `DisplayName` a `Locale`.
 
-**Napises v CRM:** nic. Pokud CRM zobrazuje jmeno usera, cte public profile DTO nebo drzi projekci.
+**Napises v novem modulu (napr. CRM):** nic. Pokud CRM zobrazuje jmeno usera, cte public profile DTO nebo drzi projekci.
 
 **Mentalni model:** Profil je self-service nastaveni uzivatele. CRM nema menit profil, pokud zrovna nestavis account/profile obrazovku. CRM muze profil zobrazit, ale owner zmen je Identity.
 
@@ -248,7 +250,7 @@ await queryClient.invalidateQueries({
 
 **Co se stane:** Identity overi current password, ulozi nove heslo a revoke sessions.
 
-**Napises v CRM:** nic, jen frontend po uspechu posle usera na login.
+**Napises v novem modulu (napr. CRM):** nic, jen frontend po uspechu posle usera na login.
 
 **Mentalni model:** Zmena hesla je credential rotation. Po uspechu uz zadna stara session nema pokracovat, ani ta aktualni v otevrenem CRM tabu. User se prihlasi znovu a dostane nove tokeny.
 
@@ -265,7 +267,7 @@ router.push("/login?reason=password-changed");
 
 **Chyby ve formulari:** `user.current_password_invalid` patri na field `currentPassword`. Slabe heslo nebo mismatch potvrzeni chyti frontend schema/backend validator a zobrazi se u poli.
 
-**Co dela CRM backend:** nic. Pokud bezi CRM worker z predchozi akce, jeho behavior se ridi vlastnim stavem operace/ownerem, ne tim, ze user zmenil heslo.
+**Co dela backend noveho modulu:** nic. Pokud bezi CRM worker z predchozi akce, jeho behavior se ridi vlastnim stavem operace/ownerem, ne tim, ze user zmenil heslo.
 
 **Co nepises:** change password v CRM modulu, endpoint s `userId` v body, zachovani otevrene CRM session po password rotation, vlastni password policy mimo Identity.
 
@@ -285,11 +287,11 @@ router.push("/login?reason=password-changed");
 
 **Co se stane:** Identity prida userovi roli a tim i permissions do dalsiho token snapshotu.
 
-**Napises v CRM:** jen nove permission constants typu `crm.read`, `crm.write`, pokud CRM potrebuje vlastni gate.
+**Napises v novem modulu (napr. CRM):** jen nove permission constants typu `crm.read`, `crm.write`, pokud CRM potrebuje vlastni gate.
 
 **Mentalni model:** Role a permission assignment vlastni Identity. CRM definuje slovnik permissions pro svoje endpointy, ale nepridava vlastni role tabulky ani user-role vazby.
 
-**CRM permission:** novy permission pridej do `PlatformPermissions`. Seeder ho na startupu zalozi v Identity a system `admin` role ho dostane automaticky.
+**Permission noveho modulu:** novy permission pridej do `PlatformPermissions`. Seeder ho na startupu zalozi v Identity a system `admin` role ho dostane automaticky.
 
 ```csharp
 public const string CrmContactsRead = "crm.contacts.read";
@@ -297,7 +299,7 @@ public const string CrmContactsWrite = "crm.contacts.write";
 public const string CrmDealsManage = "crm.deals.manage";
 ```
 
-**CRM endpoint guard:** endpoint gated pres permission claim z tokenu.
+**Endpoint guard noveho modulu:** endpoint gated pres permission claim z tokenu.
 
 ```csharp
 app.MapPost("/crm/contacts", ...)
@@ -327,7 +329,7 @@ app.MapPost("/crm/contacts", ...)
 
 **Co se stane:** Identity odebere roli. Nove tokeny uz permission nemaji.
 
-**Napises v CRM:** nic.
+**Napises v novem modulu (napr. CRM):** nic.
 
 **Mentalni model:** Odebrani role meni budouci token snapshots. Nezabije okamzite kazdy existujici access token v otevrenych tabech. Pro normalni CRM permission je to OK; pro high-risk akci res kratkou expiraci tokenu nebo explicitni revocation politiku mimo CRM.
 
@@ -361,7 +363,7 @@ void queryClient.invalidateQueries({ queryKey: queryRoots.admin });
 
 **Co se stane:** Identity vrati detail usera pro admin pohled.
 
-**Napises v CRM:** CRM drzi jen `UserId`, ne `User` Core entity.
+**Napises v novem modulu (napr. CRM):** CRM drzi jen `UserId`, ne `User` Core entity.
 
 **Mentalni model:** `UserId` je cross-module reference. Detail usera zustava Identity read model. CRM muze user id ulozit u vlastnich entit (`OwnerUserId`, `AssignedToUserId`), ale kdyz chce zobrazit email/jmeno/role, cte DTO z Identity nebo vlastni synchronizovanou projekci.
 
@@ -373,7 +375,7 @@ void queryClient.invalidateQueries({ queryKey: queryRoots.admin });
 const user = useQuery(identityAdminQueries.userDetail(userId));
 ```
 
-**CRM backend pouziti:** pokud CRM endpoint vraci deal s assigned userem, vrat `AssignedToUserId` nebo vlastni DTO/projekci. Nevracej EF `User` entity ani nedelaj join do Identity Core tabulek.
+**Backend pouziti v novem modulu:** pokud CRM endpoint vraci deal s assigned userem, vrat `AssignedToUserId` nebo vlastni DTO/projekci. Nevracej EF `User` entity ani nedelaj join do Identity Core tabulek.
 
 ```csharp
 public sealed record DealDetailResponse(
@@ -391,7 +393,7 @@ public sealed record DealDetailResponse(
 - EC046 bez permission vraci 403 → CRM admin obrazovka musi mit vlastni permission guard a nesmi spolehat jen na skryty link.
 - EC047 tenant admin a platform admin scope nejsou totez → CRM tenant UI nema cross-tenant user directory.
 - EC048 soft-deleted user se zobrazuje jen tam, kde to endpoint explicitne dela → bezny CRM assigned-user display musi umet missing/erased stav.
-- EC049 CRM nesmi referencovat Identity Core → pouzij `UserId`, DTO nebo projection, nikdy Core entity.
+- EC049 novy modul nesmi referencovat Identity Core → pouzij `UserId`, DTO nebo projection, nikdy Core entity.
 - EC050 pro UI pouzij DTO nebo projekci → frontend typy z `identity-admin/api.ts`, ne backend entity shape.
 
 ### UC11 Machine token
@@ -402,7 +404,7 @@ public sealed record DealDetailResponse(
 
 **Co se stane:** Identity vyda token pro integraci nebo automat.
 
-**Napises v CRM:** jen endpointy, ktere machine token smi volat, a permissions pro ne.
+**Napises v novem modulu (napr. CRM):** jen endpointy, ktere machine token smi volat, a permissions pro ne.
 
 **Mentalni model:** Machine token je ne-lidsky principal pro integraci/edge agenta. Ma tenant scope a `role=machine`, ale neni to normalni user session. Nemas `ITenantContext.UserId` jako lidskeho vlastnika akce.
 
@@ -442,11 +444,11 @@ app.MapPost("/crm/deals/{id}/checkout", ...)
 
 **Co se stane:** Identity vrati audit trail usera pro admina.
 
-**Napises v CRM:** per-module audit endpoint jen pro CRM entity, pokud je potreba.
+**Napises v novem modulu (napr. CRM):** per-module audit endpoint jen pro CRM entity, pokud je potreba.
 
 **Mentalni model:** Audit je platform capability, ale data jsou per-module. Identity audit endpoint cte `identity_audit_entries`. CRM audit endpoint ma cist `crm_audit_entries`. Centralni "audit vsech modulu pres vsechny tabulky" by porusil boundary law.
 
-**Kdy CRM audit potrebujes:** napr. admin chce videt zmeny kontaktu, dealu nebo CRM AI runu. Endpoint patri do CRM modulu a vraci jen CRM entity, ktere CRM vlastni.
+**Kdy audit v novem modulu potrebujes:** napr. admin chce videt zmeny kontaktu, dealu nebo AI runu v danem modulu. Endpoint patri do toho modulu a vraci jen entity, ktere modul vlastni.
 
 ```csharp
 app.MapGet("/crm/admin/contacts/{contactId:guid}/audit", ...)
@@ -483,7 +485,7 @@ var rows = await db.AuditEntries
 
 **Co se stane:** Platform admin vidi usery napric tenanty.
 
-**Napises v CRM:** nic. Bezny CRM list nikdy nema obchazet tenant filter.
+**Napises v novem modulu (napr. CRM):** nic. Bezny CRM list nikdy nema obchazet tenant filter.
 
 **Mentalni model:** Toto je control-plane obrazovka pro provozovatele platformy. Neni to CRM adresar lidi v jedne firme. Bezne CRM UI zustava tenant-scoped a nikdy nepotrebuje `IgnoreQueryFilters`.
 
@@ -512,7 +514,7 @@ if (query.TenantId is { } tenantId)
 }
 ```
 
-**CRM alternativa:** kdyz CRM potrebuje "uzivatele v mem tenantovi", udelej tenant-scoped CRM/Identity query nebo vlastni CRM projection. Nevolej platform list z tenant UI.
+**Alternativa pro novy modul:** kdyz CRM potrebuje "uzivatele v mem tenantovi", udelej tenant-scoped CRM/Identity query nebo vlastni CRM projection. Nevolej platform list z tenant UI.
 
 **Co nepises:** cross-tenant CRM user list, `IgnoreQueryFilters` v beznem CRM handleru, neomezeny export vsech useru, log s PII v list access eventu.
 
@@ -532,7 +534,7 @@ if (query.TenantId is { } tenantId)
 
 **Co se stane:** Platform admin vidi audit mimo tenant scope.
 
-**Napises v CRM:** nic.
+**Napises v novem modulu (napr. CRM):** nic.
 
 **Mentalni model:** Platform audit je forenzni cross-tenant pohled pro provozovatele platformy. Neni to tenant admin funkce a neni to obecny audit vsech modulu. Tady jde porad jen o Identity audit trail usera.
 
@@ -570,7 +572,7 @@ app.MapGet("/identity/platform/users/{userId:guid}/audit", ...)
 
 **Co se stane:** Frontend zjisti, ktere moduly ma tenant zapnute.
 
-**Napises v CRM:** navigation guard a backend `.RequireModule("crm")`.
+**Napises v novem modulu (napr. CRM):** navigation guard a backend `.RequireModule("crm")`.
 
 **Mentalni model:** Entitlement rika "ma tento tenant tento modul koupeny/zapnuty?". Permission rika "smi tento user udelat tuto akci?". Pro CRM potrebujes oboji: tenant musi mit CRM enabled a user musi mit CRM permission.
 
@@ -621,13 +623,13 @@ app.MapPost("/crm/contacts", ...)
 
 **Co se stane:** Tenancy vytvori tenant a publikuje `TenantProvisionedIntegrationEvent`.
 
-**Napises v CRM:** nic, pripadne handler na tenant provisioned pro vlastni seed.
+**Napises v novem modulu (napr. CRM):** nic, pripadne handler na tenant provisioned pro vlastni seed.
 
 **Mentalni model:** Tenant je workspace/platform boundary. Tenancy ho vytvari, pridava default entitlements a publikuje fakt "tenant vznikl". CRM tenant nikdy neprovisionuje samo.
 
 **Default entitlements:** novy tenant dostane jen default product modules. CRM zustava vypnute, dokud ho admin nezapne pres entitlement. Seed CRM dat proto nesmi predpokladat, ze kazdy tenant ma CRM aktivni.
 
-**Kdy CRM reaguje:** pokud CRM potrebuje tenant-level defaults, napr. default pipeline stages nebo default settings, pridej public Wolverine handler a internal command.
+**Kdy novy modul reaguje:** pokud modul potrebuje tenant-level defaults, napr. default pipeline stages nebo default settings, pridej public Wolverine handler a internal command.
 
 ```csharp
 public sealed class SeedCrmTenantHandler
@@ -664,7 +666,7 @@ public sealed class SeedCrmTenantHandler
 
 **Co se stane:** Admin UI vidi seznam tenantu.
 
-**Napises v CRM:** nic.
+**Napises v novem modulu (napr. CRM):** nic.
 
 **Mentalni model:** `GET /tenant/admin/tenants` je platform registry list. Je pro provozovatele SaaS, ne pro bezneho uzivatele CRM uvnitr jednoho tenant workspace.
 
@@ -683,7 +685,7 @@ const tenants = useQuery(platformQueries.tenants({
 
 **Cache:** po `provisionTenant` nebo `setEntitlement` invaliduj `queryRoots.admin`, protoze tenant list/detail/status se mohou zmenit.
 
-**CRM alternativa:** pokud CRM potrebuje "current tenant info" pro header nebo nastaveni, nepouzij platform list. Udelej tenant-scoped endpoint nebo cti entitlements/current tenant view, podle toho co opravdu potrebujes.
+**Alternativa pro novy modul:** pokud CRM potrebuje "current tenant info" pro header nebo nastaveni, nepouzij platform list. Udelej tenant-scoped endpoint nebo cti entitlements/current tenant view, podle toho co opravdu potrebujes.
 
 **Co nepises:** CRM dropdown vsech tenantu, cross-tenant CRM switcher pro normalni usery, response s infra/secrets, unbounded export, local copy tenant registry v CRM.
 
@@ -744,7 +746,7 @@ join CRM tabulek na `tenants`, nebo UI pro normalni CRM usery, ktere by ukazoval
   patri do CRM modulu, ne do Tenancy.
 - EC089 entitlements jsou persisted stav → `modules[]` je live pohled pres `IEntitlementResolver`; FE switch ma ukazat
   presne tohle, ne hardcoded seznam z klienta.
-- EC090 CRM nesmi prepisovat tenant metadata → CRM pouziva `TenantId` jako foreign id/reference, ale nemeni
+- EC090 novy modul nesmi prepisovat tenant metadata → modul pouziva `TenantId` jako foreign id/reference, ale nemeni
   `subdomain`, `placement` ani `status`.
 
 **Pozor:** po `SetEntitlement` musi UI invalidovat detail/list/status; jinak admin uvidi stale moduly. CRM take
@@ -1085,7 +1087,7 @@ nebo ulozeni vlastniho checkout state bez idempotency/reconciliation.
 - EC116 provider config missing → cisty 422 `payment.gateway_not_configured`, zadny fallback na cizi tenant gateway.
 - EC117 amount nebo currency invalid → FluentValidation vrati 400 pred volanim providera; `amountMinorUnits` musi byt
   > 0 a `currency` ma presne 3 znaky.
-- EC118 checkout expired → provider stav se resi pres webhook/re-fetch; CRM ma vytvorit novy checkout, ne drzet vlastni
+- EC118 checkout expired → provider stav se resi pres webhook/re-fetch; novy modul ma vytvorit novy checkout, ne drzet vlastni
   expiraci jako pravdu.
 - EC119 provider failure ma byt user-friendly error → runtime failure gateway se mapuje na 422 `payment.gateway_inactive`,
   ne 500.
@@ -1123,7 +1125,7 @@ POST /v1/billing/webhooks/fake/{tenantId}?id=fake_...
    `credit_amount`, outbox publikuje `CreditPurchaseConfirmed`.
 5. `CreditPurchaseSaga` grantne kredity pres idempotency key `purchase:{purchaseId}`.
 
-**Napises v CRM:** obvykle nic. Pokud CRM zavadi vlastni placenou akci, musi mit vlastni durable stav a provider
+**Napises v novem modulu (napr. CRM):** obvykle nic. Pokud CRM zavadi vlastni placenou akci, musi mit vlastni durable stav a provider
 metadata, ale potvrzeni platby ma porad jit pres Billing/webhook pattern, ne pres browser success page.
 
 **Co nepises:** authenticated webhook endpoint, rate limit na provider callback, 500 pri spatnem podpisu, grant kreditu
@@ -1178,7 +1180,7 @@ payloadu. `checkout.session.completed` pro delayed payment methods grantuje jen 
 **Reconcile:** Kdyz event zustane `ProcessedAt IS NULL` dele nez 30 minut, `ReconcileStripeCommand` ho znovu posle do
 outboxu. Stejny job porovnava local subscription mirror proti live Stripe stavu a opravuje drift.
 
-**Napises v CRM:** nic. CRM muze jen reagovat na finalni Billing event/status/credit balance. Pokud potrebujes vlastni
+**Napises v novem modulu (napr. CRM):** nic. CRM muze jen reagovat na finalni Billing event/status/credit balance. Pokud potrebujes vlastni
 paid workflow, kopiruj pattern: ingest minimalne, work durable ve Workeru, idempotency key, reconcile.
 
 **Co nepises:** ledger grant v HTTP webhook endpointu, trust minimal Stripe payloadu, raw SQL nad `stripe_events`,
@@ -1280,7 +1282,7 @@ const ledger = useQuery(billingQueries.ledger(page, 20));
 operace entry vytvorila.
 
 **Backend / CRM pouziti:** CRM obvykle jen odkazuje na Billing ledger nebo embedne tabulku. Pokud potrebujes u CRM
-akce zobrazit "tato AI analyza stala 25 kreditu", uloz do CRM vlastni business audit s `reservationId`/operation id a
+akce zobrazit "tato AI analyza stala 25 kreditu", uloz do noveho modulu vlastni business audit s `reservationId`/operation id a
 ledger nech jako financni knihu.
 
 **Co nepises:** vlastni vypocet `available` z entries, edit ledger radku, delete ledger pri GDPR erasure, nebo
@@ -1411,7 +1413,7 @@ nasledneho confirm/release, nebo HTTP work, ktery drzi request otevreny dele nez
   `holdMinutes`.
 - EC149 hold muze expirovat → expiry sweep prevede lapsed hold na `Expired` a vrati availability; CRM reconcile nesmi
   donekonecna cekat ve stavu `Reserved`.
-- EC150 CRM nesmi delat read-then-write balance → CRM vola `ReserveCreditsCommand`/endpoint a uklada jen
+- EC150 novy modul nesmi delat read-then-write balance → vola `ReserveCreditsCommand`/endpoint a uklada jen
   `ReservationId`, ne vlastni vypocet balance.
 
 ### UC31 Confirm spend
@@ -1885,7 +1887,7 @@ price id, nebo druhy checkout button bez pending disable.
 
 **Co se stane:** Billing vrati aktualni subscription stav.
 
-**Napises v CRM:** ctes jen pro UI nebo entitlement rozhodnuti pres policy.
+**Napises v novem modulu (napr. CRM):** ctes jen pro UI nebo entitlement rozhodnuti pres policy.
 
 **EC:**
 
@@ -1903,7 +1905,7 @@ price id, nebo druhy checkout button bez pending disable.
 
 **Co se stane:** Billing zavola provider a zmeni stav subscription.
 
-**Napises v CRM:** invalidace subscription a entitlement UI.
+**Napises v novem modulu (napr. CRM):** invalidace subscription a entitlement UI.
 
 **EC:**
 
@@ -1921,7 +1923,7 @@ price id, nebo druhy checkout button bez pending disable.
 
 **Co se stane:** Billing najde Stripe customer id z posledniho subscription zaznamu uzivatele a vytvori hosted Customer Portal session.
 
-**Napises v CRM:** zavolas endpoint bez body, vezmes `data.url` a udelas browser redirect. CRM nikdy neposila `customerId` ani nesklada Stripe portal URL samo.
+**Napises v novem modulu (napr. CRM):** zavolas endpoint bez body, vezmes `data.url` a udelas browser redirect. CRM nikdy neposila `customerId` ani nesklada Stripe portal URL samo.
 
 **EC:**
 
@@ -1939,7 +1941,7 @@ price id, nebo druhy checkout button bez pending disable.
 
 **Co se stane:** Billing normalizuje UI vstup, zepta se provideru na aktivni promo code a vrati discount shape pro nahled v UI.
 
-**Napises v CRM:** input s debounce, po 200-500 ms volas validate endpoint. Vysledek je jen UX hint; pri checkoutu se stejne spolehas na provider validaci.
+**Napises v novem modulu (napr. CRM):** input s debounce, po 200-500 ms volas validate endpoint. Vysledek je jen UX hint; pri checkoutu se stejne spolehas na provider validaci.
 
 **EC:**
 
@@ -1957,7 +1959,7 @@ price id, nebo druhy checkout button bez pending disable.
 
 **Co se stane:** Jobs host pusti `ReconcileStripeCommand`, ktery requeue stuck Stripe events, opravuje subscription drift podle live Stripe state a znovu grantuje prokazatelne zaplacene stuck purchases.
 
-**Napises v CRM:** pro vlastni CRM externi systemy kopiruj pattern: capped sweep, per-item try/catch, provider je source of truth, oprava jde pres stejne commandy jako normalni webhook.
+**Napises v novem modulu (napr. CRM):** pro vlastni CRM externi systemy kopiruj pattern: capped sweep, per-item try/catch, provider je source of truth, oprava jde pres stejne commandy jako normalni webhook.
 
 **EC:**
 
@@ -1975,7 +1977,7 @@ price id, nebo druhy checkout button bez pending disable.
 
 **Co se stane:** Jobs host dispatchne `ExpireCreditsCommand`, ktery materializuje expirovane holdy a bucket zmeny do ledgeru a projekce uctu.
 
-**Napises v CRM:** nic. CRM nikdy neupravuje bucket remaining ani hold status; jen cte balance/ledger.
+**Napises v novem modulu (napr. CRM):** nic. CRM nikdy neupravuje bucket remaining ani hold status; jen cte balance/ledger.
 
 **EC:**
 
@@ -1983,7 +1985,7 @@ price id, nebo druhy checkout button bez pending disable.
 - EC227 hold overlapping bucket → kdyz bucket kryje aktivni rezervaci, sweep ho preskoci, aby nesrazil balance pod nulu.
 - EC228 idempotency key per expiration → ledger pouziva `expire-hold:{holdId}` a `expire-bucket:{bucketId}`, opakovany sweep je no-op.
 - EC229 UTC cron → `BillingModule.RegisterJobs` nastavuje Quartz cron pres `InTimeZone(TimeZoneInfo.Utc)` a job ma `DisallowConcurrentExecution`.
-- EC230 CRM nesmi upravovat bucket remaining → zmena bucketu jde jen pres Billing commandy; CRM nema endpoint ani tabulkovy zapis na bucket remaining.
+- EC230 novy modul nesmi upravovat bucket remaining → zmena bucketu jde jen pres Billing commandy; modul nema endpoint ani tabulkovy zapis na bucket remaining.
 
 ### UC47 Provision credit account
 
@@ -1993,7 +1995,7 @@ price id, nebo druhy checkout button bez pending disable.
 
 **Co se stane:** Identity publikuje `UserRegisteredIntegrationEvent`; Billing public Wolverine handler dispatchne internal `EnsureCreditAccountCommand` a vytvori zero-balance credit account.
 
-**Napises v CRM:** kopiruj pattern pro svoje onboarding projekce: public event handler bere jen contract event + `IDispatcher`, vsechna logika zustava v internal commandu.
+**Napises v novem modulu (napr. CRM):** kopiruj pattern pro svoje onboarding projekce: public event handler bere jen contract event + `IDispatcher`, vsechna logika zustava v internal commandu.
 
 **EC:**
 
@@ -2013,7 +2015,7 @@ price id, nebo druhy checkout button bez pending disable.
 
 **Co se stane:** Notifications vyrenderuje template, ulozi in-app feed row a email/push prida do Wolverine outboxu.
 
-**Napises v CRM:** command/event s recipientem, template key, daty a `idempotencyKey`. Pres HTTP posilej jen opravneny/admin caller; bezny user si nema posilat notifikace cizim userum.
+**Napises v novem modulu (napr. CRM):** command/event s recipientem, template key, daty a `idempotencyKey`. Pres HTTP posilej jen opravneny/admin caller; bezny user si nema posilat notifikace cizim userum.
 
 **EC:**
 
@@ -2031,7 +2033,7 @@ price id, nebo druhy checkout button bez pending disable.
 
 **Co se stane:** User vidi owner-scoped, paged feed z `notifications`, newest first, volitelne jen unread.
 
-**Napises v CRM:** nic specialniho; FE pouzije platform endpoint, invaliduje/refetchuje feed po mark-read nebo po realtime eventu.
+**Napises v novem modulu (napr. CRM):** nic specialniho; FE pouzije platform endpoint, invaliduje/refetchuje feed po mark-read nebo po realtime eventu.
 
 **EC:**
 
@@ -2049,7 +2051,7 @@ price id, nebo druhy checkout button bez pending disable.
 
 **Co se stane:** Frontend dostane owner-scoped pocet `ReadAt == null` notifikaci.
 
-**Napises v CRM:** jen badge v navigaci; nedrz druhy counter v CRM DB, vzdy refetchuj platform count.
+**Napises v novem modulu (napr. CRM):** jen badge v navigaci; nedrz druhy counter v CRM DB, vzdy refetchuj platform count.
 
 **EC:**
 
@@ -2067,7 +2069,7 @@ price id, nebo druhy checkout button bez pending disable.
 
 **Co se stane:** Notifications najde notifikaci podle `notificationId` a `UserId` z tokenu, a pokud je unread, nastavi `ReadAt`.
 
-**Napises v CRM:** mutation invaliduje list a unread count; optimistic update je OK, ale pri erroru rollback.
+**Napises v novem modulu (napr. CRM):** mutation invaliduje list a unread count; optimistic update je OK, ale pri erroru rollback.
 
 **EC:**
 
@@ -2085,7 +2087,7 @@ price id, nebo druhy checkout button bez pending disable.
 
 **Co se stane:** Notifications atomicky nastavi `ReadAt` na vsech mych unread notifikacich.
 
-**Napises v CRM:** button disable behem pending, po OK invaliduj feed i unread-count.
+**Napises v novem modulu (napr. CRM):** button disable behem pending, po OK invaliduj feed i unread-count.
 
 **EC:**
 
@@ -2103,7 +2105,7 @@ price id, nebo druhy checkout button bez pending disable.
 
 **Co se stane:** Worker zachyti `UserRegisteredIntegrationEvent` a pres `SendNotificationCommand` posle welcome email + in-app.
 
-**Napises v CRM:** podobny handler pro CRM onboarding jen pokud je potreba; handler musi byt public shell a dispatchovat existujici command.
+**Napises v novem modulu (napr. CRM):** podobny handler pro CRM onboarding jen pokud je potreba; handler musi byt public shell a dispatchovat existujici command.
 
 **EC:**
 
@@ -2121,7 +2123,7 @@ price id, nebo druhy checkout button bez pending disable.
 
 **Co se stane:** Billing po uspesnem nakupu publikuje `CreditPurchaseCompletedIntegrationEvent`. Notifications ma public Wolverine handler `SendPurchaseCompletedHandler`, ktery nevezme zadnou Billing tabulku, ale jen payload eventu (`UserId`, `PurchaseId`, `CreditAmount`). Handler zavola existujici slice `SendNotificationCommand` s template `purchase_completed`, channel `inapp` a `IdempotencyKey = purchase-completed:{purchaseId}`. Tim se pouzije normalni Notifications flow: render template, ulozit in-app row, pripadne predat email/push pres outbox.
 
-**Napises v CRM:** kdyz CRM dokonci obchod nebo AI beh, nevkladej notifikaci primo. CRM publikuje treba `DealWonIntegrationEvent` nebo `AiRunCompletedEvent`. V Notifications napises handler `SendDealWonHandler`, ktery z eventu posklada `data` pro template a zavola `SendNotificationCommand(..., IdempotencyKey: $"deal-won:{dealId:N}")`. Dulezite je, ze CRM zustane vlastnik obchodu a Notifications zustane vlastnik doruceni.
+**Napises v novem modulu (napr. CRM):** kdyz CRM dokonci obchod nebo AI beh, nevkladej notifikaci primo. CRM publikuje treba `DealWonIntegrationEvent` nebo `AiRunCompletedEvent`. V Notifications napises handler `SendDealWonHandler`, ktery z eventu posklada `data` pro template a zavola `SendNotificationCommand(..., IdempotencyKey: $"deal-won:{dealId:N}")`. Dulezite je, ze CRM zustane vlastnik obchodu a Notifications zustane vlastnik doruceni.
 
 **Vzor kodu:**
 
@@ -2169,7 +2171,7 @@ public sealed class SendDealWonHandler(ILogger<SendDealWonHandler> logger)
 
 **Co se stane:** `SendNotificationHandler` pri channel `email` nevykona SMTP v HTTP requestu. Jen publikuje `EmailDeliveryRequested` do Wolverine outboxu. Worker potom spusti `EmailDeliveryHandler`, ten vezme uz vyrenderovany `ToAddress`, `Subject`, `Body` a zavola `IEmailSender.SendAsync(...)`. Kdyz sender hodi exception, handler ji nechyta, aby Wolverine mohl udelat retry a pripadne DLQ.
 
-**Napises v CRM:** nic specialniho. CRM nikdy neposila email samo. CRM zavola notification slice/event a jen rekne `channels = ["email"]` nebo `["email", "inapp"]`. Email delivery patri Notifications modulu.
+**Napises v novem modulu (napr. CRM):** nic specialniho. CRM nikdy neposila email samo. CRM zavola notification slice/event a jen rekne `channels = ["email"]` nebo `["email", "inapp"]`. Email delivery patri Notifications modulu.
 
 **Vzor kodu:**
 
@@ -2206,7 +2208,7 @@ await dispatcher.Send(new SendNotificationCommand(
 
 **Co se stane:** `SendNotificationHandler` pri channel `push` publikuje `PushDeliveryRequested` do outboxu. Worker spusti `PushDeliveryHandler`, ktery zavola `IPushSender.SendAsync(userId, title, body)`. Dnesni provider je `NoOpPushSender`, takze base umi cely durable pipeline bez externiho FCM/Expo uctu. Realny provider se pozdeji vymeni za implementaci `IPushSender`.
 
-**Napises v CRM:** nic navic. CRM jen pozada o notification s `channels = ["push"]` nebo `["push", "inapp"]`. CRM nema znat device tokeny ani FCM/Expo.
+**Napises v novem modulu (napr. CRM):** nic navic. CRM jen pozada o notification s `channels = ["push"]` nebo `["push", "inapp"]`. CRM nema znat device tokeny ani FCM/Expo.
 
 **Vzor kodu:**
 
@@ -2244,7 +2246,7 @@ await dispatcher.Send(new SendNotificationCommand(
 
 **Co se stane:** Frontend posle multipart `file` na `POST /files`. Endpoint vezme usera z tokenu, otevre stream a posle `UploadFileCommand`. Handler vygeneruje nove `fileId`, z nej serverovy `StorageKey = {userId:N}/{fileId:N}`, ulozi bytes pres `IFileStorage.PutAsync(...)` a potom ulozi metadata do `file_objects`. Response vrati `id`, `fileName`, `contentType`, `size` a `Location: /v1/files/{id}`.
 
-**Napises v CRM:** po uploadu neukladas bytes ani storage key. CRM si ulozi jen `FileObjectId` do vlastni join entity, napr. `DealAttachment(DealId, FileObjectId, UploadedByUserId)`. Kdyz user klikne download, CRM pouzije `/files/{fileId}` nebo vlastni endpoint, ktery si overi CRM permission a pak odkazuje na Files.
+**Napises v novem modulu (napr. CRM):** po uploadu neukladas bytes ani storage key. CRM si ulozi jen `FileObjectId` do vlastni join entity, napr. `DealAttachment(DealId, FileObjectId, UploadedByUserId)`. Kdyz user klikne download, CRM pouzije `/files/{fileId}` nebo vlastni endpoint, ktery si overi CRM permission a pak odkazuje na Files.
 
 **Vzor frontendu:**
 
@@ -2284,7 +2286,7 @@ await dispatcher.Send(new AttachFileToDealCommand(
 
 **Co se stane:** Files vrati metadata souboru pro prihlaseneho usera: `id`, `fileName`, `contentType`, `size`, `createdAt`. Handler pouziva read DbContext, filtruje `UserId == token user`, radi nejnovsi prvni a vraci `PagedResponse`. Kdyz posles `search`, filtruje se case-insensitive podle `FileName`; bytes se nikdy necitaji.
 
-**Napises v CRM:** CRM si udela vlastni list attachmentu z CRM tabulky, napr. `DealAttachment`, kde ma `DealId` a `FileObjectId`. Files `GET /files` je obecny "moje soubory" list, ne CRM attachment list. Pro deal detail nejdriv over CRM permission na deal a az potom zobraz file ids prirazene k dealu.
+**Napises v novem modulu (napr. CRM):** CRM si udela vlastni list attachmentu z CRM tabulky, napr. `DealAttachment`, kde ma `DealId` a `FileObjectId`. Files `GET /files` je obecny "moje soubory" list, ne CRM attachment list. Pro deal detail nejdriv over CRM permission na deal a az potom zobraz file ids prirazene k dealu.
 
 **Vzor frontendu:**
 
@@ -2323,7 +2325,7 @@ var attachments = await db.DealAttachments
 
 **Co se stane:** Download endpoint vezme `fileId` z route a usera z tokenu. `GetFileQuery(fileId, userId)` vrati jen metadata vlastnene tim userem: `StorageKey`, display `FileName`, `ContentType`. Endpoint potom otevre stream pres `IFileStorage.GetAsync(storageKey)` a vrati `Results.Stream(...)` s ulozenym content type a file name. Response neni `ApiResponse`, je to realny stream.
 
-**Napises v CRM:** v detailu dealu zobrazis attachment button/link s `FileObjectId`. Pred zobrazenim overis CRM permission na deal. Samotny Files endpoint jeste znovu overi, ze file patri prihlasenemu userovi.
+**Napises v novem modulu (napr. CRM):** v detailu dealu zobrazis attachment button/link s `FileObjectId`. Pred zobrazenim overis CRM permission na deal. Samotny Files endpoint jeste znovu overi, ze file patri prihlasenemu userovi.
 
 **Vzor frontendu:**
 
@@ -2358,7 +2360,7 @@ window.open(`/v1/files/${fileObjectId}`, "_blank");
 
 **Co se stane:** Endpoint vezme `fileId` z route, `fileName` z body a usera z tokenu. `RenameFileHandler` najde soubor jen kdyz patri userovi, zmeni pouze `FileName` v metadata row a ulozi EF tracked entity. Blob ani `StorageKey` se nemení.
 
-**Napises v CRM:** pokud CRM zobrazuje attachmenty, po rename invaliduj CRM attachment list i obecny Files list. CRM nemeni `file_objects` napriamo; maximalne zavola Files endpoint a potom obnovi svoje view.
+**Napises v novem modulu (napr. CRM):** pokud CRM zobrazuje attachmenty, po rename invaliduj CRM attachment list i obecny Files list. CRM nemeni `file_objects` napriamo; maximalne zavola Files endpoint a potom obnovi svoje view.
 
 **Vzor frontendu:**
 
@@ -2390,7 +2392,7 @@ queryClient.invalidateQueries({ queryKey: ["deal", dealId, "attachments"] });
 
 **Co se stane:** Endpoint vezme `fileId` z route a usera z tokenu. `DeleteFileHandler` najde jen soubor vlastneny userem. Nejdřív smaze blob pres `IFileStorage.DeleteAsync(storageKey)`, potom smaze metadata row `file_objects`. Kdyz blob delete selze, exception propadne ven a metadata zustanou, aby se dal problem dohledat a opravit.
 
-**Napises v CRM:** kdyz user odstrani soubor z dealu, vetsinou nema CRM hned mazat Files blob, ale odstranit/deaktivovat vazbu `DealAttachment`. Fyzicky `DELETE /files/{fileId}` volej jen kdyz ma user opravdu mazat svuj soubor z Files. Po uspesnem delete invaliduj CRM attachment list i `GET /files`.
+**Napises v novem modulu (napr. CRM):** kdyz user odstrani soubor z dealu, vetsinou nema CRM hned mazat Files blob, ale odstranit/deaktivovat vazbu `DealAttachment`. Fyzicky `DELETE /files/{fileId}` volej jen kdyz ma user opravdu mazat svuj soubor z Files. Po uspesnem delete invaliduj CRM attachment list i `GET /files`.
 
 **Vzor frontendu:**
 
@@ -2411,7 +2413,7 @@ queryClient.invalidateQueries({ queryKey: ["deal", dealId, "attachments"] });
 - EC301 foreign id -> 404 → handler filtruje `Id && UserId`; cizi id se tvari jako neexistujici.
 - EC302 already deleted → druhe `DELETE` vrati 404, proto frontend po prvnim 204 musi vyhodit item z cache.
 - EC303 blob delete fails → handler loguje a vyhodi provider exception; metadata row zustane jako dohledatelny problem.
-- EC304 CRM vazba zustane orphan -> cleanup → CRM ma vlastni vazbu deaktivovat/smazat, idealne v jedne CRM command transakci; Files nema znat CRM tabulky.
+- EC304 vazba v novem modulu zustane orphan -> cleanup → modul ma vlastni vazbu deaktivovat/smazat, idealne v jedne command transakci; Files nema znat tabulky toho modulu.
 - EC305 UI stale list → invaliduj `files` i CRM attachment query po 204.
 
 ### UC62 Pripojit file k CRM entite
@@ -2422,7 +2424,7 @@ queryClient.invalidateQueries({ queryKey: ["deal", dealId, "attachments"] });
 
 **Co se stane:** Files modul vlastni blob a metadata souboru. CRM modul vlastni jen vazbu mezi CRM entitou a file id, napr. `DealAttachment(DealId, FileObjectId, UserId, CreatedAt)`. Upload probiha pres `POST /files`, response vrati `FileObjectId`. CRM potom zavola `AttachFileToDealCommand`, ktery overi, ze deal patri userovi/tenantovi, a ulozi vazbu. CRM nikdy necita `file_objects` tabulku primo.
 
-**Napises v CRM:** command `AttachFileToDealCommand` + validator + endpoint. Entity ma unique index `(DealId, FileObjectId)`, aby double-click nevytvoril duplicitni attachment.
+**Napises v novem modulu (napr. CRM):** command `AttachFileToDealCommand` + validator + endpoint. Entity ma unique index `(DealId, FileObjectId)`, aby double-click nevytvoril duplicitni attachment.
 
 **Vzor entity:**
 
@@ -2501,7 +2503,7 @@ invalidateDealAttachments(dealId);
 
 **Co se stane:** HTTP request nesmi delat dlouhou praci. Accept handler vytvori `Operation` se stavem `Pending`, publikuje durable work message pres Wolverine outbox a commitne oboji pres `SaveChangesAndFlushMessagesAsync()`. Endpoint vrati `202 Accepted`, `operationId` a `Location` na status endpoint. Worker potom udela praci a prepne stav na `Running`/`Succeeded`/`Failed`.
 
-**Napises v CRM:** `StartCrmImportCommand` nebo `StartCrmAiRunCommand`. Bud pouzijes `IOperationStore`, pokud ti staci obecny operation status, nebo vlastni CRM run tabulku, pokud potrebujes domenove stavy/import statistiky.
+**Napises v novem modulu (napr. CRM):** `StartCrmImportCommand` nebo `StartCrmAiRunCommand`. Bud pouzijes `IOperationStore`, pokud ti staci obecny operation status, nebo vlastni CRM run tabulku, pokud potrebujes domenove stavy/import statistiky.
 
 **Vzor accept handleru:**
 
@@ -2545,7 +2547,7 @@ internal sealed class StartCrmImportHandler(
 
 **Co se stane:** Frontend polluje status endpoint. Handler cte jen operation vlastnenou token userem a vraci `Id`, `Type`, `Status`, `ResultJson`, `ErrorCode`, `ErrorDetail`, `CompletedAt`. `Pending/Running` znamena "polluj dal", `Succeeded/Failed` je terminal state.
 
-**Napises v CRM:** pokud pouzijes obecny Operations modul, frontend vola `/operations/{operationId}`. Pokud potrebujes domenovy detail, udelej CRM endpoint `GET /crm/imports/{id}` nebo `GET /crm/runs/{id}`, ale drz stejny tvar: stav, result/error, completedAt.
+**Napises v novem modulu (napr. CRM):** pokud pouzijes obecny Operations modul, frontend vola `/operations/{operationId}`. Pokud potrebujes domenovy detail, udelej CRM endpoint `GET /crm/imports/{id}` nebo `GET /crm/runs/{id}`, ale drz stejny tvar: stav, result/error, completedAt.
 
 **Vzor frontendu polling:**
 
@@ -2587,7 +2589,7 @@ public sealed record CrmRunStatusResponse(
 
 **Co se stane:** User vidi historii svych dlouhych tasku. Handler vraci jen jeho `operations`, radi nejnovsi prvni, strankuje pres `PageRequest` a vraci `PagedResponse<OperationListItem>`. List nevraci `ResultJson`, jen summary pro UI: id, type, status, errorCode, completedAt, createdAt.
 
-**Napises v CRM:** pokud ti staci obecne operace, zobraz `GET /operations`. Pokud potrebujes domenu detailneji, udelej vlastni list `CrmRuns` s import statistykou, poctem radku, nazvem souboru atd.
+**Napises v novem modulu (napr. CRM):** pokud ti staci obecne operace, zobraz `GET /operations`. Pokud potrebujes domenu detailneji, udelej vlastni list `CrmRuns` s import statistykou, poctem radku, nazvem souboru atd.
 
 **Vzor frontendu:**
 
@@ -2628,7 +2630,7 @@ public sealed record CrmRunListItem(
 
 **Co se stane:** Worker handler dostane durable message, prepne operation na `Running`, provede skutecnou praci a pak zavola `CompleteAsync`. Kdyz prace spadne, chyti exception, zaloguje ji a zavola `FailAsync` s generickym user-facing errorem. Pokud nejde zapsat ani fail stav, exception propadne ven a Wolverine zpravu retryne / presune do DLQ.
 
-**Napises v CRM:** public Wolverine handler + internal command/sluzbu pro domenu. Handler ma byt tenka public shell, protoze Wolverine scanuje public typy. Vlastni business prace patri do CRM commandu nebo domain metody, ne do endpointu.
+**Napises v novem modulu (napr. CRM):** public Wolverine handler + internal command/sluzbu pro domenu. Handler ma byt tenka public shell, protoze Wolverine scanuje public typy. Vlastni business prace patri do CRM commandu nebo domain metody, ne do endpointu.
 
 **Vzor workeru:**
 
@@ -2671,7 +2673,7 @@ public sealed class RunCrmImportHandler
 
 **Co se stane:** Jobs host pri startu zavola `RegisterJobs` na kazdem enabled modulu. Modul zaregistruje Quartz job a trigger s cronem v UTC. Job je jen scheduler adapter: resolve `IDispatcher`, posle command a skonci. Business logika patri do command handleru, ne do `IJob`.
 
-**Napises v CRM:** `CrmReconcileJob` jen dispatchne `ReconcileCrmCommand`. Do `CrmModule.RegisterJobs` pridas cron config, napr. `Modules:Crm:Jobs:ReconcileCron`.
+**Napises v novem modulu (napr. CRM):** `CrmReconcileJob` jen dispatchne `ReconcileCrmCommand`. Do `CrmModule.RegisterJobs` pridas cron config, napr. `Modules:Crm:Jobs:ReconcileCron`.
 
 **Vzor RegisterJobs:**
 
@@ -2717,7 +2719,7 @@ internal sealed class CrmReconcileJob(IDispatcher dispatcher) : IJob
 
 **Co se stane:** Jobs host pravidelne spousti `MessagingHealthJob`. Job se pta Wolverine pres `IMessageStore.Admin.FetchCountsAsync()`, ne pres SQL nad internimi tabulkami. Aktualizuje OTel gauges `platform.messaging.dead_letters`, `platform.messaging.incoming_pending`, `platform.messaging.outgoing_pending` a zaloguje warning, kdyz existuje DLQ nebo pending count prekroci `Messaging:StuckThreshold`.
 
-**Napises v CRM:** vlastni domenu reconcile, pokud stuck run potrebuje opravu. Messaging health rekne "neco je v DLQ / outbox se zasekl", ale CRM musi umet rict "ktery import/run je v nekonzistentnim stavu a jak ho opravit".
+**Napises v novem modulu (napr. CRM):** vlastni domenu reconcile, pokud stuck run potrebuje opravu. Messaging health rekne "neco je v DLQ / outbox se zasekl", ale modul musi umet rict "ktery import/run je v nekonzistentnim stavu a jak ho opravit".
 
 **Vzor CRM reakce:**
 
@@ -2738,7 +2740,7 @@ internal sealed class ReconcileCrmCommandHandler
 - EC337 alert bez akce nestaci → k alertu patri runbook: inspect, replay, nebo spustit domenovy reconcile.
 - EC338 stuck threshold → `Messaging:StuckThreshold`, default 100.
 - EC339 no raw SQL do Wolverine tables → pouzij `IMessageStore.Admin.FetchCountsAsync()`.
-- EC340 metrics musi mit jasny owner → `platform.messaging.*` vlastni platform/Jops host; CRM vlastni `crm.*` stuck/import metrics.
+- EC340 metrics musi mit jasny owner → `platform.messaging.*` vlastni platform/Jops host; novy modul vlastni svoje domenove metrics, napr. `crm.*` stuck/import metrics.
 
 ### UC69 Realtime stream
 
@@ -2748,7 +2750,7 @@ internal sealed class ReconcileCrmCommandHandler
 
 **Co se stane:** Browser otevře auth-gated SSE stream `/v1/realtime/stream`. Server posila eventy pro prihlaseneho usera. Pri reconnectu browser posle `Last-Event-ID`; platforma nejdriv pusti best-effort replay z Redis Streamu nebo local ring bufferu a pak live events.
 
-**Napises v CRM:** event type mapping na invalidaci `queryRoots.crm`. Realtime event nema byt jediny zdroj dat; je to signal "refetchni query". Napriklad `crm.deal_updated` invaliduje detail dealu a list deals.
+**Napises v novem modulu (napr. CRM):** event type mapping na invalidaci `queryRoots.crm`. Realtime event nema byt jediny zdroj dat; je to signal "refetchni query". Napriklad `crm.deal_updated` invaliduje detail dealu a list deals.
 
 **Vzor frontendu:**
 
@@ -2789,7 +2791,7 @@ await realtime.PublishToUserAsync(userId, "crm.deal_updated", new { dealId }, ct
 
 **Co se stane:** Endpoint vezme subject user id z tokenu (`/gdpr/me/export`, zadny route user id). `ExportUserDataHandler` zavola vsechny registrovane `IExportPersonalData` implementace a slozi jeden dokument keyed by `ModuleName`. Kdyz jeden exporter spadne, jeho sekce bude `{ "error": "export_failed" }` a ostatni moduly se exportuji dal.
 
-**Napises v CRM:** `CrmPersonalDataExporter` a registraci v `CrmModule.RegisterServices`.
+**Napises v novem modulu (napr. CRM):** `CrmPersonalDataExporter` a registraci v `CrmModule.RegisterServices`.
 
 **Vzor exporteru:**
 
@@ -2841,7 +2843,7 @@ services.AddScoped<IExportPersonalData, CrmPersonalDataExporter>();
 
 **Co se stane:** Endpoint vezme subject user id z tokenu a `RequestErasureHandler` publikuje `UserErasureRequested` pres outbox. Worker `UserErasureRequestedHandler` zavola vsechny `IErasePersonalData` implementace a potom dispatchne `ShredSubjectKeyCommand`, ktery znici subject DEK. Crypto-shred je autoritativni erasure akt; residual rows se v modulech anonymizuji nebo mazou podle povinnosti.
 
-**Napises v CRM:** `CrmPersonalDataEraser` a registraci v `CrmModule.RegisterServices`.
+**Napises v novem modulu (napr. CRM):** `CrmPersonalDataEraser` a registraci v `CrmModule.RegisterServices`.
 
 **Vzor eraseru:**
 
@@ -2893,7 +2895,7 @@ services.AddScoped<IErasePersonalData, CrmPersonalDataEraser>();
 
 **Co se stane:** Endpoint vezme usera z tokenu a ulozi novy append-only `ConsentRecord` s `Granted = true`, `ConsentType`, `RecordedAt`, volitelne `PolicyVersion`. Nic se neupdatuje; historie je audit trail. Aktualni stav pro consent key je posledni zaznam podle `RecordedAt`.
 
-**Napises v CRM:** ctes consent stav z GDPR endpointu nebo query, nevytvaris paralelni consent table. Pokud CRM potrebuje napr. marketing consent, ptej se na consent key typu `crm.marketing`.
+**Napises v novem modulu (napr. CRM):** ctes consent stav z GDPR endpointu nebo query, nevytvaris paralelni consent table. Pokud CRM potrebuje napr. marketing consent, ptej se na consent key typu `crm.marketing`.
 
 **Vzor requestu:**
 
@@ -2934,7 +2936,7 @@ var hasConsent = consents
 
 **Co se stane:** GDPR prida novy append-only `ConsentRecord` s `Granted = false`. Stare grant rows zustanou jako historie. Aktualni stav je posledni zaznam pro dany `ConsentType`.
 
-**Napises v CRM:** prestanes delat akce vyzadujici consent. Frontend invaliduje consent query a CRM background joby pred provedenim znovu prectou aktualni consent state.
+**Napises v novem modulu (napr. CRM):** prestanes delat akce vyzadujici consent. Frontend invaliduje consent query a CRM background joby pred provedenim znovu prectou aktualni consent state.
 
 **Vzor requestu:**
 
@@ -2975,7 +2977,7 @@ if (!await consentReader.HasActiveConsentAsync(userId, "crm.marketing", ct))
 
 **Co se stane:** Endpoint vrati append-only consent historii prihlaseneho usera, newest first, capped na 500 poslednich zaznamu. Response obsahuje `id`, `consentType`, `granted`, `recordedAt`, `policyVersion`. Prazdna historie je `[]`.
 
-**Napises v CRM:** nic do backendu, pokud jen zobrazujes consent center. CRM feature guardy cti aktualni stav tak, ze vezmes newest row pro dany `consentType`.
+**Napises v novem modulu (napr. CRM):** nic do backendu, pokud jen zobrazujes consent center. CRM feature guardy cti aktualni stav tak, ze vezmes newest row pro dany `consentType`.
 
 **Vzor frontendu:**
 
@@ -3008,7 +3010,7 @@ const currentMarketing = history.data
 
 **Mentalni model:** `[Encrypted]` chrani aktualni hodnotu v tabulce, `[PersonalData]` rika auditu/GDPR "tohle je osobni udaj" a `IDataSubject.SubjectId` rika, komu ten udaj patri. U CRM kontaktu typicky nechces subjectem delat samotny kontakt, ale ownera z tokenu (`UserId`), aby erasure uzivatele znicila jeho CRM PII.
 
-**Napises v CRM:** entity oznacis atributy, pridas hash sloupec pro lookup a v handleru nikdy nehledas podle encrypted hodnoty.
+**Napises v novem modulu (napr. CRM):** entity oznacis atributy, pridas hash sloupec pro lookup a v handleru nikdy nehledas podle encrypted hodnoty.
 
 ```csharp
 internal sealed class CrmContact : AuditableEntity, ITenantScoped, IUserOwned, IDataSubject
@@ -3059,7 +3061,7 @@ public sealed record CrmContactCreatedIntegrationEvent(
     DateTimeOffset OccurredAtUtc) : IIntegrationEvent;
 ```
 
-**Testy k CRM:** pridej architecture test pro atributy, integracni test "DB obsahuje `penc:v2`, API vraci plaintext", duplicate email test pres `EmailHash` a GDPR erasure test, ze po shred API nevraci puvodni hodnotu.
+**Testy k novemu modulu:** pridej architecture test pro atributy, integracni test "DB obsahuje `penc:v2`, API vraci plaintext", duplicate email test pres `EmailHash` a GDPR erasure test, ze po shred API nevraci puvodni hodnotu.
 
 **Nepouzijes:** plaintext search nad encrypted sloupcem, vlastni AES helper, event payload s nepotrebnou PII, route/body `userId` jako subject, ani `[PersonalData]` bez `IDataSubject`.
 
@@ -3081,7 +3083,7 @@ public sealed record CrmContactCreatedIntegrationEvent(
 
 **Mentalni model:** audit neni samostatny CRM service. Audit je side effect EF `SaveChanges`. Kdyz entitu nactes tracked, zmenis properties a ulozis, audit vznikne. Kdyz pouzijes `ExecuteUpdate`, `ExecuteDelete` nebo raw SQL, audit interceptor se nespusti.
 
-**Napises v CRM:** entity dej `AuditableEntity`, zmeny delaj v command handleru pres tracked load a `SaveChanges`.
+**Napises v novem modulu (napr. CRM):** entity dej `AuditableEntity`, zmeny delaj v command handleru pres tracked load a `SaveChanges`.
 
 ```csharp
 internal sealed class CrmContact : AuditableEntity, ITenantScoped, IUserOwned
@@ -3122,7 +3124,7 @@ var rows = await db.AuditEntries
 
 **Kdy pouzit `ExecuteUpdate`:** jen kdyz je zmena zamerne auditovana jinak nebo audit nepotrebujes. Typicky billing debit guard nebo GDPR scrub. U CRM statusu, poznamek, prirazeni a vlastniku pouzij tracked entity, protoze tyhle zmeny budou chtit lidi dohledat.
 
-**Testy k CRM:** pridej test create/update audit row, test update uklada jen changed columns, test audit endpoint vyzaduje `audit.read`, test user/tenant scope a PII audit test, pokud CRM audit obsahuje `[PersonalData]`.
+**Testy k novemu modulu:** pridej test create/update audit row, test update uklada jen changed columns, test audit endpoint vyzaduje `audit.read`, test user/tenant scope a PII audit test, pokud CRM audit obsahuje `[PersonalData]`.
 
 **Nepouzijes:** vlastni `CrmAuditLog` service, manualni insert do audit table, audit v endpointu, raw SQL, ani `ExecuteUpdate` pro business zmeny, ktere maji byt forenzne dohledatelne.
 
@@ -3144,7 +3146,7 @@ var rows = await db.AuditEntries
 
 **Mentalni model:** per-module eraser uklidi ciste texty nebo business radky, ktere musi zustat. Crypto-shred je autoritativni privacy akt pro encrypted PII a audit PII. Backupy nebo append-only audit nemusi fyzicky prepisovat stare ciphertexty, protoze bez DEK jsou nepouzitelne.
 
-**Napises v CRM:** pokud CRM drzi kontakty, poznamky, import snapshots nebo AI analyzy s PII, zaregistruj `IErasePersonalData` v `CrmModule.RegisterServices`.
+**Napises v novem modulu (napr. CRM):** pokud CRM drzi kontakty, poznamky, import snapshots nebo AI analyzy s PII, zaregistruj `IErasePersonalData` v `CrmModule.RegisterServices`.
 
 ```csharp
 services.AddScoped<IErasePersonalData, CrmPersonalDataEraser>();
@@ -3176,7 +3178,7 @@ internal sealed class CrmPersonalDataEraser(CrmDbContext db) : IErasePersonalDat
 
 **Frontend UX:** po `POST /gdpr/me/erase` ber user account jako terminalni stav. Odhlas ho, zrus local cache, nepokousej se znovu nacitat CRM detail. Pokud UI nekde uvidi `[erased]`, zobrazi privacy-safe placeholder a nepusti editaci erased profilu.
 
-**Testy k CRM:** vytvor kontakt s PII, zavolej erasure, over ze CRM plaintext/lookup sloupce jsou anonymizovane, encrypted/audit read vraci `[erased]`, opakovany erasure je no-op a cizi user data zustanou nedotcena.
+**Testy k novemu modulu:** vytvor kontakt s PII, zavolej erasure, over ze CRM plaintext/lookup sloupce jsou anonymizovane, encrypted/audit read vraci `[erased]`, opakovany erasure je no-op a cizi user data zustanou nedotcena.
 
 **Nepouzijes:** fyzicky delete ledger/audit rows, custom crypto shred v CRM, mazani `subject_keys` radku, novy DEK po erasure, ani cross-module direct calls.
 
@@ -3198,7 +3200,7 @@ internal sealed class CrmPersonalDataEraser(CrmDbContext db) : IErasePersonalDat
 
 **Mentalni model:** erasure a retention nejsou to same. Erasure odstrani/anonymizuje PII konkretniho subjektu. Retention sweep je casovy uklid dat, ktera uz podle policy nepotrebujes. CRM si muze mazat jen vlastni purgeable data, napr. stare import temporary rows, failed pull logs nebo expirovane AI drafty. Nesmí sahat na GDPR `subject_keys`, audit tombstones ani cizi moduly.
 
-**Napises v CRM:** pokud CRM ma purgeable data, udelej command a ten volej z jobu. Job je tenky; business logika je v handleru.
+**Napises v novem modulu (napr. CRM):** pokud modul ma purgeable data, udelej command a ten volej z jobu. Job je tenky; business logika je v handleru.
 
 ```csharp
 internal sealed class CrmRetentionSweepJob(IDispatcher dispatcher) : IJob
@@ -3229,7 +3231,7 @@ internal sealed class CrmRetentionSweepHandler(CrmDbContext db, IClock clock)
 
 **Co purgeovat v CRM:** do doc/spec si u kazde tabulky rekni, jestli je to legal/audit/business record nebo jen temporary cache. Temporary import chunks ano. CRM contacts vetsinou ne, dokud existuje owner nebo legal/business retention. Audit rows ne.
 
-**Testy k CRM:** testuj, ze sweep smaze jen stare purgeable CRM rows, nesmaze nove rows, je idempotentni, nesaha na subject key tombstones a Jobs host nabootuje s registovanou job dependency graph.
+**Testy k novemu modulu:** testuj, ze sweep smaze jen stare purgeable CRM rows, nesmaze nove rows, je idempotentni, nesaha na subject key tombstones a Jobs host nabootuje s registovanou job dependency graph.
 
 **Nepouzijes:** generic cross-module reaper, raw SQL delete, mazani `subject_keys`, mazani audit entries bez jasne policy, ani business logiku primo v `IJob`.
 
@@ -3237,7 +3239,7 @@ internal sealed class CrmRetentionSweepHandler(CrmDbContext db, IClock clock)
 
 - EC386 tombstones se nemazou → shredded `subject_keys` jsou permanentni DEK re-mint guard; CRM sweep se jich nikdy nedotyka.
 - EC387 cron UTC → job planuj v UTC a pojmenuj config klic, napr. `Modules:Crm:Jobs:RetentionSweepCron`.
-- EC388 purge jen module-owned data → CRM maze jen CRM tabulky; cross-module cleanup je poruseni boundary.
+- EC388 purge jen module-owned data → novy modul maze jen svoje tabulky; cross-module cleanup je poruseni boundary.
 - EC389 legal retention vs user erase → pred delete rozlis temporary data od zaznamu, ktere musi zustat pro audit/legal/business historii.
 - EC390 idempotentni sweep → opakovany run po prvnim cleanupu vrati 0 nebo stejny bezpecny vysledek, ne chybu.
 
@@ -3311,7 +3313,7 @@ public sealed class RunCrmImportHandler
 
 **Duplicate/idempotency:** pokud user rychle klikne dvakrat a import nemuze bezet dvakrat, pridej idempotency key/unique index podle `UserId + Source + FileId + Period`. Pokud duplicitni import je povoleny, nech to explicitne ve specu.
 
-**Testy k CRM:** test `202 + Location`, worker dokonci import, status prejde do terminal state, owner scoping vraci cizimu userovi 404, unsupported source je validation error, gateway exception skonci jako `Failed`.
+**Testy k novemu modulu:** test `202 + Location`, worker dokonci import, status prejde do terminal state, owner scoping vraci cizimu userovi 404, unsupported source je validation error, gateway exception skonci jako `Failed`.
 
 **Nepouzijes:** externi API call v endpointu, fire-and-forget `Task.Run`, vlastni background thread, handler direct call, ani request body `userId`.
 
@@ -3333,7 +3335,7 @@ public sealed class RunCrmImportHandler
 
 **Mentalni model:** `GET status` je pravda pro UI. `Pending/Running` znamena "cekam, polluj dal". `Completed` znamena "hotovo, invaliduj list/snapshots/detail". `Failed` znamena "terminalni chyba, ukaz bezpecnou hlasku podle `ErrorCode`". Cizi nebo neexistujici id je vzdy 404, ne 403, aby se nedaly enumerovat ids.
 
-**Napises v CRM:** query record musi mit `ImportId` i `UserId`. `UserId` bere endpoint z `ITenantContext`, nikdy z route/body.
+**Napises v novem modulu (napr. CRM):** query record musi mit `ImportId` i `UserId`. `UserId` bere endpoint z `ITenantContext`, nikdy z route/body.
 
 ```csharp
 public sealed record GetCrmImportStatusQuery(Guid ImportId, Guid UserId)
@@ -3385,7 +3387,7 @@ app.MapGet("/crm/imports/{importId:guid}", async (
 
 **Stuck processing:** status endpoint nema sam opravovat stuck joby. Pokud import visi dlouho v `Running`, UI muze ukazat "trva dele nez obvykle" a backend ma mit reconciliation/job nebo retry politiku ve Workeru.
 
-**Testy k CRM:** owner dostane `200`, cizi user dostane `404`, neexistujici id `404`, failed import vraci `ErrorCode`, polling test pocka az worker prejde do terminal state.
+**Testy k novemu modulu:** owner dostane `200`, cizi user dostane `404`, neexistujici id `404`, failed import vraci `ErrorCode`, polling test pocka az worker prejde do terminal state.
 
 **Nepouzijes:** status endpoint jako trigger worku, klientsky `userId`, 403 pro foreign id, nekonecny polling bez backoffu, ani raw exception text v response.
 
@@ -3399,7 +3401,7 @@ app.MapGet("/crm/imports/{importId:guid}", async (
 
 ### UC81 List pulls
 
-**Status:** Implementovano v Marketing; CRM ma kopirovat paged owner-scoped list pro importy/runy.
+**Status:** Implementovano v Marketing; novy modul ma kopirovat paged owner-scoped list pro importy/runy. CRM je jen priklad.
 
 **Pouzijes:** `GET /marketing/pulls`, `PageRequest`, `PagedResponse<T>`, `IReadDbContextFactory`, owner `UserId` z tokenu.
 
@@ -3407,7 +3409,7 @@ app.MapGet("/crm/imports/{importId:guid}", async (
 
 **Mentalni model:** list je pro prehled a retry UX. Neprovadi side effects, neopravuje failed/stuck prace a necte cizi historii. Frontend z nej kresli tabulku "posledni importy" a detail/status si muze otevrit pres `GET /crm/imports/{id}`.
 
-**Napises v CRM:** query dostane `UserId` a `PageRequest`; endpoint vezme `page/pageSize` z query stringu.
+**Napises v novem modulu (napr. CRM):** query dostane `UserId` a `PageRequest`; endpoint vezme `page/pageSize` z query stringu.
 
 ```csharp
 public sealed record ListCrmImportsQuery(Guid UserId, PageRequest Page)
@@ -3449,7 +3451,7 @@ app.MapGet("/crm/imports", async (
 
 **Frontend:** empty state je normalni `items: []`, ne chyba. Failed items v historii nech, protoze user potrebuje videt proc import neprosel a pripadne spustit novy. Po startu/complete importu invaliduj list query.
 
-**Testy k CRM:** prazdny list vraci 200 + empty page, newest-first sort, owner A nevidi owner B importy, failed import zustava v listu s errorCode, pagination drzi pageSize.
+**Testy k novemu modulu:** prazdny list vraci 200 + empty page, newest-first sort, owner A nevidi owner B importy, failed import zustava v listu s errorCode, pagination drzi pageSize.
 
 **Nepouzijes:** neomezeny list bez paging, client-side owner filter, sort podle nahodneho DB orderu, mazani failed polozek jen aby UI bylo ciste.
 
@@ -3463,7 +3465,7 @@ app.MapGet("/crm/imports", async (
 
 ### UC82 List snapshots
 
-**Status:** Implementovano v Marketing; CRM ma kopirovat pattern pro ulozene projekce/snapshots z importu.
+**Status:** Implementovano v Marketing; novy modul ma kopirovat pattern pro ulozene projekce/snapshots z importu.
 
 **Pouzijes:** `GET /marketing/snapshots`, `MetricSnapshot`, `IUserOwned`, `PageRequest`, optional filter, read model/projekce.
 
@@ -3510,7 +3512,7 @@ return await snapshots
 
 **Schema version:** pokud `DetailJson` muze menit shape, pridej `SchemaVersion`. Frontend i AI analyzy pak vi, jak interpretovat stare snapshots.
 
-**Testy k CRM:** no snapshots vraci empty page, source/type filter funguje, owner scoping drzi, paging funguje, sort je `RecordedAt desc`, stary schemaVersion se neplete s novym.
+**Testy k novemu modulu:** no snapshots vraci empty page, source/type filter funguje, owner scoping drzi, paging funguje, sort je `RecordedAt desc`, stary schemaVersion se neplete s novym.
 
 **Nepouzijes:** raw provider payload jako UI contract, list bez paging, frontend-only filter nad cizimi daty, ani snapshot bez casu/schema, pokud se ma dlouho uchovavat.
 
@@ -3524,7 +3526,7 @@ return await snapshots
 
 ### UC83 List analyses
 
-**Status:** Implementovano v Marketing; CRM ma kopirovat pattern pro ulozene AI insighty.
+**Status:** Implementovano v Marketing; novy modul ma kopirovat pattern pro ulozene AI insighty.
 
 **Pouzijes:** `GET /marketing/analyses`, `MarketingAnalysis`, `IMarketingAiGateway`, `PageRequest`, owner `UserId` z tokenu.
 
@@ -3567,7 +3569,7 @@ return await db.CrmAnalyses
 
 **Erased user data:** pokud erasure smazala vstupy, analysis list ma bud zmizet pres `IErasePersonalData`, nebo zustat jen anonymizovana. UI nesmi ukazovat cached insight s PII po erasure.
 
-**Testy k CRM:** empty list vraci 200, list je paged/newest-first, owner scope drzi, summary neobsahuje velky detail JSON, po GDPR erasure se PII insighty smazou/anonymizuji.
+**Testy k novemu modulu:** empty list vraci 200, list je paged/newest-first, owner scope drzi, summary neobsahuje velky detail JSON, po GDPR erasure se PII insighty smazou/anonymizuji.
 
 **Nepouzijes:** AI call v GET endpointu, transient-only AI odpoved bez ulozeni, raw prompt/output s PII v listu, ani client-side owner filter.
 
@@ -3619,7 +3621,7 @@ return new CrmAnalysisDetail(
 
 **Frontend cache:** detail invaliduj po `marketing.pull_completed`/CRM realtime eventu, po retry a po GDPR erasure. Stary cached insight muze jinak ukazat PII nebo zastarale doporuceni.
 
-**Testy k CRM:** owner detail 200, foreign id 404, missing id 404, detail obsahuje `InsightsJson`, list detail JSON neobsahuje, erased user data se nevrati.
+**Testy k novemu modulu:** owner detail 200, foreign id 404, missing id 404, detail obsahuje `InsightsJson`, list detail JSON neobsahuje, erased user data se nevrati.
 
 **Nepouzijes:** AI call v GET detailu, 403 pro foreign id, raw exception/prompt text, partial response bez statusu, ani dlouhodobou frontend cache bez invalidace.
 
@@ -3681,7 +3683,7 @@ return new StartCrmConversationResponse(conversation.Id);
 
 **System prompt version:** uloz `PromptVersion` na conversation nebo message run. Bez toho pozdeji nevis, proc assistant odpovedel jinak po prompt update.
 
-**Testy k CRM:** created vraci Location, title blank dostane default, owner je z tokenu, cizi user nevidi conversation v list/detail, prompt version se ulozi, quota/credit check je testovany jen pokud ho produkt zapne.
+**Testy k novemu modulu:** created vraci Location, title blank dostane default, owner je z tokenu, cizi user nevidi conversation v list/detail, prompt version se ulozi, quota/credit check je testovany jen pokud ho produkt zapne.
 
 **Nepouzijes:** AI call ve start endpointu, request body `userId`, hardcoded prompt bez verze, duplicate client-generated ids bez idempotency policy, ani mazani historie pri zavreni sidebaru.
 
@@ -3758,7 +3760,7 @@ await realtime.PublishToUserAsync(command.UserId, "crm.message_ready",
 
 **Validator:** content required + max length; pro CRM pridej deny empty/whitespace, max tokens/characters a pripadne attachment count.
 
-**Testy k CRM:** conversation not found/foreign vraci 404, user message se ulozi, worker ulozi assistant reply, redelivery neduplikuj odpoved, provider failure uvolni reserved credits, realtime event prijde az po commitu.
+**Testy k novemu modulu:** conversation not found/foreign vraci 404, user message se ulozi, worker ulozi assistant reply, redelivery neduplikuj odpoved, provider failure uvolni reserved credits, realtime event prijde az po commitu.
 
 **Nepouzijes:** LLM call v HTTP requestu, direct handler call, fire-and-forget task, debit bez idempotency key, push pred commitem, ani client-provided role.
 
@@ -3816,7 +3818,7 @@ finally
 
 **Kdy streaming nepouzit:** kdyz odpoved spousti business side effect, zapisuje CRM data, vola nastroje nebo musi byt retryovatelna. Tam je durable worker path bezpecnejsi; stream muze byt jen progress UI nad durable operaci.
 
-**Testy k CRM:** disconnect ulozi partial assistant message, provider timeout nevytvori phantom done, ownership 404 pred streamem, final `[DONE]` prijde po persistu, refresh conversation ukaze ulozeny vysledek.
+**Testy k novemu modulu:** disconnect ulozi partial assistant message, provider timeout nevytvori phantom done, ownership 404 pred streamem, final `[DONE]` prijde po persistu, refresh conversation ukaze ulozeny vysledek.
 
 **Nepouzijes:** business pravdu jen v SSE eventech, save po streamu s request cancellation tokenem, tool side effects jen v request streamu, ani streaming jako nahradu durable workflow pro kriticke akce.
 
@@ -3867,7 +3869,7 @@ return await db.Conversations
 
 **Frontend:** empty state je normalni. Po start conversation, send message, assistant ready a delete invaliduj conversation list. Pokud mas pending odpoved, list item muze ukazat spinner podle posledniho message/run statusu.
 
-**Testy k CRM:** empty list 200, owner A nevidi owner B, soft-deleted thread zmizi, newest activity sort, pagination, po send message se `LastMessageAt` zmeni.
+**Testy k novemu modulu:** empty list 200, owner A nevidi owner B, soft-deleted thread zmizi, newest activity sort, pagination, po send message se `LastMessageAt` zmeni.
 
 **Nepouzijes:** nacitani cele message historie pro sidebar, frontend-only owner filter, hard delete jako default, neomezeny list bez page limitu.
 
@@ -3881,7 +3883,7 @@ return await db.Conversations
 
 ### UC89 Get conversation
 
-**Status:** Implementovano v Marketing jako owner-scoped detail; CRM ma kopirovat pattern a pridat paging/windowing pro dlouhe thready.
+**Status:** Implementovano v Marketing jako owner-scoped detail; novy modul ma kopirovat pattern a pridat paging/windowing pro dlouhe thready.
 
 **Pouzijes:** `GET /marketing/vibe/conversations/{conversationId}`, `IReadDbContextFactory`, explicitni `UserId` filter na conversation i messages.
 
@@ -3912,7 +3914,7 @@ var messages = await db.Messages
 
 **PII/GDPR:** messages jsou user free text, takze jsou PII. Oznac je `[PersonalData]`/encrypted nebo je maze/anonymizuje `IErasePersonalData`. Po erasure detail nesmi z cache ukazat stare content.
 
-**Testy k CRM:** owner detail 200, foreign/missing/deleted 404, messages ordered asc, large history page/window funguje, pending/failed message se zobrazi, erased user data se nevrati.
+**Testy k novemu modulu:** owner detail 200, foreign/missing/deleted 404, messages ordered asc, large history page/window funguje, pending/failed message se zobrazi, erased user data se nevrati.
 
 **Nepouzijes:** client-side owner filter, 403 pro foreign id, nekonecny unbounded message list v produkcnim CRM, AI call v GET detailu, ani tool call secrets v `ToolCallsJson`.
 
@@ -3926,7 +3928,7 @@ var messages = await db.Messages
 
 ### UC90 Delete conversation
 
-**Status:** Implementovano v Marketing jako soft delete; CRM ma kopirovat tracked soft-delete pattern.
+**Status:** Implementovano v Marketing jako soft delete; novy modul ma kopirovat tracked soft-delete pattern.
 
 **Pouzijes:** `DELETE /marketing/vibe/conversations/{conversationId}`, `ISoftDeletable`, tracked entity, `DeletedAt`, `IDbContextOutbox`.
 
@@ -3956,7 +3958,7 @@ await db.SaveChangesAsync(ct);
 
 **GDPR overlap:** GDPR erasure neni delete conversation. Erasure maze/anonymizuje PII pres `IErasePersonalData`; soft delete jen skryva thread.
 
-**Testy k CRM:** owner delete 204, foreign/missing/already-deleted 404, list thread nevraci, detail 404, audit row vznikne, pending worker policy je otestovana.
+**Testy k novemu modulu:** owner delete 204, foreign/missing/already-deleted 404, list thread nevraci, detail 404, audit row vznikne, pending worker policy je otestovana.
 
 **Nepouzijes:** hard delete jako default, delete bez owner filteru, `ExecuteUpdate` pro auditovany sidebar delete, mazani messages jen kvuli UI, ani GDPR erase logiku v delete endpointu.
 
@@ -3974,7 +3976,7 @@ await db.SaveChangesAsync(ct);
 
 **Pouzijes:** `IExportPersonalData`, `IErasePersonalData`, `IReadDbContextFactory`, EF/LINQ, GDPR fan-out.
 
-**Co se stane:** GDPR modul nevi nic o CRM Core. Jen zavola vsechny registrovane exportery/erasery. Marketing exporter vraci sekce `pulls`, `snapshots`, `analyses`, `vibe_conversations`, `vibe_messages`. Marketing eraser maze vsechny subject-owned rows, protoze nema legal retention. CRM musi udelat stejne rozhodnuti pro svoje tabulky.
+**Co se stane:** GDPR modul nevi nic o Core zadneho produktoveho modulu. Jen zavola vsechny registrovane exportery/erasery. Marketing exporter vraci sekce `pulls`, `snapshots`, `analyses`, `vibe_conversations`, `vibe_messages`. Marketing eraser maze vsechny subject-owned rows, protoze nema legal retention. Novy modul musi udelat stejne rozhodnuti pro svoje tabulky.
 
 **Mentalni model:** kazdy modul je vlastnik svych dat, takze je vlastnik i GDPR export/erase. GDPR modul je orchestrator, ne cross-module reaper. Pokud CRM obsahuje kontakty, notes, AI chats, files vazby nebo importy, CRM samo rekne, co exportuje a co maze/anonymizuje.
 
@@ -4041,7 +4043,7 @@ services.AddScoped<IErasePersonalData, CrmPersonalDataEraser>();
 
 **External provider data:** GDPR erase smaze/anonymizuje lokalni data. Pokud CRM synchronizuje HubSpot/Salesforce, external deletion je samostatna product/legal integrace; v base GDPR portu jasne rozlis "local copy" vs "remote provider".
 
-**Testy k CRM:** export obsahuje CRM sekci a konkretni seeded data, erase odstrani/anonymizuje vsechny CRM tables pro subjecta, soft-deleted rows nezustanou pres `IgnoreQueryFilters`, cizi user data zustanou, opakovany erase je no-op.
+**Testy k novemu modulu:** export obsahuje CRM sekci a konkretni seeded data, erase odstrani/anonymizuje vsechny CRM tables pro subjecta, soft-deleted rows nezustanou pres `IgnoreQueryFilters`, cizi user data zustanou, opakovany erase je no-op.
 
 **Nepouzijes:** GDPR modul sahajici primo do CRM DbContextu, exporter bez owner filteru, raw SQL, vynechani soft-deleted rows z erasure, ani tvrzeni "smazano" pro data zustavajici u external providera.
 
@@ -4106,7 +4108,7 @@ var balance = await dispatcher.Query(new GetCreditBalanceForUserQuery(userId), c
 
 **Permissions/scope:** owner modul musi osetrit, kdo smi data cist. Kdyz query slouzi jen current userovi, nedelej obecne `GetAnyUser...` bez permission. Pokud je to admin query, vyzaduj permission v owner handleru/endpoint patternu.
 
-**Testy k CRM:** CRM handler vola dispatcher query, ne cizi DbContext; foreign/scope je osetren v owner modulu; architecture tests nesmi najit reference CRM Core -> Billing Core.
+**Testy k novemu modulu:** CRM handler vola dispatcher query, ne cizi DbContext; foreign/scope je osetren v owner modulu; architecture tests nesmi najit reference CRM Core -> Billing Core.
 
 **Nepouzijes:** cross-module JOIN, `BillingDbContext` v CRM, `using ModularPlatform.Billing.Entities`, kopii ledger vypoctu, public DTO vracejici EF entity, ani query ktera meni stav.
 
@@ -4169,7 +4171,7 @@ catch
 
 **Validace:** nech ji v owner modulu. CRM si muze predvalidovat UX, ale finalni validation/error code musi vratit command owner.
 
-**Testy k CRM:** over, ze CRM vola command s idempotency key, neprepocitava billing/notification rules; insufficient credits propadne jako business error; provider/worker failure release/compensate; duplicate retry nevytvori dvojitou notifikaci/debit.
+**Testy k novemu modulu:** over, ze CRM vola command s idempotency key, neprepocitava billing/notification rules; insufficient credits propadne jako business error; provider/worker failure release/compensate; duplicate retry nevytvori dvojitou notifikaci/debit.
 
 **Nepouzijes:** cizi DbContext, copy-paste command handleru, rucni update billing balance, inline SMTP/push v CRM, vice-modulovou "transakci" pres nahodne `SaveChanges`.
 
@@ -4183,7 +4185,7 @@ catch
 
 ### UC94 Oznám fakt ostatnim
 
-**Status:** Base pattern hotovy v Identity/Billing; CRM ma kopirovat outbox integration event pattern.
+**Status:** Base pattern hotovy v Identity/Billing; novy modul ma kopirovat outbox integration event pattern.
 
 **Pouzijes:** `IIntegrationEvent` v `ModularPlatform.Crm.Contracts`, `IDbContextOutbox<CrmDbContext>`, `PublishAsync`, `SaveChangesAndFlushMessagesAsync`.
 
@@ -4230,7 +4232,7 @@ await outbox.SaveChangesAndFlushMessagesAsync();
 
 **Ordering:** nepocitej, ze eventy prijdou v poradi. Kdyz publishnes `DealCreated` a pak `DealUpdated`, consumer musi byt idempotentni a order-independent nebo si dotahnout live stav.
 
-**Testy k CRM:** po create existuje DB row i outgoing envelope/event, pri failed save event nevznikne, payload neobsahuje PII, wire name je zmrazeny v message identity testech, handler subscriberu je idempotentni.
+**Testy k novemu modulu:** po create existuje DB row i outgoing envelope/event, pri failed save event nevznikne, payload neobsahuje PII, wire name je zmrazeny v message identity testech, handler subscriberu je idempotentni.
 
 **Nepouzijes:** event jako request-response, present-tense `CreateDealEvent`, payload s celou entitou, publish pred ulozenim stavu, ani in-memory event bus mimo outbox.
 
@@ -4244,7 +4246,7 @@ await outbox.SaveChangesAndFlushMessagesAsync();
 
 ### UC95 Reaguj na event
 
-**Status:** Base pattern hotovy v Billing/Notifications/Marketing; CRM ma kopirovat public handler -> internal command.
+**Status:** Base pattern hotovy v Billing/Notifications/Marketing; novy modul ma kopirovat public handler -> internal command.
 
 **Pouzijes:** public Wolverine handler, `IDispatcher`, internal command, `IModule.ConfigureMessaging`, idempotency key/unique constraint.
 
@@ -4309,7 +4311,7 @@ public void ConfigureMessaging(WolverineOptions options)
 
 **Ordering:** nepredpokladej, ze eventy jdou po sobe. Kdyz stav zalezi na realite owner modulu, dotahni live DTO pres query contract.
 
-**Testy k CRM:** event doruceni spusti handler, handler dispatchne command, opakovany event nevytvori duplicitu, handler je public a registrovany, failed command jde do retry/DLQ.
+**Testy k novemu modulu:** event doruceni spusti handler, handler dispatchne command, opakovany event nevytvori duplicitu, handler je public a registrovany, failed command jde do retry/DLQ.
 
 **Nepouzijes:** internal/private Wolverine handler, business logiku primo v handleru, handler bez idempotence, reliance na event ordering, ani direct reference na cizi Core.
 
@@ -4371,7 +4373,7 @@ await db.SaveChangesAsync(ct);
 
 **Minimal PII:** nedavej do projekce vic PII, nez list opravdu potrebuje. Email casto staci masked nebo hash. Pokud ulozis plaintext, musi platit UC75/UC91.
 
-**Testy k CRM:** event vytvori/aktualizuje projekci, duplicate event neni duplicita, out-of-order starsi event neprepise novejsi stav, reconcile opravi stale projekci, GDPR erase smaze/anonymizuje PII v projekci.
+**Testy k novemu modulu:** event vytvori/aktualizuje projekci, duplicate event neni duplicita, out-of-order starsi event neprepise novejsi stav, reconcile opravi stale projekci, GDPR erase smaze/anonymizuje PII v projekci.
 
 **Nepouzijes:** projekci jako autoritativni billing/permission zdroj, cross-module join, kopii cele cizi entity, PII pro pohodli, ani read model bez repair cesty.
 
@@ -4424,7 +4426,7 @@ var result = await bus.InvokeAsync<LeadScoreResult>(
 
 **UX:** pri timeoutu vrat userovi jasnou chybu nebo prejdi na async flow. Nenech frontend viset na spinneru bez moznosti retry.
 
-**Testy k CRM:** happy path vrati response, timeout vrati predvidatelnou chybu, handler retry nezdvoji side effect, dlouha prace ma samostatny 202 test misto Invoke.
+**Testy k novemu modulu:** happy path vrati response, timeout vrati predvidatelnou chybu, handler retry nezdvoji side effect, dlouha prace ma samostatny 202 test misto Invoke.
 
 **Nepouzijes:** long-running workflow, externi provider call bez statusu, side effect bez idempotence, nekonecny timeout, ani `InvokeAsync` pro komunikaci, kterou umi normalni dispatcher query/command.
 
@@ -4446,7 +4448,7 @@ var result = await bus.InvokeAsync<LeadScoreResult>(
 
 **Mentalni model:** event bus neni choreografie v pevnem poradi. Handler nesmi rikat "pockam, az Notifications uz poslaly email" nebo "Billing handler urcite bezi pred CRM". Pokud neco potrebujes, dotahni live stav pres query contract nebo si udelej vlastni idempotentni projekci.
 
-**CRM handler:** kazdy handler dela jednu vec a je bezpecny pri redelivery.
+**Priklad handleru v novem modulu:** kazdy handler dela jednu vec a je bezpecny pri redelivery.
 
 ```csharp
 public sealed class DealCreatedAnalyticsHandler
@@ -4468,7 +4470,7 @@ public sealed class DealCreatedNotificationHandler
 
 **Commutative state:** navrhuj reakce tak, aby nezalezely na poradi: "ensure snapshot exists", "set latest known status if event newer", "insert if sourceEventId not seen". Ne "increment counter bez dedupu" nebo "predpokladam, ze predchozi event uz prisel".
 
-**Testy k CRM:** dva subscriberi na stejny event projdou, retry jednoho nezduplikuje side effects druheho, out-of-order event neprepise novejsi stav, failed subscriber jde do retry/DLQ viditelne.
+**Testy k novemu modulu:** dva subscriberi na stejny event projdou, retry jednoho nezduplikuje side effects druheho, out-of-order event neprepise novejsi stav, failed subscriber jde do retry/DLQ viditelne.
 
 **Nepouzijes:** handler A zavisly na side effectu handleru B, global ordering predpoklady, non-idempotent increment bez source key, catch-and-swallow exception jen aby retry nebyl.
 
@@ -4519,7 +4521,7 @@ public sealed record DealWonIntegrationEvent(
 
 **Wire compatibility:** prejmenovani event typu nebo namespace je breaking change pro durable messages. Kdyz musis zmenit payload breaking zpusobem, pridej novy event typ `DealWonV2IntegrationEvent` nebo kompatibilni optional fields a aktualizuj frozen wire name testy vedome.
 
-**Testy k CRM:** event payload neobsahuje PII fields, serialization wire name je zmrazeny, consumer umi dotahnout detail pres query, stary event shape zustava kompatibilni nebo ma V2 migration rozhodnuti.
+**Testy k novemu modulu:** event payload neobsahuje PII fields, serialization wire name je zmrazeny, consumer umi dotahnout detail pres query, stary event shape zustava kompatibilni nebo ma V2 migration rozhodnuti.
 
 **Nepouzijes:** full entity DTO v eventu, user email/body/notes bez nutnosti, event rename bez wire-name testu, breaking required field bez verze, ani event jako cache celeho stavu.
 
@@ -4533,7 +4535,7 @@ public sealed record DealWonIntegrationEvent(
 
 ### UC100 Module jobs
 
-**Status:** Base pattern hotovy v Billing/GDPR/Identity; CRM ma kopirovat thin Quartz job -> command.
+**Status:** Base pattern hotovy v Billing/GDPR/Identity; novy modul ma kopirovat thin Quartz job -> command.
 
 **Pouzijes:** `IModule.RegisterJobs`, Quartz `IJob`, `IDispatcher`, UTC cron config, `[DisallowConcurrentExecution]`.
 
@@ -4595,7 +4597,7 @@ internal sealed class ReconcileCrmImportsHandler(CrmDbContext db, IClock clock)
 
 **DI graph:** pokud job potrebuje HTTP-only service (`HttpContext`, current request user, scoped frontend session), je navrh spatne. Jobs host bezi bez requestu, casto system context.
 
-**Testy k CRM:** Jobs host boot test musi projit, command idempotency test, cap per run test, UTC cron config test/smoke, no-overlap pokud job muze trvat dele.
+**Testy k novemu modulu:** Jobs host boot test musi projit, command idempotency test, cap per run test, UTC cron config test/smoke, no-overlap pokud job muze trvat dele.
 
 **Nepouzijes:** business logiku primo v `IJob`, local time cron, job bez capu, HTTP context v jobu, raw SQL sweep, ani job pro durable event work, ktere patri do Workeru.
 
@@ -4609,15 +4611,15 @@ internal sealed class ReconcileCrmImportsHandler(CrmDbContext db, IClock clock)
 
 ### UC101 Novy modul
 
-**Status:** Repo pravidlo hotove; CRM modul se dela jako standardni trio a registruje se do vsech hostu.
+**Status:** Repo pravidlo hotove; kazdy novy produktovy modul se dela jako standardni trio a registruje se do vsech hostu. CRM je jen priklad nazvu.
 
-**Pouzijes:** trio `ModularPlatform.Crm`, `ModularPlatform.Crm.Contracts`, `ModularPlatform.Crm.Tests`, `IModule`, `PlatformDbContext`, host registrations, architecture tests.
+**Pouzijes:** trio `ModularPlatform.{Module}`, `ModularPlatform.{Module}.Contracts`, `ModularPlatform.{Module}.Tests`, `IModule`, `PlatformDbContext`, host registrations, architecture tests. V ukazkach nize je `{Module} = Crm`.
 
-**Co se stane:** CRM je samostatny produktovy modul nad platformou. Core obsahuje interní domenu a vertical slices, Contracts obsahuje public integration events/DTOs, Tests overi slice + boundary. Modul se nacte ve vsech hostech: Api, Worker, Jobs, MigrationService.
+**Co se stane:** Novy produktovy modul je samostatny bounded context nad platformou. Core obsahuje interni domenu a vertical slices, Contracts obsahuje public integration events/DTOs, Tests overi slice + boundary. Modul se nacte ve vsech hostech: Api, Worker, Jobs, MigrationService.
 
 **Mentalni model:** modul nepridavas jako slozku s nahodnymi services. Pridavas izolovanou bounded context jednotku. Vse, co ostatni smi videt, je v Contracts. Vse, co je implementace, je internal v Core.
 
-**Struktura:**
+**Struktura prikladu pro modul `Crm`:**
 
 ```text
 src/modules/Crm/
@@ -4634,7 +4636,7 @@ src/modules/Crm/
   ModularPlatform.Crm.Tests/
 ```
 
-**CrmModule:** registruje CQRS, validators, DbContext/read DbContext, endpoints, messaging handlers, jobs a migrace.
+**Module class:** `CrmModule` je priklad. Pro jiny modul pojmenuj tridu `{Module}Module`. Registruje CQRS, validators, DbContext/read DbContext, endpoints, messaging handlers, jobs a migrace.
 
 ```csharp
 public sealed class CrmModule : IModule
@@ -4654,7 +4656,7 @@ public sealed class CrmModule : IModule
 }
 ```
 
-**DbContext:** dedi z `PlatformDbContext`, ma `ModuleName`, `DbSet`s a ctor `(DbContextOptions<CrmDbContext>, ITenantContext)`.
+**DbContext:** dedi z `PlatformDbContext`, ma `ModuleName`, `DbSet`s a ctor `(DbContextOptions<{Module}DbContext>, ITenantContext)`.
 
 ```csharp
 internal sealed class CrmDbContext(DbContextOptions<CrmDbContext> options, ITenantContext tenant)
@@ -4681,19 +4683,19 @@ internal sealed class CrmDbContext(DbContextOptions<CrmDbContext> options, ITena
 - EC502 Contracts nesmi referencovat Core → Contracts reference jen Cqrs/abstractions nutne pro DTO/event marker.
 - EC503 host registration ve vsech hostech → Api/Worker/Jobs/Migration + HostBootTests, jinak cast flow nebezi.
 - EC504 migrations pres admin connection → `PlatformMigrator`/MigrationService, nikdy runtime RLS role ani shared DB direct.
-- EC505 architecture tests pro boundary → pridat CRM assembly do architecture test loaderu a wire-name snapshot pro nove eventy.
+- EC505 architecture tests pro boundary → pridat assembly noveho modulu do architecture test loaderu a wire-name snapshot pro nove eventy.
 
 ## Frontend a platform building blocks
 
 ### UC102 Frontend route
 
-**Status:** Frontend pattern existuje v Marketing/Files; CRM route ma kopirovat server page + feature components.
+**Status:** Frontend pattern existuje v Marketing/Files; route noveho modulu ma kopirovat server page + feature components. CRM je jen priklad routy.
 
-**Pouzijes:** `frontend/app/(tenant)/crm/page.tsx`, server component, `HydrationBoundary`, `getQueryClient`, entitlement guard, feature components z `features/crm/components`.
+**Pouzijes:** `frontend/app/(tenant)/{module}/page.tsx`, server component, `HydrationBoundary`, `getQueryClient`, entitlement guard, feature components z `features/{module}/components`. V ukazce je `{module} = crm`.
 
-**Co se stane:** Route slozi CRM obrazovku, overi ze je modul povoleny, prefetchne hlavni queries a vykresli feature komponenty. Route sama nedrzi business logiku, nedela mutace a neobsahuje fetch volani rozhazene po JSX.
+**Co se stane:** Route slozi obrazovku modulu, overi ze je modul povoleny, prefetchne hlavni queries a vykresli feature komponenty. Route sama nedrzi business logiku, nedela mutace a neobsahuje fetch volani rozhazene po JSX.
 
-**Mentalni model:** route je kompozice obrazovky. API shape patri do `features/crm/api.ts`, React Query hooky do `features/crm/hooks.ts`, UI widgety do `features/crm/components/*`. Page jen propoji layout, translations, entitlement a hydration.
+**Mentalni model:** route je kompozice obrazovky. API shape patri do `features/{module}/api.ts`, React Query hooky do `features/{module}/hooks.ts`, UI widgety do `features/{module}/components/*`. Page jen propoji layout, translations, entitlement a hydration.
 
 ```tsx
 // frontend/app/(tenant)/crm/page.tsx
@@ -4741,11 +4743,11 @@ export default async function CrmPage() {
 
 **Loading/error/empty:** route muze prefetchovat, ale komponenty stale musi umet loading, error a empty state, protoze query muze refetchovat nebo selhat po hydrataci.
 
-**Responsive layout:** CRM je pracovni tool, ne landing page. Pouzij dense but readable layout, table/list + side panel, zadne marketing hero. Over mobile/tablet, dlouhe emaily a nazvy firem nesmi rozbijet layout.
+**Responsive layout:** produktovy modul je pracovni tool, ne landing page. Pouzij dense but readable layout, table/list + side panel, zadne marketing hero. Over mobile/tablet, dlouhe emaily a nazvy firem nesmi rozbijet layout.
 
-**Testy k CRM:** Playwright route smoke, entitlement off -> notFound/hidden nav, empty state, API error state, responsive screenshot pro hlavni breakpointy.
+**Testy k novemu modulu:** Playwright route smoke, entitlement off -> notFound/hidden nav, empty state, API error state, responsive screenshot pro hlavni breakpointy.
 
-**Nepouzijes:** fetch primo v JSX komponentach mimo feature API, route jako business orchestrator, frontend-only auth, hardcoded text mimo messages, ani hero/landing page misto CRM aplikace.
+**Nepouzijes:** fetch primo v JSX komponentach mimo feature API, route jako business orchestrator, frontend-only auth, hardcoded text mimo messages, ani hero/landing page misto aplikace modulu.
 
 **EC:**
 
@@ -4757,11 +4759,11 @@ export default async function CrmPage() {
 
 ### UC103 Frontend API file
 
-**Status:** Frontend pattern existuje v `features/marketing/api.ts`, `features/files/api.ts`; CRM ma mit stejny centralizovany API soubor.
+**Status:** Frontend pattern existuje v `features/marketing/api.ts`, `features/files/api.ts`; novy modul ma mit stejny centralizovany API soubor. CRM je jen priklad feature slozky.
 
-**Pouzijes:** `frontend/features/crm/api.ts`, `apiFetch`, `queryOptions`, `queryRoots`, TypeScript response/request typy.
+**Pouzijes:** `frontend/features/{module}/api.ts`, `apiFetch`, `queryOptions`, `queryRoots`, TypeScript response/request typy. V ukazce je `{module} = crm`.
 
-**Co se stane:** Vsechny CRM endpoint paths, request/response typy, query factories a mutation functions jsou na jednom miste. Komponenty a hooky uz jen importuji `crmQueries`, `createContact`, `startImport`, `sendCrmMessage`.
+**Co se stane:** Vsechny endpoint paths, request/response typy, query factories a mutation functions modulu jsou na jednom miste. Komponenty a hooky uz jen importuji query factories a mutation functions, napr. `crmQueries`, `createContact`, `startImport`, `sendCrmMessage`.
 
 **Mentalni model:** `api.ts` je frontend contract mirror backend recordu. Kdyz se zmeni C# response shape, upravis tady typ. Komponenty nesmi skladat URL stringy nebo volat `fetch` primo.
 
@@ -4846,7 +4848,7 @@ export function deleteContact(contactId: string): Promise<void> {
 
 **Abort/cancel:** dlouhe listy/search/detail query musi prijmout signal, pokud ho TanStack predava pres queryFn context. Pro streaming pouzij samostatnou funkci podle marketing `streamMessage`.
 
-**Testy k CRM:** typecheck, query key obsahuje filtry, api path bez `/v1`, mutation pouziva spravnou method/body, komponenty nepouzivaji raw fetch.
+**Testy k novemu modulu:** typecheck, query key obsahuje filtry, api path bez `/v1`, mutation pouziva spravnou method/body, komponenty nepouzivaji raw fetch.
 
 **Nepouzijes:** `fetch("/v1/...")` v komponentach, duplicitu typů v kazdem panelu, hardcoded query keys mimo `api.ts`, response `any`, ani preklad erroru v API vrstve.
 
@@ -4860,11 +4862,11 @@ export function deleteContact(contactId: string): Promise<void> {
 
 ### UC104 Frontend hooks
 
-**Status:** Frontend pattern existuje v Marketing/Files; CRM ma mit tenkou hook vrstvu nad `api.ts`.
+**Status:** Frontend pattern existuje v Marketing/Files; novy modul ma mit tenkou hook vrstvu nad `api.ts`.
 
-**Pouzijes:** `frontend/features/crm/hooks.ts`, `useQuery`, `useMutation`, `useQueryClient`, `toast`, `queryRoots.crm`.
+**Pouzijes:** `frontend/features/{module}/hooks.ts`, `useQuery`, `useMutation`, `useQueryClient`, `toast`, `queryRoots.{module}`. V ukazce je `{module} = crm`.
 
-**Co se stane:** Komponenty nepouzivaji `apiFetch` ani `crmQueries` primo. Importuji hooky: `useContacts`, `useContact`, `useCreateContact`, `useDeleteContact`, `useStartCrmImport`, `useSendCrmMessage`. Hooky resi query enabled flags, invalidace cache, toast a pending states.
+**Co se stane:** Komponenty nepouzivaji `apiFetch` ani query factories primo. Importuji hooky, napr. `useContacts`, `useContact`, `useCreateContact`, `useDeleteContact`, `useStartCrmImport`, `useSendCrmMessage`. Hooky resi query enabled flags, invalidace cache, toast a pending states.
 
 **Mentalni model:** `api.ts` vi "jak volat backend"; `hooks.ts` vi "jak to zapojit do React Query UX". Komponenta vi jen "mam data, pending, error, mutate".
 
@@ -4930,7 +4932,7 @@ export function useDeleteContact() {
 
 **Pending controls:** komponenta pouzije `mutation.isPending` pro `disabled`, spinner a ochranu pred double clickem. Backend stale musi mit idempotency tam, kde ma side effect cenu.
 
-**Testy k CRM:** mutation invaliduje list/detail, button disabled during pending, toast success/error, optimistic rollback pokud je pouzit, component nepouziva raw `apiFetch`.
+**Testy k novemu modulu:** mutation invaliduje list/detail, button disabled during pending, toast success/error, optimistic rollback pokud je pouzit, component nepouziva raw `apiFetch`.
 
 **Nepouzijes:** fetch v komponentach, manualni state misto React Query cache, mutace bez invalidace, optimistic update bez rollbacku, toast jen po route unmountu.
 
@@ -4952,7 +4954,7 @@ export function useDeleteContact() {
 
 **Mentalni model:** Frontend schema je UX kopie backend pravidel, ne security boundary. Pokud se frontend a backend rozjedou, backend vyhrava.
 
-**Napises v CRM:** schema soubor vedle feature. Error message muze byt i18n key, kterou komponenta prelozi.
+**Napises v novem modulu (napr. CRM):** schema soubor vedle feature. Error message muze byt i18n key, kterou komponenta prelozi.
 
 ```ts
 import { z } from "zod";
@@ -5458,13 +5460,13 @@ dotnet run --project src/hosts/ModularPlatform.MigrationService
 
 - EC551 nespoustet migraci proti shared DB → migration nejdriv local/Testcontainers/per-branch clone, ne staging/prod.
 - EC552 runtime RLS role nema delat DDL → MigrationService/PlatformMigrator jede admin connection, runtime role jen data.
-- EC553 missing design-time factory → CRM musi mit `CrmDbContextDesignTimeFactory` se `SystemTenantContext`.
+- EC553 missing design-time factory → novy modul musi mit `{Module}DbContextDesignTimeFactory` se `SystemTenantContext`; v CRM prikladu je to `CrmDbContextDesignTimeFactory`.
 - EC554 migration service DI graph fail → CRM modul registruj i do MigrationService host builderu a HostBootTests.
 - EC555 raw SQL zakazany → schema/model pres EF migrations; zadne `ExecuteSqlRaw` pro business schema.
 
 ### UC112 Testy noveho flow
 
-**Status:** Test harness existuje; CRM nesmi zakladat vlastni Testcontainers fixture.
+**Status:** Test harness existuje; novy modul nesmi zakladat vlastni Testcontainers fixture.
 
 **Pouzijes:** `tests/ModularPlatform.IntegrationTesting/PlatformApiFactory`, module test projekt `src/modules/Crm/ModularPlatform.Crm.Tests`, `HostBootTests`, `ModuleBoundaryTests`, `MessageWireIdentityTests`, `ErrorCodeLocalizationTests`.
 
@@ -5472,7 +5474,7 @@ dotnet run --project src/hosts/ModularPlatform.MigrationService
 
 **Mentalni model:** Netestuj jen handler jako izolovanou tridu, kdyz flow zavisi na tenant/user contextu, credits, outboxu nebo RLS. Platforma ma test harness presne proto, aby tyto veci nesly obejit.
 
-**CRM test projekt:** reference na CRM Core, CRM Contracts a `ModularPlatform.IntegrationTesting`. Pouzij collection fixture podle existujicich module tests.
+**Test projekt noveho modulu:** reference na CRM Core, CRM Contracts a `ModularPlatform.IntegrationTesting`. Pouzij collection fixture podle existujicich module tests.
 
 ```csharp
 public sealed class CrmContactTests(PlatformApiFactory factory)
