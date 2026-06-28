@@ -988,15 +988,15 @@ _The non-fatal-missing-template behavior is the most safety-critical path here a
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
 | Redis not configured | ✓ | DependencyInjection.cs:24-40 selects LocalRealtimePublisher when Redis:ConnectionString is blank; the registry + ports are always present so producers don't change. |
-| One connection's delivery throws and starves the user's other tabs | ✓ | RealtimeConnectionRegistry.DeliverLocal Realtime.cs:72-90 try/catches per handler so a failing subscriber can't starve siblings. |
+| One connection's delivery throws and starves the user's other tabs | ✓ | RealtimeConnectionRegistry.DeliverLocal Realtime.cs:72-90 try/catches per handler so a failing subscriber can't starve siblings. Proven by RealtimeSseTests.Registry_isolates_a_throwing_connection_from_other_connections. |
 | Redis envelope malformed / wrong channel guid | ✓ | RealtimeRedisSubscriber.cs:58-69 guards Guid.TryParse + null/empty value + null envelope before delivering. |
-| PublishToTenantAsync on the local publisher | ◐ | LocalRealtimePublisher.PublishToTenantAsync (Realtime.cs:227-228) is a no-op — tenant broadcasts only work with Redis. No current producer uses tenant push in this area, but it silently does nothing single-instance. |
+| PublishToTenantAsync on the local publisher | ✓ | LocalRealtimePublisher.PublishToTenantAsync now fails loud with NotSupportedException instead of silently dropping tenant broadcasts; proven by RealtimeSseTests.Local_tenant_broadcast_fails_loud_instead_of_silently_dropping_events. |
 | Connection registered then disposed (client disconnect) | ✓ | Subscribe returns an IDisposable that TryRemoves the connection (Realtime.cs:58-69); the SSE endpoint disposes it on enumerator cancel. |
 
-**Testy:** RealtimeSseTests.Registry_delivers_an_event_only_to_the_owning_user
-**Test gaps:** No test for the Redis publisher/subscriber path (acknowledged — needs live Redis); No test for the LocalRealtimePublisher.PublishToTenantAsync no-op surprise; No test for the DeliverLocal per-handler try/catch isolation (one throwing subscriber doesn't block others)
+**Testy:** RealtimeSseTests.Registry_delivers_an_event_only_to_the_owning_user; RealtimeSseTests.Registry_isolates_a_throwing_connection_from_other_connections; RealtimeSseTests.Local_tenant_broadcast_fails_loud_instead_of_silently_dropping_events
+**Test gaps:** No test for the Redis publisher/subscriber path (acknowledged — needs live Redis)
 
-_Owner-scoping + multi-instance fan-out are sound; tenant-push being a local no-op is a minor latent gap if ever used single-instance._
+_Owner-scoping + local fan-out are sound; unsupported tenant broadcast now fails loudly instead of pretending to work._
 
 ### SSE stream endpoint (/realtime/stream) — 🟢 minor-gaps
 *Native .NET 10 Server-Sent-Events endpoint that bridges the push registry to an IAsyncEnumerable, emitting replay then live events, owner-scoped.*
@@ -1637,23 +1637,23 @@ _JwtOptionsValidator now has direct fail-fast coverage. The missing name claim d
 
 _Correct and minimal; the baseline header contract is covered by an integration test._
 
-### SSE building block (SseStream + native SSE endpoint) — 🟢 minor-gaps
-*Per-connection bounded SSE buffer with incrementing event ids; the /v1/realtime/stream endpoint streams owner-scoped events with Last-Event-ID replay.*
+### SSE stream endpoint (native SSE endpoint) — 🟢 minor-gaps
+*Per-connection bounded SSE buffer; the /v1/realtime/stream endpoint streams owner-scoped events with Last-Event-ID replay.*
 
 **Use cases:** Browser realtime stream of a user's own events; Reconnect replay via Last-Event-ID; Back-pressure tolerance for slow/dead consumers
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
-| Slow/dead consumer growing the buffer unbounded (memory leak) | ✓ | Channel.CreateBounded(256, DropOldest) in both SseStream.cs:15-20 and RealtimeStreamEndpoint.cs:57-62; TryWrite never blocks/fails |
+| Slow/dead consumer growing the buffer unbounded (memory leak) | ✓ | Channel.CreateBounded(256, DropOldest) in RealtimeStreamEndpoint.cs:57-62; TryWrite never blocks/fails |
 | Client disconnect must dispose subscription | ✓ | Enumerator cancellation (CancellationToken) ends ReadAllAsync; using subscription disposes (RealtimeStreamEndpoint.cs:63-83) |
 | Unauthenticated access to the stream | ✓ | .RequireAuthorization() + tenant.UserId ?? throw UnauthorizedException('auth.required') (RealtimeStreamEndpoint.cs:32-41) |
 | Event ordering / duplicates across replay→live boundary | ◐ | Subscribe-before-replay means an event can be BOTH replayed and live-buffered (duplicate id), or buffered ones emitted after replayed ones; documented as acceptable best-effort UX (RealtimeStreamEndpoint.cs:54-56). Durable facts live in modules |
-| SseStream<T> building block actually used | ◐ | SseStream.cs exists in Web but the live endpoint (Realtime building block) uses its own inline Channel rather than SseStream<T>; SseStream appears unused by the shipped endpoint — possible dead/duplicate abstraction |
+| Removed duplicate SseStream<T> abstraction stays removed | ✓ | No SseStream.cs exists under src; the active endpoint owns the one bounded channel implementation. |
 
 **Testy:** Realtime replay covered in Realtime building-block/integration tests (outside this area's test set)
-**Test gaps:** No test for SseStream<T> bounded DropOldest / id increment behavior; No test confirming whether SseStream<T> is wired anywhere (it appears unused vs the endpoint's inline channel)
+**Test gaps:** No authenticated HTTP streaming round-trip over TestServer (buffers infinite SSE); no direct test for the endpoint's private DropOldest channel under back-pressure.
 
-_Endpoint is sound (bounded, owner-scoped, auth-gated). SseStream<T> in Web looks like a parallel/unused abstraction relative to the Realtime endpoint's own channel — worth confirming it isn't dead code._
+_Endpoint is sound (bounded, owner-scoped, auth-gated). The old duplicate SseStream<T> abstraction has already been removed; remaining gaps are streaming-harness limitations._
 
 ### Telemetry (OTel pipeline + TelemetryBehavior + PlatformMetrics) — ✅ correct
 *Outer-most CQRS span per request + OTel tracing/metrics export and a single shared Meter for platform/module instruments.*
@@ -1675,6 +1675,6 @@ _Clean single-meter design; error-code tagging is a nice touch. Outer-most order
 **Nekonzistence v oblasti (5):**
 - Rate-limiter per-user partition is fixed: PlatformWebExtensions keys authenticated traffic on `ClaimTypes.NameIdentifier`; PL11 proves user-specific buckets.
 - Retry-After drift is fixed: PlatformWebExtensions `OnRejected` emits `Retry-After`; PL12 proves the header on a throttled response.
-- SseStream<T> (src/building-blocks/ModularPlatform.Web/Sse/SseStream.cs) appears to be an unused/parallel abstraction: the live browser endpoint (RealtimeStreamEndpoint.cs:57-62) builds its own inline bounded Channel rather than using SseStream<T>. Possible dead code or a duplicated SSE-buffer concern that should be unified.
+- Historical note: the unused SseStream<T> abstraction mentioned in older audits has already been removed; the live browser endpoint now owns the single bounded channel implementation.
 - GlobalExceptionMiddleware.WriteProblem (lines 72-73) writes status + JSON with no Response.HasStarted guard; for a streamed/SSE response that already flushed headers this throws instead of failing gracefully. Minor given current usage but an unhandled edge.
 - JwtOptionsValidator now has a focused unit suite (`JwtOptionsValidatorTests`) covering the startup fail-fast guard; this closes the previous asymmetry with `ForwardedHeadersSettingsValidatorTests`.
