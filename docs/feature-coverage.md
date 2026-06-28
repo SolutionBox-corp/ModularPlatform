@@ -1449,16 +1449,16 @@ _Pure, simple clamping logic with zero direct unit coverage — cheapest high-va
 |---|:--:|---|
 | xmin token on every Entity without a RowVersion column | ✓ | Shadow uint 'xmin' xid concurrency token by convention (PlatformDbContext.cs:45-54) |
 | Soft-deleted rows leaking into reads | ✓ | Global filter DeletedAt==null on ISoftDeletable (PlatformDbContext.cs:101-105) |
-| IUserOwned entity without a UserId column | ✗ | Interface is a marker; the required Guid UserId is documented (Entity.cs:25-31) but not compile-time enforced — RLS policy would reference a missing column and fail at bootstrap rather than at build |
+| IUserOwned entity without a UserId column | ✓ | `RlsConventionTests.Every_IUserOwned_entity_exposes_a_Guid_UserId` scans module assemblies and fails if an `IUserOwned` concrete type lacks a public `Guid UserId`, catching the RLS owner-column contract before startup/bootstrap. |
 
-**Testy:** RlsTests (IUserOwned -> policy), TenantIsolationTests (ITenantScoped -> filter), module soft-delete usage
-**Test gaps:** No ArchUnitNET rule asserting every IUserOwned entity exposes a Guid UserId property (the one un-enforced convention that would only surface at runtime bootstrap)
+**Testy:** RlsTests (IUserOwned -> policy), TenantIsolationTests (ITenantScoped -> filter), module soft-delete usage, RlsConventionTests.Every_IUserOwned_entity_exposes_a_Guid_UserId
+**Test gaps:** No remaining build-time gap for the `IUserOwned` owner-column convention.
 
-_Conventions are solid; the IUserOwned->UserId contract is doc-only and fails late (RLS bootstrap) rather than at build via an arch test._
+_Conventions are solid; the `IUserOwned` -> `Guid UserId` contract is now enforced by an architecture test before RLS bootstrap._
 
 **Nekonzistence v oblasti (4):**
 - Doc-vs-code drift: AddPlatformPersistence XML summary says it registers the pipeline 'once per host' (Persistence/DependencyInjection.cs:17-20,33), but it is actually invoked once PER MODULE (via AddModuleDbContext, Messaging/DependencyInjection.cs:28) and relies on TryAdd*/TryAddEnumerable dedup. The comment understates the per-module invocation that the dedup exists to neutralize.
-- Convention enforced only at runtime, not build: IUserOwned requires a 'Guid UserId' column (Entity.cs:25-31, used by RlsBootstrapper.cs:130 OwnerColumn='UserId') but, unlike the [PersonalData]/[Encrypted] pairing (PersonalDataConventionTests), there is NO ArchUnitNET rule asserting it. A mismarked entity fails at RLS bootstrap (CREATE POLICY on a missing column) rather than at compile/test time.
+- Convention enforced at build: IUserOwned requires a 'Guid UserId' column (Entity.cs:25-31, used by RlsBootstrapper.cs:130 OwnerColumn='UserId') and `RlsConventionTests` asserts it before a mismarked entity can fail later during RLS bootstrap.
 - Mechanism-vs-test mismatch: BillingConcurrencyTests is the only concurrency test and it exercises the atomic ExecuteUpdate debit guard (the money path), NOT the xmin + ConcurrencyRetryBehavior retry loop (ConcurrencyRetryBehavior.cs). The retry-and-succeed and retry-exhaustion behaviors of the command-only retry behavior are asserted nowhere directly.
 - PageRequest/PagedResponse clamping (Paging.cs:16-30, 7-10) is referenced as the standard list envelope across modules but has no direct unit test; its correctness is only observed transitively via NotificationsIntegrationTests, so a regression in the clamp bounds (e.g. MaxPageSize) would not be caught by a focused test.
 
