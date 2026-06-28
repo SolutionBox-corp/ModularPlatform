@@ -812,14 +812,14 @@ _Key handling and fail-fast are correct. The normalization contract is the one s
 | Idempotent replay of the erasure event | ✓ | Wolverine inbox dedups; ShredSubjectKeyHandler guards on DeletedAt==null so a replay never re-stamps (ShredSubjectKeyHandler.cs:27-32; SubjectKeyShredTests) |
 | Identity from token not body | ✓ | RequestErasureEndpoint takes tenant.UserId, no body id (RequestErasureEndpoint.cs:14-22) |
 | Missing subject key row (nothing ever encrypted) | ✓ | ShredSubjectKeyHandler no-op when row absent (ShredSubjectKeyHandler.cs:24-32) |
-| One eraser throws mid fan-out | ◐ | UserErasureRequestedHandler has NO per-eraser try/catch (UserErasureRequestedHandler.cs:38-43): a throwing eraser aborts the loop AND the subsequent shred. Mitigation: Wolverine retry/DLQ re-runs the whole durable handler and erasers are idempotent, so it self-heals; but unlike the EXPORT path there's no isolation, so a permanently-failing eraser blocks the crypto-shred indefinitely (dead-letter). Asymmetric with ExportUserDataHandler's documented per-exporter resilience |
-| Erasure ordering: anonymize before shred | ✓ | erasers run first, then ShredSubjectKeyCommand; shred is described as authoritative, per-module anonymization is defence-in-depth (UserErasureRequestedHandler.cs:30-44) |
+| One eraser throws mid fan-out | ✓ | UserErasureRequestedHandler wraps each eraser, logs failures, still runs the remaining erasers, then dispatches ShredSubjectKeyCommand before throwing a retry exception for the failed module (UserErasureRequestedHandler.cs:40-67). Proven by ErasureFanOutTests.Throwing_eraser_does_not_block_other_erasers_or_crypto_shred. |
+| Erasure ordering: anonymize before shred | ✓ | erasers run first, then ShredSubjectKeyCommand; shred is described as authoritative, per-module anonymization is defence-in-depth (UserErasureRequestedHandler.cs:40-61) |
 | Durable, not fire-and-forget | ✓ | RequestErasureHandler publishes via outbox + SaveChangesAndFlushMessagesAsync (RequestErasureHandler.cs:22-27) |
 
-**Testy:** GdprIntegrationTests.Erasure_blanks_notification_pii_shreds_the_subject_key_and_retains_the_billing_ledger; GdprIntegrationTests.Consent_history_is_exported_and_deleted_on_erasure; SubjectKeyShredTests.Shred_drops_the_dek_and_stamps_deleted_at; SubjectKeyShredTests.Shred_is_idempotent_and_preserves_the_first_erasure_timestamp
-**Test gaps:** No test that a throwing eraser does NOT silently skip the crypto-shred (the partial gap above) — would document whether shred still runs or the handler dead-letters; No test that a PII write AFTER erasure does not resurrect a readable key (the re-mint guard end-to-end through Protect)
+**Testy:** GdprIntegrationTests.Erasure_blanks_notification_pii_shreds_the_subject_key_and_retains_the_billing_ledger; GdprIntegrationTests.Consent_history_is_exported_and_deleted_on_erasure; SubjectKeyShredTests.Shred_drops_the_dek_and_stamps_deleted_at; SubjectKeyShredTests.Shred_is_idempotent_and_preserves_the_first_erasure_timestamp; ErasureFanOutTests.Throwing_eraser_does_not_block_other_erasers_or_crypto_shred
+**Test gaps:** No test that a PII write AFTER erasure does not resurrect a readable key (the re-mint guard end-to-end through Protect).
 
-_End-to-end erasure is well tested and correct. The one real gap is the missing per-eraser isolation in the erasure handler (vs the export handler which has it) — currently masked by Wolverine retries + idempotency but worth either matching the export pattern or documenting the intentional all-or-nothing semantics._
+_End-to-end erasure is well tested and correct. Per-eraser isolation now matches the export fan-out: failed module anonymization retries, but the authoritative crypto-shred is not blocked._
 
 ### Consent log (append-only, exported + erased) — ✅ correct
 *Append-only grant/withdraw consent transitions per subject, included in export and deleted on erasure.*
