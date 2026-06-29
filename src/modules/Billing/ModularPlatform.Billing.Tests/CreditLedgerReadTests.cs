@@ -21,7 +21,12 @@ public sealed class CreditLedgerReadTests(PlatformApiFactory fixture)
 
         for (var i = 0; i < 5; i++)
         {
-            await fixture.GrantCreditsAsync(aliceId, 100 + i, idempotencyKey: $"alice-ledger-{Guid.CreateVersion7():N}");
+            var key = $"alice-ledger-{Guid.CreateVersion7():N}";
+            await fixture.GrantCreditsAsync(aliceId, 100 + i, idempotencyKey: key);
+            await fixture.ExecuteSqlAsync(
+                "UPDATE credit_entries " +
+                $"SET \"CreatedAt\" = timestamp with time zone '2026-01-01 00:00:0{i}+00' " +
+                $"WHERE \"IdempotencyKey\" = '{key}'");
         }
 
         await fixture.GrantCreditsAsync(bobId, 999, idempotencyKey: $"bob-ledger-{Guid.CreateVersion7():N}");
@@ -36,6 +41,9 @@ public sealed class CreditLedgerReadTests(PlatformApiFactory fixture)
         aliceData.GetProperty("totalCount").GetInt64().ShouldBe(5);
         aliceData.GetProperty("totalPages").GetInt32().ShouldBe(3);
         aliceData.GetProperty("items").EnumerateArray().Count().ShouldBe(2);
+        aliceData.GetProperty("items").EnumerateArray()
+            .Select(item => item.GetProperty("amount").GetInt64())
+            .ShouldBe(new[] { 104L, 103L });
         aliceData.GetProperty("items").EnumerateArray()
             .ShouldAllBe(item => item.GetProperty("amount").GetInt64() != 999);
 

@@ -32,7 +32,9 @@ public sealed class ReserveCreditsTests(PlatformApiFactory fixture)
     [Fact]
     public async Task Reserve_without_credit_account_returns_not_found()
     {
-        var (_, token) = await fixture.RegisterAndLoginAsync($"reserve-no-account-{Guid.CreateVersion7():N}@test.io", Password);
+        var (userId, token) = await fixture.RegisterAndLoginAsync($"reserve-no-account-{Guid.CreateVersion7():N}@test.io", Password);
+        await fixture.WaitForCountAsync($"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{userId}'", 1);
+        await fixture.ExecuteSqlAsync($"DELETE FROM credit_accounts WHERE \"UserId\" = '{userId}'");
 
         var response = await fixture.Client.SendAsync(fixture.Authed(
             HttpMethod.Post, "/v1/billing/credits/reservations", token,
