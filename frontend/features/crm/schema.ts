@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CONTACT_STATUSES, INTERACTION_TYPES, DEAL_STAGES } from "@/features/crm/api";
+import { CONTACT_STATUSES, INTERACTION_TYPES, DEAL_STAGES, TASK_PRIORITIES } from "@/features/crm/api";
 
 /** Translator shape (next-intl's `useTranslations('crm')`) — only what the schema needs. */
 type Translate = (key: string) => string;
@@ -70,3 +70,15 @@ export function buildDealSchema(t: Translate) {
 }
 
 export type DealFormValues = z.infer<ReturnType<typeof buildDealSchema>>;
+
+/** Mirrors CreateTaskValidator / UpdateTaskValidator. */
+export function buildTaskSchema(t: Translate) {
+  return z.object({
+    title: z.string().min(1, t("validation.titleRequired")).max(256, t("validation.titleMax")),
+    description: z.string().max(8192, t("validation.notesMax")).optional(),
+    dueAt: z.string().optional(),
+    priority: z.enum(TASK_PRIORITIES),
+  });
+}
+
+export type TaskFormValues = z.infer<ReturnType<typeof buildTaskSchema>>;

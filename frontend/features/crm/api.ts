@@ -75,6 +75,28 @@ export interface InteractionsPage {
 export const CONTACT_STATUSES = ["lead", "active", "customer", "archived"] as const;
 export const INTERACTION_TYPES = ["call", "email", "note", "meeting"] as const;
 export const DEAL_STAGES = ["lead", "qualified", "proposal", "negotiation", "won", "lost"] as const;
+export const TASK_PRIORITIES = ["low", "normal", "high"] as const;
+
+export interface CrmTask {
+  id: string;
+  contactId: string | null;
+  dealId: string | null;
+  title: string;
+  description: string | null;
+  dueAt: string | null;
+  priority: string;
+  status: string;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+export interface TasksPage {
+  items: CrmTask[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}
 
 export interface Deal {
   id: string;
@@ -123,6 +145,15 @@ export interface DealsParams {
   pageSize?: number;
   stage?: string;
   contactId?: string;
+}
+
+export interface TasksParams {
+  page?: number;
+  pageSize?: number;
+  status?: string;
+  dueBefore?: string;
+  contactId?: string;
+  dealId?: string;
 }
 
 export const crmQueries = {
@@ -197,6 +228,24 @@ export const crmQueries = {
       queryFn: () => apiFetch<Deal>(`crm/deals/${id}`),
       enabled: id.length > 0,
     }),
+
+  tasks: (params: TasksParams = {}) => {
+    const pageSize = params.pageSize ?? 20;
+    return queryOptions({
+      queryKey: [...queryRoots.crm, "tasks", params],
+      queryFn: () => {
+        const sp = new URLSearchParams();
+        sp.set("page", String(params.page ?? 1));
+        sp.set("pageSize", String(pageSize));
+        if (params.status) sp.set("status", params.status);
+        if (params.dueBefore) sp.set("dueBefore", params.dueBefore);
+        if (params.contactId) sp.set("contactId", params.contactId);
+        if (params.dealId) sp.set("dealId", params.dealId);
+        return apiFetch<TasksPage>(`crm/tasks?${sp.toString()}`);
+      },
+      staleTime: 15_000,
+    });
+  },
 };
 
 /* ----------------------------------------------------------------------------
@@ -288,4 +337,29 @@ export function moveDealStage(id: string, stage: string): Promise<Deal> {
 
 export function deleteDeal(id: string): Promise<void> {
   return apiFetch<void>(`crm/deals/${id}`, { method: "DELETE" });
+}
+
+export interface TaskInput {
+  contactId?: string | null;
+  dealId?: string | null;
+  title: string;
+  description?: string | null;
+  dueAt?: string | null;
+  priority?: string | null;
+}
+
+export function createTask(input: TaskInput): Promise<{ id: string }> {
+  return apiFetch<{ id: string }>("crm/tasks", { method: "POST", body: input });
+}
+
+export function updateTask(id: string, input: Partial<TaskInput>): Promise<CrmTask> {
+  return apiFetch<CrmTask>(`crm/tasks/${id}`, { method: "PATCH", body: input });
+}
+
+export function completeTask(id: string): Promise<void> {
+  return apiFetch<void>(`crm/tasks/${id}/complete`, { method: "POST" });
+}
+
+export function deleteTask(id: string): Promise<void> {
+  return apiFetch<void>(`crm/tasks/${id}`, { method: "DELETE" });
 }

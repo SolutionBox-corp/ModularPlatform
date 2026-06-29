@@ -207,7 +207,10 @@
       "minutes": "{count} min",
       "dealTitle": "Deal",
       "amount": "Amount",
-      "stage": "Stage"
+      "stage": "Stage",
+      "taskTitle": "Task",
+      "due": "Due",
+      "priority": "Priority"
     },
     "status": {
       "lead": "Lead",
@@ -298,7 +301,11 @@
       "dealCreated": "Deal created",
       "dealUpdated": "Deal updated",
       "dealStageMoved": "Stage updated",
-      "dealDeleted": "Deal deleted"
+      "dealDeleted": "Deal deleted",
+      "taskCreated": "Task created",
+      "taskUpdated": "Task updated",
+      "taskCompleted": "Task completed",
+      "taskDeleted": "Task deleted"
     },
     "validation": {
       "fullNameRequired": "Name is required.",
@@ -344,6 +351,34 @@
       "stage": "Stage",
       "expectedCloseAt": "Expected close",
       "notes": "Notes",
+      "save": "Save",
+      "saving": "Saving…"
+    },
+    "tasks": {
+      "metaTitle": "Tasks",
+      "pageHeading": "Tasks",
+      "pageDescription": "Follow-ups and reminders — what to do today.",
+      "new": "New task",
+      "complete": "Complete",
+      "delete": "Delete",
+      "emptyTitle": "No tasks",
+      "emptyDescription": "Create a task to plan your follow-ups."
+    },
+    "taskPriority": {
+      "low": "Low",
+      "normal": "Normal",
+      "high": "High"
+    },
+    "taskStatus": {
+      "open": "Open",
+      "done": "Done"
+    },
+    "taskForm": {
+      "createTitle": "New task",
+      "title": "Title",
+      "dueAt": "Due",
+      "priority": "Priority",
+      "description": "Description",
       "save": "Save",
       "saving": "Saving…"
     }
@@ -602,7 +637,8 @@
     "users": "Users",
     "platformProducts": "Products",
     "crm": "CRM",
-    "crmDeals": "Deals"
+    "crmDeals": "Deals",
+    "crmTasks": "Tasks"
   },
   "notifications": {
     "badge": {

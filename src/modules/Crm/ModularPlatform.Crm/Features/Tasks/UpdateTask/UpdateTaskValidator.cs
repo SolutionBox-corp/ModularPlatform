@@ -1,0 +1,20 @@
+using FluentValidation;
+using ModularPlatform.Crm.Entities;
+
+namespace ModularPlatform.Crm.Features.Tasks.UpdateTask;
+
+internal sealed class UpdateTaskValidator : AbstractValidator<UpdateTaskCommand>
+{
+    public UpdateTaskValidator()
+    {
+        When(x => x.Title is not null, () =>
+            RuleFor(x => x.Title)
+                .NotEmpty().WithErrorCode("crm.task.title.required")
+                .MaximumLength(256).WithErrorCode("crm.task.title.too_long"));
+
+        RuleFor(x => x.Description).MaximumLength(8192).WithErrorCode("crm.task.description.too_long");
+
+        When(x => x.Priority is not null, () =>
+            RuleFor(x => x.Priority).Must(TaskPriorities.IsValid).WithErrorCode("crm.task.priority.invalid"));
+    }
+}

@@ -63,5 +63,16 @@ internal sealed class CrmPersonalDataEraser(CrmDbContext db, IClock clock) : IEr
                     .SetProperty(d => d.Notes, (string?)null)
                     .SetProperty(d => d.DeletedAt, d => d.DeletedAt ?? now),
                 ct);
+
+        // Tasks are the user's own reminders — scrub free-text and soft-delete.
+        await db.Tasks
+            .IgnoreQueryFilters()
+            .Where(t => t.UserId == userId)
+            .ExecuteUpdateAsync(
+                s => s
+                    .SetProperty(t => t.Title, "[erased]")
+                    .SetProperty(t => t.Description, (string?)null)
+                    .SetProperty(t => t.DeletedAt, t => t.DeletedAt ?? now),
+                ct);
     }
 }

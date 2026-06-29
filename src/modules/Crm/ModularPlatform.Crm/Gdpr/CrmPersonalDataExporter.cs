@@ -78,12 +78,31 @@ internal sealed class CrmPersonalDataExporter(IReadDbContextFactory<CrmDbContext
             })
             .ToListAsync(ct);
 
+        var tasks = await db.Tasks
+            .IgnoreQueryFilters()
+            .Where(t => t.UserId == userId)
+            .Select(t => new
+            {
+                t.Id,
+                t.ContactId,
+                t.DealId,
+                t.Title,
+                t.Description,
+                t.DueAt,
+                t.Priority,
+                t.Status,
+                t.CompletedAt,
+                t.CreatedAt,
+            })
+            .ToListAsync(ct);
+
         return new Dictionary<string, object?>
         {
             ["contacts"] = contacts,
             ["interactions"] = interactions,
             ["meetings"] = meetings,
             ["deals"] = deals,
+            ["tasks"] = tasks,
         };
     }
 }

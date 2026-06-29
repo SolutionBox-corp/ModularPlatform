@@ -11,16 +11,21 @@ import {
   createContact,
   createDeal,
   createMeeting,
+  createTask,
   deleteContact,
   deleteDeal,
+  deleteTask,
+  completeTask,
   moveDealStage,
   updateContact,
   updateDeal,
   updateMeeting,
+  updateTask,
   type ContactInput,
   type DealInput,
   type InteractionInput,
   type MeetingInput,
+  type TaskInput,
 } from "@/features/crm/api";
 
 /** Invalidates the whole CRM root so lists/details/timelines refetch after any mutation. */
@@ -171,5 +176,41 @@ export function useDeleteDeal() {
       await invalidate();
       toast.success(t("toast.dealDeleted"));
     },
+  });
+}
+
+export function useCreateTask() {
+  const invalidate = useInvalidateCrm();
+  const t = useTranslations("crm");
+  return useMutation({
+    mutationFn: (input: TaskInput) => createTask(input),
+    onSuccess: async () => { await invalidate(); toast.success(t("toast.taskCreated")); },
+  });
+}
+
+export function useCompleteTask() {
+  const invalidate = useInvalidateCrm();
+  const t = useTranslations("crm");
+  return useMutation({
+    mutationFn: (id: string) => completeTask(id),
+    onSuccess: async () => { await invalidate(); toast.success(t("toast.taskCompleted")); },
+  });
+}
+
+export function useDeleteTask() {
+  const invalidate = useInvalidateCrm();
+  const t = useTranslations("crm");
+  return useMutation({
+    mutationFn: (id: string) => deleteTask(id),
+    onSuccess: async () => { await invalidate(); toast.success(t("toast.taskDeleted")); },
+  });
+}
+
+export function useUpdateTask(id: string) {
+  const invalidate = useInvalidateCrm();
+  const t = useTranslations("crm");
+  return useMutation({
+    mutationFn: (input: Partial<TaskInput>) => updateTask(id, input),
+    onSuccess: async () => { await invalidate(); toast.success(t("toast.taskUpdated")); },
   });
 }

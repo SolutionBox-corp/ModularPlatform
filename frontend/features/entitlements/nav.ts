@@ -70,6 +70,13 @@ export const NAV_ITEMS: NavItem[] = [
     moduleKey: "crm",
   },
   {
+    key: "crm-tasks",
+    href: "/crm/tasks",
+    labelKey: "crmTasks",
+    icon: ScrollTextIcon,
+    moduleKey: "crm",
+  },
+  {
     key: "marketing",
     href: "/marketing",
     labelKey: "marketing",

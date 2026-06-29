@@ -207,7 +207,10 @@
       "minutes": "{count} min",
       "dealTitle": "Obchod",
       "amount": "Částka",
-      "stage": "Fáze"
+      "stage": "Fáze",
+      "taskTitle": "Úkol",
+      "due": "Termín",
+      "priority": "Priorita"
     },
     "status": {
       "lead": "Lead",
@@ -298,7 +301,11 @@
       "dealCreated": "Obchod vytvořen",
       "dealUpdated": "Obchod upraven",
       "dealStageMoved": "Fáze změněna",
-      "dealDeleted": "Obchod smazán"
+      "dealDeleted": "Obchod smazán",
+      "taskCreated": "Úkol vytvořen",
+      "taskUpdated": "Úkol upraven",
+      "taskCompleted": "Úkol hotov",
+      "taskDeleted": "Úkol smazán"
     },
     "validation": {
       "fullNameRequired": "Jméno je povinné.",
@@ -344,6 +351,34 @@
       "stage": "Fáze",
       "expectedCloseAt": "Očekávané uzavření",
       "notes": "Poznámky",
+      "save": "Uložit",
+      "saving": "Ukládám…"
+    },
+    "tasks": {
+      "metaTitle": "Úkoly",
+      "pageHeading": "Úkoly",
+      "pageDescription": "Follow-upy a připomínky — co dnes řešit.",
+      "new": "Nový úkol",
+      "complete": "Dokončit",
+      "delete": "Smazat",
+      "emptyTitle": "Žádné úkoly",
+      "emptyDescription": "Vytvořte úkol a naplánujte follow-upy."
+    },
+    "taskPriority": {
+      "low": "Nízká",
+      "normal": "Normální",
+      "high": "Vysoká"
+    },
+    "taskStatus": {
+      "open": "Otevřené",
+      "done": "Hotové"
+    },
+    "taskForm": {
+      "createTitle": "Nový úkol",
+      "title": "Název",
+      "dueAt": "Termín",
+      "priority": "Priorita",
+      "description": "Popis",
       "save": "Uložit",
       "saving": "Ukládám…"
     }
@@ -602,7 +637,8 @@
     "users": "Uživatelé",
     "platformProducts": "Produkty",
     "crm": "CRM",
-    "crmDeals": "Obchody"
+    "crmDeals": "Obchody",
+    "crmTasks": "Úkoly"
   },
   "notifications": {
     "badge": {
