@@ -1492,14 +1492,14 @@ _Conventions are solid; the `IUserOwned` -> `Guid UserId` contract is now enforc
 | Transient handler failure must not lose the message | ✓ | RetryWithCooldown(100ms,500ms,3s).Then.MoveToErrorQueue() at PlatformMessaging.cs:84-86; inbox UNIQUE(MessageId) → ~exactly-once |
 | PII in opaque durable JSON cannot be crypto-shredded in place | ✓ | KeepAfterMessageHandling=5m, DeadLetterQueueExpiration enabled=7d at PlatformMessaging.cs:76-78; asserted by HostBootTests.AssertPiiRetention |
 | Slow default 5s poll lags event-driven work | ✓ | ScheduledJobPollingTime=1s at PlatformMessaging.cs:65 |
-| Pure-publisher host (Jobs/Migration/Balanced-Api) should not consume | ✓ | listen param defaults false; Jobs/Migration call Configure without listen (JobsHostBuilder.cs:64, MigrationHostBuilder.cs:48) |
+| Pure-publisher host (Jobs/Migration/Balanced-Api) should not consume | ✓ | listen param defaults false; Jobs/Migration call Configure without listen (JobsHostBuilder.cs:64, MigrationHostBuilder.cs:48); Api passes listen: soloMode so Balanced Api publishes only (Program.cs:55). Pinned by HostMessagingArchitectureTests.Api_host_listens_to_wolverine_queue_only_when_solo_mode_is_enabled |
 | Module handlers not discovered → events publish but never consumed | ✓ | Discovery.IncludeAssembly per module + module.ConfigureMessaging at PlatformMessaging.cs:101-107 |
 | DLQ expiration permanently deletes a genuinely lost grant | ✓ | Comment PlatformMessaging.cs:73-75: grant recovery is via ReconcileStripe from live Stripe state, not the dead-letter; acceptable by design |
 
-**Testy:** HostBootTests.AssertPiiRetention (DLQ expiration + KeepAfterMessageHandling on Worker/Jobs/Migration); PlatformMessagingPolicyTests.Multiple_subscribers_are_combined_until_we_make_an_explicit_separated_decision (also pins ServiceLocationPolicy=AlwaysAllowed); PlatformMessagingPolicyTests.Durable_queue_polling_is_fast_enough_for_event_driven_work; PlatformMessagingPolicyTests.Solo_mode_is_enabled_only_for_single_node_hosts; DeadLetterTests.EV3_throwing_handler_dead_letters_after_retries_instead_of_silently_handling; CrossModuleEventTests (referenced in CLAUDE.md — proves end-to-end event delivery, lives in module tests)
-**Test gaps:** No test asserts Api listen==soloMode wiring (Balanced Api must not listen)
+**Testy:** HostBootTests.AssertPiiRetention (DLQ expiration + KeepAfterMessageHandling on Worker/Jobs/Migration); PlatformMessagingPolicyTests.Multiple_subscribers_are_combined_until_we_make_an_explicit_separated_decision (also pins ServiceLocationPolicy=AlwaysAllowed); PlatformMessagingPolicyTests.Durable_queue_polling_is_fast_enough_for_event_driven_work; PlatformMessagingPolicyTests.Solo_mode_is_enabled_only_for_single_node_hosts; HostMessagingArchitectureTests.Api_host_listens_to_wolverine_queue_only_when_solo_mode_is_enabled; DeadLetterTests.EV3_throwing_handler_dead_letters_after_retries_instead_of_silently_handling; CrossModuleEventTests (referenced in CLAUDE.md — proves end-to-end event delivery, lives in module tests)
+**Test gaps:** No remaining focused durable-messaging configuration gap in this slice.
 
-_Well-reasoned and regression-guarded for retention, service-location, retry-to-DLQ, Solo mode and polling cadence. Remaining gap is Api listen-mode wiring._
+_Well-reasoned and regression-guarded for retention, service-location, retry-to-DLQ, Solo mode, API listen-mode wiring and polling cadence._
 
 ### Host composition & DI graph (Api/Worker/Jobs/Migration builders) — ✅ correct
 *Each host discovers the same module set, registers identical cross-cutting + module services, and wires Wolverine consistently so DI graphs stay uniform and validatable.*
