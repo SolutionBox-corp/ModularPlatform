@@ -174,11 +174,11 @@ _Canonical write slice; anonymous signup now shares the auth limiter with login/
 | Locked-out account with CORRECT password | ✓ | LockoutEndUtc>now rejected with auth.locked_out before issuing — LoginHandler.cs:62-66; test Locks_out_after_threshold...rejects_correct_credentials |
 | Lockout threshold + window expiry | ✓ | 5 strikes -> 15min lockout, counter reset on lockout/success — LoginHandler.cs:29-30,71-88; tests Lockout_expires..., A_successful_login_resets_the_failed_attempt_counter |
 | Lockout counter persistence on failure | ✓ | SaveChangesAsync on the failure branch — LoginHandler.cs:78 (tracked entity -> xmin + audit) |
-| Brute-force throttling at the edge | ✓ | Endpoint has RequireRateLimiting("auth") per-IP — LoginEndpoint.cs:22 |
+| Brute-force throttling at the edge | ✓ | Endpoint has RequireRateLimiting("auth") per-IP — LoginEndpoint.cs:22; proven by PlatformContractTests.Login_endpoint_uses_the_auth_rate_limit_policy. |
 | Concurrent failed logins racing the counter | ◐ | Counter increment is a tracked SaveChanges (xmin + ConcurrencyRetryBehavior), but parallel failures could under-count strikes; no test exercises this race. Low severity (lockout still eventually trips). |
 
-**Testy:** AccountLockoutTests.Locks_out_after_threshold_failures_and_rejects_correct_credentials; AccountLockoutTests.Lockout_expires_after_the_window_and_the_correct_password_works_again; AccountLockoutTests.A_successful_login_resets_the_failed_attempt_counter; IdentityE2ETests login leg; PiiColumnEncryptionTests erased-login-fails leg
-**Test gaps:** No test directly asserting timing-equalization / no-enumeration (unknown vs known email response shape parity); No test for the per-IP auth rate limiter actually 429-ing on login; No concurrency test on the failed-attempt counter under parallel wrong-password logins
+**Testy:** AccountLockoutTests.Locks_out_after_threshold_failures_and_rejects_correct_credentials; AccountLockoutTests.Lockout_expires_after_the_window_and_the_correct_password_works_again; AccountLockoutTests.A_successful_login_resets_the_failed_attempt_counter; PlatformContractTests.Login_endpoint_uses_the_auth_rate_limit_policy; IdentityE2ETests login leg; PiiColumnEncryptionTests erased-login-fails leg
+**Test gaps:** No test directly asserting timing-equalization / no-enumeration (unknown vs known email response shape parity); No concurrency test on the failed-attempt counter under parallel wrong-password logins
 
 _Strong: dummy-hash timing equalization + hasRealHash gate is the right pattern; erased accounts can't authenticate by construction._
 

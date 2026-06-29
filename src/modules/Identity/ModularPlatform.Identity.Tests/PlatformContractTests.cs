@@ -119,6 +119,28 @@ public sealed class PlatformContractTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Login_endpoint_uses_the_auth_rate_limit_policy()
+    {
+        using var lowLimit = fixture.CreateHost(
+            ("RateLimiting:GlobalPermitsPerMinute", "100"),
+            ("RateLimiting:AuthPermitsPerMinute", "2"));
+        using var client = lowLimit.CreateClient();
+
+        var statuses = new List<HttpStatusCode>();
+        for (var i = 0; i < 8; i++)
+        {
+            var response = await client.PostAsJsonAsync("/v1/identity/auth/login", new
+            {
+                email = $"rl-login-{Guid.CreateVersion7():N}@t.io",
+                password = "wrong-password",
+            });
+            statuses.Add(response.StatusCode);
+        }
+
+        statuses.ShouldContain(HttpStatusCode.TooManyRequests);
+    }
+
+    [Fact]
     public async Task Password_reset_endpoints_use_the_auth_rate_limit_policy()
     {
         using var lowLimit = fixture.CreateHost(
