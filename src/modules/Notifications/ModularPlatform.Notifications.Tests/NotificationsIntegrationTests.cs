@@ -9,6 +9,7 @@ using ModularPlatform.Identity.Contracts;
 using ModularPlatform.IntegrationTesting;
 using ModularPlatform.Notifications.Contracts;
 using ModularPlatform.Notifications.Messaging;
+using ModularPlatform.Notifications.Seeding;
 using Shouldly;
 using Wolverine;
 
@@ -244,6 +245,37 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
             .Single(n => n.GetProperty("templateKey").GetString() == templateKey);
         item.GetProperty("title").GetString().ShouldBe("Cesky Ada");
         item.GetProperty("body").GetString().ShouldBe("Ceske telo");
+    }
+
+    [Fact]
+    public async Task Notifications_seeder_can_run_repeatedly_without_duplicate_builtin_templates()
+    {
+        var before = await BuiltInTemplateCountAsync();
+        before.ShouldBe(4);
+
+        var seeder = new NotificationsSeeder(
+            fixture.Services,
+            NullLogger<NotificationsSeeder>.Instance);
+
+        await seeder.StartAsync(CancellationToken.None);
+        await seeder.StartAsync(CancellationToken.None);
+
+        var after = await BuiltInTemplateCountAsync();
+        after.ShouldBe(before);
+
+        var duplicateGroups = await fixture.ScalarAsync<long>(
+            """
+            SELECT count(*)::bigint
+            FROM (
+                SELECT "Key", "Locale", count(*)::bigint AS c
+                FROM notification_templates
+                WHERE ("Key" = 'welcome' AND "Locale" IN ('en', 'cs'))
+                   OR ("Key" = 'purchase_completed' AND "Locale" IN ('en', 'cs'))
+                GROUP BY "Key", "Locale"
+                HAVING count(*) > 1
+            ) duplicates
+            """);
+        duplicateGroups.ShouldBe(0);
     }
 
     [Fact]
@@ -739,6 +771,15 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
         fixture.ExecuteSqlAsync(
             $"INSERT INTO notification_templates (\"Id\", \"Key\", \"Locale\", \"Subject\", \"Body\") " +
             $"VALUES ('{Guid.CreateVersion7()}', '{key}', 'en', '{subject}', 'Body')");
+
+    private Task<long> BuiltInTemplateCountAsync() =>
+        fixture.ScalarAsync<long>(
+            """
+            SELECT count(*)::bigint
+            FROM notification_templates
+            WHERE ("Key" = 'welcome' AND "Locale" IN ('en', 'cs'))
+               OR ("Key" = 'purchase_completed' AND "Locale" IN ('en', 'cs'))
+            """);
 
     private async Task RestoreWelcomeTemplatesAsync()
     {
