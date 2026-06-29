@@ -74,5 +74,18 @@ internal sealed class CrmPersonalDataEraser(CrmDbContext db, IClock clock) : IEr
                     .SetProperty(t => t.Description, (string?)null)
                     .SetProperty(t => t.DeletedAt, t => t.DeletedAt ?? now),
                 ct);
+
+        // Companies are the user's own accounts — scrub free-text and soft-delete.
+        await db.Companies
+            .IgnoreQueryFilters()
+            .Where(c => c.UserId == userId)
+            .ExecuteUpdateAsync(
+                s => s
+                    .SetProperty(c => c.Name, "[erased]")
+                    .SetProperty(c => c.Domain, (string?)null)
+                    .SetProperty(c => c.Industry, (string?)null)
+                    .SetProperty(c => c.Notes, (string?)null)
+                    .SetProperty(c => c.DeletedAt, c => c.DeletedAt ?? now),
+                ct);
     }
 }

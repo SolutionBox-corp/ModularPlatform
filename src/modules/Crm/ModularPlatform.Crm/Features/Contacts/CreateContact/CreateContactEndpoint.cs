@@ -23,6 +23,7 @@ internal static class CreateContactEndpoint
                 var result = await dispatcher.Send(
                     new CreateContactCommand(
                         userId,
+                        request.CompanyId,
                         request.FullName ?? string.Empty,
                         request.Email,
                         request.Phone,

@@ -6,6 +6,7 @@ namespace ModularPlatform.Crm.Features.Deals.CreateDeal;
 public sealed record CreateDealCommand(
     Guid UserId,
     Guid? ContactId,
+    Guid? CompanyId,
     string Title,
     long AmountCents,
     string Currency,
@@ -17,6 +18,7 @@ public sealed record CreateDealResponse(Guid Id);
 
 public sealed record CreateDealRequest(
     Guid? ContactId,
+    Guid? CompanyId,
     string Title,
     long AmountCents,
     string? Currency,

@@ -40,6 +40,6 @@ internal sealed class MoveDealStageHandler(CrmDbContext db, IClock clock)
     }
 
     private static DealResponse ToResponse(Deal deal) => new(
-        deal.Id, deal.ContactId, deal.Title, deal.AmountCents, deal.Currency, deal.Stage, deal.ExpectedCloseAt,
+        deal.Id, deal.ContactId, deal.CompanyId, deal.Title, deal.AmountCents, deal.Currency, deal.Stage, deal.ExpectedCloseAt,
         deal.ClosedAt, deal.Notes, deal.CreatedAt, deal.UpdatedAt);
 }

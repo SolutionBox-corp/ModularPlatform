@@ -22,6 +22,17 @@ internal sealed class UpdateContactHandler(CrmDbContext db, IBlindIndexHasher bl
             .FirstOrDefaultAsync(c => c.Id == command.ContactId && c.UserId == command.UserId, ct)
             ?? throw new NotFoundException("crm.contact_not_found", "Contact not found.");
 
+        if (command.CompanyIdSet)
+        {
+            if (command.CompanyId is { } companyId
+                && !await db.Companies.AnyAsync(c => c.Id == companyId && c.UserId == command.UserId, ct))
+            {
+                throw new NotFoundException("crm.company_not_found", "Company not found.");
+            }
+
+            contact.CompanyId = command.CompanyId;
+        }
+
         if (command.FullName is not null)
         {
             contact.FullName = command.FullName.Trim();
@@ -67,7 +78,7 @@ internal sealed class UpdateContactHandler(CrmDbContext db, IBlindIndexHasher bl
         await db.SaveChangesAsync(ct);
 
         return new ContactResponse(
-            contact.Id, contact.FullName, contact.Email, contact.Phone, contact.Company, contact.Position,
+            contact.Id, contact.CompanyId, contact.FullName, contact.Email, contact.Phone, contact.Company, contact.Position,
             contact.Notes, contact.Tags, contact.Status, contact.CreatedAt, contact.UpdatedAt);
     }
 }

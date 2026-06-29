@@ -16,6 +16,7 @@ internal static class ListContactsEndpoint
                 string? status,
                 string? company,
                 string? email,
+                Guid? companyId,
                 int? page,
                 int? pageSize,
                 ITenantContext tenant,
@@ -25,7 +26,7 @@ internal static class ListContactsEndpoint
                 var userId = tenant.UserId
                     ?? throw new UnauthorizedException("auth.required", "Authentication required.");
                 var result = await dispatcher.Query(
-                    new ListContactsQuery(userId, status, company, email, page, pageSize), ct);
+                    new ListContactsQuery(userId, status, company, email, companyId, page, pageSize), ct);
                 return Results.Ok(ApiResponse<PagedResponse<ContactListItem>>.Ok(result));
             })
             .RequireAuthorization()

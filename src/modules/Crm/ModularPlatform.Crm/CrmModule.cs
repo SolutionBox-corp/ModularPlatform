@@ -4,6 +4,11 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
+using ModularPlatform.Crm.Features.Companies.CreateCompany;
+using ModularPlatform.Crm.Features.Companies.DeleteCompany;
+using ModularPlatform.Crm.Features.Companies.GetCompany;
+using ModularPlatform.Crm.Features.Companies.ListCompanies;
+using ModularPlatform.Crm.Features.Companies.UpdateCompany;
 using ModularPlatform.Crm.Features.Contacts.AddInteraction;
 using ModularPlatform.Crm.Features.Contacts.CreateContact;
 using ModularPlatform.Crm.Features.Contacts.DeleteContact;
@@ -95,6 +100,12 @@ public sealed class CrmModule : IModule
         endpoints.MapUpdateTask();
         endpoints.MapCompleteTask();
         endpoints.MapDeleteTask();
+
+        endpoints.MapCreateCompany();
+        endpoints.MapGetCompany();
+        endpoints.MapListCompanies();
+        endpoints.MapUpdateCompany();
+        endpoints.MapDeleteCompany();
     }
 
     public void ConfigureMessaging(WolverineOptions options)

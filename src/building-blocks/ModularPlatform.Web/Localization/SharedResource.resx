@@ -199,4 +199,10 @@
   <data name="crm.task.title.too_long" xml:space="preserve"><value>The task title is too long.</value></data>
   <data name="crm.task.description.too_long" xml:space="preserve"><value>The task description is too long.</value></data>
   <data name="crm.task.priority.invalid" xml:space="preserve"><value>The task priority is not valid.</value></data>
+  <data name="crm.company_not_found" xml:space="preserve"><value>Company not found.</value></data>
+  <data name="crm.company.name.required" xml:space="preserve"><value>The company name is required.</value></data>
+  <data name="crm.company.name.too_long" xml:space="preserve"><value>The company name is too long.</value></data>
+  <data name="crm.company.domain.too_long" xml:space="preserve"><value>The company domain is too long.</value></data>
+  <data name="crm.company.industry.too_long" xml:space="preserve"><value>The company industry is too long.</value></data>
+  <data name="crm.company.notes.too_long" xml:space="preserve"><value>The company notes are too long.</value></data>
 </root>

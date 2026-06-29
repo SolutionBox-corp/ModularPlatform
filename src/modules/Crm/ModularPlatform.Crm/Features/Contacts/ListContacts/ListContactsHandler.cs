@@ -21,6 +21,11 @@ internal sealed class ListContactsHandler(
 
         var filtered = db.Contacts.Where(c => c.UserId == query.UserId);
 
+        if (query.CompanyId is { } companyId)
+        {
+            filtered = filtered.Where(c => c.CompanyId == companyId);
+        }
+
         if (!string.IsNullOrWhiteSpace(query.Status))
         {
             var status = query.Status.Trim().ToLowerInvariant();
@@ -45,7 +50,7 @@ internal sealed class ListContactsHandler(
             .OrderByDescending(c => c.CreatedAt)
             .Skip(paging.Skip)
             .Take(paging.PageSize)
-            .Select(c => new ContactListItem(c.Id, c.FullName, c.Email, c.Company, c.Status, c.CreatedAt))
+            .Select(c => new ContactListItem(c.Id, c.CompanyId, c.FullName, c.Email, c.Company, c.Status, c.CreatedAt))
             .ToListAsync(ct);
 
         return new PagedResponse<ContactListItem>(items, paging.Page, paging.PageSize, total);

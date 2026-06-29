@@ -25,10 +25,17 @@ internal sealed class CreateDealHandler(CrmDbContext db, IClock clock)
             }
         }
 
+        if (command.CompanyId is { } cid
+            && !await db.Companies.AnyAsync(c => c.Id == cid && c.UserId == command.UserId, ct))
+        {
+            throw new NotFoundException("crm.company_not_found", "Company not found.");
+        }
+
         var deal = new Deal
         {
             UserId = command.UserId,
             ContactId = command.ContactId,
+            CompanyId = command.CompanyId,
             Title = command.Title.Trim(),
             AmountCents = command.AmountCents,
             Currency = command.Currency,

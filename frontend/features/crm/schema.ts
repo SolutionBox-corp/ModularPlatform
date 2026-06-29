@@ -82,3 +82,15 @@ export function buildTaskSchema(t: Translate) {
 }
 
 export type TaskFormValues = z.infer<ReturnType<typeof buildTaskSchema>>;
+
+/** Mirrors CreateCompanyValidator / UpdateCompanyValidator. */
+export function buildCompanySchema(t: Translate) {
+  return z.object({
+    name: z.string().min(1, t("validation.nameRequired")).max(256, t("validation.nameMax")),
+    domain: z.string().max(256, t("validation.domainMax")).optional(),
+    industry: z.string().max(128, t("validation.industryMax")).optional(),
+    notes: z.string().max(8192, t("validation.notesMax")).optional(),
+  });
+}
+
+export type CompanyFormValues = z.infer<ReturnType<typeof buildCompanySchema>>;

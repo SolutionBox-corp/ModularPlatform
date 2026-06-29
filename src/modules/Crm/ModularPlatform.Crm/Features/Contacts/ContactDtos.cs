@@ -3,6 +3,7 @@ namespace ModularPlatform.Crm.Features.Contacts;
 /// <summary>Shared read DTOs for the Contacts feature. Records (immutable wire shapes).</summary>
 public sealed record ContactResponse(
     Guid Id,
+    Guid? CompanyId,
     string FullName,
     string? Email,
     string? Phone,
@@ -16,6 +17,7 @@ public sealed record ContactResponse(
 
 public sealed record ContactListItem(
     Guid Id,
+    Guid? CompanyId,
     string FullName,
     string? Email,
     string? Company,

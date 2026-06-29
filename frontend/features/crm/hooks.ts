@@ -9,19 +9,23 @@ import {
   cancelMeeting,
   completeMeeting,
   createContact,
+  createCompany,
   createDeal,
   createMeeting,
   createTask,
   deleteContact,
+  deleteCompany,
   deleteDeal,
   deleteTask,
   completeTask,
   moveDealStage,
   updateContact,
+  updateCompany,
   updateDeal,
   updateMeeting,
   updateTask,
   type ContactInput,
+  type CompanyInput,
   type DealInput,
   type InteractionInput,
   type MeetingInput,
@@ -206,5 +210,32 @@ export function useUpdateTask(id: string) {
   return useMutation({
     mutationFn: (input: Partial<TaskInput>) => updateTask(id, input),
     onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: queryRoots.crm }); toast.success(t("toast.taskUpdated")); },
+  });
+}
+
+export function useCreateCompany() {
+  const queryClient = useQueryClient();
+  const t = useTranslations("crm");
+  return useMutation({
+    mutationFn: (input: CompanyInput) => createCompany(input),
+    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: queryRoots.crm }); toast.success(t("toast.companyCreated")); },
+  });
+}
+
+export function useUpdateCompany(id: string) {
+  const queryClient = useQueryClient();
+  const t = useTranslations("crm");
+  return useMutation({
+    mutationFn: (input: Partial<CompanyInput>) => updateCompany(id, input),
+    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: queryRoots.crm }); toast.success(t("toast.companyUpdated")); },
+  });
+}
+
+export function useDeleteCompany() {
+  const queryClient = useQueryClient();
+  const t = useTranslations("crm");
+  return useMutation({
+    mutationFn: (id: string) => deleteCompany(id),
+    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: queryRoots.crm }); toast.success(t("toast.companyDeleted")); },
   });
 }

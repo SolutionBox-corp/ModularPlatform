@@ -4,6 +4,7 @@ namespace ModularPlatform.Crm.Features.Deals;
 public sealed record DealResponse(
     Guid Id,
     Guid? ContactId,
+    Guid? CompanyId,
     string Title,
     long AmountCents,
     string Currency,
@@ -17,6 +18,7 @@ public sealed record DealResponse(
 public sealed record DealListItem(
     Guid Id,
     Guid? ContactId,
+    Guid? CompanyId,
     string Title,
     long AmountCents,
     string Currency,

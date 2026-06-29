@@ -6,11 +6,40 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace ModularPlatform.Crm.Persistence.Migrations
 {
     /// <inheritdoc />
-    public partial class CrmDealsTasksAndContactIndex : Migration
+    public partial class CrmDealsTasksCompanies : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.AddColumn<Guid>(
+                name: "CompanyId",
+                table: "crm_contacts",
+                type: "uuid",
+                nullable: true);
+
+            migrationBuilder.CreateTable(
+                name: "crm_companies",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Name = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: false),
+                    Domain = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
+                    Industry = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
+                    Notes = table.Column<string>(type: "character varying(8192)", maxLength: 8192, nullable: true),
+                    DeletedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: true),
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false),
+                    CreatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uuid", nullable: true),
+                    UpdatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    UpdatedBy = table.Column<Guid>(type: "uuid", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_crm_companies", x => x.Id);
+                });
+
             migrationBuilder.CreateTable(
                 name: "crm_deals",
                 columns: table => new
@@ -18,6 +47,7 @@ namespace ModularPlatform.Crm.Persistence.Migrations
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     UserId = table.Column<Guid>(type: "uuid", nullable: false),
                     ContactId = table.Column<Guid>(type: "uuid", nullable: true),
+                    CompanyId = table.Column<Guid>(type: "uuid", nullable: true),
                     Title = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: false),
                     AmountCents = table.Column<long>(type: "bigint", nullable: false),
                     Currency = table.Column<string>(type: "character varying(3)", maxLength: 3, nullable: false),
@@ -66,9 +96,34 @@ namespace ModularPlatform.Crm.Persistence.Migrations
                 });
 
             migrationBuilder.CreateIndex(
+                name: "IX_crm_contacts_CompanyId",
+                table: "crm_contacts",
+                column: "CompanyId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_crm_contacts_UserId_CreatedAt",
                 table: "crm_contacts",
                 columns: new[] { "UserId", "CreatedAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_crm_companies_TenantId",
+                table: "crm_companies",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_crm_companies_UserId_CreatedAt",
+                table: "crm_companies",
+                columns: new[] { "UserId", "CreatedAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_crm_companies_UserId_Industry",
+                table: "crm_companies",
+                columns: new[] { "UserId", "Industry" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_crm_deals_CompanyId",
+                table: "crm_deals",
+                column: "CompanyId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_crm_deals_ContactId",
@@ -115,13 +170,24 @@ namespace ModularPlatform.Crm.Persistence.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
+                name: "crm_companies");
+
+            migrationBuilder.DropTable(
                 name: "crm_deals");
 
             migrationBuilder.DropTable(
                 name: "crm_tasks");
 
             migrationBuilder.DropIndex(
+                name: "IX_crm_contacts_CompanyId",
+                table: "crm_contacts");
+
+            migrationBuilder.DropIndex(
                 name: "IX_crm_contacts_UserId_CreatedAt",
+                table: "crm_contacts");
+
+            migrationBuilder.DropColumn(
+                name: "CompanyId",
                 table: "crm_contacts");
         }
     }

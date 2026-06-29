@@ -199,4 +199,10 @@
   <data name="crm.task.title.too_long" xml:space="preserve"><value>Název úkolu je příliš dlouhý.</value></data>
   <data name="crm.task.description.too_long" xml:space="preserve"><value>Popis úkolu je příliš dlouhý.</value></data>
   <data name="crm.task.priority.invalid" xml:space="preserve"><value>Priorita úkolu není platná.</value></data>
+  <data name="crm.company_not_found" xml:space="preserve"><value>Firma nenalezena.</value></data>
+  <data name="crm.company.name.required" xml:space="preserve"><value>Název firmy je povinný.</value></data>
+  <data name="crm.company.name.too_long" xml:space="preserve"><value>Název firmy je příliš dlouhý.</value></data>
+  <data name="crm.company.domain.too_long" xml:space="preserve"><value>Doména firmy je příliš dlouhá.</value></data>
+  <data name="crm.company.industry.too_long" xml:space="preserve"><value>Obor firmy je příliš dlouhý.</value></data>
+  <data name="crm.company.notes.too_long" xml:space="preserve"><value>Poznámky firmy jsou příliš dlouhé.</value></data>
 </root>

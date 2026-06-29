@@ -24,6 +24,7 @@ internal sealed class CrmPersonalDataExporter(IReadDbContextFactory<CrmDbContext
             .Select(c => new
             {
                 c.Id,
+                c.CompanyId,
                 c.FullName,
                 c.Email,
                 c.Phone,
@@ -96,6 +97,12 @@ internal sealed class CrmPersonalDataExporter(IReadDbContextFactory<CrmDbContext
             })
             .ToListAsync(ct);
 
+        var companies = await db.Companies
+            .IgnoreQueryFilters()
+            .Where(c => c.UserId == userId)
+            .Select(c => new { c.Id, c.Name, c.Domain, c.Industry, c.Notes, c.CreatedAt })
+            .ToListAsync(ct);
+
         return new Dictionary<string, object?>
         {
             ["contacts"] = contacts,
@@ -103,6 +110,7 @@ internal sealed class CrmPersonalDataExporter(IReadDbContextFactory<CrmDbContext
             ["meetings"] = meetings,
             ["deals"] = deals,
             ["tasks"] = tasks,
+            ["companies"] = companies,
         };
     }
 }

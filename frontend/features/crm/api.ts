@@ -77,6 +77,31 @@ export const INTERACTION_TYPES = ["call", "email", "note", "meeting"] as const;
 export const DEAL_STAGES = ["lead", "qualified", "proposal", "negotiation", "won", "lost"] as const;
 export const TASK_PRIORITIES = ["low", "normal", "high"] as const;
 
+export interface Company {
+  id: string;
+  name: string;
+  domain: string | null;
+  industry: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+export interface CompanyListItem {
+  id: string;
+  name: string;
+  domain: string | null;
+  industry: string | null;
+  createdAt: string;
+}
+
+export interface CompaniesPage {
+  items: CompanyListItem[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}
+
 export interface CrmTask {
   id: string;
   contactId: string | null;
@@ -246,6 +271,29 @@ export const crmQueries = {
       staleTime: 15_000,
     });
   },
+
+  companies: (params: { page?: number; pageSize?: number; industry?: string; name?: string } = {}) => {
+    const pageSize = params.pageSize ?? 20;
+    return queryOptions({
+      queryKey: [...queryRoots.crm, "companies", params],
+      queryFn: () => {
+        const sp = new URLSearchParams();
+        sp.set("page", String(params.page ?? 1));
+        sp.set("pageSize", String(pageSize));
+        if (params.industry) sp.set("industry", params.industry);
+        if (params.name) sp.set("name", params.name);
+        return apiFetch<CompaniesPage>(`crm/companies?${sp.toString()}`);
+      },
+      staleTime: 15_000,
+    });
+  },
+
+  company: (id: string) =>
+    queryOptions({
+      queryKey: [...queryRoots.crm, "company", id],
+      queryFn: () => apiFetch<Company>(`crm/companies/${id}`),
+      enabled: id.length > 0,
+    }),
 };
 
 /* ----------------------------------------------------------------------------
@@ -362,4 +410,23 @@ export function completeTask(id: string): Promise<void> {
 
 export function deleteTask(id: string): Promise<void> {
   return apiFetch<void>(`crm/tasks/${id}`, { method: "DELETE" });
+}
+
+export interface CompanyInput {
+  name: string;
+  domain?: string | null;
+  industry?: string | null;
+  notes?: string | null;
+}
+
+export function createCompany(input: CompanyInput): Promise<{ id: string }> {
+  return apiFetch<{ id: string }>("crm/companies", { method: "POST", body: input });
+}
+
+export function updateCompany(id: string, input: Partial<CompanyInput>): Promise<Company> {
+  return apiFetch<Company>(`crm/companies/${id}`, { method: "PATCH", body: input });
+}
+
+export function deleteCompany(id: string): Promise<void> {
+  return apiFetch<void>(`crm/companies/${id}`, { method: "DELETE" });
 }

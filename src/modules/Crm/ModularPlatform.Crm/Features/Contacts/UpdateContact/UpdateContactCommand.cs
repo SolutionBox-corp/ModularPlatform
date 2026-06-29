@@ -5,6 +5,8 @@ namespace ModularPlatform.Crm.Features.Contacts.UpdateContact;
 public sealed record UpdateContactCommand(
     Guid UserId,
     Guid ContactId,
+    Guid? CompanyId,
+    bool CompanyIdSet,
     string? FullName,
     string? Email,
     string? Phone,
@@ -15,6 +17,7 @@ public sealed record UpdateContactCommand(
     string? Status) : ICommand<ModularPlatform.Crm.Features.Contacts.ContactResponse>;
 
 public sealed record UpdateContactRequest(
+    Guid? CompanyId,
     string FullName,
     string? Email,
     string? Phone,

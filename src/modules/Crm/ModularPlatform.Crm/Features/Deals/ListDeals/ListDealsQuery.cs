@@ -7,5 +7,6 @@ public sealed record ListDealsQuery(
     Guid UserId,
     string? Stage,
     Guid? ContactId,
+    Guid? CompanyId,
     int? Page,
     int? PageSize) : IQuery<PagedResponse<ModularPlatform.Crm.Features.Deals.DealListItem>>;

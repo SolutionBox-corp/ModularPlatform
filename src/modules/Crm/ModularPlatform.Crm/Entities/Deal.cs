@@ -16,6 +16,7 @@ internal sealed class Deal : AuditableEntity, ITenantScoped, IUserOwned, ISoftDe
 {
     public Guid UserId { get; set; }
     public Guid? ContactId { get; set; }
+    public Guid? CompanyId { get; set; }
 
     public string Title { get; set; } = string.Empty;
     public long AmountCents { get; set; }
@@ -62,5 +63,6 @@ internal sealed class DealConfiguration : IEntityTypeConfiguration<Deal>
         builder.HasIndex(d => new { d.UserId, d.Stage });
         builder.HasIndex(d => new { d.UserId, d.CreatedAt });
         builder.HasIndex(d => d.ContactId);
+        builder.HasIndex(d => d.CompanyId);
     }
 }

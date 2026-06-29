@@ -29,6 +29,11 @@ internal sealed class ListDealsHandler(IReadDbContextFactory<CrmDbContext> readF
             filtered = filtered.Where(d => d.ContactId == contactId);
         }
 
+        if (query.CompanyId is { } companyId)
+        {
+            filtered = filtered.Where(d => d.CompanyId == companyId);
+        }
+
         var total = await filtered.CountAsync(ct);
 
         var items = await filtered
@@ -36,7 +41,7 @@ internal sealed class ListDealsHandler(IReadDbContextFactory<CrmDbContext> readF
             .Skip(paging.Skip)
             .Take(paging.PageSize)
             .Select(d => new DealListItem(
-                d.Id, d.ContactId, d.Title, d.AmountCents, d.Currency, d.Stage, d.ExpectedCloseAt, d.CreatedAt))
+                d.Id, d.ContactId, d.CompanyId, d.Title, d.AmountCents, d.Currency, d.Stage, d.ExpectedCloseAt, d.CreatedAt))
             .ToListAsync(ct);
 
         return new PagedResponse<DealListItem>(items, paging.Page, paging.PageSize, total);

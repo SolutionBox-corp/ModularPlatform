@@ -318,7 +318,10 @@
       "stage": "Stage",
       "taskTitle": "Task",
       "due": "Due",
-      "priority": "Priority"
+      "priority": "Priority",
+      "companyName": "Company",
+      "domain": "Domain",
+      "industry": "Industry"
     },
     "status": {
       "lead": "Lead",
@@ -413,7 +416,10 @@
       "taskCreated": "Task created",
       "taskUpdated": "Task updated",
       "taskCompleted": "Task completed",
-      "taskDeleted": "Task deleted"
+      "taskDeleted": "Task deleted",
+      "companyCreated": "Company created",
+      "companyUpdated": "Company updated",
+      "companyDeleted": "Company deleted"
     },
     "validation": {
       "fullNameRequired": "Name is required.",
@@ -432,7 +438,11 @@
       "locationMax": "Location is too long.",
       "bodyMax": "Note is too long.",
       "amountInvalid": "Enter a valid amount",
-      "currencyInvalid": "Use a 3-letter currency code"
+      "currencyInvalid": "Use a 3-letter currency code",
+      "nameRequired": "Name is required",
+      "nameMax": "Name is too long",
+      "domainMax": "Domain too long",
+      "industryMax": "Industry too long"
     },
     "deals": {
       "metaTitle": "Deals",
@@ -487,6 +497,24 @@
       "dueAt": "Due",
       "priority": "Priority",
       "description": "Description",
+      "save": "Save",
+      "saving": "Saving…"
+    },
+    "companies": {
+      "metaTitle": "Companies",
+      "pageHeading": "Companies",
+      "pageDescription": "B2B accounts — group contacts and deals.",
+      "new": "New company",
+      "delete": "Delete",
+      "emptyTitle": "No companies",
+      "emptyDescription": "Create a company to group contacts and deals."
+    },
+    "companyForm": {
+      "createTitle": "New company",
+      "name": "Name",
+      "domain": "Domain",
+      "industry": "Industry",
+      "notes": "Notes",
       "save": "Save",
       "saving": "Saving…"
     }
@@ -769,7 +797,8 @@
     "platformProducts": "Products",
     "crm": "CRM",
     "crmDeals": "Deals",
-    "crmTasks": "Tasks"
+    "crmTasks": "Tasks",
+    "crmCompanies": "Companies"
   },
   "notifications": {
     "badge": {

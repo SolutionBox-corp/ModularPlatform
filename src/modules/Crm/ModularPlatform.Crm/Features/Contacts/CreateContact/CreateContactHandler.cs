@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Crm.Entities;
@@ -16,11 +17,18 @@ internal sealed class CreateContactHandler(CrmDbContext db, IBlindIndexHasher bl
 {
     public async Task<CreateContactResponse> Handle(CreateContactCommand command, CancellationToken ct)
     {
+        if (command.CompanyId is { } companyId
+            && !await db.Companies.AnyAsync(c => c.Id == companyId && c.UserId == command.UserId, ct))
+        {
+            throw new NotFoundException("crm.company_not_found", "Company not found.");
+        }
+
         var email = string.IsNullOrWhiteSpace(command.Email) ? null : command.Email.Trim();
 
         var contact = new Contact
         {
             UserId = command.UserId,
+            CompanyId = command.CompanyId,
             FullName = command.FullName.Trim(),
             Email = email,
             EmailHash = email is null ? null : blindIndex.Hash(email.ToUpperInvariant()),

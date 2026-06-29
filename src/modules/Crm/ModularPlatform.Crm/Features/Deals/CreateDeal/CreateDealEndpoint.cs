@@ -24,6 +24,7 @@ internal static class CreateDealEndpoint
                     new CreateDealCommand(
                         userId,
                         request.ContactId,
+                        request.CompanyId,
                         request.Title ?? string.Empty,
                         request.AmountCents,
                         string.IsNullOrWhiteSpace(request.Currency) ? "USD" : request.Currency.Trim().ToUpperInvariant(),

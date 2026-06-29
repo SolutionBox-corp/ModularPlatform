@@ -13,5 +13,6 @@ public sealed record ListContactsQuery(
     string? Status,
     string? Company,
     string? Email,
+    Guid? CompanyId,
     int? Page,
     int? PageSize) : IQuery<PagedResponse<ModularPlatform.Crm.Features.Contacts.ContactListItem>>;

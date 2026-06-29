@@ -318,7 +318,10 @@
       "stage": "Fáze",
       "taskTitle": "Úkol",
       "due": "Termín",
-      "priority": "Priorita"
+      "priority": "Priorita",
+      "companyName": "Firma",
+      "domain": "Doména",
+      "industry": "Obor"
     },
     "status": {
       "lead": "Lead",
@@ -413,7 +416,10 @@
       "taskCreated": "Úkol vytvořen",
       "taskUpdated": "Úkol upraven",
       "taskCompleted": "Úkol hotov",
-      "taskDeleted": "Úkol smazán"
+      "taskDeleted": "Úkol smazán",
+      "companyCreated": "Firma vytvořena",
+      "companyUpdated": "Firma upravena",
+      "companyDeleted": "Firma smazána"
     },
     "validation": {
       "fullNameRequired": "Jméno je povinné.",
@@ -432,7 +438,11 @@
       "locationMax": "Místo je příliš dlouhé.",
       "bodyMax": "Poznámka je příliš dlouhá.",
       "amountInvalid": "Zadejte platnou částku",
-      "currencyInvalid": "Použijte 3písmenný kód měny"
+      "currencyInvalid": "Použijte 3písmenný kód měny",
+      "nameRequired": "Název je povinný",
+      "nameMax": "Název je příliš dlouhý",
+      "domainMax": "Doména příliš dlouhá",
+      "industryMax": "Obor příliš dlouhý"
     },
     "deals": {
       "metaTitle": "Obchody",
@@ -487,6 +497,24 @@
       "dueAt": "Termín",
       "priority": "Priorita",
       "description": "Popis",
+      "save": "Uložit",
+      "saving": "Ukládám…"
+    },
+    "companies": {
+      "metaTitle": "Firmy",
+      "pageHeading": "Firmy",
+      "pageDescription": "B2B účty — seskupení kontaktů a obchodů.",
+      "new": "Nová firma",
+      "delete": "Smazat",
+      "emptyTitle": "Žádné firmy",
+      "emptyDescription": "Vytvořte firmu pro seskupení kontaktů a obchodů."
+    },
+    "companyForm": {
+      "createTitle": "Nová firma",
+      "name": "Název",
+      "domain": "Doména",
+      "industry": "Obor",
+      "notes": "Poznámky",
       "save": "Uložit",
       "saving": "Ukládám…"
     }
@@ -769,7 +797,8 @@
     "platformProducts": "Produkty",
     "crm": "CRM",
     "crmDeals": "Obchody",
-    "crmTasks": "Úkoly"
+    "crmTasks": "Úkoly",
+    "crmCompanies": "Firmy"
   },
   "notifications": {
     "badge": {

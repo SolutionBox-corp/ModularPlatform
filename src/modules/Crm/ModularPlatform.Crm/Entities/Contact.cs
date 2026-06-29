@@ -19,6 +19,9 @@ internal sealed class Contact : AuditableEntity, ITenantScoped, IUserOwned, ISof
 {
     public Guid UserId { get; set; }
 
+    /// <summary>Optional B2B account this contact belongs to (CRM Company, by Id). Validated as owned at the edge.</summary>
+    public Guid? CompanyId { get; set; }
+
     [PersonalData]
     [Encrypted]
     public string FullName { get; set; } = string.Empty;
@@ -84,6 +87,7 @@ internal sealed class ContactConfiguration : IEntityTypeConfiguration<Contact>
 
         builder.HasIndex(c => new { c.UserId, c.Status });
         builder.HasIndex(c => new { c.UserId, c.CreatedAt });
+        builder.HasIndex(c => c.CompanyId);
         builder.HasIndex(c => c.EmailHash);
     }
 }
