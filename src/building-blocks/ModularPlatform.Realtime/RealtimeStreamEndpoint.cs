@@ -20,6 +20,8 @@ namespace ModularPlatform.Realtime;
 /// </summary>
 public static class RealtimeStreamEndpoint
 {
+    internal const int LiveBufferCapacity = 256;
+
     public static void MapRealtimeStream(this IEndpointRouteBuilder app)
     {
         app.MapGet("/realtime/stream", (
@@ -54,12 +56,7 @@ public static class RealtimeStreamEndpoint
         // disconnected SSE consumer must NOT grow this buffer without limit (an unbounded channel leaks memory per
         // dead connection). Realtime is best-effort UX smoothing — dropping the oldest unread event under back-pressure
         // is acceptable, and durable facts live in the modules. TryWrite then never blocks and never fails.
-        var channel = Channel.CreateBounded<RealtimeMessage>(new BoundedChannelOptions(256)
-        {
-            FullMode = BoundedChannelFullMode.DropOldest,
-            SingleReader = true,
-            SingleWriter = false,
-        });
+        var channel = CreateLiveBuffer();
         using var subscription = registry.Subscribe(userId, message =>
         {
             channel.Writer.TryWrite(message);
@@ -82,4 +79,12 @@ public static class RealtimeStreamEndpoint
             yield return new SseItem<string>(message.Json, message.EventType) { EventId = message.Id };
         }
     }
+
+    internal static Channel<RealtimeMessage> CreateLiveBuffer(int capacity = LiveBufferCapacity) =>
+        Channel.CreateBounded<RealtimeMessage>(new BoundedChannelOptions(capacity)
+        {
+            FullMode = BoundedChannelFullMode.DropOldest,
+            SingleReader = true,
+            SingleWriter = false,
+        });
 }
