@@ -393,14 +393,14 @@ _Primitives delegate to battle-tested libs; refresh tokens are hashed at rest, n
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
-| Concurrent provisioning race for the same user (duplicate accounts) | ✓ | UNIQUE index on CreditAccount.UserId (CreditAccount.cs:44) + AnyAsync pre-check then catch DbUpdateException non-concurrency (EnsureCreditAccountCommand.cs:16-26). Proven 8-way by LedgerBackstopTests.EV5. |
+| Concurrent provisioning race for the same user (duplicate accounts) | ✓ | UNIQUE index on CreditAccount.UserId (CreditAccount.cs:44) + AnyAsync pre-check then catch DbUpdateException non-concurrency and detach the losing Added entity (EnsureCreditAccountCommand.cs:16-29). Proven 8-way by LedgerBackstopTests.EV5 and by top-up's nested command race test. |
 | Event redelivery (same UserRegistered twice) | ✓ | Wolverine inbox dedup + EnsureCreditAccount is an idempotent no-op; ProvisionCreditAccountHandler.cs:15-16 is a thin public shell. |
 | DbUpdateConcurrencyException (xmin) on provisioning insert | – | An insert has no xmin conflict; the when-filter deliberately excludes DbUpdateConcurrencyException (EnsureCreditAccountCommand.cs:23) so only the unique-violation race is swallowed. |
 
 **Testy:** LedgerBackstopTests.EV5_concurrent_account_provisioning_yields_exactly_one_account; LedgerBackstopTests.EV5_existing_account_provisioning_is_a_noop; CrossModuleEventTests (EV-1, register -> account provisioned)
 **Test gaps:** No remaining focused account-provisioning idempotency gap in this slice.
 
-_Two independent provisioning paths exist (EnsureCreditAccountHandler and an inline create inside CreditTopUpHandler.cs:28-42); both are individually correct and converge on the same UNIQUE(UserId) guard, but the logic is duplicated rather than the top-up handler dispatching EnsureCreditAccount._
+_Credit account creation now has one canonical slice: both UserRegistered handling and late-arriving top-up grants dispatch EnsureCreditAccountCommand, which owns the UNIQUE(UserId) race recovery._
 
 ### Credit top-up (CreditTopUp) — ✅ correct
 *Idempotent, client-key-namespaced grant that mints a bucket + balanced ledger entry and bumps posted/available atomically via the outbox.*
@@ -412,7 +412,7 @@ _Two independent provisioning paths exist (EnsureCreditAccountHandler and an inl
 | Same idempotency key applied twice / raced | ✓ | Pre-check AnyAsync (CreditTopUpHandler.cs:44) + UNIQUE(AccountId,IdempotencyKey) as final guard; loser catches DbUpdateException, re-reads real posted, returns AlreadyApplied (CreditTopUpHandler.cs:95-109). Proven by BillingLedgerTests.Top_up_with_the_same_idempotency_key_credits_exactly_once. |
 | Idempotency key collision across accounts | ✓ | Idempotency scoped per-account via composite UNIQUE(AccountId,IdempotencyKey) (CreditEntry.cs:58). Proven by BillingLedgerTests.Idempotency_keys_are_scoped_per_account_not_globally. |
 | Client key collides with structured system keys (purchase:/sub-invoice:) | ✓ | Endpoint namespaces the client key as client:{key} (CreditTopUpEndpoint.cs:25-26) so it can never collide with system keys in the per-account UNIQUE space. |
-| Account does not yet exist when top-up arrives (event ordering) | ✓ | Inline create-on-miss with race recovery (CreditTopUpHandler.cs:28-42): on UNIQUE collision detaches and reloads the winner's account. Proven by BillingLedgerTests.Top_up_creates_credit_account_when_provisioning_event_has_not_run_yet and Top_up_recovers_when_another_writer_creates_the_missing_credit_account_first. |
+| Account does not yet exist when top-up arrives (event ordering) | ✓ | CreditTopUp dispatches EnsureCreditAccountCommand and reloads the account, so the single provisioning slice owns the UNIQUE(UserId) create/race recovery. Proven by BillingLedgerTests.Top_up_creates_credit_account_when_provisioning_event_has_not_run_yet and Top_up_recovers_when_another_writer_creates_the_missing_credit_account_first. |
 | Overflow of long posted/available | ✓ | Pre-check rejects with credit.amount.too_large (CreditTopUpHandler.cs:52-55); validator caps single amount at 1e9 (CreditTopUpValidator.cs:12,18); DB CHECK is backstop. Proven by LedgerBackstopTests.BL11 + CreditAmountBoundsTests. |
 | Non-admin user self-minting credits over HTTP | ✓ | Endpoint requires billing.manage permission (CreditTopUpEndpoint.cs:30-31). Proven by CreditTopUpAuthorizationTests.Public_topup_endpoint_rejects_a_non_admin_user. |
 | Negative / zero amount | ✓ | CreditTopUpValidator.cs:17 GreaterThan(0). Proven by CreditAmountBoundsTests. |
@@ -538,8 +538,7 @@ _Pure query, no transaction; uses the read factory per the platform law._
 
 _Strong defence-in-depth: app-level append-only guard + DB CHECK + per-account UNIQUE idempotency. The projection-vs-ledger reconciliation is only ever asserted in tests, not by a runtime reconciliation job for credits (Stripe has one; the credit ledger relies on correct arithmetic + the expiry sweep)._
 
-**Nekonzistence v oblasti (5):**
-- Duplicated account-provisioning logic: EnsureCreditAccountHandler (EnsureCreditAccountCommand.cs:14-30) and the inline create-on-miss inside CreditTopUpHandler.cs:28-42 both implement the same UNIQUE(UserId) create-and-recover dance instead of CreditTopUp dispatching EnsureCreditAccount — a DRY drift the platform's 'reuse-first / one handler dispatches the other' law would prefer to avoid.
+**Nekonzistence v oblasti (4):**
 - ConfirmSpendHandler.cs:51-61 vs :80 — the FIFO loop can leave remaining > 0 when buckets are exhausted yet the handler still posts the full hold.Amount unconditionally; there is no guard or assertion that sum-drawn == hold.Amount, so the documented invariant posted == sum(bucket.Remaining) (CreditEntry/LedgerLifecycleTests BL-12) could silently break if a backing bucket ever disappears. Currently masked by the expire sweep's skip-active-hold rule (ExpireCreditsHandler.cs:69-72).
 - Comment-vs-code drift in CreditAccount.cs:10 — the XML doc says the debit path uses 'SELECT ... FOR NO KEY UPDATE' (pessimistic SELECT lock), but ReserveCreditsHandler.cs:37-41 actually uses a conditional ExecuteUpdate (no explicit SELECT FOR UPDATE). The behavior is correct (the UPDATE takes the row lock) but the doc names a mechanism the code does not use.
 - ExpireCreditsHandler.cs:25-31 loads all account ids then issues per-account queries inside the loop (N+1 over accounts) — correct but unbounded; no paging/batching, a scalability divergence from the otherwise set-based handlers (e.g. the atomic ExecuteUpdate debit).
