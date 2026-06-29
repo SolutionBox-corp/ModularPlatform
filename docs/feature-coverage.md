@@ -1310,16 +1310,16 @@ _N/A test gap is acceptable for a logging shim._
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
-| Stale sibling entities after partial reload | ✓ | ChangeTracker.Clear() before each retry so the whole handler re-queries fresh (ConcurrencyRetryBehavior.cs:37-38; docstring 8-12) |
-| Retry exhaustion (>5 conflicts) | ✓ | when(attempt<MaxRetries) guard (line 30) lets the 6th DbUpdateConcurrencyException propagate as a 5xx — intentional give-up |
+| Stale sibling entities after partial reload | ✓ | ChangeTracker.Clear() before each retry so the whole handler re-queries fresh (ConcurrencyRetryBehavior.cs:37-38; docstring 8-12); pinned by ConcurrencyRetryBehaviorTests.Retries_after_concurrency_conflict_and_clears_the_change_tracker_before_rerun |
+| Retry exhaustion (>5 conflicts) | ✓ | when(attempt<MaxRetries) guard (line 30) lets the 6th DbUpdateConcurrencyException propagate as a 5xx — intentional give-up; pinned by ConcurrencyRetryBehaviorTests.Gives_up_after_max_retries_and_surfaces_the_concurrency_exception |
 | Queries hitting the retry loop | ✓ | ICommandOnlyBehavior excludes it from the query pipeline (line 16) |
 | Cooldown on conflict storm / backoff | ✓ | Exponential delay 50ms*2^(n-1) (line 40) |
 | Idempotency (DbUpdateException, not concurrency) leaking into retry | ✓ | Only catches DbUpdateConcurrencyException; idempotency handled in handlers via catch DbUpdateException (per CLAUDE.md money rules) |
 
-**Testy:** PipelineBehaviorRegistrationTests (single-registration); BillingConcurrencyTests.Concurrent_reservations_never_exceed_balance (money path, but that path uses the atomic ExecuteUpdate guard, not xmin retry)
-**Test gaps:** No test directly forcing a DbUpdateConcurrencyException through a tracked-entity command to prove the retry succeeds on a second attempt AND clears the tracker; No test of the give-up after MaxRetries (a sustained conflict surfaces an error rather than spinning)
+**Testy:** PipelineBehaviorRegistrationTests (single-registration); ConcurrencyRetryBehaviorTests.Retries_after_concurrency_conflict_and_clears_the_change_tracker_before_rerun; ConcurrencyRetryBehaviorTests.Gives_up_after_max_retries_and_surfaces_the_concurrency_exception; BillingConcurrencyTests.Concurrent_reservations_never_exceed_balance (money path, but that path uses the atomic ExecuteUpdate guard, not xmin retry)
+**Test gaps:** No remaining focused ConcurrencyRetryBehavior gap in this slice.
 
-_Logic is correct and well-documented; the xmin retry-and-succeed path itself is not directly asserted (the headline concurrency test exercises the ExecuteUpdate debit guard, a different mechanism)._
+_Logic is correct and now directly regression-tested at the retry behavior layer; the headline billing concurrency test separately covers the money ExecuteUpdate guard._
 
 ### Audit interceptor (changed-fields, stamps, converter values) — 🟢 minor-gaps
 *On SaveChanges, stamp Created/Updated and write one per-module audit row capturing only changed columns as JSONB.*
