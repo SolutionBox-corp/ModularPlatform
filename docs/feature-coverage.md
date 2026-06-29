@@ -413,11 +413,11 @@ _Two independent provisioning paths exist (EnsureCreditAccountHandler and an inl
 | Overflow of long posted/available | ✓ | Pre-check rejects with credit.amount.too_large (CreditTopUpHandler.cs:52-55); validator caps single amount at 1e9 (CreditTopUpValidator.cs:12,18); DB CHECK is backstop. Proven by LedgerBackstopTests.BL11 + CreditAmountBoundsTests. |
 | Non-admin user self-minting credits over HTTP | ✓ | Endpoint requires billing.manage permission (CreditTopUpEndpoint.cs:30-31). Proven by CreditTopUpAuthorizationTests.Public_topup_endpoint_rejects_a_non_admin_user. |
 | Negative / zero amount | ✓ | CreditTopUpValidator.cs:17 GreaterThan(0). Proven by CreditAmountBoundsTests. |
-| BucketExpiryDays <= 0 | ✓ | Validator GreaterThan(0).When(HasValue) (CreditTopUpValidator.cs:22-24); null = non-expiring bucket. |
+| BucketExpiryDays <= 0 | ✓ | Validator GreaterThan(0).When(HasValue) (CreditTopUpValidator.cs:22-24); null = non-expiring bucket. Proven by LedgerLifecycleTests.Non_expiring_topup_bucket_is_not_touched_by_expiry_sweep. |
 | Cumulative overflow across many sub-MaxAmount top-ups | ✓ | Per-call overflow pre-check (CreditTopUpHandler.cs:52) compares against current account.Posted/Available, so it catches accumulation, not just a single oversized amount; DB CHECK is the final backstop. |
 
-**Testy:** BillingLedgerTests.Top_up_with_the_same_idempotency_key_credits_exactly_once; BillingLedgerTests.Top_up_creates_credit_account_when_provisioning_event_has_not_run_yet; BillingLedgerTests.Idempotency_keys_are_scoped_per_account_not_globally; LedgerBackstopTests.BL11_topup_that_would_overflow_is_rejected_and_balance_unchanged; CreditAmountBoundsTests (positive/cap bounds, unit); CreditTopUpAuthorizationTests (admin-only HTTP gate, both directions)
-**Test gaps:** No test asserts the non-expiring bucket (BucketExpiryDays null -> ExpiresAt null) is created and that such a bucket is never picked up by the expiry sweep; the create-then-UNIQUE-collision recovery branch (CreditTopUpHandler.cs:36-41) is untested
+**Testy:** BillingLedgerTests.Top_up_with_the_same_idempotency_key_credits_exactly_once; BillingLedgerTests.Top_up_creates_credit_account_when_provisioning_event_has_not_run_yet; BillingLedgerTests.Idempotency_keys_are_scoped_per_account_not_globally; LedgerLifecycleTests.Non_expiring_topup_bucket_is_not_touched_by_expiry_sweep; LedgerBackstopTests.BL11_topup_that_would_overflow_is_rejected_and_balance_unchanged; CreditAmountBoundsTests (positive/cap bounds, unit); CreditTopUpAuthorizationTests (admin-only HTTP gate, both directions)
+**Test gaps:** The create-then-UNIQUE-collision recovery branch (CreditTopUpHandler.cs:36-41) is untested
 
 _CreditsToppedUpIntegrationEvent is published in the same outbox transaction (CreditTopUpHandler.cs:82-93). Solid._
 
@@ -491,9 +491,10 @@ _Symmetric with confirm; both rely on the same xmin + UNIQUE-key idempotency pat
 | Lapsed hold restored | ✓ | Active && ExpiresAt<=now -> Status Expired, Release-type credit entry expire-hold:{id}, available += / pending -= (ExpireCreditsHandler.cs:33-54). Proven by BL-9. |
 | Each account loaded individually inside the loop (N+1 over accounts) | ◐ | accountIds loaded then per-account FirstAsync + per-account queries (ExpireCreditsHandler.cs:25-31). Correct but O(accounts) round-trips; fine at current scale, a scalability concern at large account counts (no batching/paging). |
 | Expired bucket has remaining LESS than available but a different bucket is partly reserved | ✓ | The skip guard is per-bucket against account.Available, and account.Available is recomputed in memory after each hold restore within the same account iteration, so ordering is consistent within a sweep. |
+| Non-expiring bucket (ExpiresAt null) | ✓ | Expiry query requires ExpiresAt != null and ExpiresAt <= now (ExpireCreditsHandler.cs:57); proven by LedgerLifecycleTests.Non_expiring_topup_bucket_is_not_touched_by_expiry_sweep. |
 
-**Testy:** LedgerLifecycleTests.Expiry_sweep_restores_lapsed_holds_destroys_expired_buckets_and_is_idempotent; LedgerLifecycleTests.Expiring_a_bucket_that_backs_an_active_reservation_does_not_crash_or_go_negative
-**Test gaps:** No test for the per-account isolation branch (ExpireCreditsHandler.cs:95-103): one account failing must not block others in the same sweep — the documented bug-fix is unverified by a test; No test for a non-expiring bucket (ExpiresAt null) being left untouched by the sweep; No multi-account sweep test asserting all accounts are processed (current tests use a single account)
+**Testy:** LedgerLifecycleTests.Expiry_sweep_restores_lapsed_holds_destroys_expired_buckets_and_is_idempotent; LedgerLifecycleTests.Expiring_a_bucket_that_backs_an_active_reservation_does_not_crash_or_go_negative; LedgerLifecycleTests.Non_expiring_topup_bucket_is_not_touched_by_expiry_sweep
+**Test gaps:** No test for the per-account isolation branch (ExpireCreditsHandler.cs:95-103): one account failing must not block others in the same sweep — the documented bug-fix is unverified by a test; No multi-account sweep test asserting all accounts are processed (current tests use a single account)
 
 _Logic is careful and well-commented; the untested per-account isolation branch is the notable coverage gap given it fixed a real bug. N+1 over accounts is a future scalability note, not a correctness issue._
 

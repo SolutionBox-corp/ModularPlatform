@@ -355,6 +355,39 @@ public sealed class LedgerLifecycleTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Non_expiring_topup_bucket_is_not_touched_by_expiry_sweep()
+    {
+        var (userId, _) = await fixture.RegisterAndLoginAsync(Email("non-expiring"), Password);
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{userId}'", 1);
+        var key = $"forever-{Guid.CreateVersion7():N}";
+
+        await fixture.GrantCreditsAsync(userId, 150, bucketExpiryDays: null, idempotencyKey: key);
+
+        var accountId = await AccountIdAsync(userId);
+        var bucketId = await fixture.ScalarAsync<Guid>(
+            $"SELECT \"BucketId\" FROM credit_entries WHERE \"IdempotencyKey\" = '{key}'");
+        var nonExpiringBuckets = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_buckets WHERE \"Id\" = '{bucketId}' AND \"ExpiresAt\" IS NULL");
+        nonExpiringBuckets.ShouldBe(1);
+
+        await DispatchExpireSweepAsync();
+
+        var bucketRemaining = await fixture.ScalarAsync<long>(
+            $"SELECT \"Remaining\" FROM credit_buckets WHERE \"Id\" = '{bucketId}'");
+        bucketRemaining.ShouldBe(150);
+
+        var expiryEntries = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_entries WHERE \"AccountId\" = '{accountId}' AND \"Type\" = 'Expiry'");
+        expiryEntries.ShouldBe(0);
+
+        var projection = await ProjectionAsync(userId);
+        projection.Posted.ShouldBe(150);
+        projection.Available.ShouldBe(150);
+        projection.Pending.ShouldBe(0);
+    }
+
+    [Fact]
     public void Expire_credits_job_is_a_non_overlapping_scheduler_adapter()
     {
         typeof(BillingExpireCreditsJob)
