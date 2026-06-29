@@ -250,6 +250,68 @@ public sealed class OperationsTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Concurrent_worker_transitions_retry_xmin_conflicts_and_leave_one_terminal_state()
+    {
+        var userId = Guid.CreateVersion7();
+        await using var setupScope = fixture.Services.CreateAsyncScope();
+        var setupStore = setupScope.ServiceProvider.GetRequiredService<IOperationStore>();
+        var dispatcher = setupScope.ServiceProvider.GetRequiredService<IDispatcher>();
+
+        var operationId = await setupStore.CreateAsync("generic-module-race", userId, CancellationToken.None);
+        await setupStore.MarkRunningAsync(operationId, CancellationToken.None);
+
+        var suffix = Guid.CreateVersion7().ToString("N");
+        var functionName = $"delay_operation_transition_{suffix}";
+        var triggerName = $"delay_operation_transition_{suffix}";
+
+        try
+        {
+            await fixture.ExecuteSqlAsync($"""
+                CREATE OR REPLACE FUNCTION {functionName}()
+                RETURNS trigger AS $$
+                BEGIN
+                    IF NEW."Id" = '{operationId}'::uuid THEN
+                        PERFORM pg_sleep(0.2);
+                    END IF;
+                    RETURN NEW;
+                END;
+                $$ LANGUAGE plpgsql;
+
+                CREATE TRIGGER {triggerName}
+                BEFORE UPDATE ON operations
+                FOR EACH ROW
+                EXECUTE FUNCTION {functionName}();
+                """);
+
+            async Task CompleteFromWorkerScopeAsync()
+            {
+                await using var scope = fixture.Services.CreateAsyncScope();
+                var store = scope.ServiceProvider.GetRequiredService<IOperationStore>();
+                await store.CompleteAsync(operationId, new { ok = true }, CancellationToken.None);
+            }
+
+            async Task FailFromWorkerScopeAsync()
+            {
+                await using var scope = fixture.Services.CreateAsyncScope();
+                var store = scope.ServiceProvider.GetRequiredService<IOperationStore>();
+                await store.FailAsync(operationId, "module.concurrent_failure", "Concurrent failure.", CancellationToken.None);
+            }
+
+            await Task.WhenAll(CompleteFromWorkerScopeAsync(), FailFromWorkerScopeAsync());
+        }
+        finally
+        {
+            await fixture.ExecuteSqlAsync($"""
+                DROP TRIGGER IF EXISTS {triggerName} ON operations;
+                DROP FUNCTION IF EXISTS {functionName}();
+                """);
+        }
+
+        var status = await dispatcher.Query(new GetOperationStatusQuery(operationId, userId));
+        new[] { "Succeeded", "Failed" }.ShouldContain(status.Status);
+    }
+
+    [Fact]
     public async Task Worker_transition_on_missing_operation_surfaces_not_found()
     {
         await using var scope = fixture.Services.CreateAsyncScope();

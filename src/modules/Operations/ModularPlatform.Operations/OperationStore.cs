@@ -73,18 +73,35 @@ internal sealed class OperationStore(OperationsDbContext db, IClock clock) : IOp
 
     private async Task TransitionAsync(Guid operationId, Action<Operation> mutate, CancellationToken ct)
     {
-        var operation = await db.Operations.FirstOrDefaultAsync(o => o.Id == operationId, ct)
-            ?? throw new NotFoundException("operation.not_found", "Operation not found.");
+        const int maxAttempts = 5;
 
-        // Terminal states are FINAL: a redelivered/duplicate worker message must not resurrect a Succeeded/Failed
-        // operation back to Running, nor flip one terminal state to the other. Idempotent no-op.
-        if (operation.Status is OperationStatus.Succeeded or OperationStatus.Failed)
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
-            return;
-        }
+            ct.ThrowIfCancellationRequested();
 
-        mutate(operation);
-        await db.SaveChangesAsync(ct);
+            var operation = await db.Operations.FirstOrDefaultAsync(o => o.Id == operationId, ct)
+                ?? throw new NotFoundException("operation.not_found", "Operation not found.");
+
+            // Terminal states are FINAL: a redelivered/duplicate worker message must not resurrect a Succeeded/Failed
+            // operation back to Running, nor flip one terminal state to the other. Idempotent no-op.
+            if (operation.Status is OperationStatus.Succeeded or OperationStatus.Failed)
+            {
+                return;
+            }
+
+            mutate(operation);
+
+            try
+            {
+                await db.SaveChangesAsync(ct);
+                return;
+            }
+            catch (DbUpdateConcurrencyException) when (attempt < maxAttempts)
+            {
+                db.ChangeTracker.Clear();
+                await Task.Delay(TimeSpan.FromMilliseconds(25 * attempt), ct);
+            }
+        }
     }
 
     private Task<Guid?> FindByIdempotencyKeyAsync(string type, Guid userId, string idempotencyKey, CancellationToken ct) =>
