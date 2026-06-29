@@ -1354,10 +1354,10 @@ _Correct and carefully written: changed-only capture, converter resolution and s
 | IPv6 /48 truncation | ✓ | Zero hextets from byte 6 (lines 69-72) |
 | Rate-limit partition truncation collapsing 256 clients | ✓ | Documented that ONLY the audit IP is masked, rate-limit keeps full address (AuditOptions.cs:24-25) |
 
-**Testy:** AuditIpMaskingTests: Full_keeps_verbatim, None_drops, Truncated_zeroes_ipv4_host_octet, Truncated_keeps_ipv6_routing_prefix, Truncated_normalizes_ipv4_mapped_ipv6, Truncated_drops_unparseable_or_empty
-**Test gaps:** End-to-end test that AuditOptions:IpStorage from config actually changes the stored audit IpAddress column (only the pure function is unit-tested)
+**Testy:** AuditIpMaskingTests: Full_keeps_verbatim, None_drops, Truncated_zeroes_ipv4_host_octet, Truncated_keeps_ipv6_routing_prefix, Truncated_normalizes_ipv4_mapped_ipv6, Truncated_drops_unparseable_or_empty; AuditInterceptorTests.Audit_ip_storage_config_changes_the_stored_audit_ip_address
+**Test gaps:** No remaining focused audit-IP minimization gap in this slice.
 
-_Best-tested unit in the area; the dual-stack mapping edge case is explicitly covered._
+_Best-tested unit in the area; the dual-stack mapping edge case and config-to-stored-audit-row path are explicitly covered._
 
 ### Tenant query filter + TenantStampingInterceptor — ✅ correct
 *Defence-in-depth tenant scoping: stamp TenantId on insert, filter reads to the caller's tenant (or system).*

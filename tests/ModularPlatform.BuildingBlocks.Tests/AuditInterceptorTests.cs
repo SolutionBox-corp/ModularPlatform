@@ -1,5 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Persistence;
@@ -11,6 +13,39 @@ namespace ModularPlatform.BuildingBlocks.Tests;
 
 public sealed class AuditInterceptorTests
 {
+    [Theory]
+    [InlineData("Truncated", "203.0.113.0")]
+    [InlineData("None", null)]
+    public async Task Audit_ip_storage_config_changes_the_stored_audit_ip_address(string mode, string? expectedIp)
+    {
+        var tenant = new TestTenantContext(ipAddress: "203.0.113.42");
+        var clock = new MutableClock(new DateTimeOffset(2026, 1, 1, 10, 0, 0, TimeSpan.Zero));
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Audit:IpStorage"] = mode,
+            })
+            .Build();
+        var services = new ServiceCollection()
+            .AddSingleton<IConfiguration>(configuration)
+            .AddSingleton<IClock>(clock)
+            .AddSingleton<ITenantContext>(tenant)
+            .AddPlatformPersistence()
+            .BuildServiceProvider();
+        var options = new DbContextOptionsBuilder<TestDbContext>()
+            .UseInMemoryDatabase($"audit-ip-config-{mode}-{Guid.CreateVersion7():N}")
+            .AddInterceptors(services.GetRequiredService<AuditInterceptor>())
+            .Options;
+
+        await using var db = new TestDbContext(options, tenant);
+        db.Entities.Add(new AuditedEntity { Name = "created" });
+
+        await db.SaveChangesAsync();
+
+        var audit = await db.AuditEntries.SingleAsync(a => a.EntityType == nameof(AuditedEntity));
+        audit.IpAddress.ShouldBe(expectedIp);
+    }
+
     [Fact]
     public async Task Auditable_entities_are_stamped_on_create_and_update_from_the_current_context()
     {
@@ -104,11 +139,11 @@ public sealed class AuditInterceptorTests
         public DateTimeOffset UtcNow { get; set; } = utcNow;
     }
 
-    private sealed class TestTenantContext : ITenantContext
+    private sealed class TestTenantContext(string? ipAddress = "127.0.0.1") : ITenantContext
     {
         public Guid? UserId { get; } = Guid.CreateVersion7();
         public Guid? TenantId { get; } = Guid.CreateVersion7();
         public bool IsSystem => false;
-        public string? IpAddress => "127.0.0.1";
+        public string? IpAddress => ipAddress;
     }
 }
