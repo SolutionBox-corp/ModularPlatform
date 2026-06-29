@@ -529,13 +529,13 @@ _Pure query, no transaction; uses the read factory per the platform law._
 | posted == sum(bucket.Remaining) and available == posted - pending after mixed run | ✓ | Verified by LedgerLifecycleTests.Ledger_invariants_hold_after_a_mixed_run (BL-12); the test docstring corrects the naive double-entry expectation to posted == sum(bucket.Remaining). |
 | Audit Update rows record only changed columns + enum as string | ✓ | AuditInterceptor on tracked saves; LedgerBackstopTests.PL2 asserts Released string present, immutable Amount absent. |
 | ExecuteUpdate debit bypasses AuditInterceptor + xmin | ✓ | By design (CLAUDE.md): the credit_entries ARE the audit for the debit guard; the Reservation entry records the debit. Acceptable per documented caveat. |
-| Ledger entry never updated/deleted | ✓ | No UPDATE/DELETE on CreditEntry anywhere; entity documented immutable (CreditEntry.cs:24-27). Erasure anonymizes rather than deletes (per module IExportPersonalData, outside this slice). |
+| Ledger entry never updated/deleted | ✓ | No UPDATE/DELETE on CreditEntry anywhere; entity documented immutable (CreditEntry.cs:24-27). BillingDbContext rejects tracked Modified/Deleted CreditEntry rows before SaveChanges, so module code must append a compensating entry instead. Erasure anonymizes rather than deletes (per module IExportPersonalData, outside this slice). |
 | Owner reads ledger entries paged, scoped and newest-first | ✓ | GetCreditLedgerHandler.cs:29-38 owner-scopes by AccountId and orders by CreatedAt desc; covered by CreditLedgerReadTests.Ledger_entries_are_paged_and_scoped_to_the_token_owner. |
 
-**Testy:** LedgerLifecycleTests.Ledger_invariants_hold_after_a_mixed_run; LedgerLifecycleTests.Transaction_id_groups_the_expected_reservation_lifecycle_entries; LedgerBackstopTests.BL5 / PL2; CreditLedgerReadTests.Ledger_entries_are_paged_and_scoped_to_the_token_owner
-**Test gaps:** No test that confirms credit_entries are never mutated (immutability is by convention, not enforced by a DB trigger or asserted in a test)
+**Testy:** LedgerLifecycleTests.Ledger_invariants_hold_after_a_mixed_run; LedgerLifecycleTests.Transaction_id_groups_the_expected_reservation_lifecycle_entries; LedgerBackstopTests.BL5 / PL2; LedgerBackstopTests.Credit_entries_are_append_only_even_through_the_billing_db_context; CreditLedgerReadTests.Ledger_entries_are_paged_and_scoped_to_the_token_owner
+**Test gaps:** No remaining focused append-only ledger immutability gap in this slice.
 
-_Strong defence-in-depth: app-level guard + DB CHECK + per-account UNIQUE idempotency. The projection-vs-ledger reconciliation is only ever asserted in tests, not by a runtime reconciliation job for credits (Stripe has one; the credit ledger relies on correct arithmetic + the expiry sweep)._
+_Strong defence-in-depth: app-level append-only guard + DB CHECK + per-account UNIQUE idempotency. The projection-vs-ledger reconciliation is only ever asserted in tests, not by a runtime reconciliation job for credits (Stripe has one; the credit ledger relies on correct arithmetic + the expiry sweep)._
 
 **Nekonzistence v oblasti (5):**
 - Duplicated account-provisioning logic: EnsureCreditAccountHandler (EnsureCreditAccountCommand.cs:14-30) and the inline create-on-miss inside CreditTopUpHandler.cs:28-42 both implement the same UNIQUE(UserId) create-and-recover dance instead of CreditTopUp dispatching EnsureCreditAccount — a DRY drift the platform's 'reuse-first / one handler dispatches the other' law would prefer to avoid.
