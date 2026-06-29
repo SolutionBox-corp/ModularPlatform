@@ -1,9 +1,11 @@
+using System.Diagnostics.Metrics;
 using Microsoft.Extensions.DependencyInjection;
 using ModularPlatform.Billing.Features.Stripe.ReconcileStripe;
 using ModularPlatform.Billing.Features.Subscriptions.UpsertSubscriptionFromStripe;
 using ModularPlatform.Billing.Stripe;
 using ModularPlatform.Cqrs;
 using ModularPlatform.IntegrationTesting;
+using ModularPlatform.Telemetry;
 using Shouldly;
 using Stripe;
 
@@ -121,6 +123,45 @@ public sealed class StripeReconcileTests(PlatformApiFactory fixture)
         await fixture.WaitForCountAsync(
             $"SELECT count(*)::bigint FROM subscriptions WHERE \"StripeSubscriptionId\" = '{subscriptionId}' AND \"Status\" = 'PastDue' AND \"CancelAtPeriodEnd\" = true",
             1);
+    }
+
+    [Fact]
+    public async Task Subscription_drift_records_the_platform_metric()
+    {
+        var recordedDrifts = new List<long>();
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, meterListener) =>
+        {
+            if (instrument.Meter.Name == PlatformMetrics.MeterName &&
+                instrument.Name == "platform.billing.stripe_drift")
+            {
+                meterListener.EnableMeasurementEvents(instrument);
+            }
+        };
+        listener.SetMeasurementEventCallback<long>((instrument, measurement, _, _) =>
+        {
+            if (instrument.Meter.Name == PlatformMetrics.MeterName &&
+                instrument.Name == "platform.billing.stripe_drift")
+            {
+                recordedDrifts.Add(measurement);
+            }
+        });
+        listener.Start();
+
+        var (userId, _) = await fixture.RegisterAndLoginAsync($"drift-metric-{Guid.CreateVersion7():N}@test.io", Password);
+        var subscriptionId = await MirrorSubscriptionAsync(userId, "active", cancelAtPeriodEnd: false);
+        Fake.SeedSubscription(new StripeSubscriptionState(
+            subscriptionId,
+            Status: "past_due",
+            CustomerId: "cus_drift_metric",
+            CurrentPeriodEnd: DateTimeOffset.UtcNow.AddDays(7),
+            CancelAtPeriodEnd: true,
+            Metadata: new Dictionary<string, string> { ["user_id"] = userId.ToString(), ["plan_key"] = "pro" }));
+
+        var result = await DispatchReconcileAsync();
+
+        result.SubscriptionDriftsFixed.ShouldBeGreaterThanOrEqualTo(1);
+        recordedDrifts.ShouldContain(measurement => measurement == 1);
     }
 
     [Fact]
