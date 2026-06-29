@@ -17,4 +17,5 @@ internal sealed class CrmDbContext(DbContextOptions<CrmDbContext> options, ITena
     public DbSet<Contact> Contacts => Set<Contact>();
     public DbSet<ContactInteraction> ContactInteractions => Set<ContactInteraction>();
     public DbSet<Meeting> Meetings => Set<Meeting>();
+    public DbSet<Deal> Deals => Set<Deal>();
 }

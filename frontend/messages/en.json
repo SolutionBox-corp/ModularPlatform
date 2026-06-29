@@ -204,7 +204,10 @@
       "meetingTitle": "Title",
       "when": "When",
       "duration": "Duration",
-      "minutes": "{count} min"
+      "minutes": "{count} min",
+      "dealTitle": "Deal",
+      "amount": "Amount",
+      "stage": "Stage"
     },
     "status": {
       "lead": "Lead",
@@ -226,7 +229,9 @@
     },
     "filter": {
       "status": "Status",
-      "allStatuses": "All statuses"
+      "allStatuses": "All statuses",
+      "stage": "Stage",
+      "allStages": "All stages"
     },
     "contacts": {
       "new": "New contact",
@@ -289,7 +294,11 @@
       "meetingCreated": "Meeting scheduled",
       "meetingUpdated": "Meeting updated",
       "meetingCanceled": "Meeting canceled",
-      "meetingCompleted": "Meeting completed"
+      "meetingCompleted": "Meeting completed",
+      "dealCreated": "Deal created",
+      "dealUpdated": "Deal updated",
+      "dealStageMoved": "Stage updated",
+      "dealDeleted": "Deal deleted"
     },
     "validation": {
       "fullNameRequired": "Name is required.",
@@ -306,7 +315,37 @@
       "scheduledAtRequired": "Time is required.",
       "durationInvalid": "Duration must be 1–1440 minutes.",
       "locationMax": "Location is too long.",
-      "bodyMax": "Note is too long."
+      "bodyMax": "Note is too long.",
+      "amountInvalid": "Enter a valid amount",
+      "currencyInvalid": "Use a 3-letter currency code"
+    },
+    "deals": {
+      "metaTitle": "Deals",
+      "pageHeading": "Deals",
+      "pageDescription": "Track revenue opportunities through your pipeline.",
+      "new": "New deal",
+      "delete": "Delete",
+      "emptyTitle": "No deals yet",
+      "emptyDescription": "Create your first deal to start tracking revenue."
+    },
+    "dealStage": {
+      "lead": "Lead",
+      "qualified": "Qualified",
+      "proposal": "Proposal",
+      "negotiation": "Negotiation",
+      "won": "Won",
+      "lost": "Lost"
+    },
+    "dealForm": {
+      "createTitle": "New deal",
+      "title": "Title",
+      "amount": "Amount",
+      "currency": "Currency",
+      "stage": "Stage",
+      "expectedCloseAt": "Expected close",
+      "notes": "Notes",
+      "save": "Save",
+      "saving": "Saving…"
     }
   },
   "files": {
@@ -562,7 +601,8 @@
     "signOut": "Sign out",
     "users": "Users",
     "platformProducts": "Products",
-    "crm": "CRM"
+    "crm": "CRM",
+    "crmDeals": "Deals"
   },
   "notifications": {
     "badge": {

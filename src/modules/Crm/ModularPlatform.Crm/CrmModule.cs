@@ -11,6 +11,12 @@ using ModularPlatform.Crm.Features.Contacts.GetContact;
 using ModularPlatform.Crm.Features.Contacts.ListContacts;
 using ModularPlatform.Crm.Features.Contacts.ListInteractions;
 using ModularPlatform.Crm.Features.Contacts.UpdateContact;
+using ModularPlatform.Crm.Features.Deals.CreateDeal;
+using ModularPlatform.Crm.Features.Deals.DeleteDeal;
+using ModularPlatform.Crm.Features.Deals.GetDeal;
+using ModularPlatform.Crm.Features.Deals.ListDeals;
+using ModularPlatform.Crm.Features.Deals.MoveDealStage;
+using ModularPlatform.Crm.Features.Deals.UpdateDeal;
 using ModularPlatform.Crm.Features.Meetings.CancelMeeting;
 using ModularPlatform.Crm.Features.Meetings.CompleteMeeting;
 using ModularPlatform.Crm.Features.Meetings.CreateMeeting;
@@ -69,6 +75,13 @@ public sealed class CrmModule : IModule
         endpoints.MapUpdateMeeting();
         endpoints.MapCancelMeeting();
         endpoints.MapCompleteMeeting();
+
+        endpoints.MapCreateDeal();
+        endpoints.MapGetDeal();
+        endpoints.MapListDeals();
+        endpoints.MapUpdateDeal();
+        endpoints.MapMoveDealStage();
+        endpoints.MapDeleteDeal();
     }
 
     public void ConfigureMessaging(WolverineOptions options)

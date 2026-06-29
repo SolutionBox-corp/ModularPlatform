@@ -204,7 +204,10 @@
       "meetingTitle": "Název",
       "when": "Kdy",
       "duration": "Délka",
-      "minutes": "{count} min"
+      "minutes": "{count} min",
+      "dealTitle": "Obchod",
+      "amount": "Částka",
+      "stage": "Fáze"
     },
     "status": {
       "lead": "Lead",
@@ -226,7 +229,9 @@
     },
     "filter": {
       "status": "Stav",
-      "allStatuses": "Všechny stavy"
+      "allStatuses": "Všechny stavy",
+      "stage": "Fáze",
+      "allStages": "Všechny fáze"
     },
     "contacts": {
       "new": "Nový kontakt",
@@ -289,7 +294,11 @@
       "meetingCreated": "Schůzka naplánována",
       "meetingUpdated": "Schůzka upravena",
       "meetingCanceled": "Schůzka zrušena",
-      "meetingCompleted": "Schůzka dokončena"
+      "meetingCompleted": "Schůzka dokončena",
+      "dealCreated": "Obchod vytvořen",
+      "dealUpdated": "Obchod upraven",
+      "dealStageMoved": "Fáze změněna",
+      "dealDeleted": "Obchod smazán"
     },
     "validation": {
       "fullNameRequired": "Jméno je povinné.",
@@ -306,7 +315,37 @@
       "scheduledAtRequired": "Čas je povinný.",
       "durationInvalid": "Délka musí být 1–1440 minut.",
       "locationMax": "Místo je příliš dlouhé.",
-      "bodyMax": "Poznámka je příliš dlouhá."
+      "bodyMax": "Poznámka je příliš dlouhá.",
+      "amountInvalid": "Zadejte platnou částku",
+      "currencyInvalid": "Použijte 3písmenný kód měny"
+    },
+    "deals": {
+      "metaTitle": "Obchody",
+      "pageHeading": "Obchody",
+      "pageDescription": "Sledujte obchodní příležitosti napříč pipeline.",
+      "new": "Nový obchod",
+      "delete": "Smazat",
+      "emptyTitle": "Zatím žádné obchody",
+      "emptyDescription": "Vytvořte první obchod a začněte sledovat tržby."
+    },
+    "dealStage": {
+      "lead": "Lead",
+      "qualified": "Kvalifikováno",
+      "proposal": "Nabídka",
+      "negotiation": "Vyjednávání",
+      "won": "Vyhráno",
+      "lost": "Prohráno"
+    },
+    "dealForm": {
+      "createTitle": "Nový obchod",
+      "title": "Název",
+      "amount": "Částka",
+      "currency": "Měna",
+      "stage": "Fáze",
+      "expectedCloseAt": "Očekávané uzavření",
+      "notes": "Poznámky",
+      "save": "Uložit",
+      "saving": "Ukládám…"
     }
   },
   "files": {
@@ -562,7 +601,8 @@
     "signOut": "Odhlásit se",
     "users": "Uživatelé",
     "platformProducts": "Produkty",
-    "crm": "CRM"
+    "crm": "CRM",
+    "crmDeals": "Obchody"
   },
   "notifications": {
     "badge": {

@@ -74,6 +74,28 @@ export interface InteractionsPage {
 
 export const CONTACT_STATUSES = ["lead", "active", "customer", "archived"] as const;
 export const INTERACTION_TYPES = ["call", "email", "note", "meeting"] as const;
+export const DEAL_STAGES = ["lead", "qualified", "proposal", "negotiation", "won", "lost"] as const;
+
+export interface Deal {
+  id: string;
+  contactId: string | null;
+  title: string;
+  amountCents: number;
+  currency: string;
+  stage: string;
+  expectedCloseAt: string | null;
+  closedAt: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+export interface DealsPage {
+  items: Deal[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}
 
 /* ----------------------------------------------------------------------------
  * Query factories — pages prefetch these; hooks consume them.
@@ -94,6 +116,13 @@ export interface MeetingsParams {
   contactId?: string;
   from?: string;
   to?: string;
+}
+
+export interface DealsParams {
+  page?: number;
+  pageSize?: number;
+  stage?: string;
+  contactId?: string;
 }
 
 export const crmQueries = {
@@ -145,6 +174,29 @@ export const crmQueries = {
       staleTime: 15_000,
     });
   },
+
+  deals: (params: DealsParams = {}) => {
+    const pageSize = params.pageSize ?? 20;
+    return queryOptions({
+      queryKey: [...queryRoots.crm, "deals", params],
+      queryFn: () => {
+        const sp = new URLSearchParams();
+        sp.set("page", String(params.page ?? 1));
+        sp.set("pageSize", String(pageSize));
+        if (params.stage) sp.set("stage", params.stage);
+        if (params.contactId) sp.set("contactId", params.contactId);
+        return apiFetch<DealsPage>(`crm/deals?${sp.toString()}`);
+      },
+      staleTime: 15_000,
+    });
+  },
+
+  deal: (id: string) =>
+    queryOptions({
+      queryKey: [...queryRoots.crm, "deal", id],
+      queryFn: () => apiFetch<Deal>(`crm/deals/${id}`),
+      enabled: id.length > 0,
+    }),
 };
 
 /* ----------------------------------------------------------------------------
@@ -210,4 +262,30 @@ export function cancelMeeting(id: string): Promise<void> {
 
 export function completeMeeting(id: string, outcome: string | null): Promise<void> {
   return apiFetch<void>(`crm/meetings/${id}/complete`, { method: "POST", body: { outcome } });
+}
+
+export interface DealInput {
+  contactId?: string | null;
+  title: string;
+  amountCents: number;
+  currency?: string | null;
+  stage?: string | null;
+  expectedCloseAt?: string | null;
+  notes?: string | null;
+}
+
+export function createDeal(input: DealInput): Promise<{ id: string }> {
+  return apiFetch<{ id: string }>("crm/deals", { method: "POST", body: input });
+}
+
+export function updateDeal(id: string, input: Partial<DealInput>): Promise<Deal> {
+  return apiFetch<Deal>(`crm/deals/${id}`, { method: "PATCH", body: input });
+}
+
+export function moveDealStage(id: string, stage: string): Promise<Deal> {
+  return apiFetch<Deal>(`crm/deals/${id}/stage`, { method: "POST", body: { stage } });
+}
+
+export function deleteDeal(id: string): Promise<void> {
+  return apiFetch<void>(`crm/deals/${id}`, { method: "DELETE" });
 }

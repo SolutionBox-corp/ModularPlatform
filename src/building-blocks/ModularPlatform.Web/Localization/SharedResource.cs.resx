@@ -172,4 +172,12 @@
   <data name="crm.meeting.notes.too_long" xml:space="preserve"><value>Poznámky ke schůzce jsou příliš dlouhé.</value></data>
   <data name="crm.meeting.outcome.too_long" xml:space="preserve"><value>Výsledek schůzky je příliš dlouhý.</value></data>
   <data name="crm.meeting.invalid_transition" xml:space="preserve"><value>Schůzku nelze převést do tohoto stavu.</value></data>
+  <data name="crm.deal_not_found" xml:space="preserve"><value>Obchod nenalezen.</value></data>
+  <data name="crm.deal.title.required" xml:space="preserve"><value>Název obchodu je povinný.</value></data>
+  <data name="crm.deal.title.too_long" xml:space="preserve"><value>Název obchodu je příliš dlouhý.</value></data>
+  <data name="crm.deal.amount.invalid" xml:space="preserve"><value>Částka obchodu není platná.</value></data>
+  <data name="crm.deal.currency.invalid" xml:space="preserve"><value>Měna obchodu není platná.</value></data>
+  <data name="crm.deal.stage.invalid" xml:space="preserve"><value>Fáze obchodu není platná.</value></data>
+  <data name="crm.deal.invalid_transition" xml:space="preserve"><value>Obchod nelze převést do této fáze.</value></data>
+  <data name="crm.deal.notes.too_long" xml:space="preserve"><value>Poznámky obchodu jsou příliš dlouhé.</value></data>
 </root>

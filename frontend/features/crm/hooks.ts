@@ -9,11 +9,16 @@ import {
   cancelMeeting,
   completeMeeting,
   createContact,
+  createDeal,
   createMeeting,
   deleteContact,
+  deleteDeal,
+  moveDealStage,
   updateContact,
+  updateDeal,
   updateMeeting,
   type ContactInput,
+  type DealInput,
   type InteractionInput,
   type MeetingInput,
 } from "@/features/crm/api";
@@ -117,6 +122,54 @@ export function useCompleteMeeting() {
     onSuccess: async () => {
       await invalidate();
       toast.success(t("toast.meetingCompleted"));
+    },
+  });
+}
+
+export function useCreateDeal() {
+  const invalidate = useInvalidateCrm();
+  const t = useTranslations("crm");
+  return useMutation({
+    mutationFn: (input: DealInput) => createDeal(input),
+    onSuccess: async () => {
+      await invalidate();
+      toast.success(t("toast.dealCreated"));
+    },
+  });
+}
+
+export function useUpdateDeal(id: string) {
+  const invalidate = useInvalidateCrm();
+  const t = useTranslations("crm");
+  return useMutation({
+    mutationFn: (input: Partial<DealInput>) => updateDeal(id, input),
+    onSuccess: async () => {
+      await invalidate();
+      toast.success(t("toast.dealUpdated"));
+    },
+  });
+}
+
+export function useMoveDealStage() {
+  const invalidate = useInvalidateCrm();
+  const t = useTranslations("crm");
+  return useMutation({
+    mutationFn: ({ id, stage }: { id: string; stage: string }) => moveDealStage(id, stage),
+    onSuccess: async () => {
+      await invalidate();
+      toast.success(t("toast.dealStageMoved"));
+    },
+  });
+}
+
+export function useDeleteDeal() {
+  const invalidate = useInvalidateCrm();
+  const t = useTranslations("crm");
+  return useMutation({
+    mutationFn: (id: string) => deleteDeal(id),
+    onSuccess: async () => {
+      await invalidate();
+      toast.success(t("toast.dealDeleted"));
     },
   });
 }

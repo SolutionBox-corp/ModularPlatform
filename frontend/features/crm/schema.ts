@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CONTACT_STATUSES, INTERACTION_TYPES } from "@/features/crm/api";
+import { CONTACT_STATUSES, INTERACTION_TYPES, DEAL_STAGES } from "@/features/crm/api";
 
 /** Translator shape (next-intl's `useTranslations('crm')`) — only what the schema needs. */
 type Translate = (key: string) => string;
@@ -56,3 +56,17 @@ export function buildInteractionSchema(t: Translate) {
 }
 
 export type InteractionFormValues = z.infer<ReturnType<typeof buildInteractionSchema>>;
+
+/** Mirrors CreateDealValidator / UpdateDealValidator. Amount is entered in major units, sent as cents. */
+export function buildDealSchema(t: Translate) {
+  return z.object({
+    title: z.string().min(1, t("validation.titleRequired")).max(256, t("validation.titleMax")),
+    amount: z.number({ error: t("validation.amountInvalid") }).min(0, t("validation.amountInvalid")),
+    currency: z.string().length(3, t("validation.currencyInvalid")),
+    stage: z.enum(DEAL_STAGES),
+    expectedCloseAt: z.string().optional(),
+    notes: z.string().max(8192, t("validation.notesMax")).optional(),
+  });
+}
+
+export type DealFormValues = z.infer<ReturnType<typeof buildDealSchema>>;

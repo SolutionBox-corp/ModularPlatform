@@ -63,6 +63,13 @@ export const NAV_ITEMS: NavItem[] = [
     moduleKey: "crm",
   },
   {
+    key: "crm-deals",
+    href: "/crm/deals",
+    labelKey: "crmDeals",
+    icon: TrendingUpIcon,
+    moduleKey: "crm",
+  },
+  {
     key: "marketing",
     href: "/marketing",
     labelKey: "marketing",
