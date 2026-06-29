@@ -28,6 +28,7 @@
     <ProjectReference Include="..\..\src\building-blocks\ModularPlatform.Messaging\ModularPlatform.Messaging.csproj" />
     <ProjectReference Include="..\..\src\building-blocks\ModularPlatform.Secrets\ModularPlatform.Secrets.csproj" />
     <ProjectReference Include="..\..\src\building-blocks\ModularPlatform.Payments\ModularPlatform.Payments.csproj" />
+    <ProjectReference Include="..\..\src\building-blocks\ModularPlatform.Telemetry\ModularPlatform.Telemetry.csproj" />
   </ItemGroup>
 
 </Project>

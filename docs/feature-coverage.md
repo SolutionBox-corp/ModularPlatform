@@ -1666,12 +1666,12 @@ _Endpoint is sound (bounded, owner-scoped, auth-gated). The old duplicate SseStr
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
 | Behavior must be outer-most | ✓ | AddPlatformTelemetry registers TelemetryBehavior first; called before AddPlatformWeb in every host (Api Program.cs:29, comment DependencyInjection.cs:13-14) |
-| Domain vs unexpected exception tagging | ✓ | ModularPlatformException tags cqrs.error_code; generic sets Error status with message (TelemetryBehavior.cs:22-32) |
+| Domain vs unexpected exception tagging | ✓ | ModularPlatformException tags cqrs.error_code; generic sets Error status with message (TelemetryBehavior.cs:22-32); error-code tag pinned by TelemetryBehaviorTests.ModularPlatformException_tags_activity_with_error_code |
 | A second Meter never registered via AddMeter (silently unexported) | ✓ | Single PlatformMetrics.Meter (MeterName='ModularPlatform') registered via .AddMeter (DependencyInjection.cs:27); CLAUDE.md warns against a second meter |
 | No OTLP collector configured | ◐ | AddOtlpExporter defaults to localhost:4317; with no collector the exporter logs/drops silently — deployment concern, not a code gap |
 
-**Testy:** JobFailureMetricsTests uses a MeterListener on the 'ModularPlatform' meter — indirectly proves the shared meter name + instrument export path
-**Test gaps:** No test that TelemetryBehavior is the outer-most registered behavior (order relies on registration sequence); No test that TelemetryBehavior tags cqrs.error_code on a ModularPlatformException
+**Testy:** JobFailureMetricsTests uses a MeterListener on the 'ModularPlatform' meter — indirectly proves the shared meter name + instrument export path; TelemetryBehaviorTests.ModularPlatformException_tags_activity_with_error_code
+**Test gaps:** No test that TelemetryBehavior is the outer-most registered behavior (order relies on registration sequence)
 
 _Clean single-meter design; error-code tagging is a nice touch. Outer-most ordering is convention-enforced, not asserted._
 
