@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Options;
+using ModularPlatform.Cqrs;
 using ModularPlatform.Storage;
 using Shouldly;
 
@@ -28,6 +30,23 @@ public sealed class StorageUnitTests
     public void Opaque_keys_are_accepted(string key)
     {
         Should.NotThrow(() => StorageKey.Validate(key));
+    }
+
+    [Fact]
+    public async Task Local_missing_key_throws_file_not_found_error_code()
+    {
+        var storage = new LocalFileStorage(Options.Create(new StorageOptions
+        {
+            Local = new LocalStorageOptions
+            {
+                RootPath = Path.Combine(Path.GetTempPath(), $"modularplatform-storage-test-{Guid.CreateVersion7():N}"),
+            },
+        }));
+
+        var exception = await Should.ThrowAsync<NotFoundException>(
+            () => storage.GetAsync("11111111111111111111111111111111/missing.bin", CancellationToken.None));
+
+        exception.ErrorCode.ShouldBe("file.not_found");
     }
 
     [Fact]
