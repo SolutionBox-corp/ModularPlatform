@@ -87,5 +87,14 @@ internal sealed class CrmPersonalDataEraser(CrmDbContext db, IClock clock) : IEr
                     .SetProperty(c => c.Notes, (string?)null)
                     .SetProperty(c => c.DeletedAt, c => c.DeletedAt ?? now),
                 ct);
+
+        // Kanban: scrub board/card free-text + soft-delete; columns hard-delete (no PII left, FK-free).
+        await db.KanbanCards.IgnoreQueryFilters().Where(c => c.UserId == userId)
+            .ExecuteUpdateAsync(s => s.SetProperty(c => c.Title, "[erased]").SetProperty(c => c.Description, (string?)null)
+                .SetProperty(c => c.DeletedAt, c => c.DeletedAt ?? now), ct);
+        await db.KanbanBoards.IgnoreQueryFilters().Where(b => b.UserId == userId)
+            .ExecuteUpdateAsync(s => s.SetProperty(b => b.Name, "[erased]").SetProperty(b => b.DeletedAt, b => b.DeletedAt ?? now), ct);
+        await db.KanbanColumns.IgnoreQueryFilters().Where(c => c.UserId == userId)
+            .ExecuteUpdateAsync(s => s.SetProperty(c => c.Name, "[erased]"), ct);
     }
 }

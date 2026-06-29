@@ -22,6 +22,14 @@ using ModularPlatform.Crm.Features.Deals.GetDeal;
 using ModularPlatform.Crm.Features.Deals.ListDeals;
 using ModularPlatform.Crm.Features.Deals.MoveDealStage;
 using ModularPlatform.Crm.Features.Deals.UpdateDeal;
+using ModularPlatform.Crm.Features.Kanban.CreateBoard;
+using ModularPlatform.Crm.Features.Kanban.CreateCard;
+using ModularPlatform.Crm.Features.Kanban.CreateColumn;
+using ModularPlatform.Crm.Features.Kanban.DeleteBoard;
+using ModularPlatform.Crm.Features.Kanban.DeleteCard;
+using ModularPlatform.Crm.Features.Kanban.GetBoard;
+using ModularPlatform.Crm.Features.Kanban.ListBoards;
+using ModularPlatform.Crm.Features.Kanban.MoveCard;
 using ModularPlatform.Crm.Features.Meetings.CancelMeeting;
 using ModularPlatform.Crm.Features.Meetings.CompleteMeeting;
 using ModularPlatform.Crm.Features.Meetings.CreateMeeting;
@@ -106,6 +114,15 @@ public sealed class CrmModule : IModule
         endpoints.MapListCompanies();
         endpoints.MapUpdateCompany();
         endpoints.MapDeleteCompany();
+
+        endpoints.MapCreateBoard();
+        endpoints.MapListBoards();
+        endpoints.MapGetBoard();
+        endpoints.MapDeleteBoard();
+        endpoints.MapCreateColumn();
+        endpoints.MapCreateCard();
+        endpoints.MapMoveCard();
+        endpoints.MapDeleteCard();
     }
 
     public void ConfigureMessaging(WolverineOptions options)

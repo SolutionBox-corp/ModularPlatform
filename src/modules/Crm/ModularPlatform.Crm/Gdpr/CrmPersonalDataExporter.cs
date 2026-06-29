@@ -103,6 +103,11 @@ internal sealed class CrmPersonalDataExporter(IReadDbContextFactory<CrmDbContext
             .Select(c => new { c.Id, c.Name, c.Domain, c.Industry, c.Notes, c.CreatedAt })
             .ToListAsync(ct);
 
+        var boards = await db.KanbanBoards.IgnoreQueryFilters().Where(b => b.UserId == userId)
+            .Select(b => new { b.Id, b.Name, b.CreatedAt }).ToListAsync(ct);
+        var cards = await db.KanbanCards.IgnoreQueryFilters().Where(c => c.UserId == userId)
+            .Select(c => new { c.Id, c.BoardId, c.ColumnId, c.Title, c.Description, c.ContactId, c.DealId, c.DueAt, c.CreatedAt }).ToListAsync(ct);
+
         return new Dictionary<string, object?>
         {
             ["contacts"] = contacts,
@@ -111,6 +116,8 @@ internal sealed class CrmPersonalDataExporter(IReadDbContextFactory<CrmDbContext
             ["deals"] = deals,
             ["tasks"] = tasks,
             ["companies"] = companies,
+            ["boards"] = boards,
+            ["cards"] = cards,
         };
     }
 }

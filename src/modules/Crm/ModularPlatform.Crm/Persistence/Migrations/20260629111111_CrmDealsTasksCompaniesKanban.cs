@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace ModularPlatform.Crm.Persistence.Migrations
 {
     /// <inheritdoc />
-    public partial class CrmDealsTasksCompanies : Migration
+    public partial class CrmDealsTasksCompaniesKanban : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -66,6 +66,74 @@ namespace ModularPlatform.Crm.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_crm_deals", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "crm_kanban_boards",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Name = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: false),
+                    DeletedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: true),
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false),
+                    CreatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uuid", nullable: true),
+                    UpdatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    UpdatedBy = table.Column<Guid>(type: "uuid", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_crm_kanban_boards", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "crm_kanban_cards",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    BoardId = table.Column<Guid>(type: "uuid", nullable: false),
+                    ColumnId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Position = table.Column<int>(type: "integer", nullable: false),
+                    Title = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: false),
+                    Description = table.Column<string>(type: "character varying(8192)", maxLength: 8192, nullable: true),
+                    ContactId = table.Column<Guid>(type: "uuid", nullable: true),
+                    DealId = table.Column<Guid>(type: "uuid", nullable: true),
+                    DueAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    DeletedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: true),
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false),
+                    CreatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uuid", nullable: true),
+                    UpdatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    UpdatedBy = table.Column<Guid>(type: "uuid", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_crm_kanban_cards", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "crm_kanban_columns",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    BoardId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Name = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
+                    Position = table.Column<int>(type: "integer", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: true),
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false),
+                    CreatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uuid", nullable: true),
+                    UpdatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    UpdatedBy = table.Column<Guid>(type: "uuid", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_crm_kanban_columns", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -146,6 +214,51 @@ namespace ModularPlatform.Crm.Persistence.Migrations
                 columns: new[] { "UserId", "Stage" });
 
             migrationBuilder.CreateIndex(
+                name: "IX_crm_kanban_boards_TenantId",
+                table: "crm_kanban_boards",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_crm_kanban_boards_UserId_CreatedAt",
+                table: "crm_kanban_boards",
+                columns: new[] { "UserId", "CreatedAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_crm_kanban_cards_BoardId",
+                table: "crm_kanban_cards",
+                column: "BoardId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_crm_kanban_cards_ColumnId_Position",
+                table: "crm_kanban_cards",
+                columns: new[] { "ColumnId", "Position" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_crm_kanban_cards_TenantId",
+                table: "crm_kanban_cards",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_crm_kanban_cards_UserId",
+                table: "crm_kanban_cards",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_crm_kanban_columns_BoardId_Position",
+                table: "crm_kanban_columns",
+                columns: new[] { "BoardId", "Position" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_crm_kanban_columns_TenantId",
+                table: "crm_kanban_columns",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_crm_kanban_columns_UserId",
+                table: "crm_kanban_columns",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_crm_tasks_ContactId",
                 table: "crm_tasks",
                 column: "ContactId");
@@ -174,6 +287,15 @@ namespace ModularPlatform.Crm.Persistence.Migrations
 
             migrationBuilder.DropTable(
                 name: "crm_deals");
+
+            migrationBuilder.DropTable(
+                name: "crm_kanban_boards");
+
+            migrationBuilder.DropTable(
+                name: "crm_kanban_cards");
+
+            migrationBuilder.DropTable(
+                name: "crm_kanban_columns");
 
             migrationBuilder.DropTable(
                 name: "crm_tasks");
