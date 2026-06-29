@@ -38,4 +38,22 @@ public sealed class RlsTests(PlatformApiFactory fixture)
         var bobSeesAll = await fixture.ScalarAsUserAsync<long>(bob, "SELECT count(*)::bigint FROM credit_accounts");
         bobSeesAll.ShouldBe(1);
     }
+
+    [Fact]
+    public async Task System_principal_bypasses_user_owned_rls_without_using_the_admin_role()
+    {
+        var (alice, _) = await fixture.RegisterAndLoginAsync($"system-alice-{Guid.CreateVersion7():N}@example.com", "Sup3rSecret!");
+        var (bob, _) = await fixture.RegisterAndLoginAsync($"system-bob-{Guid.CreateVersion7():N}@example.com", "Sup3rSecret!");
+
+        await fixture.WaitForCountAsync($"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{alice}'", 1);
+        await fixture.WaitForCountAsync($"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{bob}'", 1);
+
+        var userIds = $"'{alice}', '{bob}'";
+        (await fixture.ScalarAsUserAsync<long>(
+            alice,
+            $"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" IN ({userIds})")).ShouldBe(1);
+
+        (await fixture.ScalarAsSystemAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" IN ({userIds})")).ShouldBe(2);
+    }
 }

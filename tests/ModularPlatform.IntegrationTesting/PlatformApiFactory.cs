@@ -227,6 +227,32 @@ public sealed class PlatformApiFactory : IAsyncLifetime
         return (T)(await cmd.ExecuteScalarAsync())!;
     }
 
+    /// <summary>
+    /// Runs a scalar query as the least-privilege RLS runtime role but with <c>app.is_system=on</c>, matching the
+    /// Worker/Jobs system principal. This proves system work bypasses per-user policies without using the admin role.
+    /// </summary>
+    public async Task<T> ScalarAsSystemAsync<T>(string sql)
+    {
+        var connectionString = new NpgsqlConnectionStringBuilder(ConnectionString)
+        {
+            Username = RlsRuntimeRole,
+            Password = RlsRuntimePassword,
+        }.ConnectionString;
+
+        await using var conn = new NpgsqlConnection(connectionString);
+        await conn.OpenAsync();
+
+        await using (var setGucs = conn.CreateCommand())
+        {
+            setGucs.CommandText =
+                "SELECT set_config('app.is_system', 'on', false), set_config('app.principal_id', '', false)";
+            await setGucs.ExecuteNonQueryAsync();
+        }
+
+        await using var cmd = new NpgsqlCommand(sql, conn);
+        return (T)(await cmd.ExecuteScalarAsync())!;
+    }
+
     public static async Task<JsonElement> ReadData(HttpResponseMessage response)
     {
         var doc = await response.Content.ReadFromJsonAsync<JsonElement>();

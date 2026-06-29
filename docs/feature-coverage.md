@@ -1391,11 +1391,12 @@ _The closed null-escape is the load-bearing security fix and is well covered; th
 | FORCE RLS blocks a future DATA migration on an IUserOwned table run by admin | ✓ | Documented that admin should have BYPASSRLS; migrations run on admin conn via PlatformMigrator (CLAUDE.md §7) |
 | Wolverine outbox tables created later not granted to runtime role | ✓ | Pre-creates wolverine schema + ALTER DEFAULT PRIVILEGES so later tables auto-grant (RlsBootstrapper.cs:112-124) |
 | RLS disabled deployment (managed DB, no role creation) | ✓ | Enabled=false uses admin conn for data, no policies (RlsOptions.cs:15-16; RlsConnectionString.cs:18-21; RlsBootstrapper.cs:29-33) |
+| System principal must bypass user-owned policy without admin role | ✓ | Policy checks app.is_system='on' (RlsBootstrapper.cs:131-133); proven through runtime role by RlsTests.System_principal_bypasses_user_owned_rls_without_using_the_admin_role |
 
-**Testy:** RlsTests.A_user_cannot_see_another_users_credit_account_even_with_a_raw_query (owner sees own, other sees zero, admin sees both)
-**Test gaps:** No test of the system-principal bypass (app.is_system='on') seeing all rows from a worker/jobs context; No test that an RLS-disabled config path still functions (data via admin conn); No test that the GUC is re-stamped (not left stale) when a pooled connection is reused across two different principals in sequence
+**Testy:** RlsTests.A_user_cannot_see_another_users_credit_account_even_with_a_raw_query (owner sees own, other sees zero, admin sees both); RlsTests.System_principal_bypasses_user_owned_rls_without_using_the_admin_role
+**Test gaps:** No test that an RLS-disabled config path still functions (data via admin conn); No test that the GUC is re-stamped (not left stale) when a pooled connection is reused across two different principals in sequence
 
-_Comprehensive, hardened implementation; the cross-principal read denial is proven end-to-end. System-bypass and pooled-reuse paths are reasoned about but not directly asserted._
+_Comprehensive, hardened implementation; cross-principal read denial and system bypass are proven end-to-end. Pooled-reuse remains reasoned about but not directly asserted._
 
 ### Read DbContext factory — ✅ correct
 *No-tracking module DbContext on the read replica (or write fallback), with RLS GUC stamping when enabled.*
