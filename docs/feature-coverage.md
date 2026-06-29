@@ -841,12 +841,12 @@ _End-to-end erasure is well tested and correct. Per-eraser isolation now matches
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
-| Identity from token not body | ✓ | Grant/Withdraw endpoints use tenant.UserId; request.UserId ignored (GrantConsentEndpoint.cs:20-22; WithdrawConsentEndpoint.cs:18-21) |
+| Identity from token not body | ✓ | Grant/Withdraw endpoints use tenant.UserId; the wire request has no UserId. Extra body userId is ignored by model binding and proven by GdprIntegrationTests.Consent_grant_ignores_a_body_user_id_and_uses_the_token_subject. |
 | Append-only (no in-place mutation) | ✓ | both handlers Add a new ConsentRecord (GrantConsentHandler.cs:17-25; WithdrawConsentHandler.cs:17-25) |
 | Erasure of consents bypasses audit/xmin via ExecuteDelete | ✓ | documented sanctioned GDPR-scrub path (ConsentPersonalDataEraser.cs:9-24) |
 | Consent rows excluded from AML/tax retention | ✓ | eraser deletes them, unlike the credit ledger (ConsentPersonalDataEraser.cs:9-12) |
 
-**Testy:** GdprIntegrationTests.Consent_grant_then_withdraw_is_append_only_and_get_reflects_the_latest_state; GdprIntegrationTests.Consent_grant_trims_type_and_policy_version_before_persistence; GdprIntegrationTests.Consent_history_is_exported_and_deleted_on_erasure; ConsentValidatorTests.Grant_consent_validator_uses_stable_error_codes; ConsentValidatorTests.Withdraw_consent_validator_uses_stable_error_codes; ConsentValidatorTests.Consent_validators_accept_valid_input
+**Testy:** GdprIntegrationTests.Consent_grant_then_withdraw_is_append_only_and_get_reflects_the_latest_state; GdprIntegrationTests.Consent_grant_ignores_a_body_user_id_and_uses_the_token_subject; GdprIntegrationTests.Consent_grant_trims_type_and_policy_version_before_persistence; GdprIntegrationTests.Consent_history_is_exported_and_deleted_on_erasure; ConsentValidatorTests.Grant_consent_validator_uses_stable_error_codes; ConsentValidatorTests.Withdraw_consent_validator_uses_stable_error_codes; ConsentValidatorTests.Consent_validators_accept_valid_input
 **Test gaps:** No remaining focused consent log/validator gap in this slice.
 
 _Clean append-only model, correct token-identity, stable validation error codes, and trimmed persisted consent values._
@@ -890,7 +890,6 @@ _Behaviour is correct (retain-forever, purge-nothing), and the regression that p
 - CODE-vs-DOC: RetentionSweepTests.cs class summary (lines 9-14) still describes the OLD behaviour — 'tombstones ... are hard-deleted, while rows within the retention window ... are left untouched' — while the actual [Fact] (line 19) and assertions verify permanent retention. The doc-comment contradicts its own test.
 - DEAD CONFIG: Gdpr:Retention:ShreddedKeyRetentionDays is now referenced ONLY in comments (RetentionSweepCommand.cs:13) — no code reads it; RetentionSweepHandler takes no retention window. The setting is documented as 'remains configurable' but is inert.
 - DEAD/REDUNDANT VALIDATION: GrantConsentValidator.cs validates RuleFor(x => x.UserId).NotEmpty() but GrantConsentCommand.UserId is always populated from tenant.UserId in the endpoint (GrantConsentEndpoint.cs:21), so the rule can never fire under the authorized path; same shape for Withdraw. Harmless but dead.
-- UNUSED REQUEST FIELD: GrantConsentRequest/WithdrawConsentRequest carry a UserId field (GrantConsentCommand.cs:9) that the endpoints intentionally ignore (IDOR protection). Correct security posture but the wire field is misleading — a client may believe it is honoured.
 
 
 ---
