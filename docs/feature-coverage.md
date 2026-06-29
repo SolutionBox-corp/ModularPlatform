@@ -45,7 +45,7 @@ v tabulkách níže jsou **snapshot PŘED** těmito fixy:
 - **Operations stuck-reaper** — uzavřeno: Operations má vlastní reconcile job, který staré Pending/Running operace terminalizuje jako Failed.
 - **ExpireCredits N+1** přes účty — perf/škálovatelnost, ne korektnost.
 - **LocalRealtimePublisher.PublishToTenantAsync no-op** vs Redis publikuje — tenant broadcast asymetrie (lokální fallback).
-- **Dead config** `Gdpr:Retention:ShreddedKeyRetentionDays` (jen v komentářích), **AAD whole-envelope** (mimo threat model),
+- **AAD whole-envelope** (mimo threat model),
   **multi-instance distributed rate-limiting** (Redis seam připravený, neimplementovaný), **duplikovaná account-provisioning
   logika** (EnsureCreditAccount vs inline v CreditTopUp) — DRY.
 
@@ -884,13 +884,6 @@ _Resilience pattern is solid and now tested both at handler level and through th
 **Test gaps:** No remaining focused tombstone retention / DEK re-mint guard gap in this slice.
 
 _Behaviour is correct (retain-forever, purge-nothing), and the regression that previously reopened the crypto-shred is fixed and now directly covered through the protector._
-
-**Nekonzistence v oblasti (4):**
-- CODE-vs-DOC: CLAUDE.md §4 'Retention sweep' row still says GdprRetentionSweepJob 'purges shredded subject_keys tombstones past Gdpr:Retention:ShreddedKeyRetentionDays (default 30)' and §9b/§10 imply purging — but RetentionSweepHandler.cs:25-31 now retains tombstones PERMANENTLY and returns 0 (purges nothing). The CLAUDE.md description is stale relative to the hardened code.
-- CODE-vs-DOC: RetentionSweepTests.cs class summary (lines 9-14) still describes the OLD behaviour — 'tombstones ... are hard-deleted, while rows within the retention window ... are left untouched' — while the actual [Fact] (line 19) and assertions verify permanent retention. The doc-comment contradicts its own test.
-- DEAD CONFIG: Gdpr:Retention:ShreddedKeyRetentionDays is now referenced ONLY in comments (RetentionSweepCommand.cs:13) — no code reads it; RetentionSweepHandler takes no retention window. The setting is documented as 'remains configurable' but is inert.
-- DEAD/REDUNDANT VALIDATION: GrantConsentValidator.cs validates RuleFor(x => x.UserId).NotEmpty() but GrantConsentCommand.UserId is always populated from tenant.UserId in the endpoint (GrantConsentEndpoint.cs:21), so the rule can never fire under the authorized path; same shape for Withdraw. Harmless but dead.
-
 
 ---
 

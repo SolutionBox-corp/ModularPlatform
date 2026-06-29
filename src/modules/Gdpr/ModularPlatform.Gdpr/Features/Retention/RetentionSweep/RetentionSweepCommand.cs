@@ -10,10 +10,10 @@ namespace ModularPlatform.Gdpr.Features.Retention.RetentionSweep;
 /// ONLY when no row exists; deleting a tombstone would let a post-erasure PII write resurrect a readable key and
 /// silently un-erase the subject. So this sweep deliberately purges NOTHING in the current design and returns 0.
 /// The command + cron are kept as the seam for any future module-owned, genuinely-purgeable retention data (the
-/// pattern to copy), and <c>Gdpr:Retention:ShreddedKeyRetentionDays</c> remains configurable for that.
+/// pattern to copy), but there is currently no active retention-window setting for subject-key tombstones.
 /// </para>
 /// </summary>
 internal sealed record RetentionSweepCommand : ICommand<RetentionSweepResponse>;
 
-/// <summary>Number of tombstones purged in a single sweep run.</summary>
+/// <summary>Number of records purged in a single sweep run. Currently always 0.</summary>
 internal sealed record RetentionSweepResponse(int PurgedCount);

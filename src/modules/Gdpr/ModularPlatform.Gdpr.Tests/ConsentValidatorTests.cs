@@ -16,7 +16,6 @@ public sealed class ConsentValidatorTests
             PolicyVersion: new string('v', 33)));
 
         ErrorCodes(result).ShouldBe([
-            "gdpr.consent.user_id.required",
             "gdpr.consent.type.required",
             "gdpr.consent.policy_version.too_long"
         ]);
@@ -31,7 +30,6 @@ public sealed class ConsentValidatorTests
             PolicyVersion: new string('v', 33)));
 
         ErrorCodes(result).ShouldBe([
-            "gdpr.consent.user_id.required",
             "gdpr.consent.type.too_long",
             "gdpr.consent.policy_version.too_long"
         ]);

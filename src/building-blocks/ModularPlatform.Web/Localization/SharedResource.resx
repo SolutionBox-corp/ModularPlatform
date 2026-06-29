@@ -119,7 +119,6 @@
   <data name="notification.not_found" xml:space="preserve"><value>Notification not found.</value></data>
 
   <data name="gdpr.erasure.user_id.required" xml:space="preserve"><value>User id is required.</value></data>
-  <data name="gdpr.consent.user_id.required" xml:space="preserve"><value>User id is required.</value></data>
   <data name="gdpr.consent.type.required" xml:space="preserve"><value>Consent type is required.</value></data>
   <data name="gdpr.consent.type.too_long" xml:space="preserve"><value>The consent type is too long.</value></data>
   <data name="gdpr.consent.policy_version.too_long" xml:space="preserve"><value>The policy version is too long.</value></data>
