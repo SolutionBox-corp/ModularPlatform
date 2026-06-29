@@ -2,10 +2,14 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using ModularPlatform.Cqrs;
+using ModularPlatform.Cqrs.Behaviors;
 using ModularPlatform.Identity;
 using ModularPlatform.Jobs;
 using ModularPlatform.MigrationService;
 using ModularPlatform.Persistence;
+using ModularPlatform.Persistence.Behaviors;
+using ModularPlatform.Telemetry;
 using ModularPlatform.Worker;
 using Npgsql;
 using Shouldly;
@@ -92,6 +96,13 @@ public sealed class HostBootTests
     }
 
     [Fact]
+    public void Worker_and_jobs_hosts_register_command_pipeline_behaviors_in_the_expected_order()
+    {
+        AssertCommandPipelineBehaviorOrder(WorkerHostBuilder.Create(BootArgs()).Services);
+        AssertCommandPipelineBehaviorOrder(JobsHostBuilder.Create(BootArgs()).Services);
+    }
+
+    [Fact]
     public void MigrationService_host_composes_and_its_dependency_graph_is_valid()
     {
         using var host = MigrationHostBuilder.Create(BootArgs(), out var modules).Build();
@@ -129,5 +140,20 @@ public sealed class HostBootTests
         options.Durability.DeadLetterQueueExpirationEnabled.ShouldBeTrue();
         options.Durability.DeadLetterQueueExpiration.ShouldBe(TimeSpan.FromDays(7));
         options.Durability.KeepAfterMessageHandling.ShouldBe(TimeSpan.FromMinutes(5));
+    }
+
+    private static void AssertCommandPipelineBehaviorOrder(IServiceCollection services)
+    {
+        var behaviors = services
+            .Where(d => d.ServiceType == typeof(IPipelineBehavior<,>))
+            .Select(d => d.ImplementationType)
+            .ToArray();
+
+        behaviors.ShouldBe([
+            typeof(TelemetryBehavior<,>),
+            typeof(LoggingBehavior<,>),
+            typeof(ValidationBehavior<,>),
+            typeof(ConcurrencyRetryBehavior<,>)
+        ]);
     }
 }

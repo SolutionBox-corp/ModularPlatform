@@ -1513,7 +1513,7 @@ _Well-reasoned and regression-guarded for retention, service-location, retry-to-
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
-| Pipeline behavior order must be Telemetry→Logging→Validation→ConcurrencyRetry across all hosts | ✓ | Api: AddPlatformTelemetry before AddPlatformWeb (Api Program.cs:29-30); Worker/Jobs add Logging+Validation after Telemetry, before module ConcurrencyRetry (WorkerHostBuilder.cs:31-36, JobsHostBuilder.cs:32-36) |
+| Command-dispatch host pipeline order must be Telemetry→Logging→Validation→ConcurrencyRetry | ✓ | Api: AddPlatformTelemetry before AddPlatformWeb (Api Program.cs:29-30) and pinned by TelemetryBehaviorTests.Platform_registration_keeps_telemetry_behavior_outer_most; Worker/Jobs add Logging+Validation after Telemetry, before module ConcurrencyRetry (WorkerHostBuilder.cs:31-36, JobsHostBuilder.cs:32-36), pinned by HostBootTests.Worker_and_jobs_hosts_register_command_pipeline_behaviors_in_the_expected_order. MigrationService only composes modules for migrations/RLS and exits, so it is covered as a DI graph host, not as a command-dispatch host. |
 | Non-HTTP host's module graph needs IRealtimePublisher (Notifications) or graph is unfulfillable | ✓ | AddPlatformRealtime in Worker(:37), Jobs(:40), Migration(:30); comments explain ValidateOnBuild is off outside Dev so this is latent |
 | Missing ConnectionStrings:Write | ✓ | throw InvalidOperationException in every host (Api:34-35, Worker:52-53, Jobs:57-58, Migration:45-46) |
 | Module set drift between hosts | ✓ | All four hosts enumerate the identical 6-module Discover call incl. Files even though Files has no jobs (JobsHostBuilder.cs:49-51 comment) |
@@ -1521,10 +1521,10 @@ _Well-reasoned and regression-guarded for retention, service-location, retry-to-
 | One-host-per-process PII protector invariant | ✓ | HostBootTests deliberately Build but never Start (HostBootTests.cs:16-18); separate test assembly |
 | Migrations applied at Api startup AND a deploy that turns RunMigrationsAtStartup off | ✓ | RLS bootstrapped in BOTH Api startup (Program.cs:62) and dedicated MigrationService (Program.cs:20) — comment MigrationService Program.cs:12-14 |
 
-**Testy:** HostBootTests.Api_host_composes_and_its_dependency_graph_is_valid; HostBootTests.Worker_host_composes_and_its_dependency_graph_is_valid; HostBootTests.Jobs_host_composes_and_its_dependency_graph_is_valid; HostBootTests.MigrationService_host_composes_and_its_dependency_graph_is_valid
-**Test gaps:** No test asserts the actual registered behavior ORDER (Telemetry outer-most) — only convention + comments enforce it
+**Testy:** TelemetryBehaviorTests.Platform_registration_keeps_telemetry_behavior_outer_most; HostBootTests.Api_host_composes_and_its_dependency_graph_is_valid; HostBootTests.Worker_host_composes_and_its_dependency_graph_is_valid; HostBootTests.Jobs_host_composes_and_its_dependency_graph_is_valid; HostBootTests.Worker_and_jobs_hosts_register_command_pipeline_behaviors_in_the_expected_order; HostBootTests.MigrationService_host_composes_and_its_dependency_graph_is_valid
+**Test gaps:** No remaining focused host-composition / command-pipeline-order gap in this slice.
 
-_Strong: the boot tests are an explicit regression guard for the A4 DI-graph concern. Order-of-behaviors relies on registration order with no assertion._
+_Strong: the boot tests are an explicit regression guard for the A4 DI-graph concern, and command-dispatch pipeline ordering is now pinned directly for Api/Worker/Jobs._
 
 ### Jobs host: Quartz cron (UTC), idempotency, single-instance posture — ✅ correct
 *Cron-only host scheduling module jobs + platform messaging-health, with UTC cron and a documented single-instance/idempotent deployment model.*
