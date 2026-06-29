@@ -177,10 +177,10 @@ _Canonical write slice; anonymous signup now shares the auth limiter with login/
 | Brute-force throttling at the edge | ✓ | Endpoint has RequireRateLimiting("auth") per-IP — LoginEndpoint.cs:22; proven by PlatformContractTests.Login_endpoint_uses_the_auth_rate_limit_policy. |
 | Concurrent failed logins racing the counter | ◐ | Counter increment is a tracked SaveChanges (xmin + ConcurrencyRetryBehavior), but parallel failures could under-count strikes; no test exercises this race. Low severity (lockout still eventually trips). |
 
-**Testy:** AccountLockoutTests.Locks_out_after_threshold_failures_and_rejects_correct_credentials; AccountLockoutTests.Lockout_expires_after_the_window_and_the_correct_password_works_again; AccountLockoutTests.A_successful_login_resets_the_failed_attempt_counter; PlatformContractTests.Login_endpoint_uses_the_auth_rate_limit_policy; IdentityE2ETests login leg; PiiColumnEncryptionTests erased-login-fails leg
-**Test gaps:** No test directly asserting timing-equalization / no-enumeration (unknown vs known email response shape parity); No concurrency test on the failed-attempt counter under parallel wrong-password logins
+**Testy:** AuthRobustnessTests.Unknown_email_and_wrong_password_return_identical_401_invalid_credentials; AccountLockoutTests.Locks_out_after_threshold_failures_and_rejects_correct_credentials; AccountLockoutTests.Lockout_expires_after_the_window_and_the_correct_password_works_again; AccountLockoutTests.A_successful_login_resets_the_failed_attempt_counter; PlatformContractTests.Login_endpoint_uses_the_auth_rate_limit_policy; IdentityE2ETests login leg; PiiColumnEncryptionTests erased-login-fails leg
+**Test gaps:** No concurrency test on the failed-attempt counter under parallel wrong-password logins
 
-_Strong: dummy-hash timing equalization + hasRealHash gate is the right pattern; erased accounts can't authenticate by construction._
+_Strong: dummy-hash timing equalization + hasRealHash gate is the right pattern; erased accounts can't authenticate by construction; known-wrong vs unknown-email response parity is pinned directly._
 
 ### Refresh-token rotation + reuse detection — ✅ correct
 *Rotate refresh tokens one-time-use, and on replay of a consumed token revoke the entire family (theft response).*
