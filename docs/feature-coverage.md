@@ -604,8 +604,8 @@ _The strongest-covered feature: happy path, unpaid gate, async settlement, aband
 | Webhook rate-limited / burst on retry | ✓ | .DisableRateLimiting() so Stripe is never 429'd (cs:94) |
 | Row persisted but message not enqueued window | ✓ | SaveChangesAndFlushMessagesAsync commits row + envelope atomically (cs:72-76) |
 
-**Testy:** StripeWebhookTests.Valid_signed_event_is_accepted_and_enqueues_durable_ledger_work; StripeWebhookTests.Redelivering_the_same_signed_event_is_exactly_once; StripeWebhookTests.A_non_unique_persist_failure_is_not_acked_so_stripe_will_retry; StripeWebhookTests.Bad_signature_is_rejected_and_nothing_is_persisted
-**Test gaps:** No production-config test that a wrong/non-empty WebhookSecret rejects a body signed with the empty key (the test host uses an empty secret by design)
+**Testy:** StripeWebhookTests.Valid_signed_event_is_accepted_and_enqueues_durable_ledger_work; StripeWebhookTests.Redelivering_the_same_signed_event_is_exactly_once; StripeWebhookTests.A_non_unique_persist_failure_is_not_acked_so_stripe_will_retry; StripeWebhookTests.Bad_signature_is_rejected_and_nothing_is_persisted; StripeWebhookTests.Non_empty_webhook_secret_rejects_a_body_signed_with_the_default_empty_secret
+**Test gaps:** No remaining focused Stripe webhook ingest gap in this slice.
 
 _Ingest invariants (200/row/enqueue/exactly-once/500-on-non-unique/400-on-bad-sig) are all tested deterministically. The empty-secret test caveat is documented in the test class header._
 
