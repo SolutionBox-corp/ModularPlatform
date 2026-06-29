@@ -31,9 +31,9 @@ export interface Contact {
 
 export interface ContactsPage {
   items: ContactListItem[];
-  total: number;
-  limit: number;
-  offset: number;
+  page: number;
+  pageSize: number;
+  totalCount: number;
 }
 
 export interface Interaction {
@@ -60,9 +60,16 @@ export interface Meeting {
 
 export interface MeetingsPage {
   items: Meeting[];
-  total: number;
-  limit: number;
-  offset: number;
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}
+
+export interface InteractionsPage {
+  items: Interaction[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
 }
 
 export const CONTACT_STATUSES = ["lead", "active", "customer", "archived"] as const;
@@ -89,10 +96,6 @@ export interface MeetingsParams {
   to?: string;
 }
 
-function pageToOffset(page: number | undefined, pageSize: number): number {
-  return Math.max(0, ((page ?? 1) - 1) * pageSize);
-}
-
 export const crmQueries = {
   contacts: (params: ContactsParams = {}) => {
     const pageSize = params.pageSize ?? 20;
@@ -100,8 +103,8 @@ export const crmQueries = {
       queryKey: [...queryRoots.crm, "contacts", params],
       queryFn: () => {
         const sp = new URLSearchParams();
-        sp.set("limit", String(pageSize));
-        sp.set("offset", String(pageToOffset(params.page, pageSize)));
+        sp.set("page", String(params.page ?? 1));
+        sp.set("pageSize", String(pageSize));
         if (params.status) sp.set("status", params.status);
         if (params.company) sp.set("company", params.company);
         if (params.email) sp.set("email", params.email);
@@ -121,7 +124,7 @@ export const crmQueries = {
   interactions: (contactId: string) =>
     queryOptions({
       queryKey: [...queryRoots.crm, "interactions", contactId],
-      queryFn: () => apiFetch<Interaction[]>(`crm/contacts/${contactId}/interactions`),
+      queryFn: () => apiFetch<InteractionsPage>(`crm/contacts/${contactId}/interactions`),
       enabled: contactId.length > 0,
     }),
 
@@ -131,8 +134,8 @@ export const crmQueries = {
       queryKey: [...queryRoots.crm, "meetings", params],
       queryFn: () => {
         const sp = new URLSearchParams();
-        sp.set("limit", String(pageSize));
-        sp.set("offset", String(pageToOffset(params.page, pageSize)));
+        sp.set("page", String(params.page ?? 1));
+        sp.set("pageSize", String(pageSize));
         if (params.status) sp.set("status", params.status);
         if (params.contactId) sp.set("contactId", params.contactId);
         if (params.from) sp.set("from", params.from);

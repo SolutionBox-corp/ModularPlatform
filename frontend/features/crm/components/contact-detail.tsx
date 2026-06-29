@@ -98,13 +98,13 @@ function Timeline({ contactId }: { contactId: string }) {
     return <Skeleton className="h-20 w-full" />;
   }
 
-  if (!data || data.length === 0) {
+  if (!data || data.items.length === 0) {
     return <p className="text-sm text-muted-foreground">{t("timeline.empty")}</p>;
   }
 
   return (
     <ul className="space-y-3">
-      {data.map((i: Interaction) => {
+      {data.items.map((i: Interaction) => {
         const Icon = TYPE_ICON[i.type] ?? StickyNoteIcon;
         return (
           <li key={i.id} className="flex gap-3">

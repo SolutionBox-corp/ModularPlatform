@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using ModularPlatform.Abstractions;
 using ModularPlatform.Persistence.Entities;
 
 namespace ModularPlatform.Crm.Entities;
@@ -7,10 +8,10 @@ namespace ModularPlatform.Crm.Entities;
 /// <summary>
 /// A logged interaction with a <see cref="Contact"/> ("called him on…", "sent a follow-up", a note). Owned by the
 /// user (per-user RLS) and tenant-scoped. References its contact by Id (no navigation, no cross-table JOIN beyond
-/// this module). <see cref="Body"/> is free text kept as a plain column (a CRM activity log the user reads back);
-/// it is scrubbed by the CRM eraser on GDPR erasure.
+/// this module). <see cref="Body"/> is free text kept as a plain column (a CRM activity log the user reads back) but
+/// [PersonalData] so the audited value crypto-shreds under the user's DEK; the eraser scrubs the live row.
 /// </summary>
-internal sealed class ContactInteraction : AuditableEntity, ITenantScoped, IUserOwned
+internal sealed class ContactInteraction : AuditableEntity, ITenantScoped, IUserOwned, IDataSubject
 {
     public Guid UserId { get; set; }
     public Guid ContactId { get; set; }
@@ -19,7 +20,11 @@ internal sealed class ContactInteraction : AuditableEntity, ITenantScoped, IUser
     public string Type { get; set; } = InteractionTypes.Note;
 
     public DateTimeOffset OccurredAt { get; set; }
+
+    [PersonalData]
     public string? Body { get; set; }
+
+    Guid IDataSubject.SubjectId => UserId;
 }
 
 /// <summary>The allowed <see cref="ContactInteraction.Type"/> values.</summary>

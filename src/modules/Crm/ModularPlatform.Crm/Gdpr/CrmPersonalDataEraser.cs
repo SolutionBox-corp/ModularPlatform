@@ -29,6 +29,8 @@ internal sealed class CrmPersonalDataEraser(CrmDbContext db, IClock clock) : IEr
                     .SetProperty(c => c.Email, (string?)null)
                     .SetProperty(c => c.EmailHash, (string?)null)
                     .SetProperty(c => c.Phone, (string?)null)
+                    .SetProperty(c => c.Company, (string?)null)
+                    .SetProperty(c => c.Position, (string?)null)
                     .SetProperty(c => c.Notes, (string?)null)
                     .SetProperty(c => c.DeletedAt, c => c.DeletedAt ?? now),
                 ct);

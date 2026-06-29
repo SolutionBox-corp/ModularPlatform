@@ -40,8 +40,8 @@ internal sealed class TenantProvisioning(IDbContextOutbox<TenancyDbContext> outb
 
         db.Tenants.Add(tenant);
 
-        // Fresh tenants get only the default product modules; future modules such as CRM stay off until an admin grants
-        // their key explicitly.
+        // Fresh tenants are entitled to the default product modules (CRM is default-on so self-serve registration
+        // lands on a working CRM); an admin can later disable any key per tenant.
         foreach (var moduleKey in ProductModuleKeys.DefaultEntitled)
         {
             db.TenantEntitlements.Add(new TenantEntitlement

@@ -1,16 +1,17 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using ModularPlatform.Abstractions;
 using ModularPlatform.Persistence.Entities;
 
 namespace ModularPlatform.Crm.Entities;
 
 /// <summary>
 /// A scheduled (or held) meeting owned by a user (per-user RLS), tenant-scoped, soft-deletable. May reference a
-/// <see cref="Contact"/> by Id (optional — a meeting can stand alone). Meeting metadata (title/location/notes/
-/// outcome) is kept as plain columns — a user's own scheduling data — and is scrubbed by the CRM eraser on GDPR
-/// erasure. Lifecycle is a text <see cref="Status"/>: planned → done | canceled | no_show.
+/// <see cref="Contact"/> by Id (optional — a meeting can stand alone). Meeting metadata (location/notes/outcome) is
+/// plain text but [PersonalData] so audited values crypto-shred under the user's DEK; the eraser scrubs the live
+/// row. Lifecycle is a text <see cref="Status"/>: planned → done | canceled | no_show.
 /// </summary>
-internal sealed class Meeting : AuditableEntity, ITenantScoped, IUserOwned, ISoftDeletable
+internal sealed class Meeting : AuditableEntity, ITenantScoped, IUserOwned, ISoftDeletable, IDataSubject
 {
     public Guid UserId { get; set; }
     public Guid? ContactId { get; set; }
@@ -18,11 +19,19 @@ internal sealed class Meeting : AuditableEntity, ITenantScoped, IUserOwned, ISof
     public string Title { get; set; } = string.Empty;
     public DateTimeOffset ScheduledAt { get; set; }
     public int DurationMinutes { get; set; }
+
+    [PersonalData]
     public string? Location { get; set; }
+
+    [PersonalData]
     public string? Notes { get; set; }
 
     public string Status { get; set; } = MeetingStatuses.Planned;
+
+    [PersonalData]
     public string? Outcome { get; set; }
+
+    Guid IDataSubject.SubjectId => UserId;
 
     public DateTimeOffset? DeletedAt { get; set; }
 }

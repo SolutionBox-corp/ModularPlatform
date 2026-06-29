@@ -36,7 +36,7 @@ public sealed class EntitlementsTests(PlatformApiFactory fixture)
         enabled.ShouldContain("files");
         enabled.ShouldContain("operations");
         enabled.ShouldContain("gdpr");
-        enabled.ShouldNotContain("crm");
+        enabled.ShouldContain("crm");
     }
 
     [Fact]

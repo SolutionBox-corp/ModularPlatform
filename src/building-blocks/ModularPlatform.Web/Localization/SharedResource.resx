@@ -171,4 +171,5 @@
   <data name="crm.meeting.location.too_long" xml:space="preserve"><value>The meeting location is too long.</value></data>
   <data name="crm.meeting.notes.too_long" xml:space="preserve"><value>The meeting notes are too long.</value></data>
   <data name="crm.meeting.outcome.too_long" xml:space="preserve"><value>The meeting outcome is too long.</value></data>
+  <data name="crm.meeting.invalid_transition" xml:space="preserve"><value>The meeting cannot change to that state.</value></data>
 </root>

@@ -171,4 +171,5 @@
   <data name="crm.meeting.location.too_long" xml:space="preserve"><value>Místo schůzky je příliš dlouhé.</value></data>
   <data name="crm.meeting.notes.too_long" xml:space="preserve"><value>Poznámky ke schůzce jsou příliš dlouhé.</value></data>
   <data name="crm.meeting.outcome.too_long" xml:space="preserve"><value>Výsledek schůzky je příliš dlouhý.</value></data>
+  <data name="crm.meeting.invalid_transition" xml:space="preserve"><value>Schůzku nelze převést do tohoto stavu.</value></data>
 </root>

@@ -13,9 +13,3 @@ public sealed record MeetingResponse(
     string? Outcome,
     DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt);
-
-public sealed record MeetingsPageResponse(
-    IReadOnlyList<MeetingResponse> Items,
-    int Total,
-    int Limit,
-    int Offset);

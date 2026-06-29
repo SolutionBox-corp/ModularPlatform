@@ -133,7 +133,7 @@ export function ContactsTable() {
         data={data?.items}
         rowKey={(row) => row.id}
         isLoading={isLoading}
-        total={data?.total}
+        total={data?.totalCount}
         page={page}
         pageSize={PAGE_SIZE}
         onPageChange={setPage}

@@ -17,8 +17,8 @@ internal static class ListMeetingsEndpoint
                 DateTimeOffset? to,
                 Guid? contactId,
                 string? status,
-                int? limit,
-                int? offset,
+                int? page,
+                int? pageSize,
                 ITenantContext tenant,
                 IDispatcher dispatcher,
                 CancellationToken ct) =>
@@ -26,8 +26,8 @@ internal static class ListMeetingsEndpoint
                 var userId = tenant.UserId
                     ?? throw new UnauthorizedException("auth.required", "Authentication required.");
                 var result = await dispatcher.Query(
-                    new ListMeetingsQuery(userId, from, to, contactId, status, limit ?? 50, offset ?? 0), ct);
-                return Results.Ok(ApiResponse<MeetingsPageResponse>.Ok(result));
+                    new ListMeetingsQuery(userId, from, to, contactId, status, page, pageSize), ct);
+                return Results.Ok(ApiResponse<PagedResponse<MeetingResponse>>.Ok(result));
             })
             .RequireAuthorization()
             .RequireModule("crm")

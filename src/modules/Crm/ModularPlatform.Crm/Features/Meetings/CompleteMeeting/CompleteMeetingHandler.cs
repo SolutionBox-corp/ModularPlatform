@@ -18,6 +18,19 @@ internal sealed class CompleteMeetingHandler(CrmDbContext db)
             .FirstOrDefaultAsync(m => m.Id == command.MeetingId && m.UserId == command.UserId, ct)
             ?? throw new NotFoundException("crm.meeting_not_found", "Meeting not found.");
 
+        // Idempotent: a double-click or a ConcurrencyRetryBehavior re-run after an xmin conflict must not append a
+        // second timeline interaction. Already-done is a no-op; a canceled/no-show meeting can't be completed.
+        if (meeting.Status == MeetingStatuses.Done)
+        {
+            return Unit.Value;
+        }
+
+        if (meeting.Status != MeetingStatuses.Planned)
+        {
+            throw new BusinessRuleException(
+                "crm.meeting.invalid_transition", "Only a planned meeting can be completed.");
+        }
+
         var outcome = string.IsNullOrWhiteSpace(command.Outcome) ? null : command.Outcome;
         meeting.Status = MeetingStatuses.Done;
         meeting.Outcome = outcome;

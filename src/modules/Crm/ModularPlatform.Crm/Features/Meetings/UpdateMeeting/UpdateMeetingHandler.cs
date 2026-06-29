@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ModularPlatform.Cqrs;
+using ModularPlatform.Crm.Entities;
 using ModularPlatform.Crm.Features.Meetings;
 using ModularPlatform.Crm.Persistence;
 
@@ -14,6 +15,12 @@ internal sealed class UpdateMeetingHandler(CrmDbContext db)
         var meeting = await db.Meetings
             .FirstOrDefaultAsync(m => m.Id == command.MeetingId && m.UserId == command.UserId, ct)
             ?? throw new NotFoundException("crm.meeting_not_found", "Meeting not found.");
+
+        if (meeting.Status != MeetingStatuses.Planned)
+        {
+            throw new BusinessRuleException(
+                "crm.meeting.invalid_transition", "Only a planned meeting can be rescheduled.");
+        }
 
         meeting.Title = command.Title.Trim();
         meeting.ScheduledAt = command.ScheduledAt.ToUniversalTime();

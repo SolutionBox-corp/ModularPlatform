@@ -63,18 +63,18 @@ public sealed class CrmContactsTests(PlatformApiFactory fixture)
         var byStatus = await fixture.Client.SendAsync(
             fixture.Authed(HttpMethod.Get, "/v1/crm/contacts?status=customer", token));
         var statusData = await PlatformApiFactory.ReadData(byStatus);
-        statusData.GetProperty("total").GetInt32().ShouldBe(1);
+        statusData.GetProperty("totalCount").GetInt32().ShouldBe(1);
         statusData.GetProperty("items")[0].GetProperty("fullName").GetString().ShouldBe("Customer One");
 
         // Filter by exact e-mail (blind index).
         var byEmail = await fixture.Client.SendAsync(
             fixture.Authed(HttpMethod.Get, $"/v1/crm/contacts?email={Uri.EscapeDataString(targetEmail)}", token));
-        (await PlatformApiFactory.ReadData(byEmail)).GetProperty("total").GetInt32().ShouldBe(1);
+        (await PlatformApiFactory.ReadData(byEmail)).GetProperty("totalCount").GetInt32().ShouldBe(1);
 
         // A different user sees none of the above contacts.
         var (_, otherToken) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
         var otherList = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Get, "/v1/crm/contacts", otherToken));
-        (await PlatformApiFactory.ReadData(otherList)).GetProperty("total").GetInt32().ShouldBe(0);
+        (await PlatformApiFactory.ReadData(otherList)).GetProperty("totalCount").GetInt32().ShouldBe(0);
     }
 
     [Fact]
@@ -140,9 +140,30 @@ public sealed class CrmContactsTests(PlatformApiFactory fixture)
 
         var list = await fixture.Client.SendAsync(
             fixture.Authed(HttpMethod.Get, $"/v1/crm/contacts/{id}/interactions", token));
-        var items = (await PlatformApiFactory.ReadData(list)).EnumerateArray().ToList();
+        var items = (await PlatformApiFactory.ReadData(list)).GetProperty("items").EnumerateArray().ToList();
         items.Count.ShouldBe(2);
         items[0].GetProperty("type").GetString().ShouldBe("note"); // newest first
+    }
+
+    [Fact]
+    public async Task Patch_is_partial_and_does_not_reset_status_or_wipe_fields()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
+        var id = await CreateContactAsync(token, new
+        {
+            fullName = "Keep Me", company = "Acme", status = "customer", tags = new[] { "vip" },
+        });
+
+        // Send ONLY a notes change — status/company/tags must survive (no full-replace, no silent reset to lead).
+        var patch = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Patch, $"/v1/crm/contacts/{id}", token,
+            new { notes = "called twice" }));
+        patch.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var data = await PlatformApiFactory.ReadData(patch);
+        data.GetProperty("status").GetString().ShouldBe("customer");
+        data.GetProperty("company").GetString().ShouldBe("Acme");
+        data.GetProperty("fullName").GetString().ShouldBe("Keep Me");
+        data.GetProperty("notes").GetString().ShouldBe("called twice");
+        data.GetProperty("tags").EnumerateArray().Select(t => t.GetString()).ShouldBe(["vip"]);
     }
 
     [Fact]

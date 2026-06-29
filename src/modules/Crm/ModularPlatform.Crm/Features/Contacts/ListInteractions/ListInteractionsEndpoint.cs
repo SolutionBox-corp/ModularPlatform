@@ -14,15 +14,16 @@ internal static class ListInteractionsEndpoint
     {
         app.MapGet("/crm/contacts/{contactId:guid}/interactions", async (
                 Guid contactId,
-                int? limit,
+                int? page,
+                int? pageSize,
                 ITenantContext tenant,
                 IDispatcher dispatcher,
                 CancellationToken ct) =>
             {
                 var userId = tenant.UserId
                     ?? throw new UnauthorizedException("auth.required", "Authentication required.");
-                var result = await dispatcher.Query(new ListInteractionsQuery(userId, contactId, limit ?? 100), ct);
-                return Results.Ok(ApiResponse<IReadOnlyList<InteractionResponse>>.Ok(result));
+                var result = await dispatcher.Query(new ListInteractionsQuery(userId, contactId, page, pageSize), ct);
+                return Results.Ok(ApiResponse<PagedResponse<InteractionResponse>>.Ok(result));
             })
             .RequireAuthorization()
             .RequireModule("crm")

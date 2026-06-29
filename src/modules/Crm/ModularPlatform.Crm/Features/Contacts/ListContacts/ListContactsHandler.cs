@@ -11,14 +11,13 @@ namespace ModularPlatform.Crm.Features.Contacts.ListContacts;
 internal sealed class ListContactsHandler(
     IReadDbContextFactory<CrmDbContext> readFactory,
     IBlindIndexHasher blindIndex)
-    : IQueryHandler<ListContactsQuery, ContactsPageResponse>
+    : IQueryHandler<ListContactsQuery, PagedResponse<ContactListItem>>
 {
-    public async Task<ContactsPageResponse> Handle(ListContactsQuery query, CancellationToken ct)
+    public async Task<PagedResponse<ContactListItem>> Handle(ListContactsQuery query, CancellationToken ct)
     {
         await using var db = readFactory.Create();
 
-        var limit = Math.Clamp(query.Limit, 1, 200);
-        var offset = Math.Max(query.Offset, 0);
+        var paging = new PageRequest(query.Page, query.PageSize);
 
         var filtered = db.Contacts.Where(c => c.UserId == query.UserId);
 
@@ -44,11 +43,11 @@ internal sealed class ListContactsHandler(
 
         var items = await filtered
             .OrderByDescending(c => c.CreatedAt)
-            .Skip(offset)
-            .Take(limit)
+            .Skip(paging.Skip)
+            .Take(paging.PageSize)
             .Select(c => new ContactListItem(c.Id, c.FullName, c.Email, c.Company, c.Status, c.CreatedAt))
             .ToListAsync(ct);
 
-        return new ContactsPageResponse(items, total, limit, offset);
+        return new PagedResponse<ContactListItem>(items, paging.Page, paging.PageSize, total);
     }
 }

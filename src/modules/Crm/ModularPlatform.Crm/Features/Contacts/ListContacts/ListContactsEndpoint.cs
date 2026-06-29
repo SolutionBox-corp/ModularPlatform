@@ -16,8 +16,8 @@ internal static class ListContactsEndpoint
                 string? status,
                 string? company,
                 string? email,
-                int? limit,
-                int? offset,
+                int? page,
+                int? pageSize,
                 ITenantContext tenant,
                 IDispatcher dispatcher,
                 CancellationToken ct) =>
@@ -25,8 +25,8 @@ internal static class ListContactsEndpoint
                 var userId = tenant.UserId
                     ?? throw new UnauthorizedException("auth.required", "Authentication required.");
                 var result = await dispatcher.Query(
-                    new ListContactsQuery(userId, status, company, email, limit ?? 50, offset ?? 0), ct);
-                return Results.Ok(ApiResponse<ContactsPageResponse>.Ok(result));
+                    new ListContactsQuery(userId, status, company, email, page, pageSize), ct);
+                return Results.Ok(ApiResponse<PagedResponse<ContactListItem>>.Ok(result));
             })
             .RequireAuthorization()
             .RequireModule("crm")

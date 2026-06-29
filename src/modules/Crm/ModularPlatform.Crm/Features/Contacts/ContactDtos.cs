@@ -22,12 +22,6 @@ public sealed record ContactListItem(
     string Status,
     DateTimeOffset CreatedAt);
 
-public sealed record ContactsPageResponse(
-    IReadOnlyList<ContactListItem> Items,
-    int Total,
-    int Limit,
-    int Offset);
-
 public sealed record InteractionResponse(
     Guid Id,
     Guid ContactId,

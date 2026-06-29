@@ -6,12 +6,14 @@ using ModularPlatform.Persistence.Entities;
 namespace ModularPlatform.Crm.Entities;
 
 /// <summary>
-/// A CRM contact owned by a platform user (tenant-scoped + per-user RLS). The contact is its OWN data subject:
-/// its name/e-mail/phone are crypto-shredded under its own DEK both in the audit trail ([PersonalData]) and AT
-/// REST ([Encrypted] — sealed on save, decrypted on read). Lookups by e-mail go through <see cref="EmailHash"/>,
-/// the keyed blind index over the normalized address (an HMAC is not reversible, so the hash is not personal data).
-/// Company/Position are kept as plain columns so the list can be filtered on them (encrypted columns can't be
-/// queried by value); they are lower-sensitivity business attributes. Notes is free text scrubbed on erasure.
+/// A CRM contact owned by a platform user (tenant-scoped + per-user RLS). The OWNING USER is the data subject
+/// (<see cref="IDataSubject.SubjectId"/> => <see cref="UserId"/>, mirroring <c>Notification</c>): its name/e-mail/
+/// phone are crypto-shredded under the user's DEK both in the audit trail ([PersonalData]) and AT REST ([Encrypted]
+/// — sealed on save, decrypted on read), so the existing user-erasure DEK shred renders the third-party PII (in the
+/// live row and the audit trail) unrecoverable. Lookups by e-mail go through <see cref="EmailHash"/>, the keyed
+/// blind index over the normalized address (an HMAC is not reversible, so the hash is not personal data).
+/// Company/Position/Notes are plain text (so the list can filter on them) but [PersonalData] so audit values are
+/// shreddable; the eraser scrubs the live row.
 /// </summary>
 internal sealed class Contact : AuditableEntity, ITenantScoped, IUserOwned, ISoftDeletable, IDataSubject
 {
@@ -32,15 +34,21 @@ internal sealed class Contact : AuditableEntity, ITenantScoped, IUserOwned, ISof
     [Encrypted]
     public string? Phone { get; set; }
 
+    [PersonalData]
     public string? Company { get; set; }
+
+    [PersonalData]
     public string? Position { get; set; }
+
+    [PersonalData]
     public string? Notes { get; set; }
+
     public string[] Tags { get; set; } = [];
 
     /// <summary>Lifecycle bucket: lead | active | customer | archived. Validated at the edge; stored as text.</summary>
     public string Status { get; set; } = ContactStatuses.Lead;
 
-    Guid IDataSubject.SubjectId => Id;
+    Guid IDataSubject.SubjectId => UserId;
 
     public DateTimeOffset? DeletedAt { get; set; }
 }
@@ -75,6 +83,7 @@ internal sealed class ContactConfiguration : IEntityTypeConfiguration<Contact>
         builder.Property(c => c.Status).HasMaxLength(32).IsRequired();
 
         builder.HasIndex(c => new { c.UserId, c.Status });
+        builder.HasIndex(c => new { c.UserId, c.CreatedAt });
         builder.HasIndex(c => c.EmailHash);
     }
 }

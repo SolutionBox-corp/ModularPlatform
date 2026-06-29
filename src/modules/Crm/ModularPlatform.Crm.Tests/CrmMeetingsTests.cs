@@ -90,7 +90,7 @@ public sealed class CrmMeetingsTests(PlatformApiFactory fixture)
         await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Post, $"/v1/crm/meetings/{later}/cancel", token));
         var planned = await fixture.Client.SendAsync(
             fixture.Authed(HttpMethod.Get, "/v1/crm/meetings?status=planned", token));
-        (await PlatformApiFactory.ReadData(planned)).GetProperty("total").GetInt32().ShouldBe(1);
+        (await PlatformApiFactory.ReadData(planned)).GetProperty("totalCount").GetInt32().ShouldBe(1);
     }
 
     [Fact]
@@ -132,8 +132,32 @@ public sealed class CrmMeetingsTests(PlatformApiFactory fixture)
         // The completion shows up on the contact's interaction timeline.
         var timeline = await fixture.Client.SendAsync(
             fixture.Authed(HttpMethod.Get, $"/v1/crm/contacts/{contactId}/interactions", token));
-        var interactions = (await PlatformApiFactory.ReadData(timeline)).EnumerateArray().ToList();
+        var interactions = (await PlatformApiFactory.ReadData(timeline)).GetProperty("items").EnumerateArray().ToList();
         interactions.ShouldContain(i => i.GetProperty("type").GetString() == "meeting");
+
+        // Idempotent: a second complete (double-click / retry) must NOT add a second timeline row.
+        var again = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, $"/v1/crm/meetings/{id}/complete", token, new { outcome = "dup" }));
+        again.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        var timeline2 = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, $"/v1/crm/contacts/{contactId}/interactions", token));
+        var count = (await PlatformApiFactory.ReadData(timeline2)).GetProperty("items").EnumerateArray()
+            .Count(i => i.GetProperty("type").GetString() == "meeting");
+        count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Cancelling_a_completed_meeting_is_rejected()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
+        var id = await CreateMeetingAsync(token, new
+        {
+            title = "Done", scheduledAt = DateTimeOffset.UtcNow.AddDays(1), durationMinutes = 30,
+        });
+        await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Post, $"/v1/crm/meetings/{id}/complete", token, new { outcome = (string?)null }));
+
+        var cancel = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Post, $"/v1/crm/meetings/{id}/cancel", token));
+        cancel.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
     }
 
     [Fact]

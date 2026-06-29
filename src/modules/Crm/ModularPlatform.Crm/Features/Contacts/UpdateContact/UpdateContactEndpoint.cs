@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using ModularPlatform.Abstractions;
-using ModularPlatform.Crm.Entities;
 using ModularPlatform.Crm.Features.Contacts;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Web;
@@ -26,14 +25,14 @@ internal static class UpdateContactEndpoint
                     new UpdateContactCommand(
                         userId,
                         contactId,
-                        request.FullName ?? string.Empty,
+                        request.FullName,
                         request.Email,
                         request.Phone,
                         request.Company,
                         request.Position,
                         request.Notes,
-                        request.Tags ?? [],
-                        string.IsNullOrWhiteSpace(request.Status) ? ContactStatuses.Lead : request.Status.Trim().ToLowerInvariant()),
+                        request.Tags,
+                        request.Status is null ? null : request.Status.Trim().ToLowerInvariant()),
                     ct);
                 return Results.Ok(ApiResponse<ContactResponse>.Ok(result));
             })
