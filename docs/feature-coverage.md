@@ -978,16 +978,16 @@ _Solid identity-from-token + idempotent design; owner scoping, unread filtering,
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
-| Template not seeded in a fresh deploy | ✓ | Both handlers catch NotFoundException and LogWarning instead of dead-lettering (SendWelcomeHandler.cs:30-34, SendPurchaseCompletedHandler.cs:33-39) — a missing seed must not poison the inbox. |
-| Duplicate delivery of the integration event | ✓ | Wolverine inbox dedups by MessageId (automatic for durable handlers); handlers are public shells dispatching an internal command (CLAUDE.md cross-module setup). Handlers registered explicitly via Discovery.IncludeType (NotificationsModule.cs:63-66). |
+| Template not seeded in a fresh deploy | ✓ | Both handlers catch NotFoundException and LogWarning instead of dead-lettering (SendWelcomeHandler.cs:30-34, SendPurchaseCompletedHandler.cs:33-39). Proven by Welcome_handler_tolerates_missing_template_and_deduplicates_retries and Purchase_completed_handler_is_idempotent_and_missing_template_is_non_fatal. |
+| Duplicate delivery of the integration event | ✓ | Wolverine inbox dedups by MessageId; handler-level idempotency keys also collapse direct duplicate/retry calls to one row. Proven by Welcome_handler_tolerates_missing_template_and_deduplicates_retries and Purchase_completed_handler_is_idempotent_and_missing_template_is_non_fatal. |
 | DisplayName null on UserRegistered | ✓ | SendWelcomeHandler.cs:22 coalesces message.DisplayName ?? message.Email for the {displayName} placeholder. |
 | Welcome cross-user send is rejected by RLS | ✓ | These run in the Worker under the SYSTEM context (no per-user RLS principal), so they legitimately write a row for another user's id — unlike the HTTP path. Documented in the test's AdminTokenAsync rationale (NotificationsIntegrationTests.cs:246-258). |
 | A non-NotFound exception (e.g. DB outage) during dispatch | ✓ | Only NotFoundException is swallowed; any other exception propagates to Wolverine retry/dead-letter — correct (don't silently drop real failures). |
 
-**Testy:** NotificationsIntegrationTests.Register_creates_welcome_notification_after_seeder_has_seeded_the_template (EV-2); NotificationsIntegrationTests.CreditPurchaseCompleted_event_creates_purchase_completed_notification
-**Test gaps:** No test that a MISSING welcome/purchase template makes the handler log-and-skip WITHOUT dead-lettering (the resilience path the doc-comments emphasize is only asserted at the SendNotification HTTP layer, not through the actual cross-module handler); No test asserting inbox dedup (same event published twice -> exactly one notification row)
+**Testy:** NotificationsIntegrationTests.Register_creates_welcome_notification_after_seeder_has_seeded_the_template (EV-2); NotificationsIntegrationTests.Welcome_handler_tolerates_missing_template_and_deduplicates_retries; NotificationsIntegrationTests.CreditPurchaseCompleted_event_creates_purchase_completed_notification; NotificationsIntegrationTests.Purchase_completed_handler_is_idempotent_and_missing_template_is_non_fatal
+**Test gaps:** No remaining focused cross-module notification reaction-handler gap in this slice.
 
-_The non-fatal-missing-template behavior is the most safety-critical path here and is only indirectly tested._
+_The non-fatal-missing-template and retry/idempotency behavior is now pinned directly for both reaction handlers._
 
 ### Realtime fan-out (publisher + Redis + registry) — ✅ correct
 *Deliver an after-commit event to whichever Api instance holds the user's SSE connection, via Redis pub/sub or a local fallback.*
