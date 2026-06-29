@@ -1,6 +1,10 @@
+using System.Reflection;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using ModularPlatform.Jobs;
 using Shouldly;
 using Wolverine.Logging;
+using Wolverine.Persistence.Durability;
 
 namespace ModularPlatform.Jobs.Tests;
 
@@ -57,5 +61,72 @@ public sealed class MessagingHealthEvaluationTests
         result.OutgoingPending.ShouldBe(0);
         result.Warnings.ShouldHaveSingleItem();
         result.Warnings[0].ShouldContain("incoming-pending messages exceed stuck threshold 100");
+    }
+
+    [Fact]
+    public async Task Job_refreshes_all_platform_messaging_gauge_values_from_store_counts()
+    {
+        var counts = new PersistedCounts { Incoming = 11, Outgoing = 22, Scheduled = 999, DeadLetter = 3 };
+        var store = MessageStoreProxy.Create(counts);
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Messaging:StuckThreshold"] = "100",
+            })
+            .Build();
+
+        var jobType = typeof(JobsHostBuilder).Assembly
+            .GetType("ModularPlatform.Jobs.MessagingHealthJob", throwOnError: true)!;
+        var loggerType = typeof(NullLogger<>).MakeGenericType(jobType);
+        var logger = loggerType.GetField(nameof(NullLogger<object>.Instance))!.GetValue(null);
+        var job = Activator.CreateInstance(jobType, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public,
+            binder: null, args: [store, configuration, logger], culture: null)!;
+
+        var executeTask = (Task)jobType.GetMethod("Execute")!.Invoke(job, [null!])!;
+        await executeTask;
+
+        ReadStaticInt(jobType, "_latestDeadLetters").ShouldBe(3);
+        ReadStaticInt(jobType, "_latestIncomingPending").ShouldBe(11);
+        ReadStaticInt(jobType, "_latestOutgoingPending").ShouldBe(22);
+    }
+
+    private static int ReadStaticInt(Type type, string fieldName) =>
+        (int)type.GetField(fieldName, BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
+
+    private class MessageStoreProxy : DispatchProxy
+    {
+        private IMessageStoreAdmin _admin = null!;
+
+        public static IMessageStore Create(PersistedCounts counts)
+        {
+            var store = Create<IMessageStore, MessageStoreProxy>();
+            ((MessageStoreProxy)(object)store)._admin = AdminProxy.Create(counts);
+            return store;
+        }
+
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) =>
+            targetMethod?.Name switch
+            {
+                "get_Admin" => _admin,
+                "DisposeAsync" => ValueTask.CompletedTask,
+                _ => throw new NotSupportedException(targetMethod?.Name),
+            };
+    }
+
+    private class AdminProxy : DispatchProxy
+    {
+        private PersistedCounts _counts = null!;
+
+        public static IMessageStoreAdmin Create(PersistedCounts counts)
+        {
+            var admin = Create<IMessageStoreAdmin, AdminProxy>();
+            ((AdminProxy)(object)admin)._counts = counts;
+            return admin;
+        }
+
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) =>
+            targetMethod?.Name == nameof(IMessageStoreAdmin.FetchCountsAsync)
+                ? Task.FromResult(_counts)
+                : throw new NotSupportedException(targetMethod?.Name);
     }
 }

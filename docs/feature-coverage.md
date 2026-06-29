@@ -1528,14 +1528,14 @@ _Strong: the boot tests are an explicit regression guard for the A4 DI-graph con
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
-| Quartz defaults cron to host local timezone (violates Law #7 UTC) | ✓ | Health trigger uses InTimeZone(TimeZoneInfo.Utc) at JobsHostBuilder.cs:88 |
+| Quartz defaults cron to host local timezone (violates Law #7 UTC) | ✓ | Health trigger uses InTimeZone(TimeZoneInfo.Utc) at JobsHostBuilder.cs:88; pinned by JobsHostWiringTests.Platform_messaging_health_cron_uses_utc |
 | In-memory job store does not coordinate across instances | ◐ | Documented: run replica=1; every job idempotent so duplicate run is safe-but-wasteful (JobsHostBuilder.cs:69-74). NOT enforced — a misconfigured replica=2 silently double-runs; relies on operator discipline + per-job idempotency |
 | A throwing job is silent until next cron fire | ✓ | JobFailureListener registered for AnyGroup (Jobs Program.cs:9-11) → ERROR log + platform.jobs.failures counter (JobFailureListener.cs:38-43); direct listener path proven by JobFailureMetricsTests.JobWasExecuted_with_exception_logs_and_records_the_failed_job |
 | Graceful shutdown mid-job | ✓ | AddQuartzHostedService WaitForJobsToComplete=true (JobsHostBuilder.cs:90); pinned by JobsHostWiringTests.Jobs_host_waits_for_running_jobs_on_shutdown |
 | Concurrent execution of the health job within one scheduler | ✓ | [DisallowConcurrentExecution] on MessagingHealthJob (line 20); pinned by JobsHostWiringTests.Platform_messaging_health_job_disallows_concurrent_execution |
 
-**Testy:** JobFailureMetricsTests.Recording_a_failure_increments_the_platform_jobs_failures_counter; JobFailureMetricsTests.JobWasExecuted_with_exception_logs_and_records_the_failed_job; JobsHostWiringTests.Platform_messaging_health_job_disallows_concurrent_execution; JobsHostWiringTests.Jobs_host_waits_for_running_jobs_on_shutdown; Jobs_host_composes (HostBootTests)
-**Test gaps:** No test asserts the health trigger's cron is interpreted in UTC (the Law #7 fix)
+**Testy:** JobFailureMetricsTests.Recording_a_failure_increments_the_platform_jobs_failures_counter; JobFailureMetricsTests.JobWasExecuted_with_exception_logs_and_records_the_failed_job; JobsHostWiringTests.Platform_messaging_health_job_disallows_concurrent_execution; JobsHostWiringTests.Platform_messaging_health_cron_uses_utc; JobsHostWiringTests.Jobs_host_waits_for_running_jobs_on_shutdown; Jobs_host_composes (HostBootTests)
+**Test gaps:** No remaining focused Jobs host wiring gap in this slice.
 
 _Single-instance cross-instance coordination is a documented operational constraint, not a code-enforced one — acceptable given universal idempotency but worth noting._
 
@@ -1549,12 +1549,12 @@ _Single-instance cross-instance coordination is a documented operational constra
 | Watching Scheduled (saga timeouts) instead of Outgoing hides a stuck outbox and false-alarms | ✓ | Evaluate uses counts.Outgoing for outbox backlog, never Scheduled (MessagingHealthEvaluation.cs:40-44); root-caused in comment lines 10-14 |
 | Dead-letter threshold | ✓ | Any DeadLetter>0 warns (MessagingHealthEvaluation.cs:28-32) |
 | Incoming backlog threshold | ✓ | Incoming-pending branch warns independently from outgoing backlog; proven by MessagingHealthEvaluationTests.Incoming_pending_above_threshold_warns_separately_from_outgoing_backlog |
-| ObservableGauge pull model vs per-fire job instance | ✓ | Static gauges registered once at class load; job refreshes static backing fields via Interlocked.Exchange (MessagingHealthJob.cs:27-62) |
+| ObservableGauge pull model vs per-fire job instance | ✓ | Static gauges registered once at class load; job refreshes static backing fields via Interlocked.Exchange (MessagingHealthJob.cs:27-62); pinned by MessagingHealthEvaluationTests.Job_refreshes_all_platform_messaging_gauge_values_from_store_counts |
 | Queries Wolverine internal tables directly | ✓ | Always via IMessageStore.Admin.FetchCountsAsync (MessagingHealthJob.cs:54); documented constraint line 18 |
 | Warnings are LogWarning only — no paging/alert routing | ◐ | By design alerting belongs to infrastructure (CLAUDE.md); the WARN + gauge is the signal. A deployment with no OTel/log alerting wired would not be paged — operational gap, not a code gap |
 
-**Testy:** MessagingHealthEvaluationTests.A_stuck_outbox_is_reported_via_outgoing_not_scheduled; MessagingHealthEvaluationTests.Scheduled_messages_alone_do_not_raise_a_false_outbox_alarm; MessagingHealthEvaluationTests.Dead_letters_always_warn; MessagingHealthEvaluationTests.Incoming_pending_above_threshold_warns_separately_from_outgoing_backlog
-**Test gaps:** No test that the job itself wires evaluation results into the three gauges (the Interlocked refresh path is untested)
+**Testy:** MessagingHealthEvaluationTests.A_stuck_outbox_is_reported_via_outgoing_not_scheduled; MessagingHealthEvaluationTests.Scheduled_messages_alone_do_not_raise_a_false_outbox_alarm; MessagingHealthEvaluationTests.Dead_letters_always_warn; MessagingHealthEvaluationTests.Incoming_pending_above_threshold_warns_separately_from_outgoing_backlog; MessagingHealthEvaluationTests.Job_refreshes_all_platform_messaging_gauge_values_from_store_counts
+**Test gaps:** No remaining focused messaging-health job/evaluation gap in this slice.
 
 _Pure evaluation cleanly extracted and unit-tested; the Scheduled-vs-Outgoing bug fix is well-guarded._
 
