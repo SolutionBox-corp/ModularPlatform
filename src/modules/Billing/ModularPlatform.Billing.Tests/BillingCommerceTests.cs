@@ -172,6 +172,47 @@ public sealed class BillingCommerceTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Non_package_checkout_session_with_stray_credit_metadata_does_not_top_up()
+    {
+        var (userId, userToken) = await fixture.RegisterAndLoginAsync(
+            $"non-package-session-{Guid.CreateVersion7():N}@test.io", Password);
+        var eventId = $"evt_{Guid.CreateVersion7():N}";
+
+        Fake.SeedEvent(new Event
+        {
+            Id = eventId,
+            Type = "checkout.session.completed",
+            Data = new EventData
+            {
+                Object = new global::Stripe.Checkout.Session
+                {
+                    Id = $"cs_{Guid.CreateVersion7():N}",
+                    PaymentStatus = "paid",
+                    Metadata = new Dictionary<string, string>
+                    {
+                        ["purchase_type"] = "subscription",
+                        ["user_id"] = userId.ToString(),
+                        ["credit_amount"] = "777",
+                    },
+                },
+            },
+        });
+
+        (await PostSignedWebhookAsync(eventId, "checkout.session.completed")).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM stripe_events WHERE \"StripeEventId\" = '{eventId}' AND \"ProcessedAt\" IS NOT NULL", 1);
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_entries e JOIN credit_accounts a ON a.\"Id\" = e.\"AccountId\" " +
+            $"WHERE a.\"UserId\" = '{userId}' AND e.\"Type\" = 'Topup'")).ShouldBe(0);
+
+        var balance = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, "/v1/billing/credits/balance", userToken));
+        balance.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PlatformApiFactory.ReadData(balance)).GetProperty("available").GetInt64().ShouldBe(0);
+    }
+
+    [Fact]
     public async Task Unpaid_checkout_session_does_not_grant_credits()
     {
         var (purchaseId, providerPaymentId, tenantId) = await StartPackageCheckoutAsync(400, "price_test_unpaid");
