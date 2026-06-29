@@ -191,14 +191,14 @@ _Strong: dummy-hash timing equalization + hasRealHash gate is the right pattern;
 |---|:--:|---|
 | Unknown token hash | ✓ | FirstOrDefault null -> 401 auth.refresh_token_invalid — RefreshTokenHandler.cs:33-37 |
 | Replay of consumed token | ✓ | ConsumedAt!=null -> revoke whole family (tracked SaveChanges so it is audited) -> 401 reused — RefreshTokenHandler.cs:39-58; test Refresh_reuse_revokes_whole_family_and_is_audited |
-| Expired/revoked-but-not-consumed token | ✓ | IsActive(now) false -> 401 invalid — RefreshTokenHandler.cs:60-63; test Expired_refresh_token_is_rejected_as_invalid |
+| Expired/revoked-but-not-consumed token | ✓ | IsActive(now) false -> 401 invalid — RefreshTokenHandler.cs:60-63; tests Expired_refresh_token_is_rejected_as_invalid and Explicitly_revoked_refresh_token_is_rejected_as_invalid_not_reuse |
 | Token outliving a soft-deleted/erased account | ✓ | User loaded IgnoreQueryFilters; DeletedAt!=null -> 401 — RefreshTokenHandler.cs:65-75; test Refresh_is_rejected_when_the_account_is_soft_deleted |
 | Token outliving a hard-deleted/missing user | ✓ | FirstOrDefault (not First) -> null -> clean 401, not 500 — RefreshTokenHandler.cs:69-72 |
 | Parallel refresh of same token | ✓ | Exactly one 200, one 401, family ends fully revoked, no 5xx — proven by AuthRobustnessTests.Parallel_refresh_with_same_token_yields_one_winner_no_server_error (xmin serializes the consume) |
 | Claims snapshot staleness | ✓ | Roles/permissions reloaded each refresh via UserAuthorizationQuery — RefreshTokenHandler.cs:92 |
 
-**Testy:** IdentityE2ETests reuse-detection leg; AuthRobustnessTests.Refresh_reuse_revokes_whole_family_and_is_audited; AuthRobustnessTests.Parallel_refresh_with_same_token_yields_one_winner_no_server_error; AuthRobustnessTests.Expired_refresh_token_is_rejected_as_invalid; SessionRevocationTests.Refresh_is_rejected_when_the_account_is_soft_deleted; SessionRevocationTests.Erasure_revokes_all_of_the_subjects_refresh_tokens
-**Test gaps:** No test for refresh after explicit revoke of a single token via reuse on a different family member
+**Testy:** IdentityE2ETests reuse-detection leg; AuthRobustnessTests.Refresh_reuse_revokes_whole_family_and_is_audited; AuthRobustnessTests.Parallel_refresh_with_same_token_yields_one_winner_no_server_error; AuthRobustnessTests.Expired_refresh_token_is_rejected_as_invalid; AuthRobustnessTests.Explicitly_revoked_refresh_token_is_rejected_as_invalid_not_reuse; SessionRevocationTests.Refresh_is_rejected_when_the_account_is_soft_deleted; SessionRevocationTests.Erasure_revokes_all_of_the_subjects_refresh_tokens
+**Test gaps:** No remaining focused refresh-token rotation/reuse gap in this slice.
 
 _Security-critical slice is thorough; the deliberate tracked-SaveChanges (not ExecuteUpdate) for the family revoke so the AuditInterceptor + xmin engage is correct and tested._
 

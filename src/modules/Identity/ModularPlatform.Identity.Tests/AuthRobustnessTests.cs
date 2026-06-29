@@ -165,6 +165,30 @@ public sealed class AuthRobustnessTests(PlatformApiFactory fixture)
         (await ErrorCodeOf(refreshResponse)).ShouldBe("auth.refresh_token_invalid");
     }
 
+    [Fact]
+    public async Task Explicitly_revoked_refresh_token_is_rejected_as_invalid_not_reuse()
+    {
+        var email = $"revoked-{Guid.CreateVersion7():N}@example.com";
+        var (userId, originalRefresh) = await RegisterAndLoginForRefreshAsync(email);
+
+        var rotate = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/refresh",
+            new { refreshToken = originalRefresh });
+        rotate.EnsureSuccessStatusCode();
+        var replacementRefresh = (await PlatformApiFactory.ReadData(rotate))
+            .GetProperty("refreshToken")
+            .GetString()!;
+
+        await fixture.ExecuteSqlAsync(
+            $"UPDATE refresh_tokens SET \"RevokedAt\" = now() " +
+            $"WHERE \"UserId\" = '{userId}' AND \"ConsumedAt\" IS NULL AND \"RevokedAt\" IS NULL");
+
+        var refreshResponse = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/refresh",
+            new { refreshToken = replacementRefresh });
+
+        refreshResponse.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        (await ErrorCodeOf(refreshResponse)).ShouldBe("auth.refresh_token_invalid");
+    }
+
     /// <summary>Reads the RFC9457 problem+json "errorCode" field from an error response.</summary>
     private static async Task<string> ErrorCodeOf(HttpResponseMessage response)
     {
