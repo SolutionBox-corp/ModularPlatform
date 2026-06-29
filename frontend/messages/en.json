@@ -526,6 +526,14 @@
       "newPlaceholder": "Board name",
       "empty": "No boards yet.",
       "addCard": "Add card"
+    },
+    "tabs": {
+      "contacts": "Contacts",
+      "companies": "Companies",
+      "deals": "Deals",
+      "tasks": "Tasks",
+      "meetings": "Meetings",
+      "board": "Board"
     }
   },
   "files": {

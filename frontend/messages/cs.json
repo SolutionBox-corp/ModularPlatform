@@ -526,6 +526,14 @@
       "newPlaceholder": "Název nástěnky",
       "empty": "Zatím žádné nástěnky.",
       "addCard": "Přidat kartu"
+    },
+    "tabs": {
+      "contacts": "Kontakty",
+      "companies": "Firmy",
+      "deals": "Obchody",
+      "tasks": "Úkoly",
+      "meetings": "Schůzky",
+      "board": "Nástěnka"
     }
   },
   "files": {
