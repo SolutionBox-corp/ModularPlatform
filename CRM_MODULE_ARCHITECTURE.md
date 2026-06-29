@@ -2,7 +2,8 @@
 
 Tento soubor zustava jen jako kompatibilni odkaz pro starsi poznamky a otevrene Markchart/Miro exporty.
 
-Aktualni navod neni CRM-specific. Je genericky pro libovolny produktovy modul nad ModularPlatform:
+Aktualni navod neni CRM-specific. **CRM modul v base dnes neexistuje.** Dokumentace je genericka pro libovolny
+produktovy modul nad ModularPlatform:
 
 - `MODULE_ARCHITECTURE.md` = architektonicka mapa, diagramy a "kam sahnout" navod;
 - `UseCases.md` = rozsahly katalog use cases + edge cases pro base platform capability.

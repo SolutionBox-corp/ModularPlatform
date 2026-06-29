@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
+using ModularPlatform.Operations.Features.ReconcileStaleOperations;
 using ModularPlatform.Operations.Features.Status;
 using ModularPlatform.Operations.Messaging;
 using ModularPlatform.IntegrationTesting;
@@ -258,6 +259,57 @@ public sealed class OperationsTests(PlatformApiFactory fixture)
             () => store.MarkRunningAsync(Guid.CreateVersion7(), CancellationToken.None));
 
         ex.ErrorCode.ShouldBe("operation.not_found");
+    }
+
+    [Fact]
+    public async Task Reconcile_stale_operations_marks_only_old_non_terminal_operations_failed()
+    {
+        var userId = Guid.CreateVersion7();
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IOperationStore>();
+        var dispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
+
+        var stalePending = await store.CreateAsync("generic-module-import", userId, CancellationToken.None);
+        var staleRunning = await store.CreateAsync("generic-module-export", userId, CancellationToken.None);
+        await store.MarkRunningAsync(staleRunning, CancellationToken.None);
+        var recentPending = await store.CreateAsync("generic-module-recent", userId, CancellationToken.None);
+        var terminalFailed = await store.CreateAsync("generic-module-terminal", userId, CancellationToken.None);
+        await store.FailAsync(terminalFailed, "module.original_failure", "Original failure.", CancellationToken.None);
+
+        await fixture.ExecuteSqlAsync($"""
+            UPDATE operations
+            SET "CreatedAt" = now() - interval '3 hours', "UpdatedAt" = NULL
+            WHERE "Id" = '{stalePending}';
+
+            UPDATE operations
+            SET "UpdatedAt" = now() - interval '3 hours'
+            WHERE "Id" = '{staleRunning}';
+
+            UPDATE operations
+            SET "CreatedAt" = now() - interval '3 hours', "UpdatedAt" = now() - interval '3 hours'
+            WHERE "Id" = '{terminalFailed}';
+            """);
+
+        var result = await dispatcher.Send(new ReconcileStaleOperationsCommand(StaleAfterMinutes: 60));
+
+        result.FailedCount.ShouldBe(2);
+        result.CapReached.ShouldBeFalse();
+
+        var pendingStatus = await dispatcher.Query(new GetOperationStatusQuery(stalePending, userId));
+        pendingStatus.Status.ShouldBe("Failed");
+        pendingStatus.ErrorCode.ShouldBe("operation.stale_reconciled");
+
+        var runningStatus = await dispatcher.Query(new GetOperationStatusQuery(staleRunning, userId));
+        runningStatus.Status.ShouldBe("Failed");
+        runningStatus.ErrorCode.ShouldBe("operation.stale_reconciled");
+
+        var recentStatus = await dispatcher.Query(new GetOperationStatusQuery(recentPending, userId));
+        recentStatus.Status.ShouldBe("Pending");
+
+        var terminalStatus = await dispatcher.Query(new GetOperationStatusQuery(terminalFailed, userId));
+        terminalStatus.Status.ShouldBe("Failed");
+        terminalStatus.ErrorCode.ShouldBe("module.original_failure");
+        terminalStatus.ErrorDetail.ShouldBe("Original failure.");
     }
 
     private async Task<Guid> StartDemoAsync(string token)

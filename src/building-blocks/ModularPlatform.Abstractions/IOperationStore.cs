@@ -25,8 +25,8 @@ public interface IOperationStore
     /// <para>
     /// ATOMICITY CAVEAT: this commits on the Operations DbContext, which is SEPARATE from your handler's outbox. If you
     /// <c>CreateAsync</c> here and then <c>PublishAsync</c> the durable work on YOUR outbox, the two are NOT one
-    /// transaction — a crash in between leaves an operation stuck <see cref="OperationStatus.Pending"/> (no work
-    /// message), and there is no stuck-operation reaper. For a guaranteed hand-off, create the operation INSIDE the
+    /// transaction — a crash in between can leave an operation stuck <see cref="OperationStatus.Pending"/> until the
+    /// Operations reconciliation job ages it out as failed. For a guaranteed hand-off, create the operation INSIDE the
     /// same handler/transaction that outboxes the work (the canonical demo does this via the Operations module's own
     /// context), or accept the at-least-once retry semantics of your own message and make the work idempotent.
     /// </para>

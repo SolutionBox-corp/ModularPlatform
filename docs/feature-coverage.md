@@ -42,7 +42,7 @@ v tabulkách níže jsou **snapshot PŘED** těmito fixy:
 - **CreateSubscriptionCheckout TOCTOU** (double subscription v okně před prvním webhookem) — inherentní „Stripe = source
   of truth, no pre-created rows" designu.
 - **Files orphan-blob při metadata fail** (PutAsync před SaveChanges, bez kompenzace) — vyžaduje saga/outbox-cleanup; gap.
-- **Operations bez stuck-reaper** — permanentně dead-lettered work → op zůstane non-terminal; potřebuje Ops reconcile job.
+- **Operations stuck-reaper** — uzavřeno: Operations má vlastní reconcile job, který staré Pending/Running operace terminalizuje jako Failed.
 - **ExpireCredits N+1** přes účty, **list ordering bez Guid-v7 tiebreaker/indexu** — perf/škálovatelnost, ne korektnost.
 - **LocalRealtimePublisher.PublishToTenantAsync no-op** vs Redis publikuje — tenant broadcast asymetrie (lokální fallback).
 - **Dead config** `Gdpr:Retention:ShreddedKeyRetentionDays` (jen v komentářích), **AAD whole-envelope** (mimo threat model),
@@ -1107,13 +1107,14 @@ _Canonical 202 pattern; clean, token-sourced owner, atomic outbox, and retry-saf
 | Terminal state must not be flipped/resurrected by a duplicate transition | ✓ | OperationStore.cs:52-55 early-returns (idempotent no-op) when Status is Succeeded/Failed; covered by OperationsTests.A_terminal_operation_is_not_resurrected_by_a_duplicate_worker_transition and Redelivered_worker_message_does_not_resurrect_a_failed_terminal_operation |
 | Transition on a missing operation id | ✓ | OperationStore.cs:47-48 throws NotFoundException('operation.not_found') if the row is absent; proven by OperationsTests.Worker_transition_on_missing_operation_surfaces_not_found. |
 | Worker work throws → operation must reach a terminal state (not stuck Running/Pending) | ✓ | RunDemoOperationHandler.cs:32 FailAsync in catch; MarkRunning is INSIDE the try (line 19) so a failed Pending→Running also terminalizes; covered by OperationWorkerFailureTests |
+| Work message is permanently dead-lettered before terminalizing | ✓ | ReconcileStaleOperationsHandler ages out old Pending/Running rows to Failed with `operation.stale_reconciled`; scheduled by OperationsReconcileStaleOperationsJob every 15 minutes UTC; covered by OperationsTests.Reconcile_stale_operations_marks_only_old_non_terminal_operations_failed and JobsHostWiringTests.Operations_stale_reconcile_cron_uses_utc |
 | Concurrent transitions racing (xmin conflict) — worker path is NOT in the dispatcher pipeline so ConcurrencyRetryBehavior does NOT apply | ◐ | OperationStore.TransitionAsync (OperationStore.cs:45-59) calls db.SaveChangesAsync directly; a concurrent xmin conflict throws DbUpdateConcurrencyException which is NOT retried in-process — it relies on Wolverine handler redelivery to re-run. Inbox dedup makes a true concurrent double-delivery unlikely, but there is no explicit retry/serialization in the store itself. Acceptable but undocumented. |
 | FailAsync itself cannot write (DB down) | ✓ | RunDemoOperationHandler.cs:27-33 comment: the exception propagates and Wolverine retries the whole handler |
 
-**Testy:** OperationsTests.A_terminal_operation_is_not_resurrected_by_a_duplicate_worker_transition; OperationsTests.Redelivered_worker_message_does_not_resurrect_a_failed_terminal_operation; OperationsTests.Worker_transition_on_missing_operation_surfaces_not_found; OperationWorkerFailureTests.Worker_marks_the_operation_failed_when_the_work_throws
-**Test gaps:** No stuck-Pending detection/reaper test — there is no job that finds operations stuck Pending/Running if a message was permanently dead-lettered before the worker can terminalize it (relies on the generic messaging dead-letter health signal, not an Operations-owned reconciliation job)
+**Testy:** OperationsTests.A_terminal_operation_is_not_resurrected_by_a_duplicate_worker_transition; OperationsTests.Redelivered_worker_message_does_not_resurrect_a_failed_terminal_operation; OperationsTests.Worker_transition_on_missing_operation_surfaces_not_found; OperationsTests.Reconcile_stale_operations_marks_only_old_non_terminal_operations_failed; OperationWorkerFailureTests.Worker_marks_the_operation_failed_when_the_work_throws; JobsHostWiringTests.Operations_stale_reconcile_cron_uses_utc
+**Test gaps:** No remaining focused stuck-operation reaper gap in this slice.
 
-_State machine is solid and idempotent. The only soft spot: no in-process concurrency retry on the worker transition path and no reaper for operations whose work message is dead-lettered before terminalizing._
+_State machine is solid and idempotent. The remaining soft spot is only the in-process concurrency retry note on the worker transition path; dead-letter-before-terminalize is now covered by an Operations-owned reconcile job._
 
 ### Operation status polling (owner-scoped read) — ✅ correct
 *Return an operation's status/result to the user who owns it; foreign id is a 404.*
@@ -1235,7 +1236,7 @@ _Erasure correctly deletes (not anonymizes), is idempotent, and keeps metadata u
 - Upload has no compensation: UploadFileHandler.cs:22 writes the blob via PutAsync before db.SaveChangesAsync (line 35); a failed metadata write leaves an orphaned blob with no storage.DeleteAsync rollback. Storage is outside the outbox/transaction boundary, unlike the rest of the platform's atomic-commit discipline.
 - Operation worker transition path is NOT covered by ConcurrencyRetryBehavior: OperationStore.TransitionAsync (OperationStore.cs:45-59) is invoked from the Wolverine handler (RunDemoOperationHandler), not via IDispatcher, so the documented xmin+ConcurrencyRetryBehavior protection (which is command-pipeline-only) does not apply here; the store relies on Wolverine redelivery instead — not wrong, but the operation entity inherits AuditableEntity/xmin implying retry that isn't wired on this path.
 - List index/order: ListFilesHandler.cs:21 orders by CreatedAt DESC but the migration only indexes UserId (InitialFiles.cs:55-58) and uses no Guid-v7 tiebreaker — a code-vs-schema perf/stability drift (sort + non-deterministic same-instant ordering).
-- No stuck-Pending/Running reaper for operations: the design comment (RunDemoOperationHandler.cs:30-31) guarantees terminalization only while the handler runs; if its work message is permanently dead-lettered before any transition, the operation stays Pending forever with no job to detect/age it out — there is a MessagingHealthJob for dead-letters at the platform level but nothing maps a dead-lettered RunDemoOperation back to its stuck operation row.
+- Operations stuck Pending/Running reaper is implemented: `ReconcileStaleOperationsHandler` ages out stale non-terminal rows to Failed, and `OperationsReconcileStaleOperationsJob` schedules it from the Jobs host. MessagingHealthJob still reports the dead-letter signal; Operations now owns user-facing terminalization.
 - Operations.Tests contains RealtimeReplayTests.cs and RealtimeSseTests.cs which test the Realtime building block, not the Operations module — cross-cutting tests are co-located in the Operations test project (organizational drift, not a bug).
 
 
