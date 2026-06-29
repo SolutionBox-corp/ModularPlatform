@@ -18,20 +18,16 @@ interface PageProps {
 
 /**
  * Platform-admin tenant detail view.
- * Renders the EntitlementToggles + CreateInviteDialog + plan summary for a
- * specific tenant, identified by UUID in the URL segment.
- *
- * NOTE: No GET /tenant/admin/tenants/{id} endpoint exists on the backend yet;
- * this page uses GET /tenant/admin/platform-billing which is tenant-scoped to
- * the token's tenant. It can display a full editor for the tenant whose UUID is
- * in the path if that tenant matches the token's context.
- * Cross-tenant read (arbitrary UUID) requires a backend endpoint not yet built.
+ * Renders the EntitlementToggles + CreateInviteDialog for a specific tenant,
+ * identified by UUID in the URL segment. Prefetches the cross-tenant registry
+ * row + persisted entitlements via GET /tenant/admin/tenants/{id} so the
+ * entitlement switches hydrate with the real DB state for THAT tenant.
  */
 export default async function TenantDetailPage({ params }: PageProps) {
   const { tenantId } = await params;
   const queryClient = getQueryClient();
 
-  void queryClient.prefetchQuery(platformQueries.billingStatus());
+  void queryClient.prefetchQuery(platformQueries.tenantById(tenantId));
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>

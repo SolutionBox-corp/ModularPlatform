@@ -31,11 +31,25 @@ public sealed class GlobalExceptionMiddleware(
         }
         catch (ModularPlatformException ex)
         {
+            if (context.Response.HasStarted)
+            {
+                logger.LogWarning(
+                    ex,
+                    "Cannot write a problem response for {ErrorCode}: the response already started.",
+                    ex.ErrorCode);
+                throw;
+            }
+
             await WriteProblem(context, ex.StatusCode, ex.ErrorCode, ex, (ex as ValidationException)?.Errors);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Unhandled exception");
+            if (context.Response.HasStarted)
+            {
+                throw;
+            }
+
             await WriteProblem(context, StatusCodes.Status500InternalServerError, "error.unexpected", ex, null);
         }
     }
@@ -71,14 +85,6 @@ public sealed class GlobalExceptionMiddleware(
         if (env.IsDevelopment && status == StatusCodes.Status500InternalServerError)
         {
             problem.Extensions["exception"] = ex.ToString();
-        }
-
-        // If the response already began streaming (e.g. an exception thrown mid-SSE after headers flushed), we can no
-        // longer write a problem body — overwriting the status would throw. Log and bail rather than mask the original.
-        if (context.Response.HasStarted)
-        {
-            logger.LogWarning(ex, "Cannot write a problem response for {ErrorCode}: the response already started.", errorCode);
-            return;
         }
 
         context.Response.StatusCode = status;

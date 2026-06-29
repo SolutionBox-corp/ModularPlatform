@@ -83,6 +83,32 @@ public sealed class LedgerBackstopTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task EV5_existing_account_provisioning_is_a_noop()
+    {
+        var userId = Guid.CreateVersion7();
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var dispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
+
+        await dispatcher.Send(new EnsureCreditAccountCommand(userId), CancellationToken.None);
+        var accountId = await fixture.ScalarAsync<Guid>(
+            $"SELECT \"Id\" FROM credit_accounts WHERE \"UserId\" = '{userId}'");
+
+        await fixture.ExecuteSqlAsync(
+            $"UPDATE credit_accounts SET \"Posted\" = 10, \"Available\" = 10 WHERE \"Id\" = '{accountId}'");
+
+        await dispatcher.Send(new EnsureCreditAccountCommand(userId), CancellationToken.None);
+
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{userId}'")).ShouldBe(1);
+        (await fixture.ScalarAsync<Guid>(
+            $"SELECT \"Id\" FROM credit_accounts WHERE \"UserId\" = '{userId}'")).ShouldBe(accountId);
+        (await fixture.ScalarAsync<string>(
+            $"SELECT \"Posted\" || ':' || \"Pending\" || ':' || \"Available\" FROM credit_accounts WHERE \"Id\" = '{accountId}'"))
+            .ShouldBe("10:0:10");
+    }
+
+    [Fact]
     public async Task PL2_audit_update_rows_record_only_changed_columns_and_enums_as_strings()
     {
         var (userId, token) = await fixture.RegisterAndLoginAsync($"pl2-{Guid.CreateVersion7():N}@test.io", Password);

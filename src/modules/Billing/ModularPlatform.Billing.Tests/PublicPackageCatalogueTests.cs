@@ -6,7 +6,7 @@ using Shouldly;
 namespace ModularPlatform.Billing.Tests;
 
 /// <summary>
-/// UC33: public package catalogue is the Billing-owned source of truth for purchasable credit packages. Product/CRM
+/// UC33: public package catalogue is the Billing-owned source of truth for purchasable credit packages. Product-module
 /// screens list these rows and then buy by returned id; they do not hardcode ids, prices or credit amounts.
 /// </summary>
 [Collection("Integration")]

@@ -34,6 +34,7 @@
     <ProjectReference Include="..\..\src\modules\Gdpr\ModularPlatform.Gdpr.Contracts\ModularPlatform.Gdpr.Contracts.csproj" />
     <ProjectReference Include="..\..\src\modules\Operations\ModularPlatform.Operations\ModularPlatform.Operations.csproj" />
     <ProjectReference Include="..\..\src\modules\Files\ModularPlatform.Files\ModularPlatform.Files.csproj" />
+    <ProjectReference Include="..\..\src\modules\Files\ModularPlatform.Files.Contracts\ModularPlatform.Files.Contracts.csproj" />
     <ProjectReference Include="..\..\src\modules\Marketing\ModularPlatform.Marketing\ModularPlatform.Marketing.csproj" />
     <ProjectReference Include="..\..\src\modules\Tenancy\ModularPlatform.Tenancy\ModularPlatform.Tenancy.csproj" />
     <ProjectReference Include="..\..\src\modules\Tenancy\ModularPlatform.Tenancy.Contracts\ModularPlatform.Tenancy.Contracts.csproj" />

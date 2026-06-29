@@ -83,10 +83,15 @@ export function isApiError(err: unknown): err is ApiError {
   return false;
 }
 
-/** Standard paged list shape used by feed/list endpoints. */
+/**
+ * Standard paged list shape — mirrors the backend `PagedResponse<T>`
+ * (Cqrs/Paging.cs): `{ items, page, pageSize, totalCount }`. The total field is
+ * `totalCount`, NOT `total` (custom list responses like the platform registry use
+ * their own `total` field — do not conflate them).
+ */
 export interface Paged<T> {
   items: T[];
   page: number;
   pageSize: number;
-  total: number;
+  totalCount: number;
 }

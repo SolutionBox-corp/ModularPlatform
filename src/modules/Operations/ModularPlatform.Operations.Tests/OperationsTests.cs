@@ -1,8 +1,11 @@
 using System.Net;
+using System.Net.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Operations.Features.Status;
+using ModularPlatform.Operations.Messaging;
 using ModularPlatform.IntegrationTesting;
 using Shouldly;
 
@@ -49,6 +52,37 @@ public sealed class OperationsTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Demo_invoke_runs_short_worker_request_and_times_out_predictably()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync($"op-invoke-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+
+        var ok = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Post, "/v1/operations/demo-invoke", token, new { input = 7 }));
+        ok.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var data = await PlatformApiFactory.ReadData(ok);
+        data.GetProperty("score").GetInt32().ShouldBe(14);
+        data.GetProperty("reason").GetString().ShouldBe("computed-in-worker");
+
+        var timeout = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Post, "/v1/operations/demo-invoke", token,
+                new { input = 7, timeoutMs = 50, workDelayMs = 500 }));
+        timeout.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        var problem = await timeout.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        problem.GetProperty("errorCode").GetString().ShouldBe("operations.invoke_timeout");
+    }
+
+    [Fact]
+    public async Task Demo_invoke_validates_input_before_the_worker_message_is_invoked()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync($"op-invoke-invalid-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+
+        var response = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Post, "/v1/operations/demo-invoke", token, new { input = 99 }));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task Operation_status_is_owner_scoped_at_the_app_layer_even_when_rls_is_bypassed()
     {
         var (_, token) = await fixture.RegisterAndLoginAsync($"opappf-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
@@ -66,6 +100,30 @@ public sealed class OperationsTests(PlatformApiFactory fixture)
 
         await Should.ThrowAsync<NotFoundException>(
             () => dispatcher.Query(new GetOperationStatusQuery(operationId, intruderId)));
+    }
+
+    [Fact]
+    public async Task Operation_status_surfaces_failed_terminal_state_with_safe_error_details()
+    {
+        var (userId, token) = await fixture.RegisterAndLoginAsync($"opfailed-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IOperationStore>();
+
+        var operationId = await store.CreateAsync("generic-module-import", userId, CancellationToken.None);
+        await store.MarkRunningAsync(operationId, CancellationToken.None);
+        await store.FailAsync(operationId, "module.import_failed", "The import failed.", CancellationToken.None);
+
+        var poll = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Get, $"/v1/operations/{operationId}", token));
+
+        poll.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var data = await PlatformApiFactory.ReadData(poll);
+        data.GetProperty("id").GetGuid().ShouldBe(operationId);
+        data.GetProperty("type").GetString().ShouldBe("generic-module-import");
+        data.GetProperty("status").GetString().ShouldBe("Failed");
+        data.GetProperty("errorCode").GetString().ShouldBe("module.import_failed");
+        data.GetProperty("errorDetail").GetString().ShouldBe("The import failed.");
+        data.GetProperty("completedAt").ValueKind.ShouldNotBe(System.Text.Json.JsonValueKind.Null);
     }
 
     [Fact]
@@ -122,6 +180,44 @@ public sealed class OperationsTests(PlatformApiFactory fixture)
 
         var status = await dispatcher.Query(new GetOperationStatusQuery(operationId, userId));
         status.Status.ShouldBe("Succeeded");
+    }
+
+    [Fact]
+    public async Task Redelivered_worker_message_does_not_resurrect_a_failed_terminal_operation()
+    {
+        var userId = Guid.CreateVersion7();
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IOperationStore>();
+        var dispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
+        var handler = new RunDemoOperationHandler();
+
+        var operationId = await store.CreateAsync("generic-module-export", userId, CancellationToken.None);
+        await store.FailAsync(operationId, "module.export_failed", "The export failed.", CancellationToken.None);
+
+        // This is what a redelivered durable work message does: it enters the worker from the top and tries
+        // MarkRunning + Complete again. A terminal Failed operation must stay Failed with its original safe error.
+        await handler.Handle(
+            new RunDemoOperation(operationId),
+            store,
+            NullLogger<RunDemoOperationHandler>.Instance,
+            CancellationToken.None);
+
+        var status = await dispatcher.Query(new GetOperationStatusQuery(operationId, userId));
+        status.Status.ShouldBe("Failed");
+        status.ErrorCode.ShouldBe("module.export_failed");
+        status.ErrorDetail.ShouldBe("The export failed.");
+    }
+
+    [Fact]
+    public async Task Worker_transition_on_missing_operation_surfaces_not_found()
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IOperationStore>();
+
+        var ex = await Should.ThrowAsync<NotFoundException>(
+            () => store.MarkRunningAsync(Guid.CreateVersion7(), CancellationToken.None));
+
+        ex.ErrorCode.ShouldBe("operation.not_found");
     }
 
     private async Task<Guid> StartDemoAsync(string token)

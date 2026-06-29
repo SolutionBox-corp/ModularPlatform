@@ -15,6 +15,7 @@ internal static class ListFilesEndpoint
         app.MapGet("/files", async (
                 int? page,
                 int? pageSize,
+                string? search,
                 ITenantContext tenant,
                 IDispatcher dispatcher,
                 CancellationToken ct) =>
@@ -22,7 +23,7 @@ internal static class ListFilesEndpoint
                 var userId = tenant.UserId
                     ?? throw new UnauthorizedException("auth.required", "Authentication required.");
                 var result = await dispatcher.Query(
-                    new ListFilesQuery(userId, new PageRequest(page, pageSize)), ct);
+                    new ListFilesQuery(userId, new PageRequest(page, pageSize), search), ct);
                 return Results.Ok(ApiResponse<PagedResponse<FileListItem>>.Ok(result));
             })
             .RequireAuthorization()

@@ -83,6 +83,25 @@ public sealed class SubscriptionCheckoutTests(PlatformApiFactory fixture)
         localRows.ShouldBe(0);
     }
 
+    [Fact]
+    public async Task Subscription_checkout_propagates_automatic_tax_config_to_provider_session()
+    {
+        using var host = fixture.CreateHost(("Billing:Stripe:AutomaticTax", "true"));
+        using var client = host.CreateClient();
+        var fake = (FakeStripeGateway)host.Services.GetRequiredService<IStripeGateway>();
+        var (_, token) = await RegisterAndLoginAsync(
+            client, $"uc40-tax-{Guid.CreateVersion7():N}@example.test");
+
+        var checkout = await client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/billing/subscriptions/checkout", token, new { planKey = "pro" }));
+
+        checkout.StatusCode.ShouldBe(HttpStatusCode.OK);
+        fake.CreatedSessions.ShouldContain(s =>
+            s.Mode == "subscription"
+            && s.PriceId == "price_test_pro"
+            && s.AutomaticTax);
+    }
+
     private FakeStripeGateway Fake => (FakeStripeGateway)fixture.Services.GetRequiredService<IStripeGateway>();
 
     private async Task DispatchAsync(ICommand command)
@@ -90,5 +109,18 @@ public sealed class SubscriptionCheckoutTests(PlatformApiFactory fixture)
         await using var scope = fixture.Services.CreateAsyncScope();
         var dispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
         await dispatcher.Send(command);
+    }
+
+    private static async Task<(Guid UserId, string AccessToken)> RegisterAndLoginAsync(HttpClient client, string email)
+    {
+        var register = await client.PostAsJsonAsync("/v1/identity/users", new { email, password = Password });
+        register.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var userId = (await PlatformApiFactory.ReadData(register)).GetProperty("userId").GetGuid();
+
+        var login = await client.PostAsJsonAsync("/v1/identity/auth/login", new { email, password = Password });
+        login.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var token = (await PlatformApiFactory.ReadData(login)).GetProperty("accessToken").GetString()!;
+
+        return (userId, token);
     }
 }

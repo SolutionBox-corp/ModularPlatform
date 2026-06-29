@@ -60,11 +60,12 @@ export interface AnalysisDetail {
   analyzedAt: string;
 }
 
-/** GET /v1/marketing/vibe/conversations — ConversationListItem. */
+/** GET /v1/marketing/vibe/conversations — ConversationListItem inside PagedResponse. */
 export interface ConversationListItem {
   id: string;
   title: string;
   createdAt: string;
+  lastMessageAt: string | null;
 }
 
 /** ConversationMessage — one row in a thread. */
@@ -83,6 +84,9 @@ export interface ConversationDetail {
   title: string;
   createdAt: string;
   messages: ConversationMessage[];
+  messagePage: number;
+  messagePageSize: number;
+  totalMessageCount: number;
 }
 
 /** POST /v1/marketing/pulls → 202 — TriggerPullResponse. */
@@ -175,21 +179,38 @@ export const marketingQueries = {
       staleTime: 60_000,
     }),
 
-  /** GET /v1/marketing/vibe/conversations — the caller's chat threads. */
-  vibeConversations: () =>
+  /** GET /v1/marketing/vibe/conversations — paged caller chat threads. */
+  vibeConversations: (page = 1, pageSize = 50) =>
     queryOptions({
-      queryKey: [...queryRoots.marketing, "conversations"],
-      queryFn: () =>
-        apiFetch<ConversationListItem[]>("marketing/vibe/conversations"),
+      queryKey: [...queryRoots.marketing, "conversations", page, pageSize],
+      queryFn: () => {
+        const sp = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+        return apiFetch<MarketingPaged<ConversationListItem>>(
+          `marketing/vibe/conversations?${sp.toString()}`,
+        );
+      },
       staleTime: 30_000,
     }),
 
-  /** GET /v1/marketing/vibe/conversations/{id} — header + ordered messages. */
-  vibeConversation: (id: string) =>
+  /** GET /v1/marketing/vibe/conversations/{id} — header + a bounded ordered message window. */
+  vibeConversation: (id: string, messagePage = 1, messagePageSize = 50) =>
     queryOptions({
-      queryKey: [...queryRoots.marketing, "conversations", id],
-      queryFn: () =>
-        apiFetch<ConversationDetail>(`marketing/vibe/conversations/${id}`),
+      queryKey: [
+        ...queryRoots.marketing,
+        "conversations",
+        id,
+        messagePage,
+        messagePageSize,
+      ],
+      queryFn: () => {
+        const sp = new URLSearchParams({
+          messagePage: String(messagePage),
+          messagePageSize: String(messagePageSize),
+        });
+        return apiFetch<ConversationDetail>(
+          `marketing/vibe/conversations/${id}?${sp.toString()}`,
+        );
+      },
       staleTime: 10_000,
     }),
 };

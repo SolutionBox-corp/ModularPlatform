@@ -29,12 +29,15 @@
   <data name="error.unexpected" xml:space="preserve"><value>An unexpected error occurred.</value></data>
   <data name="validation.failed" xml:space="preserve"><value>One or more validation errors occurred.</value></data>
   <data name="auth.invalid_credentials" xml:space="preserve"><value>Invalid email or password.</value></data>
+  <data name="auth.email_verification_invalid" xml:space="preserve"><value>This email verification link is invalid or expired.</value></data>
+  <data name="auth.password_reset_invalid" xml:space="preserve"><value>This password reset link is invalid or expired.</value></data>
   <data name="auth.refresh_token_invalid" xml:space="preserve"><value>The refresh token is invalid or has been revoked.</value></data>
   <data name="auth.refresh_token_reused" xml:space="preserve"><value>This session has been revoked for security reasons. Please sign in again.</value></data>
   <data name="user.not_found" xml:space="preserve"><value>User not found.</value></data>
   <data name="user.email_taken" xml:space="preserve"><value>This email address is already registered.</value></data>
   <data name="tenant.subdomain_taken" xml:space="preserve"><value>This subdomain is already taken.</value></data>
   <data name="tenant.module_not_entitled" xml:space="preserve"><value>This feature is not available for your workspace.</value></data>
+  <data name="tenant.module_unknown" xml:space="preserve"><value>Unknown module key.</value></data>
   <data name="tenant.not_found" xml:space="preserve"><value>Workspace not found.</value></data>
   <data name="registration.not_allowed" xml:space="preserve"><value>Registration into this workspace is not allowed.</value></data>
   <data name="tenant.invite.expiry_out_of_range" xml:space="preserve"><value>The invite expiry must be between 1 and 30 days.</value></data>
@@ -66,13 +69,18 @@
   <data name="user.password.too_short" xml:space="preserve"><value>Password is too short.</value></data>
   <data name="user.password.too_long" xml:space="preserve"><value>Password is too long.</value></data>
   <data name="user.display_name.too_long" xml:space="preserve"><value>Display name is too long.</value></data>
-  <data name="user.locale.required" xml:space="preserve"><value>Locale is required.</value></data>
-  <data name="user.locale.unsupported" xml:space="preserve"><value>This language is not supported.</value></data>
+  <data name="user.accepted_terms_version.too_long" xml:space="preserve"><value>Terms version is too long.</value></data>
   <data name="user.current_password.required" xml:space="preserve"><value>Current password is required.</value></data>
   <data name="user.current_password_invalid" xml:space="preserve"><value>The current password is incorrect.</value></data>
   <data name="user.password_unchanged" xml:space="preserve"><value>The new password must differ from the current one.</value></data>
+  <data name="user.locale.required" xml:space="preserve"><value>Locale is required.</value></data>
+  <data name="user.locale.unsupported" xml:space="preserve"><value>This language is not supported.</value></data>
   <data name="role.not_found" xml:space="preserve"><value>Role not found.</value></data>
   <data name="operation.not_found" xml:space="preserve"><value>Operation not found.</value></data>
+  <data name="operations.invoke_timeout" xml:space="preserve"><value>The quick worker request timed out.</value></data>
+  <data name="operations.demo_input_invalid" xml:space="preserve"><value>The demo input is outside the allowed range.</value></data>
+  <data name="operations.demo_timeout_invalid" xml:space="preserve"><value>The demo timeout is outside the allowed range.</value></data>
+  <data name="operations.demo_delay_invalid" xml:space="preserve"><value>The demo worker delay is outside the allowed range.</value></data>
   <data name="auth.required" xml:space="preserve"><value>Authentication required.</value></data>
 
   <data name="marketing.source_unknown" xml:space="preserve"><value>Unknown marketing source.</value></data>
@@ -121,6 +129,12 @@
   <data name="file.content_type.not_allowed" xml:space="preserve"><value>This file type is not allowed.</value></data>
   <data name="file.name.required" xml:space="preserve"><value>A file name is required.</value></data>
   <data name="file.name.too_long" xml:space="preserve"><value>The file name is too long.</value></data>
+  <data name="file.id.required" xml:space="preserve"><value>File id is required.</value></data>
+  <data name="file.link_not_found" xml:space="preserve"><value>File link not found.</value></data>
+  <data name="file.link.owner_type.required" xml:space="preserve"><value>Owner type is required.</value></data>
+  <data name="file.link.owner_type.too_long" xml:space="preserve"><value>Owner type is too long.</value></data>
+  <data name="file.link.owner_type.invalid" xml:space="preserve"><value>Owner type has an invalid format.</value></data>
+  <data name="file.link.owner_id.required" xml:space="preserve"><value>Owner id is required.</value></data>
 
   <!-- Billing commerce (packages, subscriptions, coupons, Stripe) -->
   <data name="billing.stripe.not_configured" xml:space="preserve"><value>Stripe is not configured.</value></data>

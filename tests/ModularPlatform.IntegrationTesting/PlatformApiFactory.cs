@@ -2,6 +2,8 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
+using ModularPlatform.Abstractions;
+using ModularPlatform.Persistence.Rls;
 using Npgsql;
 using Testcontainers.PostgreSql;
 using Xunit;
@@ -227,9 +229,85 @@ public sealed class PlatformApiFactory : IAsyncLifetime
         return (T)(await cmd.ExecuteScalarAsync())!;
     }
 
+    /// <summary>
+    /// Runs a scalar query as the least-privilege RLS runtime role but with <c>app.is_system=on</c>, matching the
+    /// Worker/Jobs system principal. This proves system work bypasses per-user policies without using the admin role.
+    /// </summary>
+    public async Task<T> ScalarAsSystemAsync<T>(string sql)
+    {
+        var connectionString = new NpgsqlConnectionStringBuilder(ConnectionString)
+        {
+            Username = RlsRuntimeRole,
+            Password = RlsRuntimePassword,
+        }.ConnectionString;
+
+        await using var conn = new NpgsqlConnection(connectionString);
+        await conn.OpenAsync();
+
+        await using (var setGucs = conn.CreateCommand())
+        {
+            setGucs.CommandText =
+                "SELECT set_config('app.is_system', 'on', false), set_config('app.principal_id', '', false)";
+            await setGucs.ExecuteNonQueryAsync();
+        }
+
+        await using var cmd = new NpgsqlCommand(sql, conn);
+        return (T)(await cmd.ExecuteScalarAsync())!;
+    }
+
+    /// <summary>
+    /// Runs the same scalar query twice on one already-open runtime-role connection, restamping the session
+    /// principal through the real <see cref="PrincipalSessionConnectionInterceptor"/> between executions.
+    /// This pins the pooled-connection safety invariant: a connection reused across users must not keep stale GUCs.
+    /// </summary>
+    public async Task<(T First, T Second)> ScalarAsUsersOnSameRuntimeConnectionAsync<T>(
+        Guid firstPrincipalUserId,
+        Guid secondPrincipalUserId,
+        string sql)
+    {
+        var connectionString = new NpgsqlConnectionStringBuilder(ConnectionString)
+        {
+            Username = RlsRuntimeRole,
+            Password = RlsRuntimePassword,
+        }.ConnectionString;
+
+        var tenant = new MutableTenantContext
+        {
+            UserId = firstPrincipalUserId,
+            IsSystem = false,
+        };
+        var interceptor = new PrincipalSessionConnectionInterceptor(tenant);
+
+        await using var conn = new NpgsqlConnection(connectionString);
+        await conn.OpenAsync();
+
+        await interceptor.ConnectionOpenedAsync(conn, null!);
+        var first = await ExecuteScalarAsync<T>(conn, sql);
+
+        tenant.UserId = secondPrincipalUserId;
+        await interceptor.ConnectionOpenedAsync(conn, null!);
+        var second = await ExecuteScalarAsync<T>(conn, sql);
+
+        return (first, second);
+    }
+
     public static async Task<JsonElement> ReadData(HttpResponseMessage response)
     {
         var doc = await response.Content.ReadFromJsonAsync<JsonElement>();
         return doc.GetProperty("data");
+    }
+
+    private static async Task<T> ExecuteScalarAsync<T>(NpgsqlConnection connection, string sql)
+    {
+        await using var cmd = new NpgsqlCommand(sql, connection);
+        return (T)(await cmd.ExecuteScalarAsync())!;
+    }
+
+    private sealed class MutableTenantContext : ITenantContext
+    {
+        public Guid? UserId { get; set; }
+        public Guid? TenantId { get; set; }
+        public bool IsSystem { get; set; }
+        public string? IpAddress => null;
     }
 }

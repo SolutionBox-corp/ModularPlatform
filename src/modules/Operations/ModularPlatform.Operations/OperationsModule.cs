@@ -6,6 +6,8 @@ using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Messaging;
 using ModularPlatform.Operations.Features.Demo;
+using ModularPlatform.Operations.Features.DemoInvoke;
+using ModularPlatform.Operations.Features.List;
 using ModularPlatform.Operations.Features.Status;
 using ModularPlatform.Operations.Persistence;
 using ModularPlatform.Persistence;
@@ -26,9 +28,7 @@ public sealed class OperationsModule : IModule
 
     public void RegisterServices(IServiceCollection services, IConfiguration configuration)
     {
-        var write = configuration.GetConnectionString("Write")
-            ?? throw new InvalidOperationException("Missing ConnectionStrings:Write");
-        var read = configuration.GetConnectionString("Read") ?? write;
+        var (write, read) = ModuleConnectionStrings.GetWriteAndRead(configuration);
 
         services.AddCqrs(typeof(OperationsModule).Assembly);
         services.AddValidatorsFromAssembly(typeof(OperationsModule).Assembly, includeInternalTypes: true);
@@ -42,12 +42,15 @@ public sealed class OperationsModule : IModule
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
         endpoints.MapStartDemoOperation();
+        endpoints.MapInvokeDemoCheck();
         endpoints.MapGetOperationStatus();
+        endpoints.MapListMyOperations();
     }
 
     public void ConfigureMessaging(WolverineOptions options)
     {
         options.Discovery.IncludeType<Messaging.RunDemoOperationHandler>();
+        options.Discovery.IncludeType<Messaging.DemoQuickCheckHandler>();
     }
 
     public async Task ApplyMigrationsAsync(IServiceProvider services, CancellationToken ct)

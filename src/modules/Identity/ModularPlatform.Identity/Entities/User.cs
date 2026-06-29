@@ -23,6 +23,8 @@ internal sealed class User : AuditableEntity, ITenantScoped, ISoftDeletable, IDa
     public string EmailHash { get; set; } = string.Empty;
 
     public string PasswordHash { get; set; } = string.Empty;
+    public bool EmailConfirmed { get; set; }
+    public DateTimeOffset? EmailConfirmedAt { get; set; }
     [PersonalData]
     [Encrypted]
     public string? DisplayName { get; set; }
@@ -55,6 +57,8 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.Email).HasMaxLength(1024).IsRequired();
         builder.Property(u => u.EmailHash).HasMaxLength(64).IsRequired().HasDefaultValue(string.Empty);
         builder.Property(u => u.PasswordHash).HasMaxLength(512).IsRequired();
+        builder.Property(u => u.EmailConfirmed).IsRequired().HasDefaultValue(false);
+        builder.Property(u => u.EmailConfirmedAt);
         builder.Property(u => u.DisplayName).HasMaxLength(1024);
         builder.Property(u => u.Locale).HasMaxLength(8).IsRequired();
         builder.Property(u => u.FailedAccessCount).IsRequired().HasDefaultValue(0);

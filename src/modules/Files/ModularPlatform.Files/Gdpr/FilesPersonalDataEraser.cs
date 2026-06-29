@@ -31,6 +31,7 @@ internal sealed class FilesPersonalDataEraser(FilesDbContext db, IFileStorage st
             await storage.DeleteAsync(key, ct);
         }
 
+        await db.FileLinks.Where(l => l.UserId == userId).ExecuteDeleteAsync(ct);
         await db.Files.Where(f => f.UserId == userId).ExecuteDeleteAsync(ct);
     }
 }

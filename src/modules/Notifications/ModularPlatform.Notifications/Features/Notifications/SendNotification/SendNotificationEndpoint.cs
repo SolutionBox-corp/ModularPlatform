@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
+using ModularPlatform.Notifications.Contracts;
 using ModularPlatform.Web;
 
 namespace ModularPlatform.Notifications.Features.Notifications.SendNotification;

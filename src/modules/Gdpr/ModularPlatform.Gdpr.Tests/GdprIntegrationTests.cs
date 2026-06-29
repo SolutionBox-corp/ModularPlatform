@@ -156,9 +156,17 @@ public sealed class GdprIntegrationTests(PlatformApiFactory fixture)
         var data = await PlatformApiFactory.ReadData(response);
 
         // One section per module that implements IExportPersonalData — keyed by ModuleName.
-        data.TryGetProperty("Identity", out _).ShouldBeTrue();
+        data.TryGetProperty("Identity", out var identity).ShouldBeTrue();
         data.TryGetProperty("Billing", out var billing).ShouldBeTrue();
         data.TryGetProperty("Notifications", out var notifications).ShouldBeTrue();
+
+        // Identity section exports the account profile shape from IdentityPersonalDataExporter.
+        var profile = identity.GetProperty("profile");
+        profile.ValueKind.ShouldNotBe(JsonValueKind.Null);
+        profile.GetProperty("email").GetString().ShouldBe(email);
+        profile.GetProperty("displayName").ValueKind.ShouldBe(JsonValueKind.Null);
+        profile.GetProperty("locale").GetString().ShouldBe("en");
+        profile.GetProperty("createdAt").ValueKind.ShouldBe(JsonValueKind.String);
 
         // Billing section carries the provisioned wallet (account non-null).
         billing.GetProperty("account").ValueKind.ShouldNotBe(JsonValueKind.Null);
@@ -170,6 +178,30 @@ public sealed class GdprIntegrationTests(PlatformApiFactory fixture)
             .Select(n => n.GetProperty("title").GetString())
             .ToList();
         titles.ShouldContain("Welcome aboard");
+    }
+
+    [Fact]
+    public async Task Export_after_erasure_returns_null_identity_profile()
+    {
+        var email = $"export-erased-{Guid.CreateVersion7():N}@example.com";
+        var (userId, accessToken) = await fixture.RegisterAndLoginAsync(email, Password);
+
+        var erase = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Post, "/v1/gdpr/me/erase", accessToken));
+        erase.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        await fixture.WaitForCountAsync(
+            $"""SELECT count(*)::bigint FROM users WHERE "Id" = '{userId}' AND "DeletedAt" IS NOT NULL""", 1);
+        await fixture.WaitForCountAsync(
+            $"""SELECT count(*)::bigint FROM subject_keys WHERE "UserId" = '{userId}' AND "DeletedAt" IS NOT NULL""", 1);
+
+        var response = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/gdpr/me/export", accessToken));
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var data = await PlatformApiFactory.ReadData(response);
+        var identity = data.GetProperty("Identity");
+        identity.GetProperty("profile").ValueKind.ShouldBe(JsonValueKind.Null);
     }
 
     // ---------------------------------------------------------------------------------------------------------
@@ -259,6 +291,33 @@ public sealed class GdprIntegrationTests(PlatformApiFactory fixture)
         rows.GetArrayLength().ShouldBe(1);
         rows[0].GetProperty("consentType").GetString().ShouldBe(ownConsentType);
         rows[0].GetProperty("policyVersion").GetString().ShouldBe("2026-06");
+    }
+
+    [Fact]
+    public async Task Consent_grant_trims_type_and_policy_version_before_persistence()
+    {
+        var email = $"consent-trim-{Guid.CreateVersion7():N}@example.com";
+        var (userId, accessToken) = await fixture.RegisterAndLoginAsync(email, Password);
+        var consentType = $"trimmed-{Guid.CreateVersion7():N}";
+
+        var grant = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Post, "/v1/gdpr/consents/grant", accessToken,
+                new { consentType = $"  {consentType}  ", policyVersion = "  2026-06  " }));
+        grant.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var storedType = await fixture.ScalarAsync<string>(
+            $"SELECT \"ConsentType\" FROM consent_records WHERE \"UserId\" = '{userId}' ORDER BY \"RecordedAt\" DESC LIMIT 1");
+        storedType.ShouldBe(consentType);
+        var storedPolicy = await fixture.ScalarAsync<string>(
+            $"SELECT \"PolicyVersion\" FROM consent_records WHERE \"UserId\" = '{userId}' ORDER BY \"RecordedAt\" DESC LIMIT 1");
+        storedPolicy.ShouldBe("2026-06");
+
+        var get = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/gdpr/me/consents", accessToken));
+        get.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var latest = (await PlatformApiFactory.ReadData(get))[0];
+        latest.GetProperty("consentType").GetString().ShouldBe(consentType);
+        latest.GetProperty("policyVersion").GetString().ShouldBe("2026-06");
     }
 
     // GD-6 — the consent log participates in its OWN export + erasure (was a gap: consent history survived erasure

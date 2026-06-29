@@ -75,6 +75,7 @@ internal sealed class MarketingPersonalDataExporter(IReadDbContextFactory<Market
             {
                 c.Id,
                 c.Title,
+                c.LastMessageAt,
                 c.DeletedAt,
                 c.CreatedAt,
             })

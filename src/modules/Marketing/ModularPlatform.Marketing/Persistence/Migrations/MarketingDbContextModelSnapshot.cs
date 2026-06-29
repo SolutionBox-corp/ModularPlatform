@@ -135,6 +135,52 @@ namespace ModularPlatform.Marketing.Persistence.Migrations
                     b.ToTable("marketing_analyses", (string)null);
                 });
 
+            modelBuilder.Entity("ModularPlatform.Marketing.Entities.MarketingTenantSnapshot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("SchemaVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
+
+                    b.Property<Guid>("SourceEventId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("SourceUpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Subdomain")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SourceUpdatedAt");
+
+                    b.HasIndex("TenantId")
+                        .IsUnique();
+
+                    b.ToTable("marketing_tenant_snapshots", (string)null);
+                });
+
             modelBuilder.Entity("ModularPlatform.Marketing.Entities.MetricSnapshot", b =>
                 {
                     b.Property<Guid>("Id")
@@ -198,6 +244,9 @@ namespace ModularPlatform.Marketing.Persistence.Migrations
                     b.Property<DateTimeOffset?>("DeletedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTimeOffset?>("LastMessageAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(256)
@@ -220,7 +269,7 @@ namespace ModularPlatform.Marketing.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId", "CreatedAt");
+                    b.HasIndex("UserId", "LastMessageAt", "CreatedAt");
 
                     b.ToTable("vibe_conversations", (string)null);
                 });
@@ -247,7 +296,7 @@ namespace ModularPlatform.Marketing.Persistence.Migrations
                         .HasColumnType("character varying(16)");
 
                     b.Property<string>("ToolCallsJson")
-                        .HasColumnType("jsonb");
+                        .HasColumnType("text");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");

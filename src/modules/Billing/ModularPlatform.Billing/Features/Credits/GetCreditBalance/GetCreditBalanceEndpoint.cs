@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using ModularPlatform.Abstractions;
+using ModularPlatform.Billing.Contracts;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Web;
 

@@ -3,12 +3,12 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
-import { DownloadIcon, FileIcon } from "lucide-react";
-import { buttonVariants } from "@/components/ui/button";
+import { FileIcon, SearchIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
 import { DataTable, type ColumnDef } from "@/components/app/data-table";
 import { fileQueries, type FileListItem } from "@/features/files/api";
+import { FileRowActions } from "@/features/files/components/file-row-actions";
 
 const PAGE_SIZE = 20;
 
@@ -82,16 +82,7 @@ function buildColumns(t: Translate): ColumnDef<FileListItem>[] {
     key: "actions",
     header: "",
     className: "text-right w-10",
-    cell: (row) => (
-      <a
-        href={`/api/bff/files/${row.id}`}
-        download={row.fileName}
-        aria-label={t("table.download", { name: row.fileName })}
-        className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }))}
-      >
-        <DownloadIcon className="h-4 w-4" aria-hidden="true" />
-      </a>
-    ),
+    cell: (row) => <FileRowActions file={row} />,
   },
   ];
 }
@@ -99,21 +90,46 @@ function buildColumns(t: Translate): ColumnDef<FileListItem>[] {
 export function FileTable() {
   const t = useTranslations("files");
   const [page, setPage] = useState(1);
-  const { data, isLoading } = useQuery(fileQueries.list(page, PAGE_SIZE));
+  const [search, setSearch] = useState("");
+  const { data, isLoading } = useQuery(fileQueries.list(page, PAGE_SIZE, search));
   const columns = buildColumns(t);
 
+  function handleSearchChange(value: string) {
+    setSearch(value);
+    setPage(1); // a new filter resets to the first page
+  }
+
   return (
-    <DataTable
-      columns={columns}
-      data={data?.items}
-      rowKey={(row) => row.id}
-      isLoading={isLoading}
-      total={data?.total}
-      page={page}
-      pageSize={PAGE_SIZE}
-      onPageChange={setPage}
-      emptyTitle={t("table.emptyTitle")}
-      emptyDescription={t("table.emptyDescription")}
-    />
+    <div className="space-y-3">
+      <div className="relative max-w-xs">
+        <SearchIcon
+          className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+          aria-hidden="true"
+        />
+        <Input
+          type="search"
+          value={search}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          placeholder={t("table.searchPlaceholder")}
+          aria-label={t("table.searchAria")}
+          className="pl-8"
+        />
+      </div>
+
+      <DataTable
+        columns={columns}
+        data={data?.items}
+        rowKey={(row) => row.id}
+        isLoading={isLoading}
+        total={data?.totalCount}
+        page={page}
+        pageSize={PAGE_SIZE}
+        onPageChange={setPage}
+        emptyTitle={t(search ? "table.noMatchTitle" : "table.emptyTitle")}
+        emptyDescription={t(
+          search ? "table.noMatchDescription" : "table.emptyDescription",
+        )}
+      />
+    </div>
   );
 }

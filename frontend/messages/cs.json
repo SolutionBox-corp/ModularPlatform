@@ -19,7 +19,7 @@
         "label": "Jazyk"
       },
       "save": "Uložit změny",
-      "saving": "Ukládání...",
+      "saving": "Ukládání…",
       "saved": "Profil aktualizován.",
       "saveError": "Profil se nepodařilo uložit. Zkuste to prosím znovu.",
       "title": "Profil"
@@ -31,7 +31,7 @@
       "new": "Nové heslo",
       "confirm": "Potvrďte nové heslo",
       "submit": "Změnit heslo",
-      "saving": "Měním...",
+      "saving": "Měním…",
       "changed": "Heslo změněno. Přihlaste se prosím znovu.",
       "error": "Heslo se nepodařilo změnit. Zkuste to prosím znovu.",
       "currentRequired": "Zadejte aktuální heslo.",
@@ -39,6 +39,15 @@
       "tooShort": "Nové heslo musí mít alespoň 8 znaků.",
       "tooLong": "Nové heslo je příliš dlouhé.",
       "mismatch": "Hesla se neshodují."
+    },
+    "emailVerification": {
+      "title": "Ověřte e-mail",
+      "description": "E-mail {email} zatím není ověřený.",
+      "hint": "Ověření chrání účet a umožní platformě důvěřovat bezpečnostním a fakturačním e-mailům.",
+      "resend": "Poslat ověřovací e-mail znovu",
+      "sending": "Odesílám…",
+      "sent": "Ověřovací e-mail byl odeslán.",
+      "error": "Ověřovací e-mail se nepodařilo odeslat. Zkuste to prosím znovu."
     },
     "page": {
       "heading": "Profil",
@@ -63,6 +72,8 @@
     "email": "E-mail",
     "expired": "Vaše relace vypršela. Přihlaste se prosím znovu.",
     "haveAccount": "Už máte účet?",
+    "backToLogin": "Zpět na přihlášení",
+    "confirmPassword": "Potvrzení hesla",
     "login": {
       "heading": "Přihlásit se",
       "metaTitle": "Přihlášení — ModularPlatform",
@@ -71,7 +82,18 @@
       "success": "Vítejte zpět!",
       "label": "Přihlásit se"
     },
+    "forgotPassword": {
+      "accepted": "Pokud pro tento e-mail existuje účet, poslali jsme odkaz pro obnovení hesla.",
+      "heading": "Obnovení hesla",
+      "label": "Poslat odkaz",
+      "link": "Zapomenuté heslo?",
+      "metaTitle": "Obnovení hesla — ModularPlatform",
+      "submitting": "Odesílám…",
+      "subtitle": "Zadejte e-mail a pošleme vám odkaz pro nastavení nového hesla.",
+      "toast": "Žádost o obnovení hesla byla přijata."
+    },
     "noAccount": "Nemáte účet?",
+    "newPassword": "Nové heslo",
     "password": "Heslo",
     "privacyLink": "zásadami ochrany osobních údajů",
     "register": {
@@ -82,6 +104,23 @@
       "success": "Účet byl vytvořen! Vítejte.",
       "label": "Vytvořit účet"
     },
+    "resetPassword": {
+      "heading": "Nastavit nové heslo",
+      "label": "Nastavit nové heslo",
+      "metaTitle": "Nastavení nového hesla — ModularPlatform",
+      "missingToken": "Tomuto odkazu chybí token. Požádejte o nový odkaz.",
+      "submitting": "Ukládám…",
+      "subtitle": "Zvolte nové heslo pro svůj účet.",
+      "success": "Heslo bylo změněno. Přihlaste se novým heslem."
+    },
+    "verifyEmail": {
+      "heading": "Ověření e-mailu",
+      "metaTitle": "Ověření e-mailu — ModularPlatform",
+      "missingToken": "Tomuto ověřovacímu odkazu chybí token.",
+      "subtitle": "Potvrďte e-mailovou adresu svého účtu.",
+      "success": "E-mail byl ověřen. Můžete se přihlásit nebo se vrátit do účtu.",
+      "verifying": "Ověřuji e-mail…"
+    },
     "termsConjunction": "a",
     "termsLink": "podmínkami",
     "termsPrefix": "Souhlasím s",
@@ -91,10 +130,34 @@
       "emailRequired": "E-mail je povinný",
       "passwordMax": "Heslo je příliš dlouhé",
       "passwordMin": "Heslo musí mít alespoň 8 znaků",
-      "passwordRequired": "Heslo je povinné"
+      "passwordRequired": "Heslo je povinné",
+      "passwordsMustMatch": "Hesla se musí shodovat"
     }
   },
   "billing": {
+    "ledger": {
+      "heading": "Historie transakcí",
+      "description": "Každý pohyb kreditů na vašem účtu, od nejnovějších.",
+      "credit": "Připsání",
+      "debit": "Odepsání",
+      "emptyTitle": "Zatím žádné transakce",
+      "emptyDescription": "Vaše dobití a útraty kreditů se zobrazí zde.",
+      "columns": {
+        "type": "Typ",
+        "amount": "Částka",
+        "direction": "Směr",
+        "date": "Datum"
+      },
+      "types": {
+        "topup": "Dobití",
+        "spend": "Útrata",
+        "reservation": "Rezervace",
+        "release": "Uvolnění",
+        "expiry": "Expirace",
+        "adjustment": "Úprava",
+        "refund": "Vrácení"
+      }
+    },
     "balance": {
       "columns": {
         "category": "Kategorie",
@@ -144,6 +207,51 @@
     "packages": {
       "emptyDescription": "Kreditní balíčky se zde objeví po nastavení.",
       "emptyTitle": "Žádné balíčky nejsou k dispozici"
+    },
+    "paymentGateway": {
+      "currency": "Měna",
+      "description": "Nastavte platební bránu, kterou tento workspace používá, když mu platí jeho vlastní zákazníci.",
+      "goPayClientId": "GoPay client ID",
+      "goPayClientSecret": "GoPay client secret",
+      "goPayGoid": "GoPay goid",
+      "heading": "Platební brána workspace",
+      "provider": "Poskytovatel",
+      "sandbox": "Sandbox režim",
+      "save": "Uložit bránu",
+      "saved": "Platební brána byla uložena.",
+      "saving": "Ukládám…",
+      "secretHint": "Secrety se uloží zašifrovaně na serveru a po uložení se už nikdy znovu nezobrazí.",
+      "sectionDescription": "Tenant-plane nastavení checkoutu pro platby směřující tomuto workspace.",
+      "stripeApiKey": "Stripe API klíč",
+      "stripeWebhookSecret": "Stripe webhook signing secret",
+      "title": "Checkout provider",
+      "validation": {
+        "currency": "Zadejte 3písmenný kód měny.",
+        "goPayClientId": "Zadejte GoPay client ID.",
+        "goPayClientSecret": "Zadejte GoPay client secret.",
+        "goPayGoid": "Zadejte číselný GoPay goid.",
+        "stripeApiKey": "Zadejte Stripe API klíč.",
+        "stripeWebhookSecret": "Zadejte Stripe webhook signing secret."
+      }
+    },
+    "portal": {
+      "manage": "Spravovat platby a faktury",
+      "opening": "Otevírání…",
+      "noAccount": "Zatím nemáte fakturační účet. Nejprve si předplaťte nebo kupte kredity.",
+      "error": "Fakturační portál se nepodařilo otevřít. Zkuste to prosím znovu."
+    },
+    "plans": {
+      "heading": "Vyberte si plán",
+      "description": "Předplaťte si pravidelné kredity v každém zúčtovacím období.",
+      "emptyTitle": "Žádné plány nejsou k dispozici",
+      "emptyDescription": "Předplatné plány se zde objeví po nastavení.",
+      "current": "Aktuální",
+      "currentPlan": "Aktuální plán",
+      "subscribe": "Předplatit",
+      "redirecting": "Přesměrování…",
+      "perPeriod": "kreditů za období",
+      "creditsExpireIn": "{credits} kreditů/období · vyprší za {days} d",
+      "creditsNoExpiry": "{credits} kreditů/období · bez expirace"
     },
     "promo": {
       "amountOffSuffix": "sleva",
@@ -384,6 +492,25 @@
     }
   },
   "files": {
+    "actions": {
+      "menuAria": "Akce pro {name}",
+      "download": "Stáhnout",
+      "rename": "Přejmenovat",
+      "delete": "Smazat",
+      "cancel": "Zrušit",
+      "save": "Uložit",
+      "saving": "Ukládání…",
+      "deleting": "Mazání…",
+      "renamed": "Soubor přejmenován.",
+      "renameError": "Soubor se nepodařilo přejmenovat.",
+      "deleted": "Smazáno „{name}“.",
+      "deleteError": "Soubor se nepodařilo smazat.",
+      "renameTitle": "Přejmenovat soubor",
+      "renameDescription": "Zadejte nový název tohoto souboru.",
+      "renameLabel": "Název souboru",
+      "deleteTitle": "Smazat soubor?",
+      "deleteDescription": "„{name}“ bude trvale smazán. Tuto akci nelze vrátit zpět."
+    },
     "dropzone": {
       "ariaLabel": "Nahrát soubor — přetáhněte sem nebo klikněte pro výběr",
       "hint": "{types} — až {maxMb} MB",
@@ -405,7 +532,11 @@
       "name": "Název",
       "size": "Velikost",
       "type": "Typ",
-      "uploaded": "Nahráno"
+      "uploaded": "Nahráno",
+      "searchPlaceholder": "Hledat soubory…",
+      "searchAria": "Hledat soubory podle názvu",
+      "noMatchTitle": "Žádné odpovídající soubory",
+      "noMatchDescription": "Vašemu hledání neodpovídají žádné soubory. Zkuste jiný název."
     },
     "validation": {
       "tooLarge": "Soubor je příliš velký. Maximální velikost je {maxMb} MB.",
@@ -647,11 +778,24 @@
     "empty": {
       "feedDescription": "Máte vše přečteno — zatím žádná oznámení.",
       "recentDescription": "Máte vše přečteno.",
-      "title": "Žádná oznámení"
+      "title": "Žádná oznámení",
+      "noUnreadTitle": "Žádná nepřečtená oznámení",
+      "noUnreadDescription": "Máte vše přečteno. Přepněte na Vše pro starší oznámení."
+    },
+    "filter": {
+      "all": "Vše",
+      "unread": "Nepřečtené"
     },
     "markRead": {
       "ariaLabel": "Označit „{title}“ jako přečtené"
     },
+    "markAll": {
+      "action": "Označit vše",
+      "pending": "Označuji…",
+      "done": "{count, plural, =0 {Není co označit} one {Označeno 1 oznámení jako přečtené} few {Označena # oznámení jako přečtená} other {Označeno # oznámení jako přečtených}}"
+    },
+    "unreadSummary": "{count, plural, one {1 nepřečtené} few {# nepřečtená} other {# nepřečtených}}",
+    "allRead": "Vše přečteno",
     "page": {
       "description": "Vaše nedávná aktivita a systémové zprávy.",
       "heading": "Oznámení",
@@ -838,6 +982,15 @@
     "consents": {
       "description": "Určete, jak používáme vaše data. Změny se projeví okamžitě.",
       "heading": "Předvolby souhlasů",
+      "history": {
+        "heading": "Historie souhlasů",
+        "description": "Všechna vaše rozhodnutí o souhlasech, od nejnovějších.",
+        "granted": "uděleno",
+        "withdrawn": "odvoláno",
+        "policyVersion": "zásady {version}",
+        "emptyTitle": "Žádná historie souhlasů",
+        "emptyDescription": "Vaše změny souhlasů se zde zaznamenají."
+      },
       "toast": {
         "granted": "Souhlas udělen.",
         "withdrawn": "Souhlas odvolán."
@@ -928,8 +1081,7 @@
     "operationStatus": {
       "inProgress": "Operace probíhá",
       "status": {
-        "cancelled": "Zrušeno",
-        "completed": "Dokončeno",
+        "succeeded": "Dokončeno",
         "failed": "Selhalo",
         "pending": "Čeká",
         "running": "Probíhá"

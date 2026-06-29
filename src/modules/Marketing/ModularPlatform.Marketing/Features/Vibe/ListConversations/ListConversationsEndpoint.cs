@@ -13,14 +13,16 @@ internal static class ListConversationsEndpoint
     public static void MapListConversations(this IEndpointRouteBuilder app)
     {
         app.MapGet("/marketing/vibe/conversations", async (
+                int? page,
+                int? pageSize,
                 ITenantContext tenant,
                 IDispatcher dispatcher,
                 CancellationToken ct) =>
             {
                 var userId = tenant.UserId
                     ?? throw new UnauthorizedException("auth.required", "Authentication required.");
-                var result = await dispatcher.Query(new ListConversationsQuery(userId), ct);
-                return Results.Ok(ApiResponse<IReadOnlyList<ConversationListItem>>.Ok(result));
+                var result = await dispatcher.Query(new ListConversationsQuery(userId, new PageRequest(page, pageSize)), ct);
+                return Results.Ok(ApiResponse<PagedResponse<ConversationListItem>>.Ok(result));
             })
             .RequireAuthorization()
             .RequireModule("marketing")

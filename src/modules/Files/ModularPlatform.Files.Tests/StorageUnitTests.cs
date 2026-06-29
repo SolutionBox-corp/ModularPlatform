@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Options;
+using ModularPlatform.Cqrs;
 using ModularPlatform.Storage;
 using Shouldly;
 
@@ -28,6 +30,56 @@ public sealed class StorageUnitTests
     public void Opaque_keys_are_accepted(string key)
     {
         Should.NotThrow(() => StorageKey.Validate(key));
+    }
+
+    [Fact]
+    public async Task Local_missing_key_throws_file_not_found_error_code()
+    {
+        var storage = new LocalFileStorage(Options.Create(new StorageOptions
+        {
+            Local = new LocalStorageOptions
+            {
+                RootPath = Path.Combine(Path.GetTempPath(), $"modularplatform-storage-test-{Guid.CreateVersion7():N}"),
+            },
+        }));
+
+        var exception = await Should.ThrowAsync<NotFoundException>(
+            () => storage.GetAsync("11111111111111111111111111111111/missing.bin", CancellationToken.None));
+
+        exception.ErrorCode.ShouldBe("file.not_found");
+    }
+
+    [Fact]
+    public async Task Local_provider_rejects_key_whose_existing_parent_symlink_escapes_root()
+    {
+        var testRoot = Path.Combine(Path.GetTempPath(), $"modularplatform-storage-test-{Guid.CreateVersion7():N}");
+        var storageRoot = Path.Combine(testRoot, "storage");
+        var outsideRoot = Path.Combine(testRoot, "outside");
+        Directory.CreateDirectory(storageRoot);
+        Directory.CreateDirectory(outsideRoot);
+
+        var symlink = Path.Combine(storageRoot, "user");
+        try
+        {
+            Directory.CreateSymbolicLink(symlink, outsideRoot);
+        }
+        catch (Exception ex) when (ex is PlatformNotSupportedException or UnauthorizedAccessException or IOException)
+        {
+            return;
+        }
+
+        var storage = new LocalFileStorage(Options.Create(new StorageOptions
+        {
+            Local = new LocalStorageOptions
+            {
+                RootPath = storageRoot,
+            },
+        }));
+
+        await Should.ThrowAsync<ArgumentException>(
+            () => storage.PutAsync("user/file.bin", new MemoryStream([1, 2, 3]), "application/octet-stream",
+                CancellationToken.None));
+        File.Exists(Path.Combine(outsideRoot, "file.bin")).ShouldBeFalse();
     }
 
     [Fact]

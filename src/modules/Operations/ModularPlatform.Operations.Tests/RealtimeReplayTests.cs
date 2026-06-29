@@ -125,4 +125,17 @@ public sealed class RealtimeReplayTests
 
         (await pub.ReadSinceAsync(userId, "0")).Count.ShouldBe(0);
     }
+
+    [Theory]
+    [InlineData("42", "42-1")]
+    [InlineData("1700000000000-3", "1700000000000-4")]
+    [InlineData("1700000000000-not-a-number", "1700000000000-not-a-number")]
+    [InlineData("not-a-stream-id", "not-a-stream-id")]
+    [InlineData("1700000000000-18446744073709551615", "1700000000001-0")]
+    public void Redis_stream_cursor_increment_handles_missing_malformed_and_overflow_sequence(
+        string input,
+        string expected)
+    {
+        RedisRealtimePublisher.IncrementStreamId(input).ShouldBe(expected);
+    }
 }

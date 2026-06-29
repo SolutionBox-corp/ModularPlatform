@@ -66,6 +66,7 @@ internal sealed class ProcessVibeTurnHandler(
 
         var result = await agent.RunTurnAsync(command.UserId, history, ct);
 
+        var now = clock.UtcNow;
         db.VibeMessages.Add(new VibeMessage
         {
             UserId = command.UserId,
@@ -73,8 +74,9 @@ internal sealed class ProcessVibeTurnHandler(
             Role = "assistant",
             Content = result.Content,
             ToolCallsJson = result.ToolCallsJson,
-            CreatedAt = clock.UtcNow,
+            CreatedAt = now,
         });
+        conversation.LastMessageAt = now;
         await db.SaveChangesAsync(ct);
 
         // Non-transactional realtime push AFTER the commit only (mirrors SendNotificationHandler / AnalyzeMarketingData):

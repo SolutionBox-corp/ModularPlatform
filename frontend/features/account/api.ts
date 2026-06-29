@@ -8,6 +8,7 @@ export interface UserProfileResponse {
   email: string;
   displayName: string | null;
   locale: string;
+  emailConfirmed: boolean;
 }
 
 export const accountQueries = {
@@ -47,5 +48,11 @@ export async function changePassword(body: {
   await apiFetch<void>("identity/users/me/change-password", {
     method: "POST",
     body,
+  });
+}
+
+export async function requestEmailVerification(): Promise<void> {
+  await apiFetch<void>("identity/users/me/email-verification", {
+    method: "POST",
   });
 }

@@ -19,7 +19,7 @@
         "label": "Language"
       },
       "save": "Save changes",
-      "saving": "Saving...",
+      "saving": "Saving…",
       "saved": "Profile updated.",
       "saveError": "Could not save your profile. Please try again.",
       "title": "Profile"
@@ -31,7 +31,7 @@
       "new": "New password",
       "confirm": "Confirm new password",
       "submit": "Change password",
-      "saving": "Changing...",
+      "saving": "Changing…",
       "changed": "Password changed. Please sign in again.",
       "error": "Could not change your password. Please try again.",
       "currentRequired": "Enter your current password.",
@@ -39,6 +39,15 @@
       "tooShort": "New password must be at least 8 characters.",
       "tooLong": "New password is too long.",
       "mismatch": "The passwords do not match."
+    },
+    "emailVerification": {
+      "title": "Verify your email",
+      "description": "The email {email} is not verified yet.",
+      "hint": "Verification protects your account and lets the platform trust security and billing emails.",
+      "resend": "Resend verification email",
+      "sending": "Sending…",
+      "sent": "Verification email sent.",
+      "error": "Could not send verification email. Please try again."
     },
     "page": {
       "heading": "Profile",
@@ -63,6 +72,8 @@
     "email": "Email",
     "expired": "Your session expired. Please sign in again.",
     "haveAccount": "Already have an account?",
+    "backToLogin": "Back to sign in",
+    "confirmPassword": "Confirm password",
     "login": {
       "heading": "Sign in",
       "metaTitle": "Sign in — ModularPlatform",
@@ -71,7 +82,18 @@
       "success": "Welcome back!",
       "label": "Sign in"
     },
+    "forgotPassword": {
+      "accepted": "If an account exists for that email, a reset link has been sent.",
+      "heading": "Reset password",
+      "label": "Send reset link",
+      "link": "Forgot password?",
+      "metaTitle": "Reset password — ModularPlatform",
+      "submitting": "Sending…",
+      "subtitle": "Enter your email and we'll send a password reset link.",
+      "toast": "Reset request accepted."
+    },
     "noAccount": "Don't have an account?",
+    "newPassword": "New password",
     "password": "Password",
     "privacyLink": "Privacy Policy",
     "register": {
@@ -82,6 +104,23 @@
       "success": "Account created! Welcome.",
       "label": "Create account"
     },
+    "resetPassword": {
+      "heading": "Set new password",
+      "label": "Set new password",
+      "metaTitle": "Set new password — ModularPlatform",
+      "missingToken": "This reset link is missing a token. Request a new link.",
+      "submitting": "Saving…",
+      "subtitle": "Choose a new password for your account.",
+      "success": "Password changed. Sign in with the new password."
+    },
+    "verifyEmail": {
+      "heading": "Verify email",
+      "metaTitle": "Verify email — ModularPlatform",
+      "missingToken": "This verification link is missing a token.",
+      "subtitle": "Confirm the email address on your account.",
+      "success": "Email verified. You can sign in or return to your account.",
+      "verifying": "Verifying email…"
+    },
     "termsConjunction": "and",
     "termsLink": "Terms",
     "termsPrefix": "I accept the",
@@ -91,10 +130,34 @@
       "emailRequired": "Email is required",
       "passwordMax": "Password too long",
       "passwordMin": "Password must be at least 8 characters",
-      "passwordRequired": "Password is required"
+      "passwordRequired": "Password is required",
+      "passwordsMustMatch": "Passwords must match"
     }
   },
   "billing": {
+    "ledger": {
+      "heading": "Transaction history",
+      "description": "Every credit movement on your account, newest first.",
+      "credit": "Credit",
+      "debit": "Debit",
+      "emptyTitle": "No transactions yet",
+      "emptyDescription": "Your credit top-ups and spends will appear here.",
+      "columns": {
+        "type": "Type",
+        "amount": "Amount",
+        "direction": "Direction",
+        "date": "Date"
+      },
+      "types": {
+        "topup": "Top-up",
+        "spend": "Spend",
+        "reservation": "Reservation",
+        "release": "Release",
+        "expiry": "Expiry",
+        "adjustment": "Adjustment",
+        "refund": "Refund"
+      }
+    },
     "balance": {
       "columns": {
         "category": "Category",
@@ -144,6 +207,51 @@
     "packages": {
       "emptyDescription": "Credit packages will appear here once configured.",
       "emptyTitle": "No packages available"
+    },
+    "paymentGateway": {
+      "currency": "Currency",
+      "description": "Configure the checkout provider this workspace uses when its own customers pay it.",
+      "goPayClientId": "GoPay client ID",
+      "goPayClientSecret": "GoPay client secret",
+      "goPayGoid": "GoPay goid",
+      "heading": "Workspace payment gateway",
+      "provider": "Provider",
+      "sandbox": "Sandbox mode",
+      "save": "Save gateway",
+      "saved": "Payment gateway saved.",
+      "saving": "Saving…",
+      "secretHint": "Secrets are sealed on the server and are never shown again after saving.",
+      "sectionDescription": "Tenant-plane checkout settings for payments made to this workspace.",
+      "stripeApiKey": "Stripe API key",
+      "stripeWebhookSecret": "Stripe webhook signing secret",
+      "title": "Checkout provider",
+      "validation": {
+        "currency": "Enter a 3-letter currency code.",
+        "goPayClientId": "Enter the GoPay client ID.",
+        "goPayClientSecret": "Enter the GoPay client secret.",
+        "goPayGoid": "Enter a numeric GoPay goid.",
+        "stripeApiKey": "Enter the Stripe API key.",
+        "stripeWebhookSecret": "Enter the Stripe webhook signing secret."
+      }
+    },
+    "portal": {
+      "manage": "Manage billing & invoices",
+      "opening": "Opening…",
+      "noAccount": "No billing account yet. Subscribe or buy credits first.",
+      "error": "Could not open the billing portal. Please try again."
+    },
+    "plans": {
+      "heading": "Choose a plan",
+      "description": "Subscribe for recurring credits every billing period.",
+      "emptyTitle": "No plans available",
+      "emptyDescription": "Subscription plans will appear here once configured.",
+      "current": "Current",
+      "currentPlan": "Current plan",
+      "subscribe": "Subscribe",
+      "redirecting": "Redirecting…",
+      "perPeriod": "credits per period",
+      "creditsExpireIn": "{credits} credits/period · expire in {days}d",
+      "creditsNoExpiry": "{credits} credits/period · no expiry"
     },
     "promo": {
       "amountOffSuffix": "off",
@@ -384,6 +492,25 @@
     }
   },
   "files": {
+    "actions": {
+      "menuAria": "Actions for {name}",
+      "download": "Download",
+      "rename": "Rename",
+      "delete": "Delete",
+      "cancel": "Cancel",
+      "save": "Save",
+      "saving": "Saving…",
+      "deleting": "Deleting…",
+      "renamed": "File renamed.",
+      "renameError": "Could not rename the file.",
+      "deleted": "Deleted \"{name}\".",
+      "deleteError": "Could not delete the file.",
+      "renameTitle": "Rename file",
+      "renameDescription": "Enter a new name for this file.",
+      "renameLabel": "File name",
+      "deleteTitle": "Delete file?",
+      "deleteDescription": "\"{name}\" will be permanently deleted. This cannot be undone."
+    },
     "dropzone": {
       "ariaLabel": "Upload a file — drag and drop or click to browse",
       "hint": "{types} — up to {maxMb} MB",
@@ -405,7 +532,11 @@
       "name": "Name",
       "size": "Size",
       "type": "Type",
-      "uploaded": "Uploaded"
+      "uploaded": "Uploaded",
+      "searchPlaceholder": "Search files…",
+      "searchAria": "Search files by name",
+      "noMatchTitle": "No matching files",
+      "noMatchDescription": "No files match your search. Try a different name."
     },
     "validation": {
       "tooLarge": "File is too large. Maximum size is {maxMb} MB.",
@@ -647,11 +778,24 @@
     "empty": {
       "feedDescription": "You're all caught up — no notifications yet.",
       "recentDescription": "You're all caught up.",
-      "title": "No notifications"
+      "title": "No notifications",
+      "noUnreadTitle": "No unread notifications",
+      "noUnreadDescription": "You're all caught up. Switch to All to see earlier notifications."
+    },
+    "filter": {
+      "all": "All",
+      "unread": "Unread"
     },
     "markRead": {
       "ariaLabel": "Mark \"{title}\" as read"
     },
+    "markAll": {
+      "action": "Mark all read",
+      "pending": "Marking…",
+      "done": "{count, plural, =0 {Nothing to mark} one {Marked 1 notification as read} other {Marked # notifications as read}}"
+    },
+    "unreadSummary": "{count, plural, one {1 unread} other {# unread}}",
+    "allRead": "All caught up",
     "page": {
       "description": "Your recent activity and system messages.",
       "heading": "Notifications",
@@ -838,6 +982,15 @@
     "consents": {
       "description": "Control how we use your data. Changes take effect immediately.",
       "heading": "Consent preferences",
+      "history": {
+        "heading": "Consent history",
+        "description": "Every consent decision you have made, newest first.",
+        "granted": "granted",
+        "withdrawn": "withdrawn",
+        "policyVersion": "policy {version}",
+        "emptyTitle": "No consent history",
+        "emptyDescription": "Your consent changes will be recorded here."
+      },
       "toast": {
         "granted": "Consent granted.",
         "withdrawn": "Consent withdrawn."
@@ -928,8 +1081,7 @@
     "operationStatus": {
       "inProgress": "Operation in progress",
       "status": {
-        "cancelled": "Cancelled",
-        "completed": "Completed",
+        "succeeded": "Completed",
         "failed": "Failed",
         "pending": "Pending",
         "running": "Running"

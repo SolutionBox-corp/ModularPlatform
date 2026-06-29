@@ -28,6 +28,9 @@ internal sealed class ExpireCreditsHandler(BillingDbContext db, IClock clock)
         {
             try
             {
+                var accountExpiredHoldCount = 0;
+                var accountExpiredBucketCount = 0;
+                var accountExpiredCredits = 0L;
                 var account = await db.CreditAccounts.FirstAsync(a => a.Id == accountId, ct);
 
                 var lapsedHolds = await db.CreditHolds
@@ -50,7 +53,7 @@ internal sealed class ExpireCreditsHandler(BillingDbContext db, IClock clock)
                     });
                     account.Available += hold.Amount;
                     account.Pending -= hold.Amount;
-                    expiredHoldCount++;
+                    accountExpiredHoldCount++;
                 }
 
                 var expiredBuckets = await db.CreditBuckets
@@ -86,11 +89,14 @@ internal sealed class ExpireCreditsHandler(BillingDbContext db, IClock clock)
                     bucket.Remaining = 0;
                     account.Posted -= lost;
                     account.Available -= lost;
-                    expiredCredits += lost;
-                    expiredBucketCount++;
+                    accountExpiredCredits += lost;
+                    accountExpiredBucketCount++;
                 }
 
                 await db.SaveChangesAsync(ct);
+                expiredHoldCount += accountExpiredHoldCount;
+                expiredBucketCount += accountExpiredBucketCount;
+                expiredCredits += accountExpiredCredits;
             }
             catch (DbUpdateException ex) when (ex is not DbUpdateConcurrencyException)
             {

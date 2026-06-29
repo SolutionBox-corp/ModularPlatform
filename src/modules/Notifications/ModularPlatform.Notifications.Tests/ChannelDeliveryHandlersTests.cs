@@ -79,6 +79,14 @@ public sealed class ChannelDeliveryHandlersTests
         sender.Calls.ShouldBe(1);
     }
 
+    [Fact]
+    public async Task Noop_push_sender_completes_without_external_provider()
+    {
+        var sender = new NoOpPushSender();
+
+        await sender.SendAsync(Guid.CreateVersion7(), "Deal assigned", "Open deal A", CancellationToken.None);
+    }
+
     private static EmailDeliveryRequested NewEmail(string toAddress, string subject, string body) =>
         new(
             EventId: Guid.CreateVersion7(),

@@ -12,24 +12,38 @@ namespace ModularPlatform.ArchitectureTests;
 /// </summary>
 public sealed class ModuleBoundaryTests
 {
+    private static readonly System.Reflection.Assembly[] ModuleCoreAssemblies =
+    [
+        typeof(ModularPlatform.Identity.IdentityModule).Assembly,
+        typeof(ModularPlatform.Billing.BillingModule).Assembly,
+        typeof(ModularPlatform.Notifications.NotificationsModule).Assembly,
+        typeof(ModularPlatform.Gdpr.GdprModule).Assembly,
+        typeof(ModularPlatform.Operations.OperationsModule).Assembly,
+        typeof(ModularPlatform.Files.FilesModule).Assembly,
+        typeof(ModularPlatform.Marketing.MarketingModule).Assembly,
+        typeof(ModularPlatform.Crm.CrmModule).Assembly,
+        typeof(ModularPlatform.Tenancy.TenancyModule).Assembly,
+    ];
+
     private static readonly Architecture Architecture = new ArchLoader()
         .LoadAssemblies(
             typeof(ModularPlatform.Cqrs.IDispatcher).Assembly,
             typeof(ModularPlatform.Abstractions.IModule).Assembly,
-            typeof(ModularPlatform.Identity.IdentityModule).Assembly,
+            ModuleCoreAssemblies[0],
             typeof(ModularPlatform.Identity.Contracts.UserRegisteredIntegrationEvent).Assembly,
-            typeof(ModularPlatform.Billing.BillingModule).Assembly,
+            ModuleCoreAssemblies[1],
             typeof(ModularPlatform.Billing.Contracts.CreditsToppedUpIntegrationEvent).Assembly,
-            typeof(ModularPlatform.Notifications.NotificationsModule).Assembly,
+            ModuleCoreAssemblies[2],
             typeof(ModularPlatform.Notifications.Contracts.EmailDeliveryRequested).Assembly,
-            typeof(ModularPlatform.Gdpr.GdprModule).Assembly,
+            ModuleCoreAssemblies[3],
             typeof(ModularPlatform.Gdpr.Contracts.UserErasureRequested).Assembly,
-            typeof(ModularPlatform.Operations.OperationsModule).Assembly,
-            typeof(ModularPlatform.Files.FilesModule).Assembly,
-            typeof(ModularPlatform.Marketing.MarketingModule).Assembly,
-            typeof(ModularPlatform.Crm.CrmModule).Assembly,
+            ModuleCoreAssemblies[4],
+            ModuleCoreAssemblies[5],
+            typeof(ModularPlatform.Files.Contracts.LinkFileToOwnerCommand).Assembly,
+            ModuleCoreAssemblies[6],
+            ModuleCoreAssemblies[7],
             typeof(ModularPlatform.Crm.Contracts.CrmContracts).Assembly,
-            typeof(ModularPlatform.Tenancy.TenancyModule).Assembly,
+            ModuleCoreAssemblies[8],
             typeof(ModularPlatform.Tenancy.Contracts.TenantProvisionedIntegrationEvent).Assembly)
         .Build();
 
@@ -45,7 +59,19 @@ public sealed class ModuleBoundaryTests
     }
 
     private static readonly string[] Modules =
-        ["Identity", "Billing", "Notifications", "Gdpr", "Operations", "Files", "Crm", "Tenancy"];
+        ["Identity", "Billing", "Notifications", "Gdpr", "Operations", "Files", "Marketing", "Crm", "Tenancy"];
+
+    [Fact]
+    public void Every_loaded_module_core_is_covered_by_the_boundary_matrix()
+    {
+        var loadedModuleNames = ModuleCoreAssemblies
+            .Select(a => a.GetName().Name!.Split('.')[1])
+            .ToList();
+
+        var missing = loadedModuleNames.Except(Modules).ToList();
+        Assert.True(missing.Count == 0,
+            "A module assembly is loaded but missing from the boundary matrix: " + string.Join(", ", missing));
+    }
 
     [Fact]
     public void No_module_core_depends_on_another_modules_core()

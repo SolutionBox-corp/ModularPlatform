@@ -112,6 +112,34 @@ async function fetchTokens(
   return tokens;
 }
 
+async function postAuth(endpoint: string, body: Record<string, unknown>): Promise<void> {
+  const res = await fetch(`${serverConfig.backendUrl}/v1${endpoint}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    let errorCode: string | undefined;
+    let detail: string | undefined;
+    let fieldErrors: Record<string, string[]> | undefined;
+    try {
+      const json = (await res.json()) as {
+        errorCode?: string;
+        detail?: string;
+        errors?: Record<string, string[]>;
+      };
+      errorCode = json.errorCode;
+      detail = json.detail;
+      fieldErrors = json.errors;
+    } catch {
+      // ignore parse failure
+    }
+    throw new ApiError({ status: res.status, errorCode, detail, fieldErrors });
+  }
+}
+
 async function buildSessionUser(
   accessToken: string,
   fallbackEmail: string,
@@ -249,6 +277,36 @@ export async function registerAction(
     session.accessTokenExpiresAt = Date.parse(tokens.accessTokenExpiresAt);
     session.user = user;
     await session.save();
+    return { ok: true };
+  } catch (err) {
+    return toResult(err);
+  }
+}
+
+export async function forgotPasswordAction(email: string): Promise<AuthResult> {
+  try {
+    await postAuth("/identity/auth/forgot-password", { email });
+    return { ok: true };
+  } catch (err) {
+    return toResult(err);
+  }
+}
+
+export async function resetPasswordAction(
+  token: string,
+  newPassword: string,
+): Promise<AuthResult> {
+  try {
+    await postAuth("/identity/auth/reset-password", { token, newPassword });
+    return { ok: true };
+  } catch (err) {
+    return toResult(err);
+  }
+}
+
+export async function verifyEmailAction(token: string): Promise<AuthResult> {
+  try {
+    await postAuth("/identity/auth/verify-email", { token });
     return { ok: true };
   } catch (err) {
     return toResult(err);

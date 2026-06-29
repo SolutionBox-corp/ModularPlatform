@@ -3,7 +3,10 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.DependencyInjection;
+using ModularPlatform.Billing.Features.Subscriptions.GrantSubscriptionCredits;
+using ModularPlatform.Billing.Features.Subscriptions.UpsertSubscriptionFromStripe;
 using ModularPlatform.Billing.Stripe;
+using ModularPlatform.Cqrs;
 using ModularPlatform.IntegrationTesting;
 using ModularPlatform.Payments;
 using Shouldly;
@@ -107,6 +110,184 @@ public sealed class BillingCommerceTests(PlatformApiFactory fixture)
         var balance = await fixture.Client.SendAsync(fixture.Authed(
             HttpMethod.Get, "/v1/billing/credits/balance", userToken));
         (await PlatformApiFactory.ReadData(balance)).GetProperty("available").GetInt64().ShouldBe(500);
+    }
+
+    [Fact]
+    public async Task Duplicate_paid_purchase_webhook_grants_credits_exactly_once()
+    {
+        var (purchaseId, providerPaymentId, tenantId) = await StartPackageCheckoutAsync(
+            creditAmount: 275, stripePriceId: $"price_test_duplicate_{Guid.CreateVersion7():N}");
+
+        (await ConfirmPaidViaTenantWebhookAsync(tenantId, providerPaymentId)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM credit_entries WHERE \"IdempotencyKey\" = 'purchase:{purchaseId}'", 1);
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM credit_purchase_sagas WHERE \"Id\" = '{purchaseId}' AND \"Status\" = 'Completed'", 1);
+
+        (await ConfirmPaidViaTenantWebhookAsync(tenantId, providerPaymentId)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await Task.Delay(750);
+
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_entries WHERE \"IdempotencyKey\" = 'purchase:{purchaseId}'")).ShouldBe(1);
+        (await fixture.ScalarAsync<long>(
+            $"SELECT \"Posted\" FROM credit_accounts WHERE \"UserId\" = (SELECT \"UserId\" FROM credit_purchase_sagas WHERE \"Id\" = '{purchaseId}')")).ShouldBe(275);
+    }
+
+    [Fact]
+    public async Task Paid_package_checkout_with_missing_purchase_metadata_does_not_grant_credits()
+    {
+        var (userId, userToken) = await fixture.RegisterAndLoginAsync(
+            $"forged-session-{Guid.CreateVersion7():N}@test.io", Password);
+        var eventId = $"evt_{Guid.CreateVersion7():N}";
+
+        Fake.SeedEvent(new Event
+        {
+            Id = eventId,
+            Type = "checkout.session.completed",
+            Data = new EventData
+            {
+                Object = new global::Stripe.Checkout.Session
+                {
+                    Id = $"cs_{Guid.CreateVersion7():N}",
+                    PaymentStatus = "paid",
+                    Metadata = new Dictionary<string, string>
+                    {
+                        ["purchase_type"] = "package",
+                        ["user_id"] = userId.ToString(),
+                        ["credit_amount"] = "999",
+                    },
+                },
+            },
+        });
+
+        (await PostSignedWebhookAsync(eventId, "checkout.session.completed")).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM stripe_events WHERE \"StripeEventId\" = '{eventId}' AND \"ProcessedAt\" IS NOT NULL", 1);
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_entries e JOIN credit_accounts a ON a.\"Id\" = e.\"AccountId\" " +
+            $"WHERE a.\"UserId\" = '{userId}' AND e.\"Type\" = 'Topup'")).ShouldBe(0);
+
+        var balance = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, "/v1/billing/credits/balance", userToken));
+        balance.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PlatformApiFactory.ReadData(balance)).GetProperty("available").GetInt64().ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Non_package_checkout_session_with_stray_credit_metadata_does_not_top_up()
+    {
+        var (userId, userToken) = await fixture.RegisterAndLoginAsync(
+            $"non-package-session-{Guid.CreateVersion7():N}@test.io", Password);
+        var eventId = $"evt_{Guid.CreateVersion7():N}";
+
+        Fake.SeedEvent(new Event
+        {
+            Id = eventId,
+            Type = "checkout.session.completed",
+            Data = new EventData
+            {
+                Object = new global::Stripe.Checkout.Session
+                {
+                    Id = $"cs_{Guid.CreateVersion7():N}",
+                    PaymentStatus = "paid",
+                    Metadata = new Dictionary<string, string>
+                    {
+                        ["purchase_type"] = "subscription",
+                        ["user_id"] = userId.ToString(),
+                        ["credit_amount"] = "777",
+                    },
+                },
+            },
+        });
+
+        (await PostSignedWebhookAsync(eventId, "checkout.session.completed")).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM stripe_events WHERE \"StripeEventId\" = '{eventId}' AND \"ProcessedAt\" IS NOT NULL", 1);
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_entries e JOIN credit_accounts a ON a.\"Id\" = e.\"AccountId\" " +
+            $"WHERE a.\"UserId\" = '{userId}' AND e.\"Type\" = 'Topup'")).ShouldBe(0);
+
+        var balance = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, "/v1/billing/credits/balance", userToken));
+        balance.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PlatformApiFactory.ReadData(balance)).GetProperty("available").GetInt64().ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Invoice_paid_without_subscription_id_is_processed_without_credit_grant()
+    {
+        var eventId = $"evt_{Guid.CreateVersion7():N}";
+        var invoiceId = $"in_{Guid.CreateVersion7():N}";
+
+        Fake.SeedEvent(new Event
+        {
+            Id = eventId,
+            Type = "invoice.paid",
+            Data = new EventData
+            {
+                Object = new Invoice
+                {
+                    Id = invoiceId,
+                    Parent = new InvoiceParent { SubscriptionDetails = new InvoiceParentSubscriptionDetails() },
+                },
+            },
+        });
+
+        (await PostSignedWebhookAsync(eventId, "invoice.paid")).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM stripe_events WHERE \"StripeEventId\" = '{eventId}' AND \"ProcessedAt\" IS NOT NULL", 1);
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_entries WHERE \"IdempotencyKey\" = 'sub-invoice:{invoiceId}'")).ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Invoice_payment_succeeded_grants_subscription_credits_like_invoice_paid()
+    {
+        var (userId, userToken) = await fixture.RegisterAndLoginAsync(
+            $"invoice-succeeded-{Guid.CreateVersion7():N}@test.io", Password);
+        var subId = $"sub_{Guid.CreateVersion7():N}";
+        var invoiceId = $"in_{Guid.CreateVersion7():N}";
+        var eventId = $"evt_{Guid.CreateVersion7():N}";
+
+        Fake.SeedSubscription(new StripeSubscriptionState(
+            SubscriptionId: subId,
+            Status: "active",
+            CustomerId: "cus_test",
+            CurrentPeriodEnd: DateTimeOffset.UtcNow.AddMonths(1),
+            CancelAtPeriodEnd: false,
+            Metadata: new Dictionary<string, string> { ["user_id"] = userId.ToString(), ["plan_key"] = "pro" }));
+        await SendSubscriptionEventAsync("customer.subscription.created", subId);
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM subscriptions WHERE \"StripeSubscriptionId\" = '{subId}' AND \"Status\" = 'Active'", 1);
+
+        Fake.SeedEvent(new Event
+        {
+            Id = eventId,
+            Type = "invoice.payment_succeeded",
+            Data = new EventData
+            {
+                Object = new Invoice
+                {
+                    Id = invoiceId,
+                    Parent = new InvoiceParent
+                    {
+                        SubscriptionDetails = new InvoiceParentSubscriptionDetails { SubscriptionId = subId },
+                    },
+                },
+            },
+        });
+
+        (await PostSignedWebhookAsync(eventId, "invoice.payment_succeeded")).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM credit_entries WHERE \"IdempotencyKey\" = 'sub-invoice:{invoiceId}'", 1);
+        var balance = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, "/v1/billing/credits/balance", userToken));
+        balance.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PlatformApiFactory.ReadData(balance)).GetProperty("available").GetInt64().ShouldBe(100);
     }
 
     [Fact]
@@ -319,6 +500,73 @@ public sealed class BillingCommerceTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Duplicate_invoice_success_events_grant_subscription_credits_exactly_once()
+    {
+        var (userId, userToken) = await fixture.RegisterAndLoginAsync(
+            $"sub-duplicate-invoice-{Guid.CreateVersion7():N}@test.io", Password);
+        var subId = $"sub_{Guid.CreateVersion7():N}";
+        var invoiceId = $"in_{Guid.CreateVersion7():N}";
+
+        Fake.SeedSubscription(new StripeSubscriptionState(
+            SubscriptionId: subId,
+            Status: "active",
+            CustomerId: "cus_test",
+            CurrentPeriodEnd: DateTimeOffset.UtcNow.AddMonths(1),
+            CancelAtPeriodEnd: false,
+            Metadata: new Dictionary<string, string> { ["user_id"] = userId.ToString(), ["plan_key"] = "pro" }));
+        await SendSubscriptionEventAsync("customer.subscription.created", subId);
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM subscriptions WHERE \"StripeSubscriptionId\" = '{subId}' AND \"Status\" = 'Active'", 1);
+
+        await SendInvoiceEventAsync("invoice.paid", subId, invoiceId);
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM credit_entries WHERE \"IdempotencyKey\" = 'sub-invoice:{invoiceId}'", 1);
+
+        await SendInvoiceEventAsync("invoice.payment_succeeded", subId, invoiceId);
+        await Task.Delay(750);
+
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_entries WHERE \"IdempotencyKey\" = 'sub-invoice:{invoiceId}'")).ShouldBe(1);
+        var balance = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, "/v1/billing/credits/balance", userToken));
+        balance.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PlatformApiFactory.ReadData(balance)).GetProperty("available").GetInt64().ShouldBe(100);
+    }
+
+    [Fact]
+    public async Task Access_only_subscription_plan_does_not_grant_invoice_credits()
+    {
+        using var host = fixture.CreateHost(
+            ("Billing:Subscriptions:Plans:1:PlanKey", "access"),
+            ("Billing:Subscriptions:Plans:1:StripePriceId", "price_access"),
+            ("Billing:Subscriptions:Plans:1:CreditsPerPeriod", "0"),
+            ("Billing:Subscriptions:Plans:1:Enabled", "true"));
+        var fake = (FakeStripeGateway)host.Services.GetRequiredService<IStripeGateway>();
+
+        var (userId, _) = await fixture.RegisterAndLoginAsync(
+            $"sub-access-only-{Guid.CreateVersion7():N}@test.io", Password);
+        var subId = $"sub_{Guid.CreateVersion7():N}";
+        var invoiceId = $"in_{Guid.CreateVersion7():N}";
+
+        fake.SeedSubscription(new StripeSubscriptionState(
+            SubscriptionId: subId,
+            Status: "active",
+            CustomerId: "cus_test",
+            CurrentPeriodEnd: DateTimeOffset.UtcNow.AddMonths(1),
+            CancelAtPeriodEnd: false,
+            Metadata: new Dictionary<string, string> { ["user_id"] = userId.ToString(), ["plan_key"] = "access" }));
+
+        await DispatchAsync(host.Services, new UpsertSubscriptionFromStripeCommand(subId));
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM subscriptions WHERE \"StripeSubscriptionId\" = '{subId}' AND \"PlanKey\" = 'access'", 1);
+
+        await DispatchAsync(host.Services, new GrantSubscriptionCreditsCommand(subId, invoiceId));
+
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_entries WHERE \"IdempotencyKey\" = 'sub-invoice:{invoiceId}'")).ShouldBe(0);
+    }
+
+    [Fact]
     public async Task Subscription_plans_come_from_config_and_promo_codes_validate_through_stripe()
     {
         var (_, token) = await fixture.RegisterAndLoginAsync($"plans-{Guid.CreateVersion7():N}@test.io", Password);
@@ -448,6 +696,13 @@ public sealed class BillingCommerceTests(PlatformApiFactory fixture)
         await bus.PublishAsync(message);
     }
 
+    private static async Task DispatchAsync(IServiceProvider services, ICommand command)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var dispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
+        await dispatcher.Send(command);
+    }
+
     private Task<HttpResponseMessage> SendSubscriptionEventAsync(string type, string subscriptionId)
     {
         var eventId = $"evt_{Guid.CreateVersion7():N}";
@@ -456,6 +711,28 @@ public sealed class BillingCommerceTests(PlatformApiFactory fixture)
             Id = eventId,
             Type = type,
             Data = new EventData { Object = new Subscription { Id = subscriptionId } },
+        });
+        return PostSignedWebhookAsync(eventId, type);
+    }
+
+    private Task<HttpResponseMessage> SendInvoiceEventAsync(string type, string subscriptionId, string invoiceId)
+    {
+        var eventId = $"evt_{Guid.CreateVersion7():N}";
+        Fake.SeedEvent(new Event
+        {
+            Id = eventId,
+            Type = type,
+            Data = new EventData
+            {
+                Object = new Invoice
+                {
+                    Id = invoiceId,
+                    Parent = new InvoiceParent
+                    {
+                        SubscriptionDetails = new InvoiceParentSubscriptionDetails { SubscriptionId = subscriptionId },
+                    },
+                },
+            },
         });
         return PostSignedWebhookAsync(eventId, type);
     }

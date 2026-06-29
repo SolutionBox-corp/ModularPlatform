@@ -9,8 +9,8 @@ using Shouldly;
 namespace ModularPlatform.Billing.Tests;
 
 /// <summary>
-/// UC43: the CRM only asks the platform for a hosted billing portal URL. The customer id and return URL are
-/// server-owned, so the CRM never creates a provider session directly and never sends customer ids in the request.
+/// UC43: a product module only asks the platform for a hosted billing portal URL. The customer id and return URL are
+/// server-owned, so the product module never creates a provider session directly and never sends customer ids in the request.
 /// </summary>
 [Collection("Integration")]
 public sealed class BillingPortalTests(PlatformApiFactory fixture)

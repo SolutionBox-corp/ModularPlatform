@@ -13,6 +13,7 @@ internal sealed class VibeConversation : AuditableEntity, IUserOwned, ISoftDelet
 {
     public Guid UserId { get; set; }
     public string Title { get; set; } = string.Empty;
+    public DateTimeOffset? LastMessageAt { get; set; }
     public DateTimeOffset? DeletedAt { get; set; }
 }
 
@@ -24,6 +25,6 @@ internal sealed class VibeConversationConfiguration : IEntityTypeConfiguration<V
         builder.HasKey(c => c.Id);
         builder.Property(c => c.UserId).IsRequired();
         builder.Property(c => c.Title).HasMaxLength(256).IsRequired();
-        builder.HasIndex(c => new { c.UserId, c.CreatedAt });
+        builder.HasIndex(c => new { c.UserId, c.LastMessageAt, c.CreatedAt });
     }
 }

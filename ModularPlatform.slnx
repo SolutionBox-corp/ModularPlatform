@@ -30,6 +30,7 @@
     <Project Path="src/modules/Crm/ModularPlatform.Crm/ModularPlatform.Crm.csproj" />
   </Folder>
   <Folder Name="/src/modules/Files/">
+    <Project Path="src/modules/Files/ModularPlatform.Files.Contracts/ModularPlatform.Files.Contracts.csproj" />
     <Project Path="src/modules/Files/ModularPlatform.Files.Tests/ModularPlatform.Files.Tests.csproj" />
     <Project Path="src/modules/Files/ModularPlatform.Files/ModularPlatform.Files.csproj" />
   </Folder>

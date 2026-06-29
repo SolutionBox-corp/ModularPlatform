@@ -76,6 +76,25 @@ public sealed class SessionRevocationTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Erased_user_access_token_can_no_longer_read_profile()
+    {
+        var (userId, accessToken, _, _) = await RegisterLoginAsync();
+
+        var erase = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Post, "/v1/gdpr/me/erase", accessToken));
+        erase.EnsureSuccessStatusCode();
+
+        await fixture.WaitForCountAsync(
+            $"""SELECT count(*)::bigint FROM users WHERE "Id" = '{userId}' AND "DeletedAt" IS NOT NULL""", 1);
+
+        var me = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/identity/users/me", accessToken));
+
+        me.StatusCode.ShouldBe(HttpStatusCode.NotFound,
+            "an existing access token must not read a GDPR-erased profile");
+    }
+
+    [Fact]
     public async Task Logout_revokes_the_session_family()
     {
         var (_, accessToken, refreshToken, _) = await RegisterLoginAsync();

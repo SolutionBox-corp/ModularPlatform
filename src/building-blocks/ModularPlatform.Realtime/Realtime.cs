@@ -181,7 +181,7 @@ internal sealed class RedisRealtimePublisher(IConnectionMultiplexer redis, IOpti
     /// bound for XRANGE. If the id has no sequence, appends <c>-1</c>. Invalid formats fall back to the
     /// original id (XRANGE will return an empty set for an unknown id, which is safe).
     /// </summary>
-    private static string IncrementStreamId(string id)
+    internal static string IncrementStreamId(string id)
     {
         var dashIndex = id.LastIndexOf('-');
         if (dashIndex < 0)

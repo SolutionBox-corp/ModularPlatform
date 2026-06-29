@@ -2,8 +2,8 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using ModularPlatform.Billing.Contracts;
 using ModularPlatform.Billing.Features.Credits.ExpireCredits;
-using ModularPlatform.Billing.Features.Credits.ReserveCredits;
 using ModularPlatform.Billing.Jobs;
 using ModularPlatform.Cqrs;
 using ModularPlatform.IntegrationTesting;
@@ -352,6 +352,128 @@ public sealed class LedgerLifecycleTests(PlatformApiFactory fixture)
         projection.Posted.ShouldBe(100);
         projection.Available.ShouldBe(0);
         projection.Pending.ShouldBe(100);
+    }
+
+    [Fact]
+    public async Task Non_expiring_topup_bucket_is_not_touched_by_expiry_sweep()
+    {
+        var (userId, _) = await fixture.RegisterAndLoginAsync(Email("non-expiring"), Password);
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{userId}'", 1);
+        var key = $"forever-{Guid.CreateVersion7():N}";
+
+        await fixture.GrantCreditsAsync(userId, 150, bucketExpiryDays: null, idempotencyKey: key);
+
+        var accountId = await AccountIdAsync(userId);
+        var bucketId = await fixture.ScalarAsync<Guid>(
+            $"SELECT \"BucketId\" FROM credit_entries WHERE \"IdempotencyKey\" = '{key}'");
+        var nonExpiringBuckets = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_buckets WHERE \"Id\" = '{bucketId}' AND \"ExpiresAt\" IS NULL");
+        nonExpiringBuckets.ShouldBe(1);
+
+        await DispatchExpireSweepAsync();
+
+        var bucketRemaining = await fixture.ScalarAsync<long>(
+            $"SELECT \"Remaining\" FROM credit_buckets WHERE \"Id\" = '{bucketId}'");
+        bucketRemaining.ShouldBe(150);
+
+        var expiryEntries = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_entries WHERE \"AccountId\" = '{accountId}' AND \"Type\" = 'Expiry'");
+        expiryEntries.ShouldBe(0);
+
+        var projection = await ProjectionAsync(userId);
+        projection.Posted.ShouldBe(150);
+        projection.Available.ShouldBe(150);
+        projection.Pending.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Expiry_sweep_processes_multiple_accounts_in_one_run()
+    {
+        var (aliceId, _) = await fixture.RegisterAndLoginAsync(Email("expire-alice"), Password);
+        var (bobId, _) = await fixture.RegisterAndLoginAsync(Email("expire-bob"), Password);
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{aliceId}'", 1);
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{bobId}'", 1);
+        var aliceKey = $"alice-expire-{Guid.CreateVersion7():N}";
+        var bobKey = $"bob-expire-{Guid.CreateVersion7():N}";
+
+        await fixture.GrantCreditsAsync(aliceId, 90, bucketExpiryDays: 1, idempotencyKey: aliceKey);
+        await fixture.GrantCreditsAsync(bobId, 110, bucketExpiryDays: 1, idempotencyKey: bobKey);
+
+        var aliceAccountId = await AccountIdAsync(aliceId);
+        var bobAccountId = await AccountIdAsync(bobId);
+        var aliceBucketId = await fixture.ScalarAsync<Guid>(
+            $"SELECT \"BucketId\" FROM credit_entries WHERE \"IdempotencyKey\" = '{aliceKey}'");
+        var bobBucketId = await fixture.ScalarAsync<Guid>(
+            $"SELECT \"BucketId\" FROM credit_entries WHERE \"IdempotencyKey\" = '{bobKey}'");
+
+        await fixture.ExecuteSqlAsync(
+            $"UPDATE credit_buckets SET \"ExpiresAt\" = now() - interval '1 hour' " +
+            $"WHERE \"Id\" IN ('{aliceBucketId}', '{bobBucketId}')");
+
+        await DispatchExpireSweepAsync();
+
+        (await ProjectionAsync(aliceId)).ShouldBe((Posted: 0, Available: 0, Pending: 0));
+        (await ProjectionAsync(bobId)).ShouldBe((Posted: 0, Available: 0, Pending: 0));
+
+        var aliceExpiry = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_entries WHERE \"AccountId\" = '{aliceAccountId}' AND \"Type\" = 'Expiry'");
+        var bobExpiry = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_entries WHERE \"AccountId\" = '{bobAccountId}' AND \"Type\" = 'Expiry'");
+        aliceExpiry.ShouldBe(1);
+        bobExpiry.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Expiry_sweep_isolates_one_accounts_persistence_failure_and_continues_with_others()
+    {
+        var (blockedId, _) = await fixture.RegisterAndLoginAsync(Email("expire-blocked"), Password);
+        var (healthyId, _) = await fixture.RegisterAndLoginAsync(Email("expire-healthy"), Password);
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{blockedId}'", 1);
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{healthyId}'", 1);
+        var blockedKey = $"blocked-expire-{Guid.CreateVersion7():N}";
+        var healthyKey = $"healthy-expire-{Guid.CreateVersion7():N}";
+
+        await fixture.GrantCreditsAsync(blockedId, 70, bucketExpiryDays: 1, idempotencyKey: blockedKey);
+        await fixture.GrantCreditsAsync(healthyId, 130, bucketExpiryDays: 1, idempotencyKey: healthyKey);
+
+        var blockedAccountId = await AccountIdAsync(blockedId);
+        var healthyAccountId = await AccountIdAsync(healthyId);
+        var blockedBucketId = await fixture.ScalarAsync<Guid>(
+            $"SELECT \"BucketId\" FROM credit_entries WHERE \"IdempotencyKey\" = '{blockedKey}'");
+        var healthyBucketId = await fixture.ScalarAsync<Guid>(
+            $"SELECT \"BucketId\" FROM credit_entries WHERE \"IdempotencyKey\" = '{healthyKey}'");
+
+        await fixture.ExecuteSqlAsync(
+            $"UPDATE credit_buckets SET \"ExpiresAt\" = now() - interval '1 hour' " +
+            $"WHERE \"Id\" IN ('{blockedBucketId}', '{healthyBucketId}')");
+
+        await fixture.ExecuteSqlAsync(
+            "INSERT INTO credit_entries " +
+            "(\"Id\", \"AccountId\", \"Direction\", \"Amount\", \"TransactionId\", \"Type\", \"BucketId\", \"IdempotencyKey\", \"CreatedAt\") " +
+            $"VALUES ('{Guid.CreateVersion7()}', '{blockedAccountId}', 'Debit', 1, '{Guid.CreateVersion7()}', 'Adjustment', NULL, 'expire-bucket:{blockedBucketId}', now())");
+
+        var sweep = await DispatchExpireSweepAsync();
+
+        sweep.ExpiredBuckets.ShouldBe(1);
+        sweep.ExpiredCredits.ShouldBe(130);
+
+        (await ProjectionAsync(healthyId)).ShouldBe((Posted: 0, Available: 0, Pending: 0));
+        var healthyExpiry = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_entries WHERE \"AccountId\" = '{healthyAccountId}' AND \"Type\" = 'Expiry'");
+        healthyExpiry.ShouldBe(1);
+
+        (await ProjectionAsync(blockedId)).ShouldBe((Posted: 70, Available: 70, Pending: 0));
+        var blockedBucketRemaining = await fixture.ScalarAsync<long>(
+            $"SELECT \"Remaining\" FROM credit_buckets WHERE \"Id\" = '{blockedBucketId}'");
+        blockedBucketRemaining.ShouldBe(70);
+        var blockedExpiry = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_entries WHERE \"AccountId\" = '{blockedAccountId}' AND \"Type\" = 'Expiry'");
+        blockedExpiry.ShouldBe(0);
     }
 
     [Fact]

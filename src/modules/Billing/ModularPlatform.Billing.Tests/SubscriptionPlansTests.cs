@@ -7,7 +7,7 @@ namespace ModularPlatform.Billing.Tests;
 
 /// <summary>
 /// UC39: subscription plans are server config exposed through a stable public contract. Stripe price ids stay
-/// server-side; CRM/frontends use planKey and visible grant fields only.
+/// server-side; product-module frontends use planKey and visible grant fields only.
 /// </summary>
 [Collection("Integration")]
 public sealed class SubscriptionPlansTests(PlatformApiFactory fixture)

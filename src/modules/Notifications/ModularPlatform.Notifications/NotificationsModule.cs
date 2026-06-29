@@ -7,6 +7,8 @@ using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Notifications.Channels;
 using ModularPlatform.Notifications.Features.Notifications.GetMyNotifications;
+using ModularPlatform.Notifications.Features.Notifications.GetUnreadCount;
+using ModularPlatform.Notifications.Features.Notifications.MarkAllRead;
 using ModularPlatform.Notifications.Features.Notifications.MarkNotificationRead;
 using ModularPlatform.Notifications.Features.Notifications.SendNotification;
 using ModularPlatform.Notifications.Gdpr;
@@ -30,9 +32,7 @@ public sealed class NotificationsModule : IModule
 
     public void RegisterServices(IServiceCollection services, IConfiguration configuration)
     {
-        var write = configuration.GetConnectionString("Write")
-            ?? throw new InvalidOperationException("Missing ConnectionStrings:Write");
-        var read = configuration.GetConnectionString("Read") ?? write;
+        var (write, read) = ModuleConnectionStrings.GetWriteAndRead(configuration);
 
         services.AddCqrs(typeof(NotificationsModule).Assembly);
         services.AddValidatorsFromAssembly(typeof(NotificationsModule).Assembly, includeInternalTypes: true);
@@ -54,7 +54,9 @@ public sealed class NotificationsModule : IModule
     {
         endpoints.MapSendNotification();
         endpoints.MapGetMyNotifications();
+        endpoints.MapGetUnreadCount();
         endpoints.MapMarkNotificationRead();
+        endpoints.MapMarkAllRead();
     }
 
     public void ConfigureMessaging(WolverineOptions options)

@@ -18,7 +18,7 @@ internal sealed class GetProfileHandler(IReadDbContextFactory<IdentityDbContext>
 
         var profile = await db.Users
             .Where(u => u.Id == query.UserId)
-            .Select(u => new UserProfileResponse(u.Id, u.Email, u.DisplayName, u.Locale))
+            .Select(u => new UserProfileResponse(u.Id, u.Email, u.DisplayName, u.Locale, u.EmailConfirmed))
             .FirstOrDefaultAsync(ct);
 
         return profile ?? throw new NotFoundException("user.not_found", "User not found.");

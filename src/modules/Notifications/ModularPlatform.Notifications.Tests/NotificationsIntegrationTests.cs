@@ -1,15 +1,22 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using ModularPlatform.Abstractions;
 using ModularPlatform.Billing.Contracts;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Identity.Contracts;
 using ModularPlatform.IntegrationTesting;
+using ModularPlatform.Notifications.Contracts;
+using ModularPlatform.Notifications.Entities;
 using ModularPlatform.Notifications.Features.Notifications.SendNotification;
 using ModularPlatform.Notifications.Messaging;
+using ModularPlatform.Notifications.Persistence;
+using ModularPlatform.Notifications.Seeding;
 using Shouldly;
 using Wolverine;
+using Wolverine.EntityFrameworkCore;
 
 namespace ModularPlatform.Notifications.Tests;
 
@@ -27,9 +34,8 @@ namespace ModularPlatform.Notifications.Tests;
 ///   migration 20260608064755_InitialNotifications.cs:30-51; notification_templates (Id, Key, Locale, Subject,
 ///   Body) — NotificationTemplate.cs:12-31, migration lines 14-28.
 /// - Welcome path: SendWelcomeHandler reacts to Identity's UserRegisteredIntegrationEvent and dispatches
-///   SendNotificationCommand("welcome", ["email","inapp"]); a MISSING "welcome" template is caught and logged,
-///   never dead-lettered — SendWelcomeHandler.cs:16-35. NO production code seeds a "welcome" template
-///   (grep verified), and the test host does not seed it either — so EV-2 is in the "missing template" case.
+///   SendNotificationCommand("welcome", ["email","inapp"]); NotificationsSeeder seeds welcome templates, and a
+///   missing template is caught and logged without dead-lettering — SendWelcomeHandler.cs:16-35.
 /// - Channel hand-off is via the outbox, never inline: SendNotificationHandler.cs:50-86 publishes
 ///   EmailDeliveryRequested / PushDeliveryRequested to the outbox and only the inapp row is written inline.
 /// </summary>
@@ -134,7 +140,7 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
     // persisted with the rendered title/body. The 200 + persisted row prove the email channel was NOT sent
     // inline (the test host has no reachable SMTP relay, so an inline send would have failed the request);
     // the email/push are published to the outbox per SendNotificationHandler.cs:55-74 + the explicit
-    // "never sends inline" contract in SendNotificationCommand.cs:6-8 and IntegrationEvents.cs:6-10.
+    // "never sends inline" contract in Notifications.Contracts/Commands.cs + IntegrationEvents.cs.
     [Fact]
     public async Task SendNotification_persists_an_inapp_row_and_enqueues_channel_delivery_via_the_outbox()
     {
@@ -181,6 +187,134 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
         var item = (await PlatformApiFactory.ReadData(feed)).GetProperty("items").EnumerateArray()
             .Single(n => n.GetProperty("templateKey").GetString() == templateKey);
         item.GetProperty("title").GetString().ShouldBe("Hello Ada");
+    }
+
+    [Fact]
+    public async Task SendNotification_deduplicates_channels_before_publishing_delivery_messages()
+    {
+        var recipientId = Guid.CreateVersion7();
+        var templateKey = $"nt-channel-dedup-{Guid.CreateVersion7():N}";
+        var tenant = new TestTenantContext(recipientId);
+        var options = new DbContextOptionsBuilder<NotificationsDbContext>()
+            .UseNpgsql(fixture.ConnectionString)
+            .Options;
+        await using var db = new NotificationsDbContext(options, tenant);
+        db.NotificationTemplates.Add(new NotificationTemplate
+        {
+            Key = templateKey,
+            Locale = "en",
+            Subject = "Hello {displayName}",
+            Body = "Body for {displayName}"
+        });
+        await db.SaveChangesAsync();
+
+        var outbox = new RecordingOutbox(db);
+        var handler = new SendNotificationHandler(outbox, new NoopRealtimePublisher(), new FixedClock());
+
+        await handler.Handle(new SendNotificationCommand(
+            recipientId,
+            templateKey,
+            ["email", "email", "push", "push", "inapp", "inapp"],
+            new Dictionary<string, string> { ["displayName"] = "Ada", ["email"] = "ada@example.com" }),
+            CancellationToken.None);
+
+        db.Notifications.Count(n => n.UserId == recipientId && n.TemplateKey == templateKey).ShouldBe(1);
+        outbox.Published.OfType<EmailDeliveryRequested>().Count().ShouldBe(1);
+        outbox.Published.OfType<PushDeliveryRequested>().Count().ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task SendNotification_falls_back_to_english_template_when_requested_locale_is_missing()
+    {
+        var (recipientId, adminToken) = await AdminTokenAsync();
+
+        var templateKey = $"nt-locale-{Guid.CreateVersion7():N}";
+        await fixture.ExecuteSqlAsync(
+            $"INSERT INTO notification_templates (\"Id\", \"Key\", \"Locale\", \"Subject\", \"Body\") " +
+            $"VALUES ('{Guid.CreateVersion7()}', '{templateKey}', 'en', 'English {{displayName}}', 'Fallback body')");
+
+        var send = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/notifications/send", adminToken, new
+            {
+                userId = recipientId,
+                templateKey,
+                channels = new[] { "inapp" },
+                data = new Dictionary<string, string> { ["displayName"] = "Ada", ["locale"] = "cs" },
+            }));
+
+        send.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var feed = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/notifications/me", adminToken));
+        feed.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var item = (await PlatformApiFactory.ReadData(feed)).GetProperty("items").EnumerateArray()
+            .Single(n => n.GetProperty("templateKey").GetString() == templateKey);
+        item.GetProperty("title").GetString().ShouldBe("English Ada");
+        item.GetProperty("body").GetString().ShouldBe("Fallback body");
+    }
+
+    [Fact]
+    public async Task SendNotification_uses_requested_locale_template_when_it_exists()
+    {
+        var (recipientId, adminToken) = await AdminTokenAsync();
+
+        var templateKey = $"nt-locale-cs-{Guid.CreateVersion7():N}";
+        await fixture.ExecuteSqlAsync(
+            $"INSERT INTO notification_templates (\"Id\", \"Key\", \"Locale\", \"Subject\", \"Body\") " +
+            $"VALUES ('{Guid.CreateVersion7()}', '{templateKey}', 'en', 'English {{displayName}}', 'English body')");
+        await fixture.ExecuteSqlAsync(
+            $"INSERT INTO notification_templates (\"Id\", \"Key\", \"Locale\", \"Subject\", \"Body\") " +
+            $"VALUES ('{Guid.CreateVersion7()}', '{templateKey}', 'cs', 'Cesky {{displayName}}', 'Ceske telo')");
+
+        var send = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/notifications/send", adminToken, new
+            {
+                userId = recipientId,
+                templateKey,
+                channels = new[] { "inapp" },
+                data = new Dictionary<string, string> { ["displayName"] = "Ada", ["locale"] = "cs" },
+            }));
+
+        send.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var feed = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/notifications/me", adminToken));
+        feed.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var item = (await PlatformApiFactory.ReadData(feed)).GetProperty("items").EnumerateArray()
+            .Single(n => n.GetProperty("templateKey").GetString() == templateKey);
+        item.GetProperty("title").GetString().ShouldBe("Cesky Ada");
+        item.GetProperty("body").GetString().ShouldBe("Ceske telo");
+    }
+
+    [Fact]
+    public async Task Notifications_seeder_can_run_repeatedly_without_duplicate_builtin_templates()
+    {
+        var before = await BuiltInTemplateCountAsync();
+        before.ShouldBe(4);
+
+        var seeder = new NotificationsSeeder(
+            fixture.Services,
+            NullLogger<NotificationsSeeder>.Instance);
+
+        await seeder.StartAsync(CancellationToken.None);
+        await seeder.StartAsync(CancellationToken.None);
+
+        var after = await BuiltInTemplateCountAsync();
+        after.ShouldBe(before);
+
+        var duplicateGroups = await fixture.ScalarAsync<long>(
+            """
+            SELECT count(*)::bigint
+            FROM (
+                SELECT "Key", "Locale", count(*)::bigint AS c
+                FROM notification_templates
+                WHERE ("Key" = 'welcome' AND "Locale" IN ('en', 'cs'))
+                   OR ("Key" = 'purchase_completed' AND "Locale" IN ('en', 'cs'))
+                GROUP BY "Key", "Locale"
+                HAVING count(*) > 1
+            ) duplicates
+            """);
+        duplicateGroups.ShouldBe(0);
     }
 
     [Fact]
@@ -300,6 +434,51 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
         data.GetProperty("items").EnumerateArray()
             .Any(n => n.GetProperty("templateKey").GetString() == bobTemplate)
             .ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task My_notifications_default_feed_includes_read_and_unread_and_clamps_page_bounds()
+    {
+        var (userId, token) = await fixture.RegisterAndLoginAsync(
+            $"notif-default-{Guid.CreateVersion7():N}@example.com", Password);
+
+        await fixture.ExecuteSqlAsync($"UPDATE notifications SET \"ReadAt\" = now() WHERE \"UserId\" = '{userId}'");
+
+        var readTemplate = $"feed-read-{Guid.CreateVersion7():N}";
+        var unreadTemplate = $"feed-unread-{Guid.CreateVersion7():N}";
+        await SeedTemplateAsync(readTemplate, "Read");
+        await SeedTemplateAsync(unreadTemplate, "Unread");
+        await SendDirectAsync(userId, readTemplate);
+        await SendDirectAsync(userId, unreadTemplate);
+
+        var readId = await fixture.ScalarAsync<Guid>(
+            $"SELECT \"Id\" FROM notifications WHERE \"UserId\" = '{userId}' AND \"TemplateKey\" = '{readTemplate}'");
+        var markRead = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Post, $"/v1/notifications/{readId}/read", token));
+        markRead.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var defaultFeed = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/notifications/me?page=0&pageSize=999", token));
+
+        defaultFeed.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var data = await PlatformApiFactory.ReadData(defaultFeed);
+        data.GetProperty("page").GetInt32().ShouldBe(1);
+        data.GetProperty("pageSize").GetInt32().ShouldBe(100);
+
+        var templateKeys = data.GetProperty("items").EnumerateArray()
+            .Select(n => n.GetProperty("templateKey").GetString())
+            .ToArray();
+        templateKeys.ShouldContain(readTemplate);
+        templateKeys.ShouldContain(unreadTemplate);
+
+        var unreadOnly = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/notifications/me?unreadOnly=true", token));
+        unreadOnly.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var unreadKeys = (await PlatformApiFactory.ReadData(unreadOnly)).GetProperty("items").EnumerateArray()
+            .Select(n => n.GetProperty("templateKey").GetString())
+            .ToArray();
+        unreadKeys.ShouldNotContain(readTemplate);
+        unreadKeys.ShouldContain(unreadTemplate);
     }
 
     [Fact]
@@ -471,6 +650,46 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
         rawAudit.ShouldNotContain(marker);
     }
 
+    [Fact]
+    public async Task Notifications_gdpr_export_and_erasure_ports_return_feed_and_scrub_only_the_subject()
+    {
+        var (aliceId, _) = await fixture.RegisterAndLoginAsync(
+            $"gdpr-notif-alice-{Guid.CreateVersion7():N}@example.com", Password);
+        var (bobId, _) = await fixture.RegisterAndLoginAsync(
+            $"gdpr-notif-bob-{Guid.CreateVersion7():N}@example.com", Password);
+
+        await fixture.ExecuteSqlAsync($"UPDATE notifications SET \"ReadAt\" = now() WHERE \"UserId\" IN ('{aliceId}', '{bobId}')");
+
+        var aliceTemplate = $"gdpr-notif-alice-{Guid.CreateVersion7():N}";
+        var bobTemplate = $"gdpr-notif-bob-{Guid.CreateVersion7():N}";
+        await SeedTemplateAsync(aliceTemplate, "Alice export marker");
+        await SeedTemplateAsync(bobTemplate, "Bob export marker");
+        await SendDirectAsync(aliceId, aliceTemplate);
+        await SendDirectAsync(bobId, bobTemplate);
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var exporter = scope.ServiceProvider.GetServices<IExportPersonalData>()
+            .Single(e => e.ModuleName == "Notifications");
+        var eraser = scope.ServiceProvider.GetServices<IErasePersonalData>()
+            .Single(e => e.ModuleName == "Notifications");
+
+        var export = await exporter.ExportAsync(aliceId, CancellationToken.None);
+        var rows = ((IEnumerable<object>)export["notifications"]!).ToArray();
+        rows.ShouldContain(row => row.ToString()!.Contains(aliceTemplate, StringComparison.Ordinal));
+        rows.ShouldNotContain(row => row.ToString()!.Contains(bobTemplate, StringComparison.Ordinal));
+
+        await eraser.EraseAsync(aliceId, CancellationToken.None);
+        await eraser.EraseAsync(aliceId, CancellationToken.None);
+
+        var aliceScrubbed = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM notifications WHERE \"UserId\" = '{aliceId}' AND \"Title\" = '' AND \"Body\" = ''");
+        aliceScrubbed.ShouldBeGreaterThanOrEqualTo(1);
+
+        var bobStillHasContent = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM notifications WHERE \"UserId\" = '{bobId}' AND \"TemplateKey\" = '{bobTemplate}' AND \"Title\" <> '' AND \"Body\" <> ''");
+        bobStillHasContent.ShouldBe(1);
+    }
+
     // purchase_completed consumer — publishing CreditPurchaseCompletedIntegrationEvent via IMessageBus
     // (the Wolverine bus) causes the SendPurchaseCompletedHandler to dispatch SendNotificationCommand, which
     // writes a "purchase_completed" in-app row for the user. The NotificationsSeeder seeds the template.
@@ -592,6 +811,15 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
             $"INSERT INTO notification_templates (\"Id\", \"Key\", \"Locale\", \"Subject\", \"Body\") " +
             $"VALUES ('{Guid.CreateVersion7()}', '{key}', 'en', '{subject}', 'Body')");
 
+    private Task<long> BuiltInTemplateCountAsync() =>
+        fixture.ScalarAsync<long>(
+            """
+            SELECT count(*)::bigint
+            FROM notification_templates
+            WHERE ("Key" = 'welcome' AND "Locale" IN ('en', 'cs'))
+               OR ("Key" = 'purchase_completed' AND "Locale" IN ('en', 'cs'))
+            """);
+
     private async Task RestoreWelcomeTemplatesAsync()
     {
         await fixture.ExecuteSqlAsync(
@@ -628,5 +856,100 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
             ["inapp"],
             new Dictionary<string, string>(),
             IdempotencyKey: $"direct:{templateKey}:{Guid.CreateVersion7():N}"));
+    }
+
+    private sealed class TestTenantContext(Guid userId) : ITenantContext
+    {
+        public Guid? UserId { get; } = userId;
+        public Guid? TenantId { get; } = Guid.CreateVersion7();
+        public bool IsSystem => false;
+        public string? IpAddress => "127.0.0.1";
+    }
+
+    private sealed class FixedClock : IClock
+    {
+        public DateTimeOffset UtcNow { get; } = new(2026, 6, 29, 12, 0, 0, TimeSpan.Zero);
+    }
+
+    private sealed class NoopRealtimePublisher : IRealtimePublisher
+    {
+        public Task PublishToUserAsync(Guid userId, string eventType, object payload, CancellationToken ct) =>
+            Task.CompletedTask;
+
+        public Task PublishToTenantAsync(Guid tenantId, string eventType, object payload, CancellationToken ct) =>
+            Task.CompletedTask;
+    }
+
+    private sealed class RecordingOutbox(NotificationsDbContext db) : IDbContextOutbox<NotificationsDbContext>
+    {
+        public List<object> Published { get; } = [];
+        public NotificationsDbContext DbContext => db;
+        public DbContext ActiveContext => db;
+        public string? TenantId { get; set; }
+
+        public Task SaveChangesAndFlushMessagesAsync(CancellationToken token = default) => db.SaveChangesAsync(token);
+        public Task FlushOutgoingMessagesAsync() => Task.CompletedTask;
+        public void Enroll(DbContext dbContext) { }
+
+        public ValueTask PublishAsync<T>(T message, DeliveryOptions? options = null)
+        {
+            Published.Add(message!);
+            return ValueTask.CompletedTask;
+        }
+
+        public Task InvokeForTenantAsync(
+            string tenantId,
+            object message,
+            CancellationToken cancellation = default,
+            TimeSpan? timeout = null) => throw new NotSupportedException();
+
+        public Task<T> InvokeForTenantAsync<T>(
+            string tenantId,
+            object message,
+            CancellationToken cancellation = default,
+            TimeSpan? timeout = null) => throw new NotSupportedException();
+
+        public IDestinationEndpoint EndpointFor(string endpointName) => throw new NotSupportedException();
+
+        public IDestinationEndpoint EndpointFor(Uri uri) => throw new NotSupportedException();
+
+        public IReadOnlyList<Envelope> PreviewSubscriptions(object message) => throw new NotSupportedException();
+
+        public IReadOnlyList<Envelope> PreviewSubscriptions(object message, DeliveryOptions options) =>
+            throw new NotSupportedException();
+
+        public ValueTask SendAsync<T>(T message, DeliveryOptions? options = null) => throw new NotSupportedException();
+
+        public ValueTask BroadcastToTopicAsync(string topicName, object message, DeliveryOptions? options = null) =>
+            throw new NotSupportedException();
+
+        public Task InvokeAsync(object message, CancellationToken cancellation = default, TimeSpan? timeout = null) =>
+            throw new NotSupportedException();
+
+        public Task InvokeAsync(
+            object message,
+            DeliveryOptions options,
+            CancellationToken cancellation = default,
+            TimeSpan? timeout = null) => throw new NotSupportedException();
+
+        public Task<T> InvokeAsync<T>(
+            object message,
+            CancellationToken cancellation = default,
+            TimeSpan? timeout = null) => throw new NotSupportedException();
+
+        public Task<T> InvokeAsync<T>(
+            object message,
+            DeliveryOptions options,
+            CancellationToken cancellation = default,
+            TimeSpan? timeout = null) => throw new NotSupportedException();
+
+        public IAsyncEnumerable<TResponse> StreamAsync<TResponse>(
+            object message,
+            CancellationToken cancellation = default) => throw new NotSupportedException();
+
+        public IAsyncEnumerable<TResponse> StreamAsync<TResponse>(
+            object message,
+            DeliveryOptions options,
+            CancellationToken cancellation = default) => throw new NotSupportedException();
     }
 }

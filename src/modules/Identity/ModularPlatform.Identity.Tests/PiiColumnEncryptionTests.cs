@@ -72,6 +72,26 @@ public sealed class PiiColumnEncryptionTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Login_email_lookup_is_case_and_whitespace_insensitive_through_the_blind_index()
+    {
+        var email = $"login-pii-{Guid.CreateVersion7():N}@example.com";
+        var register = await fixture.Client.PostAsJsonAsync(
+            "/v1/identity/users", new { email, password = Password });
+        register.StatusCode.ShouldBe(HttpStatusCode.Created);
+
+        var login = await fixture.Client.PostAsJsonAsync(
+            "/v1/identity/auth/login", new { email = $"  {email.ToUpperInvariant()}  ", password = Password });
+        login.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var token = (await PlatformApiFactory.ReadData(login)).GetProperty("accessToken").GetString()!;
+
+        var profile = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/identity/users/me", token));
+        profile.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var data = await PlatformApiFactory.ReadData(profile);
+        data.GetProperty("email").GetString().ShouldBe(email);
+    }
+
+    [Fact]
     public async Task Erasure_tombstones_the_row_blanks_the_password_and_kills_the_ciphertext()
     {
         var email = $"erase-pii-{Guid.CreateVersion7():N}@example.com";
@@ -103,5 +123,44 @@ public sealed class PiiColumnEncryptionTests(PlatformApiFactory fixture)
         // And the subject's key row is shredded (WrappedDek null) → old envelopes are unreadable forever.
         await fixture.WaitForCountAsync(
             $"SELECT count(*)::bigint FROM subject_keys WHERE \"UserId\" = '{userId}' AND \"WrappedDek\" IS NULL", 1);
+    }
+
+    [Fact]
+    public async Task Erasure_can_be_replayed_without_restamping_the_identity_tombstone()
+    {
+        var email = $"erase-replay-{Guid.CreateVersion7():N}@example.com";
+        var register = await fixture.Client.PostAsJsonAsync(
+            "/v1/identity/users", new { email, password = Password, displayName = "Replay Riley" });
+        var userId = (await PlatformApiFactory.ReadData(register)).GetProperty("userId").GetGuid();
+        var login = await fixture.Client.PostAsJsonAsync(
+            "/v1/identity/auth/login", new { email, password = Password });
+        var token = (await PlatformApiFactory.ReadData(login)).GetProperty("accessToken").GetString()!;
+
+        var first = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Post, "/v1/gdpr/me/erase", token));
+        first.StatusCode.ShouldBe(HttpStatusCode.OK);
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM users WHERE \"Id\" = '{userId}' AND \"DeletedAt\" IS NOT NULL", 1);
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM subject_keys WHERE \"UserId\" = '{userId}' AND \"DeletedAt\" IS NOT NULL", 1);
+
+        var firstDeletedAt = await fixture.ScalarAsync<string>(
+            $"SELECT \"DeletedAt\"::text FROM users WHERE \"Id\" = '{userId}'");
+        var firstEmail = await fixture.ScalarAsync<string>(
+            $"SELECT \"Email\" FROM users WHERE \"Id\" = '{userId}'");
+
+        var second = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Post, "/v1/gdpr/me/erase", token));
+        second.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var secondDeletedAt = await fixture.ScalarAsync<string>(
+            $"SELECT \"DeletedAt\"::text FROM users WHERE \"Id\" = '{userId}'");
+        var secondEmail = await fixture.ScalarAsync<string>(
+            $"SELECT \"Email\" FROM users WHERE \"Id\" = '{userId}'");
+        var passwordHash = await fixture.ScalarAsync<string>(
+            $"SELECT \"PasswordHash\" FROM users WHERE \"Id\" = '{userId}'");
+
+        secondDeletedAt.ShouldBe(firstDeletedAt);
+        secondEmail.ShouldBe(firstEmail);
+        secondEmail.ShouldBe($"erased-{userId:N}@erased.invalid");
+        passwordHash.ShouldBe(string.Empty);
     }
 }

@@ -39,11 +39,16 @@ export function VibeChat() {
   // via an effect) keeps the component React-Compiler-clean.
   const [selectedId, setSelectedId] = useState<string>("");
 
-  const { data: conversations, isLoading: listLoading } = useVibeConversations();
+  const { data: conversationsPage, isLoading: listLoading } = useVibeConversations();
   const startConversation = useStartConversation();
+  const conversations = conversationsPage?.items ?? [];
+  const dateFormatter = useMemo(
+    () => new Intl.DateTimeFormat(undefined, { dateStyle: "short", timeStyle: "short" }),
+    [],
+  );
 
-  const selectionExists = !!selectedId && (conversations?.some((c) => c.id === selectedId) ?? true);
-  const activeId = selectionExists ? selectedId : (conversations?.[0]?.id ?? "");
+  const selectionExists = !!selectedId && conversations.some((c) => c.id === selectedId);
+  const activeId = selectionExists ? selectedId : (conversations[0]?.id ?? "");
 
   const onNewConversation = () => {
     startConversation.mutate(undefined, {
@@ -71,7 +76,7 @@ export function VibeChat() {
             <Skeleton className="h-8 w-full" />
             <Skeleton className="h-8 w-full" />
           </div>
-        ) : conversations && conversations.length > 0 ? (
+        ) : conversations.length > 0 ? (
           <ul className="space-y-0.5">
             {conversations.map((c) => (
               <li key={c.id}>
@@ -86,7 +91,15 @@ export function VibeChat() {
                   )}
                 >
                   <MessageSquareIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                  <span className="truncate">{c.title}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate">{c.title}</span>
+                    <time
+                      className="block truncate text-[11px] font-normal text-muted-foreground"
+                      dateTime={c.lastMessageAt ?? c.createdAt}
+                    >
+                      {dateFormatter.format(new Date(c.lastMessageAt ?? c.createdAt))}
+                    </time>
+                  </span>
                 </button>
               </li>
             ))}

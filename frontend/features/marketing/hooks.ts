@@ -40,13 +40,18 @@ export function useAnalysis(id: string, enabled = true) {
   return useQuery({ ...marketingQueries.analysis(id), enabled: enabled && id.length > 0 });
 }
 
-export function useVibeConversations() {
-  return useQuery(marketingQueries.vibeConversations());
+export function useVibeConversations(page = 1, pageSize = 50) {
+  return useQuery(marketingQueries.vibeConversations(page, pageSize));
 }
 
-export function useVibeConversation(id: string, enabled = true) {
+export function useVibeConversation(
+  id: string,
+  enabled = true,
+  messagePage = 1,
+  messagePageSize = 50,
+) {
   return useQuery({
-    ...marketingQueries.vibeConversation(id),
+    ...marketingQueries.vibeConversation(id, messagePage, messagePageSize),
     enabled: enabled && id.length > 0,
   });
 }

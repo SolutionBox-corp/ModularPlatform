@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { MoneyAmount } from "@/components/app/money-amount";
 import { billingQueries } from "@/features/billing/api";
 import { useLocale, useTranslations } from "next-intl";
-import { useCancelSubscription } from "@/features/billing/hooks";
+import { useCancelSubscription, useBillingPortal } from "@/features/billing/hooks";
 
 // ---------------------------------------------------------------------------
 // Status badge variant
@@ -112,6 +112,7 @@ export function SubscriptionCard() {
   const locale = useLocale();
   const { data, isLoading } = useQuery(billingQueries.subscriptionMe());
   const cancel = useCancelSubscription();
+  const portal = useBillingPortal();
 
   const canCancel =
     !!data &&
@@ -172,13 +173,25 @@ export function SubscriptionCard() {
           </p>
         )}
 
-        <div className="mt-3 flex items-center gap-3">
+        <div className="mt-3 flex flex-wrap items-center gap-3">
           <Link
-            href="/billing"
+            href="/billing#plans"
             className="text-xs text-primary underline-offset-4 hover:underline"
           >
             {t("subscriptionCard.viewPlans")}
           </Link>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-auto p-0 text-xs text-primary hover:underline"
+            disabled={portal.isPending}
+            onClick={() => portal.mutate()}
+          >
+            {portal.isPending
+              ? t("portal.opening")
+              : t("portal.manage")}
+          </Button>
 
           {canCancel && (
             <Button

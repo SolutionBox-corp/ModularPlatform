@@ -6,10 +6,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import {
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { entitlementQueries, isModuleEnabled } from "@/features/entitlements/api";
+import { notificationQueries } from "@/features/notifications/api";
 import { NAV_ITEMS, PLATFORM_NAV_ITEMS } from "@/features/entitlements/nav";
 import { cn } from "@/lib/utils";
 
@@ -41,6 +43,15 @@ export function AppNav({ permissions, variant = "tenant" }: AppNavProps) {
     return true;
   });
 
+  // Unread badge on the Notifications item — only fetched when that nav item is visible
+  // (i.e. the notifications module is entitled), so a disabled deployment never 404s.
+  const notificationsVisible = visibleItems.some((i) => i.key === "notifications");
+  const { data: unread } = useQuery({
+    ...notificationQueries.unreadCount(),
+    enabled: notificationsVisible,
+  });
+  const unreadCount = unread?.count ?? 0;
+
   return (
     <SidebarMenu>
       {visibleItems.map((item) => {
@@ -66,6 +77,11 @@ export function AppNav({ permissions, variant = "tenant" }: AppNavProps) {
               <item.icon aria-hidden="true" />
               <span>{t(item.labelKey as unknown as Parameters<typeof t>[0])}</span>
             </SidebarMenuButton>
+            {item.key === "notifications" && unreadCount > 0 && (
+              <SidebarMenuBadge>
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </SidebarMenuBadge>
+            )}
           </SidebarMenuItem>
         );
       })}

@@ -1,4 +1,5 @@
 using FluentValidation;
+using ModularPlatform.Billing.Contracts;
 
 namespace ModularPlatform.Billing.Features.Credits.ReleaseHold;
 

@@ -95,6 +95,28 @@ public sealed class AuditPiiEncryptionTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Audit_trail_tolerates_non_object_new_values_json()
+    {
+        var email = $"audit-defensive-{Guid.CreateVersion7():N}@example.com";
+        var (userId, _) = await fixture.RegisterAndLoginAsync(email, Password);
+        var auditToken = await TenantAuditTokenAsync(userId, email);
+        const string action = "Defensive";
+
+        await fixture.ExecuteSqlAsync(
+            "INSERT INTO identity_audit_entries " +
+            "(\"Id\", \"EntityType\", \"EntityId\", \"Action\", \"ChangedColumns\", \"NewValues\", \"UserId\", \"Timestamp\") " +
+            $"VALUES ('{Guid.CreateVersion7()}', 'User', '{userId}', '{action}', '[]'::jsonb, '[]'::jsonb, '{userId}', now())");
+
+        var response = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, $"/v1/identity/admin/users/{userId}/audit", auditToken));
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var entry = (await PlatformApiFactory.ReadData(response)).GetProperty("entries").EnumerateArray()
+            .Single(e => e.GetProperty("action").GetString() == action);
+        entry.GetProperty("values").EnumerateObject().ShouldBeEmpty();
+    }
+
+    [Fact]
     public async Task Platform_audit_requires_platform_permission_and_keeps_erased_pii_unreadable()
     {
         var email = $"platform-audit-{Guid.CreateVersion7():N}@example.com";

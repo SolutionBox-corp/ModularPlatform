@@ -18,8 +18,8 @@ public sealed class ValidationBehavior<TRequest, TResponse>(IEnumerable<IValidat
             return await next();
         }
 
-        var context = new ValidationContext<TRequest>(request);
-        var results = await Task.WhenAll(validatorList.Select(v => v.ValidateAsync(context, ct)));
+        var results = await Task.WhenAll(validatorList.Select(v =>
+            v.ValidateAsync(new ValidationContext<TRequest>(request), ct)));
 
         var errors = results
             .SelectMany(r => r.Errors)

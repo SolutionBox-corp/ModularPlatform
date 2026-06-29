@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
@@ -37,11 +37,11 @@ export function EntitlementToggles({
 }: EntitlementTogglesProps) {
   const t = useTranslations("platform");
   const mutation = useSetEntitlement();
-  const [overrides, setOverrides] = useState<Record<string, boolean>>({});
-
-  useEffect(() => {
-    setOverrides({});
-  }, [tenantId]);
+  const [overrideState, setOverrideState] = useState<{
+    tenantId: string;
+    values: Record<string, boolean>;
+  }>({ tenantId, values: {} });
+  const overrides = overrideState.tenantId === tenantId ? overrideState.values : {};
 
   const persisted = new Map((modules ?? []).map((m) => [m.key, m]));
 
@@ -64,15 +64,20 @@ export function EntitlementToggles({
   }
 
   function handleToggle(key: string, checked: boolean, tier: string | null) {
-    setOverrides((prev) => ({ ...prev, [key]: checked }));
+    setOverrideState((prev) => ({
+      tenantId,
+      values: {
+        ...(prev.tenantId === tenantId ? prev.values : {}),
+        [key]: checked,
+      },
+    }));
     void mutation
       .mutateAsync({ tenantId, moduleKey: key, enabled: checked, tier })
       .catch(() => {
-        // Revert the optimistic override back to the persisted value.
-        setOverrides((prev) => {
-          const next = { ...prev };
+        setOverrideState((prev) => {
+          const next = { ...(prev.tenantId === tenantId ? prev.values : {}) };
           delete next[key];
-          return next;
+          return { tenantId, values: next };
         });
       });
   }

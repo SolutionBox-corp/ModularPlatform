@@ -36,9 +36,7 @@ public sealed class MarketingModule : IModule
 
     public void RegisterServices(IServiceCollection services, IConfiguration configuration)
     {
-        var write = configuration.GetConnectionString("Write")
-            ?? throw new InvalidOperationException("Missing ConnectionStrings:Write");
-        var read = configuration.GetConnectionString("Read") ?? write;
+        var (write, read) = ModuleConnectionStrings.GetWriteAndRead(configuration);
 
         services.AddCqrs(typeof(MarketingModule).Assembly);
         services.AddValidatorsFromAssembly(typeof(MarketingModule).Assembly, includeInternalTypes: true);
@@ -70,6 +68,7 @@ public sealed class MarketingModule : IModule
 
         // GDPR data-portability + erasure ports (fanned out by the Gdpr module). Both MUST be registered or the
         // module's personal data is silently skipped from export/erasure.
+        services.AddHostedService<ModularPlatform.Marketing.Gdpr.MarketingPiiEncryptionBackfill>();
         services.AddScoped<IExportPersonalData, ModularPlatform.Marketing.Gdpr.MarketingPersonalDataExporter>();
         services.AddScoped<IErasePersonalData, ModularPlatform.Marketing.Gdpr.MarketingPersonalDataEraser>();
     }
@@ -96,6 +95,7 @@ public sealed class MarketingModule : IModule
         options.Discovery.IncludeType<Messaging.RunDataPullHandler>();
         options.Discovery.IncludeType<Messaging.MarketingDataPulledHandler>();
         options.Discovery.IncludeType<Messaging.RunVibeAgentTurnHandler>();
+        options.Discovery.IncludeType<Messaging.TenantProvisionedForMarketingHandler>();
     }
 
     public async Task ApplyMigrationsAsync(IServiceProvider services, CancellationToken ct)

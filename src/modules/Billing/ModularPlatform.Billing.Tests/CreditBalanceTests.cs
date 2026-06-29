@@ -1,6 +1,6 @@
 using System.Net;
 using Microsoft.Extensions.DependencyInjection;
-using ModularPlatform.Billing.Features.Credits.GetCreditBalance;
+using ModularPlatform.Billing.Contracts;
 using ModularPlatform.Cqrs;
 using ModularPlatform.IntegrationTesting;
 using Shouldly;
@@ -40,6 +40,20 @@ public sealed class CreditBalanceTests(PlatformApiFactory fixture)
             () => dispatcher.Query(new GetCreditBalanceQuery(Guid.CreateVersion7())));
 
         ex.ErrorCode.ShouldBe("credit.account_not_found");
+    }
+
+    [Fact]
+    public async Task Missing_account_returns_a_clear_not_found_from_the_endpoint()
+    {
+        var (userId, token) = await fixture.RegisterAndLoginAsync($"balance-missing-{Guid.CreateVersion7():N}@test.io", Password);
+        await fixture.WaitForCountAsync($"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{userId}'", 1);
+        await fixture.ExecuteSqlAsync($"DELETE FROM credit_accounts WHERE \"UserId\" = '{userId}'");
+
+        var response = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/billing/credits/balance", token));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await ErrorCodeOf(response)).ShouldBe("credit.account_not_found");
     }
 
     [Fact]
@@ -99,5 +113,11 @@ public sealed class CreditBalanceTests(PlatformApiFactory fixture)
             fixture.Authed(HttpMethod.Get, "/v1/billing/credits/balance", token));
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         return await PlatformApiFactory.ReadData(response);
+    }
+
+    private static async Task<string> ErrorCodeOf(HttpResponseMessage response)
+    {
+        using var doc = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return doc.RootElement.GetProperty("errorCode").GetString()!;
     }
 }

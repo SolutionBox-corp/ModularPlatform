@@ -1,4 +1,6 @@
 using ModularPlatform.Cqrs;
+using Microsoft.EntityFrameworkCore;
+using ModularPlatform.Persistence;
 using Shouldly;
 
 namespace ModularPlatform.BuildingBlocks.Tests;
@@ -74,5 +76,42 @@ public sealed class PagingClampingTests
     public void TotalPages_is_zero_when_page_size_is_not_positive()
     {
         new PagedResponse<int>([], 1, 0, 100).TotalPages.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task ToPagedResponseAsync_counts_total_and_preserves_ordered_page()
+    {
+        await using var db = new PagingTestDbContext(new DbContextOptionsBuilder<PagingTestDbContext>()
+            .UseInMemoryDatabase($"paging-{Guid.CreateVersion7():N}")
+            .Options);
+        db.Items.AddRange(
+            new PagingTestItem { Name = "Charlie", SortOrder = 3 },
+            new PagingTestItem { Name = "Ada", SortOrder = 1 },
+            new PagingTestItem { Name = "Bob", SortOrder = 2 },
+            new PagingTestItem { Name = "Dora", SortOrder = 4 });
+        await db.SaveChangesAsync();
+
+        var page = await db.Items
+            .OrderBy(item => item.SortOrder)
+            .Select(item => item.Name)
+            .ToPagedResponseAsync(new PageRequest(page: 2, pageSize: 2), CancellationToken.None);
+
+        page.Items.ShouldBe(["Charlie", "Dora"]);
+        page.Page.ShouldBe(2);
+        page.PageSize.ShouldBe(2);
+        page.TotalCount.ShouldBe(4);
+        page.TotalPages.ShouldBe(2);
+    }
+
+    private sealed class PagingTestDbContext(DbContextOptions<PagingTestDbContext> options) : DbContext(options)
+    {
+        public DbSet<PagingTestItem> Items => Set<PagingTestItem>();
+    }
+
+    private sealed class PagingTestItem
+    {
+        public int Id { get; set; }
+        public required string Name { get; set; }
+        public int SortOrder { get; set; }
     }
 }

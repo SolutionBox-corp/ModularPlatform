@@ -23,6 +23,7 @@ internal sealed class ExecutePullHandler(
     IDbContextOutbox<MarketingDbContext> outbox,
     IGa4Gateway ga4,
     IGscGateway gsc,
+    IRealtimePublisher realtime,
     IClock clock,
     ILogger<ExecutePullHandler> logger)
     : ICommandHandler<ExecutePullCommand>
@@ -73,6 +74,12 @@ internal sealed class ExecutePullHandler(
             // Hand the completed pull to the analysis worker, atomically with the Completed status (outbox).
             await outbox.PublishAsync(new MarketingDataPulled(pull.Id, pull.UserId, pull.Source.ToString()));
             await outbox.SaveChangesAndFlushMessagesAsync();
+
+            // Authoritative "pull reached a terminal state" signal — fired here (AFTER commit) so the UI stops
+            // showing "Running" even when the pull produced ZERO snapshots (the analysis worker skips those and
+            // would never emit). The analysis worker emits the same event again once an analysis lands; the extra
+            // invalidation is idempotent.
+            await PublishPullCompletedAsync(pull.UserId, pull.Id, ct);
         }
         catch (NotSupportedException ex)
         {
@@ -90,6 +97,9 @@ internal sealed class ExecutePullHandler(
         return Unit.Value;
     }
 
+    private Task PublishPullCompletedAsync(Guid userId, Guid pullId, CancellationToken ct) =>
+        realtime.PublishToUserAsync(userId, "marketing.pull_completed", new { DataPullId = pullId }, ct);
+
     private async Task<PullResult> ExecuteAsync(DataPull pull, PullWindow window, CancellationToken ct) =>
         pull.Source switch
         {
@@ -104,6 +114,9 @@ internal sealed class ExecutePullHandler(
         pull.ErrorCode = errorCode;
         pull.CompletedAt = clock.UtcNow;
         await outbox.DbContext.SaveChangesAsync(ct);
+
+        // Terminal-state signal for a FAILED pull too — otherwise the UI polls/shows "Running" forever.
+        await PublishPullCompletedAsync(pull.UserId, pull.Id, ct);
     }
 
     private sealed record PullWindow(DateOnly Start, DateOnly End)

@@ -28,8 +28,15 @@ internal sealed class GetConversationHandler(IReadDbContextFactory<MarketingDbCo
             .Where(m => m.ConversationId == query.ConversationId && m.UserId == query.UserId)
             .OrderBy(m => m.CreatedAt)
             .Select(m => new ConversationMessage(m.Id, m.Role, m.Content, m.ToolCallsJson, m.CreatedAt))
-            .ToListAsync(ct);
+            .ToPagedResponseAsync(query.MessagesPage, ct);
 
-        return new ConversationDetail(conversation.Id, conversation.Title, conversation.CreatedAt, messages);
+        return new ConversationDetail(
+            conversation.Id,
+            conversation.Title,
+            conversation.CreatedAt,
+            messages.Items,
+            messages.Page,
+            messages.PageSize,
+            messages.TotalCount);
     }
 }

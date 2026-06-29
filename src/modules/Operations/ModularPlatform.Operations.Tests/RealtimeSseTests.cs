@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.Extensions.Options;
 using ModularPlatform.IntegrationTesting;
 using ModularPlatform.Realtime;
 using Shouldly;
@@ -45,5 +46,39 @@ public sealed class RealtimeSseTests(PlatformApiFactory fixture)
         await registry.DeliverLocal(alice, new RealtimeMessage("notification", "{\"hello\":\"world\"}", "2"));
         received.ShouldNotBeNull();
         received!.EventType.ShouldBe("notification");
+    }
+
+    [Fact]
+    public async Task Registry_isolates_a_throwing_connection_from_other_connections()
+    {
+        var registry = new RealtimeConnectionRegistry();
+        var userId = Guid.CreateVersion7();
+
+        using var throwing = registry.Subscribe(userId, _ => throw new InvalidOperationException("dead tab"));
+
+        RealtimeMessage? received = null;
+        using var healthy = registry.Subscribe(userId, message =>
+        {
+            received = message;
+            return Task.CompletedTask;
+        });
+
+        await registry.DeliverLocal(userId, new RealtimeMessage("notification", "{\"ok\":true}", "1"));
+
+        received.ShouldNotBeNull();
+        received!.EventType.ShouldBe("notification");
+    }
+
+    [Fact]
+    public async Task Local_tenant_broadcast_fails_loud_instead_of_silently_dropping_events()
+    {
+        var publisher = new LocalRealtimePublisher(
+            new RealtimeConnectionRegistry(),
+            Options.Create(new RealtimeReplayOptions()));
+
+        var ex = await Should.ThrowAsync<NotSupportedException>(
+            () => publisher.PublishToTenantAsync(Guid.CreateVersion7(), "tenant-event", new { }));
+
+        ex.Message.ShouldContain("tenant broadcast is not yet wired");
     }
 }

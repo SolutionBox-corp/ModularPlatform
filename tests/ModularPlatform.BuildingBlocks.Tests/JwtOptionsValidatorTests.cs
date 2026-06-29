@@ -1,4 +1,8 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using ModularPlatform.Web;
 using Shouldly;
 
@@ -57,5 +61,28 @@ public sealed class JwtOptionsValidatorTests
         var validator = new JwtOptionsValidator(new TestHostEnvironment(Environments.Development));
 
         validator.Validate(null, Options(key: "")).Succeeded.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Jwt_bearer_uses_platform_role_claim_type_for_require_role()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Jwt:Issuer"] = "modularplatform",
+                ["Jwt:Audience"] = "modularplatform",
+                ["Jwt:SigningKey"] = new string('k', 32),
+            })
+            .Build();
+        var services = new ServiceCollection();
+        services.AddSingleton<IHostEnvironment>(new TestHostEnvironment(Environments.Development));
+        services.AddPlatformWeb(configuration);
+
+        using var provider = services.BuildServiceProvider();
+
+        var options = provider.GetRequiredService<IOptionsMonitor<JwtBearerOptions>>()
+            .Get(JwtBearerDefaults.AuthenticationScheme);
+
+        options.TokenValidationParameters.RoleClaimType.ShouldBe(AuthorizationClaims.Role);
     }
 }

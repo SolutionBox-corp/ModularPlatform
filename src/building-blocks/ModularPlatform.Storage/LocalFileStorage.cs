@@ -67,6 +67,25 @@ internal sealed class LocalFileStorage : IFileStorage
             throw new ArgumentException($"Storage key '{key}' escapes the storage root.", nameof(key));
         }
 
+        EnsureNoSymlinkAncestor(rootFull, path, key);
         return path;
+    }
+
+    private static void EnsureNoSymlinkAncestor(string rootFull, string path, string key)
+    {
+        var relative = Path.GetRelativePath(rootFull, path);
+        var parts = relative.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+            StringSplitOptions.RemoveEmptyEntries);
+
+        var current = rootFull;
+        for (var i = 0; i < parts.Length - 1; i++)
+        {
+            current = Path.Combine(current, parts[i]);
+            if (Directory.Exists(current)
+                && File.GetAttributes(current).HasFlag(FileAttributes.ReparsePoint))
+            {
+                throw new ArgumentException($"Storage key '{key}' escapes the storage root.", nameof(key));
+            }
+        }
     }
 }

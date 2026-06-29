@@ -19,4 +19,5 @@ internal sealed class MarketingDbContext(DbContextOptions<MarketingDbContext> op
     public DbSet<MarketingAnalysis> MarketingAnalyses => Set<MarketingAnalysis>();
     public DbSet<VibeConversation> VibeConversations => Set<VibeConversation>();
     public DbSet<VibeMessage> VibeMessages => Set<VibeMessage>();
+    public DbSet<MarketingTenantSnapshot> MarketingTenantSnapshots => Set<MarketingTenantSnapshot>();
 }

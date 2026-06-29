@@ -15,4 +15,5 @@ internal sealed class FilesDbContext(DbContextOptions<FilesDbContext> options, I
     public override string ModuleName => "files";
 
     public DbSet<FileObject> Files => Set<FileObject>();
+    public DbSet<FileLink> FileLinks => Set<FileLink>();
 }

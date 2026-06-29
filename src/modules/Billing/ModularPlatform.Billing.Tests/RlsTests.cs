@@ -38,4 +38,40 @@ public sealed class RlsTests(PlatformApiFactory fixture)
         var bobSeesAll = await fixture.ScalarAsUserAsync<long>(bob, "SELECT count(*)::bigint FROM credit_accounts");
         bobSeesAll.ShouldBe(1);
     }
+
+    [Fact]
+    public async Task System_principal_bypasses_user_owned_rls_without_using_the_admin_role()
+    {
+        var (alice, _) = await fixture.RegisterAndLoginAsync($"system-alice-{Guid.CreateVersion7():N}@example.com", "Sup3rSecret!");
+        var (bob, _) = await fixture.RegisterAndLoginAsync($"system-bob-{Guid.CreateVersion7():N}@example.com", "Sup3rSecret!");
+
+        await fixture.WaitForCountAsync($"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{alice}'", 1);
+        await fixture.WaitForCountAsync($"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{bob}'", 1);
+
+        var userIds = $"'{alice}', '{bob}'";
+        (await fixture.ScalarAsUserAsync<long>(
+            alice,
+            $"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" IN ({userIds})")).ShouldBe(1);
+
+        (await fixture.ScalarAsSystemAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" IN ({userIds})")).ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task Principal_guc_is_restamped_when_a_runtime_connection_is_reused_for_another_user()
+    {
+        var (alice, _) = await fixture.RegisterAndLoginAsync($"restamp-alice-{Guid.CreateVersion7():N}@example.com", "Sup3rSecret!");
+        var (bob, _) = await fixture.RegisterAndLoginAsync($"restamp-bob-{Guid.CreateVersion7():N}@example.com", "Sup3rSecret!");
+
+        await fixture.WaitForCountAsync($"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{alice}'", 1);
+        await fixture.WaitForCountAsync($"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{bob}'", 1);
+
+        var aliceRowSql = $"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{alice}'";
+
+        var (asAlice, sameConnectionAsBob) =
+            await fixture.ScalarAsUsersOnSameRuntimeConnectionAsync<long>(alice, bob, aliceRowSql);
+
+        asAlice.ShouldBe(1);
+        sameConnectionAsBob.ShouldBe(0);
+    }
 }
