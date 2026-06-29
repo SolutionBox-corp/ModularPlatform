@@ -6,9 +6,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
+using ModularPlatform.Files.Entities;
 using ModularPlatform.Files.Features.Upload;
 using ModularPlatform.Files.Persistence;
 using ModularPlatform.Files.Features.Download;
+using ModularPlatform.Files.Gdpr;
 using ModularPlatform.IntegrationTesting;
 using Shouldly;
 
@@ -432,6 +434,48 @@ public sealed class FilesUploadTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Gdpr_erasure_keeps_metadata_when_blob_delete_fails_so_retry_can_finish()
+    {
+        var userId = Guid.CreateVersion7();
+        var tenant = new TestTenantContext(userId);
+        var options = new DbContextOptionsBuilder<FilesDbContext>()
+            .UseNpgsql(fixture.ConnectionString)
+            .Options;
+        var firstKey = $"{userId:N}/{Guid.CreateVersion7():N}";
+        var secondKey = $"{userId:N}/{Guid.CreateVersion7():N}";
+
+        await using (var seed = new FilesDbContext(options, tenant))
+        {
+            seed.Files.AddRange(
+                NewFile(userId, firstKey, "first.txt"),
+                NewFile(userId, secondKey, "second.txt"));
+            await seed.SaveChangesAsync();
+        }
+
+        var storage = new FailingOnceFileStorage(failOnKey: secondKey);
+        await using (var firstRunDb = new FilesDbContext(options, tenant))
+        {
+            var eraser = new FilesPersonalDataEraser(firstRunDb, storage);
+            await Should.ThrowAsync<InvalidOperationException>(() => eraser.EraseAsync(userId, CancellationToken.None));
+        }
+
+        storage.DeleteKeys.ShouldBe([firstKey, secondKey]);
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM file_objects WHERE \"UserId\" = '{userId}'"))
+            .ShouldBe(2, "metadata must remain until every blob delete succeeds so GDPR fan-out retry can resume");
+
+        await using (var retryDb = new FilesDbContext(options, tenant))
+        {
+            var eraser = new FilesPersonalDataEraser(retryDb, storage);
+            await eraser.EraseAsync(userId, CancellationToken.None);
+        }
+
+        storage.DeleteKeys.ShouldBe([firstKey, secondKey, firstKey, secondKey]);
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM file_objects WHERE \"UserId\" = '{userId}'")).ShouldBe(0);
+    }
+
+    [Fact]
     public async Task Gdpr_export_contains_file_inventory_and_links_without_raw_bytes()
     {
         var (userId, token) = await fixture.RegisterAndLoginAsync(
@@ -627,6 +671,48 @@ public sealed class FilesUploadTests(PlatformApiFactory fixture)
         public Task DeleteAsync(string key, CancellationToken ct)
         {
             DeleteKeys.Add(key);
+            return Task.CompletedTask;
+        }
+    }
+
+    private static FileObject NewFile(Guid userId, string storageKey, string fileName) =>
+        new()
+        {
+            UserId = userId,
+            StorageKey = storageKey,
+            FileName = fileName,
+            ContentType = "text/plain",
+            Size = 10
+        };
+
+    private sealed class TestTenantContext(Guid userId) : ITenantContext
+    {
+        public Guid? UserId { get; } = userId;
+        public Guid? TenantId { get; } = Guid.CreateVersion7();
+        public bool IsSystem => false;
+        public string? IpAddress => "127.0.0.1";
+    }
+
+    private sealed class FailingOnceFileStorage(string failOnKey) : IFileStorage
+    {
+        private bool _failed;
+        public List<string> DeleteKeys { get; } = [];
+
+        public Task PutAsync(string key, Stream content, string contentType, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<Stream> GetAsync(string key, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task DeleteAsync(string key, CancellationToken ct)
+        {
+            DeleteKeys.Add(key);
+            if (!_failed && key == failOnKey)
+            {
+                _failed = true;
+                throw new InvalidOperationException("storage delete failed once");
+            }
+
             return Task.CompletedTask;
         }
     }

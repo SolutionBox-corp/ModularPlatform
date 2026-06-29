@@ -1214,15 +1214,15 @@ _Defence-in-depth path guard (validate + resolved-path re-check) is excellent; S
 |---|:--:|---|
 | Erasure is idempotent / retryable (multi-transaction fan-out) | ✓ | FilesPersonalDataEraser.cs:24-34 re-run finds no rows and DeleteAsync is a no-op for already-removed blobs (documented at lines 13-16) |
 | Runs under system context (no tenant) — must still match the user's rows | ✓ | FilesPersonalDataEraser doc lines 14-15: tenant filter does not restrict; the WHERE UserId == userId matches; FilesUploadTests.Gdpr_erasure_deletes_the_users_files_and_metadata verifies rows reach 0 after shred |
-| Blob delete fails mid-loop (e.g. S3 transient) leaving metadata referencing a partially-deleted set | ◐ | FilesPersonalDataEraser.cs:29-34 deletes blobs in a loop THEN ExecuteDeleteAsync the rows; if a blob DeleteAsync throws partway, the exception propagates (erasure fan-out retries) but rows are not yet deleted, so a retry re-deletes already-gone blobs (no-op) and finishes — eventually consistent. A blob whose delete permanently fails would orphan that blob while the row is gone on the retry that gets past it; no dead-letter/alert specific to a stuck blob delete. Low risk, relies on fan-out retry. |
+| Blob delete fails mid-loop (e.g. S3 transient) leaving metadata referencing a partially-deleted set | ✓ | FilesPersonalDataEraser.cs:29-34 deletes blobs in a loop THEN ExecuteDeleteAsync the rows; if a blob DeleteAsync throws partway, the exception propagates before metadata deletion, so a retry re-deletes already-gone blobs (no-op) and finishes. Proven by FilesUploadTests.Gdpr_erasure_keeps_metadata_when_blob_delete_fails_so_retry_can_finish. |
 | Export omits raw bytes (only metadata) | ✓ | FilesPersonalDataExporter.cs:8-12 doc + projection returns id/filename/contentType/size/createdAt only |
 | Ports registered so the DI-driven fan-out actually runs | ✓ | FilesModule.cs:46-47 registers both IExportPersonalData and IErasePersonalData (doc warns omission makes files immortal) |
 | ExecuteDeleteAsync bypasses audit/xmin | ✓ | FilesPersonalDataEraser.cs:34 uses ExecuteDeleteAsync — intentional for a GDPR scrub (consistent with the platform caveat that scrubs may bypass the interceptor); file_objects are not an append-only retained ledger |
 
-**Testy:** FilesUploadTests.Gdpr_erasure_deletes_the_users_files_and_metadata (blobs+rows gone after subject-key shred); FilesUploadTests.Gdpr_export_contains_file_inventory_and_links_without_raw_bytes (DI-registered exporter returns files + fileLinks metadata, not storage keys/raw bytes)
-**Test gaps:** No test for partial blob-delete failure during erasure (orphaned blob if a delete permanently fails after metadata is gone)
+**Testy:** FilesUploadTests.Gdpr_erasure_deletes_the_users_files_and_metadata (blobs+rows gone after subject-key shred); FilesUploadTests.Gdpr_erasure_keeps_metadata_when_blob_delete_fails_so_retry_can_finish; FilesUploadTests.Gdpr_export_contains_file_inventory_and_links_without_raw_bytes (DI-registered exporter returns files + fileLinks metadata, not storage keys/raw bytes)
+**Test gaps:** No remaining focused Files GDPR export/erasure port gap in this slice.
 
-_Erasure correctly deletes (not anonymizes) and is idempotent. Untested exporter payload + the blob-delete-fails-after-row-delete orphan window are the only gaps._
+_Erasure correctly deletes (not anonymizes), is idempotent, and keeps metadata until every blob delete succeeds so fan-out retry can finish._
 
 **Nekonzistence v oblasti (6):**
 - Download orphaned-metadata path: DownloadFileEndpoint.cs:28 → LocalFileStorage.GetAsync throws FileNotFoundException (LocalFileStorage.cs:37) / S3 throws AmazonS3Exception, neither a ModularPlatformException, so GlobalExceptionMiddleware.cs:36-40 returns 500 'error.unexpected' instead of a 404 file.not_found — the metadata layer is dual-gated to 404 but the blob layer is not, an inconsistency in how 'not found' surfaces.
