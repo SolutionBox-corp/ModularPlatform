@@ -213,6 +213,34 @@ public sealed class BillingCommerceTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Invoice_paid_without_subscription_id_is_processed_without_credit_grant()
+    {
+        var eventId = $"evt_{Guid.CreateVersion7():N}";
+        var invoiceId = $"in_{Guid.CreateVersion7():N}";
+
+        Fake.SeedEvent(new Event
+        {
+            Id = eventId,
+            Type = "invoice.paid",
+            Data = new EventData
+            {
+                Object = new Invoice
+                {
+                    Id = invoiceId,
+                    Parent = new InvoiceParent { SubscriptionDetails = new InvoiceParentSubscriptionDetails() },
+                },
+            },
+        });
+
+        (await PostSignedWebhookAsync(eventId, "invoice.paid")).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM stripe_events WHERE \"StripeEventId\" = '{eventId}' AND \"ProcessedAt\" IS NOT NULL", 1);
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_entries WHERE \"IdempotencyKey\" = 'sub-invoice:{invoiceId}'")).ShouldBe(0);
+    }
+
+    [Fact]
     public async Task Unpaid_checkout_session_does_not_grant_credits()
     {
         var (purchaseId, providerPaymentId, tenantId) = await StartPackageCheckoutAsync(400, "price_test_unpaid");

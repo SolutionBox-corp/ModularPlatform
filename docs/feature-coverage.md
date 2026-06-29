@@ -617,13 +617,13 @@ _Ingest invariants (200/row/enqueue/exactly-once/500-on-non-unique/400-on-bad-si
 | Already-processed or missing event row | ✓ | Early return if record null or ProcessedAt set (ProcessStripeEventCommand.cs:41-45) |
 | Webhook payload order / stale payload | ✓ | Always refetches via gateway.GetEventAsync (cs:47) — current object state, never the delivered payload |
 | Non-package or unpaid checkout event leaking metadata into the generic top-up | ✓ | A catch-all case for checkout.session.* breaks before the default top-up branch (cs:69-70). Proven by BillingCommerceTests.Non_package_checkout_session_with_stray_credit_metadata_does_not_top_up. |
-| invoice.paid without a subscription id | ✓ | when-guard requires Parent.SubscriptionDetails.SubscriptionId length>0 (cs:77-79); else falls to default (no metadata → no-op) |
+| invoice.paid without a subscription id | ✓ | when-guard requires Parent.SubscriptionDetails.SubscriptionId length>0 (cs:77-79); else falls to default (no metadata → no-op). Proven by BillingCommerceTests.Invoice_paid_without_subscription_id_is_processed_without_credit_grant. |
 | Generic event metadata: bad guid / amount<=0 | ✓ | TryExtractTopUp validates guid + long + amount>0 (cs:129-154) |
 | ProcessedAt stamp vs dispatched grant not in one transaction | ✓ | Subscription/invoice grants run their own SaveChanges on the same scoped context, then ProcessedAt commits separately; redelivery is safe because every downstream command is idempotent (sub-invoice:{id}, purchase:{id}, event-id). Package-confirm publish IS co-committed with ProcessedAt (cs:93-95) |
 | Stripe's invoice.payment_succeeded (legacy/alternate) instead of invoice.paid | ◐ | Only invoice.paid is routed (cs:77); if a deployment's Stripe API emits invoice.payment_succeeded for the recurring grant it would fall through to default and not grant. invoice.paid is Stripe's modern canonical event so this is usually fine, but it is an undocumented assumption. |
 
-**Testy:** BillingCommerceTests.Signed_topup_event_applies_ledger_topup_exactly_once_and_stamps_processed (generic metadata path + redelivery exactly-once); BillingCommerceTests.Non_package_checkout_session_with_stray_credit_metadata_does_not_top_up; BillingCommerceTests.Subscription_lifecycle_... (subscription + invoice.paid routing); StripeReconcileTests.Stuck_stripe_event_...end_to_end (default top-up via reconcile)
-**Test gaps:** No test that invoice.paid with no subscription id is a no-op; No test pinning the invoice.paid vs invoice.payment_succeeded routing choice
+**Testy:** BillingCommerceTests.Signed_topup_event_applies_ledger_topup_exactly_once_and_stamps_processed (generic metadata path + redelivery exactly-once); BillingCommerceTests.Non_package_checkout_session_with_stray_credit_metadata_does_not_top_up; BillingCommerceTests.Invoice_paid_without_subscription_id_is_processed_without_credit_grant; BillingCommerceTests.Subscription_lifecycle_... (subscription + invoice.paid routing); StripeReconcileTests.Stuck_stripe_event_...end_to_end (default top-up via reconcile)
+**Test gaps:** No test pinning the invoice.paid vs invoice.payment_succeeded routing choice
 
 _Routing is careful and idempotent. The invoice.paid-only routing and the checkout.session.* leak-guard are correct but lack a regression test; flag the event-name assumption for any non-default Stripe version._
 
