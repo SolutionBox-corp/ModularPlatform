@@ -267,15 +267,15 @@ _Snapshot semantics are intentional: revoke affects the next login/refresh token
 | Host starts before migrations finish | ✓ | Broad catch + LogWarning, retried next boot (read-first would hit missing-table) — IdentitySeeder.cs:41-49 |
 | Concurrent multi-host seeding | ✓ | Unique constraints make duplicate inserts no-ops; idempotent — IdentitySeeder.cs:18-22 |
 | Admin registers after startup | ✓ | EnsureConfiguredAdminAsync grants on login before token issue — LoginHandler.cs:90-140; test AuthzTests admin bootstrap on login |
-| Soft-deleted admin email re-granted on restart | ✓ | AssignAdminsAsync excludes DeletedAt!=null so a deactivated admin is not silently re-granted — IdentitySeeder.cs:107-111 |
+| Soft-deleted admin email re-granted on restart | ✓ | AssignAdminsAsync excludes DeletedAt!=null so a deactivated admin is not silently re-granted — IdentitySeeder.cs:107-111. Proven by IdentitySeederTests.Startup_seeder_does_not_regrant_admin_to_a_soft_deleted_configured_admin. |
 | Admin role not yet seeded at login time | ✓ | EnsureConfiguredAdminAsync returns early; next login catches it — LoginHandler.cs:129-133 |
-| New permission added later | ✓ | Upsert loop adds missing permissions + links to admin role on each boot — IdentitySeeder.cs:56-90 |
+| New permission added later | ✓ | Upsert loop adds missing permissions + links to admin role on each boot — IdentitySeeder.cs:56-90. Proven by IdentitySeederTests.Startup_seeder_relinks_missing_platform_permissions_to_the_admin_role_on_reboot. |
 | Login-time admin grant does NOT exclude soft-deleted | ◐ | DRIFT: AssignAdminsAsync (startup) filters DeletedAt==null (IdentitySeeder.cs:109), but EnsureConfiguredAdminAsync (login) does not — a soft-deleted admin can never reach login (erased PasswordHash blanked -> auth fails earlier), so unreachable in practice, but the two admin-grant paths diverge on the soft-delete guard. |
 
-**Testy:** AuthzTests admin-token bootstrap (login-time grant); AuditPiiEncryptionTests admin reveal (exercises admin role seeding)
-**Test gaps:** No test for the startup IdentitySeeder path in isolation (only login-time grant is tested); No test that a soft-deleted configured admin is NOT re-granted admin on restart (IdentitySeeder.cs:107-111); No test that newly-added PlatformPermissions are auto-linked to the admin role on reboot
+**Testy:** AuthzTests admin-token bootstrap (login-time grant); IdentitySeederTests.Startup_seeder_does_not_regrant_admin_to_a_soft_deleted_configured_admin; IdentitySeederTests.Startup_seeder_relinks_missing_platform_permissions_to_the_admin_role_on_reboot; AuditPiiEncryptionTests admin reveal (exercises admin role seeding)
+**Test gaps:** No direct missing-table startup race test for the broad catch path; no explicit concurrent multi-host seeding race test.
 
-_Two admin-grant paths (startup seeder + login) with a benign divergence on the soft-delete guard; startup path largely untested._
+_Two admin-grant paths (startup seeder + login) with a benign divergence on the soft-delete guard; startup path now has focused coverage for the deleted-admin guard and permission relinking._
 
 ### Audit trail reveal (admin forensics) + [erased] after shred — ✅ correct
 *Admin reads a user's identity_audit_entries with PII decrypted, surfacing [erased] once the DEK is shredded.*

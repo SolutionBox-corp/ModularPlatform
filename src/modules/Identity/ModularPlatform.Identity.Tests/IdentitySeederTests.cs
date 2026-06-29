@@ -1,0 +1,71 @@
+using ModularPlatform.Abstractions;
+using ModularPlatform.IntegrationTesting;
+using Shouldly;
+
+namespace ModularPlatform.Identity.Tests;
+
+/// <summary>
+/// Startup authorization seeding: permissions catalog, system admin role links, and configured-admin assignment.
+/// These tests drive the real hosted seeder by starting a derived host over the shared test database.
+/// </summary>
+[Collection("Integration")]
+public sealed class IdentitySeederTests(PlatformApiFactory fixture)
+{
+    private const string Password = "Sup3rSecret!";
+
+    [Fact]
+    public async Task Startup_seeder_does_not_regrant_admin_to_a_soft_deleted_configured_admin()
+    {
+        var email = $"deleted-admin-{Guid.CreateVersion7():N}@x.com";
+        var (userId, _) = await fixture.RegisterAndLoginAsync(email, Password);
+        await fixture.ExecuteSqlAsync(
+            $"""UPDATE users SET "DeletedAt" = now() WHERE "Id" = '{userId}'""");
+
+        using var host = fixture.CreateHost(("Identity:Auth:AdminEmails:1", email));
+        using var client = host.CreateClient();
+
+        var adminAssignments = await fixture.ScalarAsync<long>(
+            $$"""
+              SELECT count(*)::bigint
+              FROM user_roles ur
+              JOIN roles r ON r."Id" = ur."RoleId"
+              WHERE ur."UserId" = '{{userId}}' AND r."Name" = 'admin'
+              """);
+        adminAssignments.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Startup_seeder_relinks_missing_platform_permissions_to_the_admin_role_on_reboot()
+    {
+        var permissionName = PlatformPermissions.NotificationsSend;
+        await fixture.ExecuteSqlAsync(
+            $$"""
+              DELETE FROM role_permissions rp
+              USING roles r, permissions p
+              WHERE rp."RoleId" = r."Id"
+                AND rp."PermissionId" = p."Id"
+                AND r."Name" = 'admin'
+                AND p."Name" = '{{permissionName}}'
+              """);
+
+        var missingBefore = await AdminRolePermissionLinkCountAsync(permissionName);
+        missingBefore.ShouldBe(0);
+
+        using var host = fixture.CreateHost();
+        using var client = host.CreateClient();
+
+        var restored = await AdminRolePermissionLinkCountAsync(permissionName);
+        restored.ShouldBe(1);
+    }
+
+    private async Task<long> AdminRolePermissionLinkCountAsync(string permissionName) =>
+        await fixture.ScalarAsync<long>(
+            $$"""
+              SELECT count(*)::bigint
+              FROM role_permissions rp
+              JOIN roles r ON r."Id" = rp."RoleId"
+              JOIN permissions p ON p."Id" = rp."PermissionId"
+              WHERE r."Name" = 'admin'
+                AND p."Name" = '{{permissionName}}'
+              """);
+}
