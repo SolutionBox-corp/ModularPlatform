@@ -1329,17 +1329,17 @@ _Logic is correct and well-documented; the xmin retry-and-succeed path itself is
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
 | Auditing the audit rows (recursion) | ✓ | Snapshots entries before adding audit rows and excludes AuditEntry (AuditInterceptor.cs:64-66) |
-| Update records all columns instead of changed-only | ✓ | ChangedColumns/ValueMap filter on p.IsModified for Update (lines 107,139-146) |
+| Update records all columns instead of changed-only | ✓ | ChangedColumns/ValueMap filter on p.IsModified for Update (lines 107,139-146); covered by AuditInterceptorTests.Update_audit_row_records_changed_columns_only |
 | HasConversion<string>() enum audited as its int (PL-2) | ✓ | ProviderValue reads GetValueConverter() ?? FindTypeMapping().Converter (lines 184-186); documented at 181-183 |
 | Created/Updated stamps missing or wrong principal/time | ✓ | AuditInterceptor.cs:76-84 stamps AuditableEntity on Added/Modified from ITenantContext + IClock; covered by AuditInterceptorTests.Auditable_entities_are_stamped_on_create_and_update_from_the_current_context |
 | ExecuteUpdate/ExecuteDelete bypass the interceptor | ◐ | Documented limitation (CLAUDE.md, EncryptedAttribute docstring) — by design used only where the change need not be audited; no compile-time guard prevents a careless ExecuteUpdate on an audited table |
 | Composite / missing primary key | ✓ | PrimaryKey joins multi-prop keys; empty string when no key (lines 124-134) |
 | PII in audit values | ✓ | See Audit-PII crypto-shred feature |
 
-**Testy:** AuditPiiEncryptionTests (Create row exists, NewValues is enveloped) — proves rows are written; LedgerBackstopTests.PL2; AuditInterceptorTests.Auditable_entities_are_stamped_on_create_and_update_from_the_current_context
-**Test gaps:** No direct unit test that an UPDATE records ONLY changed columns (not the whole row); HasConversion<string>() and Created/Updated stamping are now pinned by targeted tests.
+**Testy:** AuditPiiEncryptionTests (Create row exists, NewValues is enveloped) — proves rows are written; LedgerBackstopTests.PL2; AuditInterceptorTests.Auditable_entities_are_stamped_on_create_and_update_from_the_current_context; AuditInterceptorTests.Update_audit_row_records_changed_columns_only
+**Test gaps:** No remaining focused audit-interceptor unit gap in this slice.
 
-_Correct and carefully written (PL-2 converter fix). The remaining subtle behavior to isolate directly is changed-only column capture; converter resolution and stamps are covered._
+_Correct and carefully written: changed-only capture, converter resolution and stamps are now covered._
 
 ### Audit IP masking (data minimization) — ✅ correct
 *Apply Full/Truncated/None policy to the client IP recorded on each audit row.*
