@@ -1,6 +1,13 @@
 using System.Diagnostics;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using ModularPlatform.Cqrs;
+using ModularPlatform.Cqrs.Behaviors;
+using ModularPlatform.Persistence;
+using ModularPlatform.Persistence.Behaviors;
 using ModularPlatform.Telemetry;
+using ModularPlatform.Web;
 using Shouldly;
 
 namespace ModularPlatform.BuildingBlocks.Tests;
@@ -33,6 +40,30 @@ public sealed class TelemetryBehaviorTests
         stopped.StatusDescription.ShouldBe("test.rule_broken");
         stopped.Tags.ShouldContain(t => t.Key == "cqrs.request" && t.Value == nameof(TestCommand));
         stopped.Tags.ShouldContain(t => t.Key == "cqrs.error_code" && t.Value == "test.rule_broken");
+    }
+
+    [Fact]
+    public void Platform_registration_keeps_telemetry_behavior_outer_most()
+    {
+        var configuration = new ConfigurationBuilder().Build();
+        var services = new ServiceCollection();
+        services.AddSingleton<IHostEnvironment>(new TestHostEnvironment(Environments.Development));
+
+        services.AddPlatformTelemetry("Tests");
+        services.AddPlatformWeb(configuration);
+        services.AddPlatformPersistence();
+
+        var behaviors = services
+            .Where(d => d.ServiceType == typeof(IPipelineBehavior<,>))
+            .Select(d => d.ImplementationType)
+            .ToArray();
+
+        behaviors.ShouldBe([
+            typeof(TelemetryBehavior<,>),
+            typeof(LoggingBehavior<,>),
+            typeof(ValidationBehavior<,>),
+            typeof(ConcurrencyRetryBehavior<,>)
+        ]);
     }
 
     private sealed record TestCommand;

@@ -1673,15 +1673,15 @@ _Endpoint is sound (bounded, owner-scoped, auth-gated). The old duplicate SseStr
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
-| Behavior must be outer-most | ✓ | AddPlatformTelemetry registers TelemetryBehavior first; called before AddPlatformWeb in every host (Api Program.cs:29, comment DependencyInjection.cs:13-14) |
+| Behavior must be outer-most | ✓ | AddPlatformTelemetry registers TelemetryBehavior first; called before AddPlatformWeb in every host (Api Program.cs:29, comment DependencyInjection.cs:13-14); covered by TelemetryBehaviorTests.Platform_registration_keeps_telemetry_behavior_outer_most |
 | Domain vs unexpected exception tagging | ✓ | ModularPlatformException tags cqrs.error_code; generic sets Error status with message (TelemetryBehavior.cs:22-32); error-code tag pinned by TelemetryBehaviorTests.ModularPlatformException_tags_activity_with_error_code |
 | A second Meter never registered via AddMeter (silently unexported) | ✓ | Single PlatformMetrics.Meter (MeterName='ModularPlatform') registered via .AddMeter (DependencyInjection.cs:27); CLAUDE.md warns against a second meter |
 | No OTLP collector configured | ◐ | AddOtlpExporter defaults to localhost:4317; with no collector the exporter logs/drops silently — deployment concern, not a code gap |
 
-**Testy:** JobFailureMetricsTests uses a MeterListener on the 'ModularPlatform' meter — indirectly proves the shared meter name + instrument export path; TelemetryBehaviorTests.ModularPlatformException_tags_activity_with_error_code
-**Test gaps:** No test that TelemetryBehavior is the outer-most registered behavior (order relies on registration sequence)
+**Testy:** JobFailureMetricsTests uses a MeterListener on the 'ModularPlatform' meter — indirectly proves the shared meter name + instrument export path; TelemetryBehaviorTests.ModularPlatformException_tags_activity_with_error_code; TelemetryBehaviorTests.Platform_registration_keeps_telemetry_behavior_outer_most
+**Test gaps:** No remaining focused telemetry behavior gap in this slice.
 
-_Clean single-meter design; error-code tagging is a nice touch. Outer-most ordering is convention-enforced, not asserted._
+_Clean single-meter design; error-code tagging and outer-most behavior ordering are pinned by tests._
 
 **Nekonzistence v oblasti (5):**
 - Rate-limiter per-user partition is fixed: PlatformWebExtensions keys authenticated traffic on `ClaimTypes.NameIdentifier`; PL11 proves user-specific buckets.
