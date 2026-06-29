@@ -692,18 +692,18 @@ _A simple config flag correctly threaded for subscription checkout. Real tax mat
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
 | Runaway volume | ✓ | Each pass capped + WARN log at cap (ReconcileStripeHandler.cs:60-65,84-89,143-148) |
-| One subscription's Stripe call errors (429/500/timeout) | ✓ | Per-item try/catch logs and continues; next run retries (cs:96-129) |
+| One subscription's Stripe call errors (429/500/timeout) | ✓ | Per-item try/catch logs and continues; next run retries (cs:96-129). Proven by StripeReconcileTests.Provider_errors_are_isolated_per_subscription. |
 | One stuck purchase's session lookup errors | ✓ | Per-item try/catch in Pass 3 (cs:154-174) |
 | Re-grant of an unpaid/abandoned purchase | ✓ | Only re-publishes when payment_status is paid/no_payment_required (cs:156-160); proven by Stuck_UNPAID_purchase_is_NOT_regranted |
 | Double-credit from a race between reconcile re-grant and a late real confirmation | ✓ | Both grant through CreditTopUp key purchase:{id} (cs:166-167; saga NotFound) — idempotent |
 | Subscription canceled locally but reactivated in Stripe | ◐ | Pass 2 filters s.Status != Canceled (cs:78-79), so a locally-Canceled row reactivated upstream is never re-checked. One-directional drift correction; acceptable given cancel is user-initiated and Stripe-first, but not symmetric. |
 | Subscription deleted in Stripe (404) | ✓ | GetSubscriptionAsync returns null → continue/skip (cs:98-102); upsert also no-ops on null |
-| Stripe drift surfaced for ops | ✓ | WARN log + platform.billing.stripe_drift counter (cs:42-45,113-119) |
+| Stripe drift surfaced for ops | ✓ | WARN log + platform.billing.stripe_drift counter (cs:42-45,113-119); response drift count is proven by StripeReconcileTests.Subscription_drift_is_corrected_from_live_stripe_state. |
 
-**Testy:** StripeReconcileTests.Stuck_stripe_event_is_requeued_and_processed_end_to_end_by_the_reconcile_sweep (Pass 1); StripeReconcileTests.Stuck_PAID_purchase_whose_confirmation_dead_lettered_is_regranted (Pass 3 positive); StripeReconcileTests.Stuck_UNPAID_purchase_is_NOT_regranted (Pass 3 negative)
-**Test gaps:** Pass 2 (subscription drift) has NO test — neither drift detection/upsert dispatch nor the per-item error isolation nor the drift counter is exercised; No test that a non-404 Stripe error on one item does not abort the sweep (per-item isolation untested); No test of the cap WARN paths
+**Testy:** StripeReconcileTests.Stuck_stripe_event_is_requeued_and_processed_end_to_end_by_the_reconcile_sweep (Pass 1); StripeReconcileTests.Subscription_drift_is_corrected_from_live_stripe_state (Pass 2 drift correction); StripeReconcileTests.Provider_errors_are_isolated_per_subscription (Pass 2 per-item isolation); StripeReconcileTests.Stuck_PAID_purchase_whose_confirmation_dead_lettered_is_regranted (Pass 3 positive); StripeReconcileTests.Stuck_UNPAID_purchase_is_NOT_regranted (Pass 3 negative); StripeReconcileTests.Stuck_purchase_reconcile_pass_is_capped_per_run (Pass 3 cap)
+**Test gaps:** No test of the cap WARN paths for stuck events/subscriptions; no direct metric-reader assertion for platform.billing.stripe_drift (response count covers the same branch, not the OTel export).
 
-_Passes 1 and 3 are well tested; Pass 2 subscription-drift correction (the most complex pass, with live-compare + counter + isolation) is entirely untested. The asymmetric (non-Canceled only) drift scope is a minor design limitation worth documenting._
+_All three passes have focused behavioral coverage now. Remaining gaps are observability-level cap warnings/metric export, not core reconciliation correctness. The asymmetric (non-Canceled only) drift scope is a minor design limitation worth documenting._
 
 ### IStripeGateway anti-corruption seam (real + fake) — ✅ correct
 *The single seam to Stripe; absorbs SDK quirks and enables offline end-to-end testing.*
