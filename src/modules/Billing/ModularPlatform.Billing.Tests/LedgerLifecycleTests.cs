@@ -328,6 +328,53 @@ public sealed class LedgerLifecycleTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Transaction_id_groups_the_expected_reservation_lifecycle_entries()
+    {
+        var (userId, token) = await fixture.RegisterAndLoginAsync(Email("tx-group"), Password);
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{userId}'", 1);
+
+        var topupKey = $"tx-topup-{Guid.CreateVersion7():N}";
+        await fixture.GrantCreditsAsync(userId, 1000, idempotencyKey: topupKey);
+
+        var confirmedReservation = await ReserveAsync(token, 300);
+        var confirm = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/billing/credits/reservations/confirm", token, new { reservationId = confirmedReservation }));
+        confirm.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var releasedReservation = await ReserveAsync(token, 200);
+        var release = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/billing/credits/reservations/release", token, new { reservationId = releasedReservation }));
+        release.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var topupTransaction = await fixture.ScalarAsync<Guid>(
+            $"SELECT \"TransactionId\" FROM credit_entries WHERE \"IdempotencyKey\" = '{topupKey}'");
+        var topupGroup = await fixture.ScalarAsync<string>(
+            $"SELECT string_agg(\"Type\" || ':' || \"Direction\" || ':' || \"Amount\", ',' ORDER BY \"Type\") " +
+            $"FROM credit_entries WHERE \"TransactionId\" = '{topupTransaction}'");
+        topupGroup.ShouldBe("Topup:Credit:1000");
+
+        var releasedGroup = await fixture.ScalarAsync<string>(
+            $"SELECT string_agg(\"Type\" || ':' || \"Direction\" || ':' || \"Amount\", ',' ORDER BY \"Type\") " +
+            $"FROM credit_entries WHERE \"TransactionId\" = '{releasedReservation}'");
+        releasedGroup.ShouldBe("Release:Credit:200,Reservation:Debit:200");
+
+        var releasedNet = await fixture.ScalarAsync<long>(
+            "SELECT COALESCE(SUM(CASE WHEN \"Direction\" = 'Credit' THEN \"Amount\" ELSE -\"Amount\" END), 0)::bigint " +
+            $"FROM credit_entries WHERE \"TransactionId\" = '{releasedReservation}'");
+        releasedNet.ShouldBe(0);
+
+        var confirmedGroup = await fixture.ScalarAsync<string>(
+            $"SELECT string_agg(\"Type\" || ':' || \"Direction\" || ':' || \"Amount\", ',' ORDER BY \"Type\") " +
+            $"FROM credit_entries WHERE \"TransactionId\" = '{confirmedReservation}'");
+        confirmedGroup.ShouldBe("Reservation:Debit:300,Spend:Debit:300");
+
+        var confirmedReleaseEntries = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_entries WHERE \"TransactionId\" = '{confirmedReservation}' AND \"Type\" = 'Release'");
+        confirmedReleaseEntries.ShouldBe(0);
+    }
+
+    [Fact]
     public async Task Expiring_a_bucket_that_backs_an_active_reservation_does_not_crash_or_go_negative()
     {
         var (userId, _) = await fixture.RegisterAndLoginAsync(Email("expire-reserved"), Password);

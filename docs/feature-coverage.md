@@ -532,8 +532,8 @@ _Pure query, no transaction; uses the read factory per the platform law._
 | Ledger entry never updated/deleted | ✓ | No UPDATE/DELETE on CreditEntry anywhere; entity documented immutable (CreditEntry.cs:24-27). Erasure anonymizes rather than deletes (per module IExportPersonalData, outside this slice). |
 | Owner reads ledger entries paged, scoped and newest-first | ✓ | GetCreditLedgerHandler.cs:29-38 owner-scopes by AccountId and orders by CreatedAt desc; covered by CreditLedgerReadTests.Ledger_entries_are_paged_and_scoped_to_the_token_owner. |
 
-**Testy:** LedgerLifecycleTests.Ledger_invariants_hold_after_a_mixed_run; LedgerBackstopTests.BL5 / PL2; CreditLedgerReadTests.Ledger_entries_are_paged_and_scoped_to_the_token_owner
-**Test gaps:** No test asserts the double-entry balance per TransactionId (that each TransactionId groups a balanced credit/debit set) — the invariant is documented (CreditEntry.cs:25) but not directly checked; No test that confirms credit_entries are never mutated (immutability is by convention, not enforced by a DB trigger or asserted in a test)
+**Testy:** LedgerLifecycleTests.Ledger_invariants_hold_after_a_mixed_run; LedgerLifecycleTests.Transaction_id_groups_the_expected_reservation_lifecycle_entries; LedgerBackstopTests.BL5 / PL2; CreditLedgerReadTests.Ledger_entries_are_paged_and_scoped_to_the_token_owner
+**Test gaps:** No test that confirms credit_entries are never mutated (immutability is by convention, not enforced by a DB trigger or asserted in a test)
 
 _Strong defence-in-depth: app-level guard + DB CHECK + per-account UNIQUE idempotency. The projection-vs-ledger reconciliation is only ever asserted in tests, not by a runtime reconciliation job for credits (Stripe has one; the credit ledger relies on correct arithmetic + the expiry sweep)._
 

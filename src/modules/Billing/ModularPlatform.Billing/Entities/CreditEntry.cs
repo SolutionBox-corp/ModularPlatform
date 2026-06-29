@@ -22,9 +22,11 @@ internal enum CreditEntryType
 }
 
 /// <summary>
-/// Append-only, IMMUTABLE double-entry ledger row. Never UPDATE or DELETE. Each <see cref="TransactionId"/>
-/// groups a balanced set. <see cref="IdempotencyKey"/> is uniquely indexed so re-applying the same logical
-/// operation (e.g. a replayed Stripe event) credits exactly once.
+/// Append-only, IMMUTABLE ledger row. Never UPDATE or DELETE. <see cref="TransactionId"/> groups the ledger
+/// rows for one logical money movement or reservation lifecycle: a released reservation balances its reservation
+/// debit with a release credit, while a confirmed reservation intentionally records both the reservation debit
+/// and the final spend debit because they affect different projection columns. <see cref="IdempotencyKey"/> is
+/// uniquely indexed so re-applying the same logical operation (e.g. a replayed Stripe event) credits exactly once.
 /// </summary>
 internal sealed class CreditEntry : Entity
 {
