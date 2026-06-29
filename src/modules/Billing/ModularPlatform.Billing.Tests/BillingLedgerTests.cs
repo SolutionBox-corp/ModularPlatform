@@ -78,6 +78,36 @@ public sealed class BillingLedgerTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Top_up_creates_credit_account_when_provisioning_event_has_not_run_yet()
+    {
+        var userId = Guid.CreateVersion7();
+        var key = $"create-miss-{Guid.CreateVersion7():N}";
+
+        var before = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{userId}'");
+        before.ShouldBe(0);
+
+        var result = await fixture.GrantCreditsAsync(userId, 250L, idempotencyKey: key);
+
+        result.AlreadyApplied.ShouldBeFalse();
+        result.Posted.ShouldBe(250);
+
+        var account = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{userId}' AND \"Posted\" = 250 AND \"Available\" = 250");
+        account.ShouldBe(1);
+
+        var bucket = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_buckets b JOIN credit_accounts a ON a.\"Id\" = b.\"AccountId\" " +
+            $"WHERE a.\"UserId\" = '{userId}' AND b.\"Amount\" = 250 AND b.\"Remaining\" = 250");
+        bucket.ShouldBe(1);
+
+        var entry = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_entries e JOIN credit_accounts a ON a.\"Id\" = e.\"AccountId\" " +
+            $"WHERE a.\"UserId\" = '{userId}' AND e.\"IdempotencyKey\" = '{key}' AND e.\"Type\" = 'Topup'");
+        entry.ShouldBe(1);
+    }
+
+    [Fact]
     public async Task Idempotency_keys_are_scoped_per_account_not_globally()
     {
         var (userA, _) = await fixture.RegisterAndLoginAsync($"acctA-{Guid.CreateVersion7():N}@example.com", "Sup3rSecret!");
