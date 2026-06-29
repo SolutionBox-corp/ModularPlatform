@@ -1384,7 +1384,7 @@ _The closed null-escape is the load-bearing security fix and is well covered; th
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
 | Superuser/table-owner bypasses RLS | ✓ | Runtime data connection uses least-privilege app_rls role (NOSUPERUSER NOBYPASSRLS, RlsBootstrapper.cs:106-109); admin only for DDL/Wolverine |
-| Pooled connection reused across principals leaks GUCs | ✓ | PrincipalSessionConnectionInterceptor stamps on EVERY ConnectionOpened, is_local=false session scope (PrincipalSessionConnectionInterceptor.cs:32-39; docstring 8-13) |
+| Pooled connection reused across principals leaks GUCs | ✓ | PrincipalSessionConnectionInterceptor stamps on EVERY ConnectionOpened, is_local=false session scope (PrincipalSessionConnectionInterceptor.cs:32-39; docstring 8-13); proven on one open runtime-role connection by RlsTests.Principal_guc_is_restamped_when_a_runtime_connection_is_reused_for_another_user |
 | Anonymous/empty principal matching rows | ✓ | NULLIF(current_setting(...,true),'')::uuid => unset principal matches nothing (RlsBootstrapper.cs:131-133) |
 | Dev placeholder password in prod | ✓ | Fail-fast outside Development (RlsBootstrapper.cs:42-49) |
 | SQL injection via role name | ✓ | SafeIdentifier regex validates RuntimeRole (RlsBootstrapper.cs:35-37); table identifiers come from EF model, password is ''-escaped (line 100) |
@@ -1393,10 +1393,10 @@ _The closed null-escape is the load-bearing security fix and is well covered; th
 | RLS disabled deployment (managed DB, no role creation) | ✓ | Enabled=false uses admin conn for data, no policies (RlsOptions.cs:15-16; RlsConnectionString.cs:18-21; RlsBootstrapper.cs:29-33) |
 | System principal must bypass user-owned policy without admin role | ✓ | Policy checks app.is_system='on' (RlsBootstrapper.cs:131-133); proven through runtime role by RlsTests.System_principal_bypasses_user_owned_rls_without_using_the_admin_role |
 
-**Testy:** RlsTests.A_user_cannot_see_another_users_credit_account_even_with_a_raw_query (owner sees own, other sees zero, admin sees both); RlsTests.System_principal_bypasses_user_owned_rls_without_using_the_admin_role
-**Test gaps:** No test that an RLS-disabled config path still functions (data via admin conn); No test that the GUC is re-stamped (not left stale) when a pooled connection is reused across two different principals in sequence
+**Testy:** RlsTests.A_user_cannot_see_another_users_credit_account_even_with_a_raw_query (owner sees own, other sees zero, admin sees both); RlsTests.System_principal_bypasses_user_owned_rls_without_using_the_admin_role; RlsTests.Principal_guc_is_restamped_when_a_runtime_connection_is_reused_for_another_user
+**Test gaps:** No test that an RLS-disabled config path still functions (data via admin conn)
 
-_Comprehensive, hardened implementation; cross-principal read denial and system bypass are proven end-to-end. Pooled-reuse remains reasoned about but not directly asserted._
+_Comprehensive, hardened implementation; cross-principal read denial, system bypass and same-connection principal restamping are proven end-to-end._
 
 ### Read DbContext factory — ✅ correct
 *No-tracking module DbContext on the read replica (or write fallback), with RLS GUC stamping when enabled.*

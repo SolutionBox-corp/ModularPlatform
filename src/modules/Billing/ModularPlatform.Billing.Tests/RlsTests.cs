@@ -56,4 +56,22 @@ public sealed class RlsTests(PlatformApiFactory fixture)
         (await fixture.ScalarAsSystemAsync<long>(
             $"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" IN ({userIds})")).ShouldBe(2);
     }
+
+    [Fact]
+    public async Task Principal_guc_is_restamped_when_a_runtime_connection_is_reused_for_another_user()
+    {
+        var (alice, _) = await fixture.RegisterAndLoginAsync($"restamp-alice-{Guid.CreateVersion7():N}@example.com", "Sup3rSecret!");
+        var (bob, _) = await fixture.RegisterAndLoginAsync($"restamp-bob-{Guid.CreateVersion7():N}@example.com", "Sup3rSecret!");
+
+        await fixture.WaitForCountAsync($"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{alice}'", 1);
+        await fixture.WaitForCountAsync($"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{bob}'", 1);
+
+        var aliceRowSql = $"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{alice}'";
+
+        var (asAlice, sameConnectionAsBob) =
+            await fixture.ScalarAsUsersOnSameRuntimeConnectionAsync<long>(alice, bob, aliceRowSql);
+
+        asAlice.ShouldBe(1);
+        sameConnectionAsBob.ShouldBe(0);
+    }
 }
