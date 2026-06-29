@@ -3,7 +3,10 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.DependencyInjection;
+using ModularPlatform.Billing.Features.Subscriptions.GrantSubscriptionCredits;
+using ModularPlatform.Billing.Features.Subscriptions.UpsertSubscriptionFromStripe;
 using ModularPlatform.Billing.Stripe;
+using ModularPlatform.Cqrs;
 using ModularPlatform.IntegrationTesting;
 using ModularPlatform.Payments;
 using Shouldly;
@@ -531,6 +534,39 @@ public sealed class BillingCommerceTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Access_only_subscription_plan_does_not_grant_invoice_credits()
+    {
+        using var host = fixture.CreateHost(
+            ("Billing:Subscriptions:Plans:1:PlanKey", "access"),
+            ("Billing:Subscriptions:Plans:1:StripePriceId", "price_access"),
+            ("Billing:Subscriptions:Plans:1:CreditsPerPeriod", "0"),
+            ("Billing:Subscriptions:Plans:1:Enabled", "true"));
+        var fake = (FakeStripeGateway)host.Services.GetRequiredService<IStripeGateway>();
+
+        var (userId, _) = await fixture.RegisterAndLoginAsync(
+            $"sub-access-only-{Guid.CreateVersion7():N}@test.io", Password);
+        var subId = $"sub_{Guid.CreateVersion7():N}";
+        var invoiceId = $"in_{Guid.CreateVersion7():N}";
+
+        fake.SeedSubscription(new StripeSubscriptionState(
+            SubscriptionId: subId,
+            Status: "active",
+            CustomerId: "cus_test",
+            CurrentPeriodEnd: DateTimeOffset.UtcNow.AddMonths(1),
+            CancelAtPeriodEnd: false,
+            Metadata: new Dictionary<string, string> { ["user_id"] = userId.ToString(), ["plan_key"] = "access" }));
+
+        await DispatchAsync(host.Services, new UpsertSubscriptionFromStripeCommand(subId));
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM subscriptions WHERE \"StripeSubscriptionId\" = '{subId}' AND \"PlanKey\" = 'access'", 1);
+
+        await DispatchAsync(host.Services, new GrantSubscriptionCreditsCommand(subId, invoiceId));
+
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_entries WHERE \"IdempotencyKey\" = 'sub-invoice:{invoiceId}'")).ShouldBe(0);
+    }
+
+    [Fact]
     public async Task Subscription_plans_come_from_config_and_promo_codes_validate_through_stripe()
     {
         var (_, token) = await fixture.RegisterAndLoginAsync($"plans-{Guid.CreateVersion7():N}@test.io", Password);
@@ -658,6 +694,13 @@ public sealed class BillingCommerceTests(PlatformApiFactory fixture)
         await using var scope = fixture.Services.CreateAsyncScope();
         var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
         await bus.PublishAsync(message);
+    }
+
+    private static async Task DispatchAsync(IServiceProvider services, ICommand command)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var dispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
+        await dispatcher.Send(command);
     }
 
     private Task<HttpResponseMessage> SendSubscriptionEventAsync(string type, string subscriptionId)
