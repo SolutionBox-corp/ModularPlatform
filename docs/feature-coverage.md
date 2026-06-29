@@ -574,18 +574,18 @@ _Catalogue CRUD is correct and guarded: admin writes require billing.manage, pub
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
 | Unauthenticated checkout | ✓ | PurchaseCreditPackageEndpoint.cs:21-22 throws auth.required when tenant.UserId null; identity from token, never body |
-| Duplicate confirmation / saga replay / Stripe webhook redelivery | ✓ | Grant always via CreditTopUp key purchase:{Id} (CreditPurchaseSaga.cs:62-63); Status==Completed short-circuits the event re-publish (cs:65-68) |
+| Duplicate confirmation / saga replay / Stripe webhook redelivery | ✓ | Grant always via CreditTopUp key purchase:{Id} (CreditPurchaseSaga.cs:62-63); Status==Completed short-circuits the event re-publish (cs:65-68). Proven by BillingCommerceTests.Duplicate_paid_purchase_webhook_grants_credits_exactly_once. |
 | Checkout abandoned (no payment) | ✓ | CreditPurchaseTimeout flips Pending→Abandoned (CreditPurchaseSaga.cs:85-97); nothing charged/granted |
 | Late payment AFTER abandon/timeout (saga row deleted) | ✓ | static NotFound(CreditPurchaseConfirmed) still grants idempotently (CreditPurchaseSaga.cs:103-106); timeout re-arriving after Pending no-ops (cs:87-90) |
 | Confirmation message dead-letters (grant never lands) on a PAID purchase | ✓ | Reconcile Pass 3 re-publishes CreditPurchaseConfirmed only when Stripe payment_status is paid/no_payment_required (ReconcileStripeHandler.cs:137-175) |
 | Delayed payment method: completed fires while unpaid | ✓ | ProcessStripeEventHandler.IsPaid gate (cs:60,100-101) skips grant on unpaid; async_payment_succeeded later grants |
 | Malformed/forged session metadata (missing purchase_id/user_id/amount<=0) | ✓ | PublishPurchaseConfirmed returns without granting on parse failure (ProcessStripeEventCommand.cs:106-116) |
-| Purchase status read by a different user (IDOR) | ✓ | GetCreditPurchaseHandler.cs:21-26 filters UserId==query.UserId, 404 otherwise (no existence oracle); also RLS (IUserOwned) |
+| Purchase status read by a different user (IDOR) | ✓ | GetCreditPurchaseHandler.cs:21-26 filters UserId==query.UserId, 404 otherwise (no existence oracle); also RLS (IUserOwned). Proven by PurchaseStatusTests.Purchase_status_is_owner_scoped_and_moves_through_pending_abandoned_completed. |
 | Saga row read before Worker materializes it | ✓ | Documented async appearance (GetCreditPurchaseHandler.cs:8-13); 404 until present |
 | Concurrent saga state writes | ✓ | Wolverine Saga.Version optimistic concurrency configured (CreditPurchaseSaga.cs:122-123) |
 
-**Testy:** BillingCommerceTests.Package_purchase_completes_end_to_end_via_checkout_webhook_and_saga; BillingCommerceTests.Unpaid_checkout_session_does_not_grant_credits; BillingCommerceTests.Async_payment_succeeded_grants_credits_on_settlement; BillingCommerceTests.Saga_timeout_abandons_pending_purchase_and_late_confirmation_still_grants; StripeReconcileTests.Stuck_PAID_purchase_whose_confirmation_dead_lettered_is_regranted; StripeReconcileTests.Stuck_UNPAID_purchase_is_NOT_regranted
-**Test gaps:** No test that a second checkout.session.completed (duplicate Stripe redelivery of the SAME confirm) yields exactly ONE credit_entries row purchase:{id} (idempotency proven only for top-up event path, not the saga-confirm path); No test that forged/missing session metadata does NOT grant; No test that GET /billing/purchases/{id} for another user's purchase returns 404
+**Testy:** BillingCommerceTests.Package_purchase_completes_end_to_end_via_checkout_webhook_and_saga; BillingCommerceTests.Duplicate_paid_purchase_webhook_grants_credits_exactly_once; BillingCommerceTests.Unpaid_checkout_session_does_not_grant_credits; BillingCommerceTests.Async_payment_succeeded_grants_credits_on_settlement; BillingCommerceTests.Saga_timeout_abandons_pending_purchase_and_late_confirmation_still_grants; PurchaseStatusTests.Purchase_status_is_owner_scoped_and_moves_through_pending_abandoned_completed; StripeReconcileTests.Stuck_PAID_purchase_whose_confirmation_dead_lettered_is_regranted; StripeReconcileTests.Stuck_UNPAID_purchase_is_NOT_regranted
+**Test gaps:** No test that forged/missing session metadata does NOT grant.
 
 _The strongest-covered feature: happy path, unpaid gate, async settlement, abandon+late, and dead-letter regrant all tested. Deliberate no-MarkCompleted design (row = purchase record) is sound._
 

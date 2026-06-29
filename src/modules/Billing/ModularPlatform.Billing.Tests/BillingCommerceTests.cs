@@ -110,6 +110,27 @@ public sealed class BillingCommerceTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Duplicate_paid_purchase_webhook_grants_credits_exactly_once()
+    {
+        var (purchaseId, providerPaymentId, tenantId) = await StartPackageCheckoutAsync(
+            creditAmount: 275, stripePriceId: $"price_test_duplicate_{Guid.CreateVersion7():N}");
+
+        (await ConfirmPaidViaTenantWebhookAsync(tenantId, providerPaymentId)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM credit_entries WHERE \"IdempotencyKey\" = 'purchase:{purchaseId}'", 1);
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM credit_purchase_sagas WHERE \"Id\" = '{purchaseId}' AND \"Status\" = 'Completed'", 1);
+
+        (await ConfirmPaidViaTenantWebhookAsync(tenantId, providerPaymentId)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await Task.Delay(750);
+
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_entries WHERE \"IdempotencyKey\" = 'purchase:{purchaseId}'")).ShouldBe(1);
+        (await fixture.ScalarAsync<long>(
+            $"SELECT \"Posted\" FROM credit_accounts WHERE \"UserId\" = (SELECT \"UserId\" FROM credit_purchase_sagas WHERE \"Id\" = '{purchaseId}')")).ShouldBe(275);
+    }
+
+    [Fact]
     public async Task Unpaid_checkout_session_does_not_grant_credits()
     {
         var (purchaseId, providerPaymentId, tenantId) = await StartPackageCheckoutAsync(400, "price_test_unpaid");
