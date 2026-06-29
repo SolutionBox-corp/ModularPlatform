@@ -156,9 +156,17 @@ public sealed class GdprIntegrationTests(PlatformApiFactory fixture)
         var data = await PlatformApiFactory.ReadData(response);
 
         // One section per module that implements IExportPersonalData — keyed by ModuleName.
-        data.TryGetProperty("Identity", out _).ShouldBeTrue();
+        data.TryGetProperty("Identity", out var identity).ShouldBeTrue();
         data.TryGetProperty("Billing", out var billing).ShouldBeTrue();
         data.TryGetProperty("Notifications", out var notifications).ShouldBeTrue();
+
+        // Identity section exports the account profile shape from IdentityPersonalDataExporter.
+        var profile = identity.GetProperty("profile");
+        profile.ValueKind.ShouldNotBe(JsonValueKind.Null);
+        profile.GetProperty("email").GetString().ShouldBe(email);
+        profile.GetProperty("displayName").ValueKind.ShouldBe(JsonValueKind.Null);
+        profile.GetProperty("locale").GetString().ShouldBe("en");
+        profile.GetProperty("createdAt").ValueKind.ShouldBe(JsonValueKind.String);
 
         // Billing section carries the provisioned wallet (account non-null).
         billing.GetProperty("account").ValueKind.ShouldNotBe(JsonValueKind.Null);
