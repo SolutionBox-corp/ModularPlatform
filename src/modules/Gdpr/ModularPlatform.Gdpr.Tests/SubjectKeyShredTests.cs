@@ -71,6 +71,25 @@ public sealed class SubjectKeyShredTests(PlatformApiFactory fixture)
             + """AND "WrappedDek" IS NULL AND "DeletedAt" IS NOT NULL""")).ShouldBe(1);
     }
 
+    [Fact]
+    public async Task V2_envelope_cannot_be_re_attached_to_another_subject()
+    {
+        var (subjectA, _) = await fixture.RegisterAndLoginAsync($"shred-aad-a-{Guid.CreateVersion7():N}@x.com", Password);
+        var (subjectB, _) = await fixture.RegisterAndLoginAsync($"shred-aad-b-{Guid.CreateVersion7():N}@x.com", Password);
+        var protector = fixture.Services.GetRequiredService<IPersonalDataProtector>();
+
+        var envelope = protector.Protect(subjectA, "subject-a-secret");
+        protector.Protect(subjectB, "subject-b-key-mint");
+
+        var separator = envelope.LastIndexOf(':');
+        separator.ShouldBeGreaterThan(0);
+        var tampered = $"penc:v2:{Convert.ToBase64String(subjectB.ToByteArray())}:{envelope[(separator + 1)..]}";
+
+        protector.TryReveal(envelope, out var plaintext).ShouldBeTrue();
+        plaintext.ShouldBe("subject-a-secret");
+        protector.TryReveal(tampered, out _).ShouldBeFalse();
+    }
+
     private async Task DispatchShredAsync(Guid userId)
     {
         await using var scope = fixture.Services.CreateAsyncScope();
