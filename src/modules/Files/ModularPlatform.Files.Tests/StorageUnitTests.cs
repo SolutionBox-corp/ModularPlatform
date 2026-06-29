@@ -50,6 +50,39 @@ public sealed class StorageUnitTests
     }
 
     [Fact]
+    public async Task Local_provider_rejects_key_whose_existing_parent_symlink_escapes_root()
+    {
+        var testRoot = Path.Combine(Path.GetTempPath(), $"modularplatform-storage-test-{Guid.CreateVersion7():N}");
+        var storageRoot = Path.Combine(testRoot, "storage");
+        var outsideRoot = Path.Combine(testRoot, "outside");
+        Directory.CreateDirectory(storageRoot);
+        Directory.CreateDirectory(outsideRoot);
+
+        var symlink = Path.Combine(storageRoot, "user");
+        try
+        {
+            Directory.CreateSymbolicLink(symlink, outsideRoot);
+        }
+        catch (Exception ex) when (ex is PlatformNotSupportedException or UnauthorizedAccessException or IOException)
+        {
+            return;
+        }
+
+        var storage = new LocalFileStorage(Options.Create(new StorageOptions
+        {
+            Local = new LocalStorageOptions
+            {
+                RootPath = storageRoot,
+            },
+        }));
+
+        await Should.ThrowAsync<ArgumentException>(
+            () => storage.PutAsync("user/file.bin", new MemoryStream([1, 2, 3]), "application/octet-stream",
+                CancellationToken.None));
+        File.Exists(Path.Combine(outsideRoot, "file.bin")).ShouldBeFalse();
+    }
+
+    [Fact]
     public void S3_config_for_minio_uses_service_url_and_path_style()
     {
         var config = S3ClientFactory.BuildConfig(new S3StorageOptions

@@ -1193,7 +1193,7 @@ _Paging is clamped and owner-scoped. Index/tiebreaker notes are perf/stability n
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
-| Path-traversal / rooted / backslash / invalid-char key | ✓ | StorageKey.Validate (StorageKey.cs:17-25) rejects '..', leading slash/backslash, embedded backslash, rooted, and invalid chars; LocalFileStorage.ResolvePath re-checks the resolved path stays under root (LocalFileStorage.cs:60-65); S3FileStorage validates on every call (lines 26,40,47). Tested by StorageUnitTests.Invalid_storage_keys_are_rejected |
+| Path-traversal / rooted / backslash / invalid-char key | ✓ | StorageKey.Validate (StorageKey.cs:17-25) rejects '..', leading slash/backslash, embedded backslash, rooted, and invalid chars; LocalFileStorage.ResolvePath re-checks the resolved path stays under root and rejects existing symlink/reparse-point parents (LocalFileStorage.cs:60-86); S3FileStorage validates on every call (lines 26,40,47). Tested by StorageUnitTests.Invalid_storage_keys_are_rejected and Local_provider_rejects_key_whose_existing_parent_symlink_escapes_root |
 | Bucket/endpoint redirected by a request (SSRF/cross-bucket write) | ✓ | S3FileStorage.cs:21 bucket from options only; StorageOptions doc (StorageOptions.cs:4-7) — never from a request |
 | Provider selection / default | ✓ | PlatformStorage.cs:20-32 selects s3 vs local, default local; TryAddSingleton idempotent across modules |
 | Delete is idempotent (missing key) | ✓ | LocalFileStorage.cs:46-50 guards File.Exists; S3 DeleteObject is idempotent by S3 semantics; IFileStorage doc (Ports.cs:80) requires it |
@@ -1201,8 +1201,8 @@ _Paging is clamped and owner-scoped. Index/tiebreaker notes are perf/stability n
 | S3 stream lifecycle (AutoCloseStream) | ✓ | S3FileStorage.cs:33 AutoCloseStream=false so the caller-owned upload stream is not closed by the SDK; download returns response.ResponseStream which Results.Stream disposes |
 | Live S3 round-trip | – | StorageUnitTests note: a live S3 round-trip needs a MinIO Testcontainer/real bucket and is intentionally not covered; only config wiring + key guard are unit-tested |
 
-**Testy:** StorageUnitTests.Invalid_storage_keys_are_rejected; StorageUnitTests.Opaque_keys_are_accepted; StorageUnitTests.Local_missing_key_throws_file_not_found_error_code; StorageUnitTests.S3_config_for_minio_uses_service_url_and_path_style; StorageUnitTests.S3_config_for_real_s3_uses_region_not_service_url
-**Test gaps:** No live S3/MinIO round-trip test (acknowledged); No test that LocalFileStorage.ResolvePath rejects a key that passes Validate but would still escape (the second-line defence) — only Validate is unit-tested
+**Testy:** StorageUnitTests.Invalid_storage_keys_are_rejected; StorageUnitTests.Opaque_keys_are_accepted; StorageUnitTests.Local_missing_key_throws_file_not_found_error_code; StorageUnitTests.Local_provider_rejects_key_whose_existing_parent_symlink_escapes_root; StorageUnitTests.S3_config_for_minio_uses_service_url_and_path_style; StorageUnitTests.S3_config_for_real_s3_uses_region_not_service_url
+**Test gaps:** No live S3/MinIO round-trip test (acknowledged)
 
 _Defence-in-depth path guard (validate + resolved-path re-check) is excellent; S3 config is unit-tested across all three backends._
 
