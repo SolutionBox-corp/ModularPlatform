@@ -1432,10 +1432,10 @@ _Read-side RLS isolation is the subtle correctness point; the factory registrati
 | Shredded subject on read | ✓ | TryReveal false -> ErasedMarker (PersonalDataEncryption.cs:70-72) |
 | ExecuteUpdate/Delete bypass encryption | ◐ | Documented; used deliberately for erasure tombstones (EncryptedAttribute docstring); no guard against accidental misuse |
 
-**Testy:** AuditPiiEncryptionTests (audit PII enveloped + erased); PersonalDataConventionTests.Every_Encrypted_property_is_PersonalData_on_an_IDataSubject_string; Identity AuditPiiEncryption/PiiEncryption integration tests (login via blind index, penc:v2 envelopes)
-**Test gaps:** No direct unit test of the interceptor's restore-plaintext-on-FAILURE path (tracked entity stays usable after a failed save); No test of the 'no protector -> throw' guard
+**Testy:** AuditPiiEncryptionTests (audit PII enveloped + erased); PersonalDataConventionTests.Every_Encrypted_property_is_PersonalData_on_an_IDataSubject_string; PersonalDataEncryptionInterceptorTests.Failed_save_restores_tracked_encrypted_property_to_plaintext; PersonalDataEncryptionInterceptorTests.Save_of_encrypted_plaintext_without_a_protector_is_rejected; Identity AuditPiiEncryption/PiiEncryption integration tests (login via blind index, penc:v2 envelopes)
+**Test gaps:** No remaining focused PII encryption interceptor restore/refuse gap in this slice.
 
-_Intricate but disciplined; the restore-on-failure and refuse-without-protector guards are the riskiest paths and only the happy path is asserted._
+_Intricate but disciplined; restore-on-failure and refuse-without-protector are now pinned directly in building-block tests._
 
 ### Paging (PageRequest / PagedResponse / ToPagedResponseAsync) — 🟢 minor-gaps
 *Clamp paging inputs to safe bounds and turn an ordered IQueryable into a counted page.*

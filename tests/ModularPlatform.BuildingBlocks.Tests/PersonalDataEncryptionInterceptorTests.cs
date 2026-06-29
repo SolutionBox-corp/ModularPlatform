@@ -50,6 +50,32 @@ public sealed class PersonalDataEncryptionInterceptorTests
         exception.Message.ShouldContain("is [Encrypted] but no IPersonalDataProtector is registered");
     }
 
+    [Fact]
+    public async Task Failed_save_restores_tracked_encrypted_property_to_plaintext()
+    {
+        await using var services = new ServiceCollection()
+            .AddSingleton<IPersonalDataProtector, DeterministicProtector>()
+            .BuildServiceProvider();
+        var tenant = new TestTenantContext();
+        var options = new DbContextOptionsBuilder<TestDbContext>()
+            .UseNpgsql(
+                "Host=127.0.0.1;Port=1;Database=modularplatform_missing;Username=postgres;Password=postgres;Timeout=1;Command Timeout=1")
+            .AddInterceptors(new PersonalDataEncryptionInterceptor(services))
+            .Options;
+        await using var db = new TestDbContext(options, tenant);
+        var entity = new EncryptedEntity
+        {
+            OwnerId = tenant.UserId!.Value,
+            Secret = "plain-pii"
+        };
+        db.Entities.Add(entity);
+
+        await Should.ThrowAsync<Exception>(() => db.SaveChangesAsync());
+
+        entity.Secret.ShouldBe("plain-pii");
+        db.Entry(entity).Property(e => e.Secret).CurrentValue.ShouldBe("plain-pii");
+    }
+
     private sealed class TestTenantContext : ITenantContext
     {
         public Guid? UserId { get; } = Guid.CreateVersion7();
@@ -87,4 +113,18 @@ public sealed class PersonalDataEncryptionInterceptorTests
             return false;
         }
     }
+
+    private sealed class DeterministicProtector : IPersonalDataProtector
+    {
+        public bool IsProtected(string value) => PersonalDataEncryption.LooksProtected(value);
+
+        public string Protect(Guid subjectId, string plaintext) => $"penc:v2:{subjectId:N}:{plaintext}";
+
+        public bool TryReveal(string protectedValue, out string plaintext)
+        {
+            plaintext = protectedValue.Split(':').Last();
+            return true;
+        }
+    }
+
 }
