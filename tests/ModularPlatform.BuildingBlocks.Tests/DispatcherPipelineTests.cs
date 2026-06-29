@@ -1,6 +1,9 @@
+using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using ModularPlatform.Cqrs;
+using ModularPlatform.Cqrs.Behaviors;
 using Shouldly;
+using PlatformValidationException = ModularPlatform.Cqrs.ValidationException;
 
 namespace ModularPlatform.BuildingBlocks.Tests;
 
@@ -46,6 +49,25 @@ public sealed class DispatcherPipelineTests
         ]);
     }
 
+    [Fact]
+    public async Task Query_pipeline_runs_validation_behavior_before_the_handler()
+    {
+        var recorder = new PipelineRecorder();
+        var services = new ServiceCollection();
+        services.AddSingleton(recorder);
+        services.AddCqrs(typeof(DispatcherPipelineTests).Assembly);
+        services.AddScoped<IValidator<ValidatedQuery>, ValidatedQueryValidator>();
+        services.AddPipelineBehavior(typeof(ValidationBehavior<,>));
+        await using var provider = services.BuildServiceProvider();
+
+        var ex = await Should.ThrowAsync<PlatformValidationException>(() =>
+            provider.GetRequiredService<IDispatcher>().Query(new ValidatedQuery("")));
+
+        ex.Errors.Single().Field.ShouldBe(nameof(ValidatedQuery.Name));
+        ex.Errors.Single().ErrorCode.ShouldBe("query.name.required");
+        recorder.Events.ShouldBeEmpty("the query handler must not run after validation rejects the query");
+    }
+
     private static ServiceProvider BuildProvider(PipelineRecorder recorder)
     {
         var services = new ServiceCollection();
@@ -60,6 +82,8 @@ public sealed class DispatcherPipelineTests
     public sealed record TestCommand : ICommand<string>;
 
     public sealed record TestQuery : IQuery<string>;
+
+    public sealed record ValidatedQuery(string Name) : IQuery<string>;
 
     public sealed class TestCommandHandler(PipelineRecorder recorder) : ICommandHandler<TestCommand, string>
     {
@@ -76,6 +100,25 @@ public sealed class DispatcherPipelineTests
         {
             recorder.Events.Add("handler:query");
             return Task.FromResult("query");
+        }
+    }
+
+    public sealed class ValidatedQueryHandler(PipelineRecorder recorder) : IQueryHandler<ValidatedQuery, string>
+    {
+        public Task<string> Handle(ValidatedQuery query, CancellationToken ct)
+        {
+            recorder.Events.Add("handler:validated-query");
+            return Task.FromResult(query.Name);
+        }
+    }
+
+    public sealed class ValidatedQueryValidator : AbstractValidator<ValidatedQuery>
+    {
+        public ValidatedQueryValidator()
+        {
+            RuleFor(q => q.Name)
+                .NotEmpty()
+                .WithErrorCode("query.name.required");
         }
     }
 

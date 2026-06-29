@@ -1269,10 +1269,10 @@ _Clean ~150 LOC mediator replacement. Runtime tests now pin both execution order
 | No validators registered | ✓ | Short-circuits to next() (ValidationBehavior.cs:16-19) |
 | Validator with blank ErrorCode | ✓ | Falls back to 'validation.invalid' (ValidationBehavior.cs:29); covered by ValidationBehaviorTests.Multiple_validators_are_aggregated_and_blank_error_code_falls_back |
 | Multiple validators / parallel run | ✓ | Task.WhenAll over all validators, each with its own ValidationContext so FluentValidation state cannot be shared across validators (ValidationBehavior.cs:22-23); covered by ValidationBehaviorTests.Multiple_validators_are_aggregated_and_blank_error_code_falls_back |
-| Runs for queries too (read-safe) | ✓ | Does NOT implement ICommandOnlyBehavior, so it runs for both commands and queries (intended per docstring lines 8-9) |
+| Runs for queries too (read-safe) | ✓ | Does NOT implement ICommandOnlyBehavior, so it runs for both commands and queries (intended per docstring lines 8-9); pinned at runtime by DispatcherPipelineTests.Query_pipeline_runs_validation_behavior_before_the_handler |
 
-**Testy:** ValidationBehaviorTests.No_validators_calls_next; ValidationBehaviorTests.Multiple_validators_are_aggregated_and_blank_error_code_falls_back; ErrorCodeLocalizationTests (asserts error codes resolve to resx) — indirect; Module slice validators tested in module integration tests
-**Test gaps:** No direct runtime query-pipeline test here; validation behavior itself now has direct coverage for no-validator short-circuit, multi-validator aggregation, and blank ErrorCode fallback.
+**Testy:** ValidationBehaviorTests.No_validators_calls_next; ValidationBehaviorTests.Multiple_validators_are_aggregated_and_blank_error_code_falls_back; DispatcherPipelineTests.Query_pipeline_runs_validation_behavior_before_the_handler; ErrorCodeLocalizationTests (asserts error codes resolve to resx) — indirect; Module slice validators tested in module integration tests
+**Test gaps:** No remaining focused validation-behavior gap in this slice.
 
 _Thin and correct; the important invariant is one ValidationContext per validator, otherwise FluentValidation state can leak between parallel validators._
 
