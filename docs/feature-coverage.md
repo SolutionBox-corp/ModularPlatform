@@ -857,14 +857,14 @@ _Clean append-only model, correct token-identity, stable validation error codes,
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
-| One exporter throws | ✓ | per-exporter try/catch -> {"error":"export_failed"} for that module, others continue (ExportUserDataHandler.cs:23-43) |
+| One exporter throws | ✓ | per-exporter try/catch -> {"error":"export_failed"} for that module, others continue (ExportUserDataHandler.cs:23-43). Proven at handler level and through HTTP by injecting a throwing exporter into a same-DB derived host. |
 | OperationCanceledException not swallowed | ✓ | filtered out of the catch so cancellation propagates (ExportUserDataHandler.cs:30) |
 | subject_keys envelope excluded from export | ✓ | ConsentPersonalDataExporter deliberately exports only consents, not key material (ConsentPersonalDataExporter.cs:10-11) |
 
-**Testy:** ExportResilienceUnitTests.A_throwing_exporter_yields_an_error_marker_and_does_not_break_the_others; ExportResilienceTests.Export_returns_200_with_all_module_sections_even_when_no_extra_data_seeded; GdprIntegrationTests.Export_assembles_one_document_keyed_by_module_with_each_modules_section
-**Test gaps:** No HTTP-path test that injects a throwing exporter (acknowledged in the test file's own note — only the unit handler test covers the throw path live data is not seeded)
+**Testy:** ExportResilienceUnitTests.A_throwing_exporter_yields_an_error_marker_and_does_not_break_the_others; ExportResilienceTests.Export_endpoint_returns_200_with_error_marker_when_one_exporter_throws; GdprIntegrationTests.Export_assembles_one_document_keyed_by_module_with_each_modules_section
+**Test gaps:** No remaining focused export fan-out resilience gap in this slice.
 
-_Resilience pattern is solid and tested at unit level. Note the asymmetry: export isolates per-exporter failures but erasure (same author, sibling fan-out) does not._
+_Resilience pattern is solid and now tested both at handler level and through the real HTTP endpoint._
 
 ### Retention sweep (tombstone permanent re-mint guard) — 🟢 minor-gaps
 *Nightly sweep that deliberately purges NOTHING — shredded subject_key tombstones are retained permanently as the DEK re-mint guard.*
