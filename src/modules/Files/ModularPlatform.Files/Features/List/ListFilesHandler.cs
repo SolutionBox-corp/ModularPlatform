@@ -28,6 +28,7 @@ internal sealed class ListFilesHandler(IReadDbContextFactory<FilesDbContext> rea
 
         return await q
             .OrderByDescending(f => f.CreatedAt)
+            .ThenByDescending(f => f.Id)
             .Select(f => new FileListItem(f.Id, f.FileName, f.ContentType, f.Size, f.CreatedAt))
             .ToPagedResponseAsync(query.Page, ct);
     }

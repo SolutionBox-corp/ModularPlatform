@@ -107,6 +107,36 @@ public sealed class FilesUploadTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task List_orders_created_at_ties_by_id_for_stable_paging()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync(
+            $"list-tie-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+
+        var first = await UploadAsync(token, "first.txt", "text/plain", Encoding.UTF8.GetBytes("first"));
+        var second = await UploadAsync(token, "second.txt", "text/plain", Encoding.UTF8.GetBytes("second"));
+        first.StatusCode.ShouldBe(HttpStatusCode.Created);
+        second.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var firstId = (await PlatformApiFactory.ReadData(first)).GetProperty("id").GetGuid();
+        var secondId = (await PlatformApiFactory.ReadData(second)).GetProperty("id").GetGuid();
+
+        var sameCreatedAt = "2026-01-01 00:00:00+00";
+        await fixture.ExecuteSqlAsync(
+            "UPDATE file_objects " +
+            $"SET \"CreatedAt\" = timestamp with time zone '{sameCreatedAt}' " +
+            $"WHERE \"Id\" IN ('{firstId}', '{secondId}')");
+
+        var list = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/files?page=1&pageSize=2", token));
+        list.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var data = await PlatformApiFactory.ReadData(list);
+
+        data.GetProperty("items").GetArrayLength().ShouldBe(2);
+        data.GetProperty("items").EnumerateArray()
+            .Select(item => item.GetProperty("id").GetGuid())
+            .ShouldBe(new[] { firstId, secondId }.OrderByDescending(id => id).ToArray());
+    }
+
+    [Fact]
     public async Task List_search_filters_by_filename_and_deleted_files_disappear()
     {
         var (_, token) = await fixture.RegisterAndLoginAsync(

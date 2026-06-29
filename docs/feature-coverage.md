@@ -1176,13 +1176,13 @@ _IDOR protection is dual-gated and well tested. Missing metadata and missing blo
 |---|:--:|---|
 | Owner scoping | ✓ | ListFilesHandler.cs:20 WHERE UserId + RLS; FilesUploadTests.List_is_paged_and_owner_scoped asserts other user totalCount==0 |
 | Unbounded / negative / oversized page request | ✓ | PageRequest (Paging.cs:21-29) clamps page>=1 and pageSize 1..100 default 20 — a caller cannot request an unbounded page |
-| Stable ordering for paging | ✓ | ListFilesHandler.cs:21 OrderByDescending(CreatedAt); PagedQueryExtensions requires an ordered query |
+| Stable ordering for paging | ✓ | ListFilesHandler.cs:30-31 orders by CreatedAt desc, then Id desc as a deterministic tie-breaker; PagedQueryExtensions requires an ordered query |
 | Only metadata returned, never bytes | ✓ | ListFilesHandler.cs:22 projects FileListItem (no StorageKey, no content) |
 | Index supports the per-user ordered scan | ◐ | Migration IX_file_objects_UserId is on UserId only (InitialFiles.cs:55-58); the query filters UserId then orders by CreatedAt — for large per-user file counts a composite (UserId, CreatedAt) index would avoid a sort. Acceptable at expected scale; a perf note, not a correctness bug. |
-| CreatedAt tie ordering is non-deterministic | ◐ | Ordering only by CreatedAt DESC; two files uploaded in the same instant could swap pages. Ids are Guid v7 (time-ordered) and could be a tiebreaker but are not used here. Minor stability nit. |
+| CreatedAt tie ordering is deterministic | ✓ | ThenByDescending(Id) prevents two same-timestamp files from swapping between pages; covered by FilesUploadTests.List_orders_created_at_ties_by_id_for_stable_paging. |
 
-**Testy:** FilesUploadTests.List_is_paged_and_owner_scoped (pageSize, totalCount, items length, owner scoping); FilesUploadTests.List_clamps_page_parameters_and_orders_newest_first_across_pages (query-string clamping + newest-first across pages)
-**Test gaps:** No remaining focused file-list paging/order gap; index/tiebreaker notes remain perf/stability nits, not correctness bugs.
+**Testy:** FilesUploadTests.List_is_paged_and_owner_scoped (pageSize, totalCount, items length, owner scoping); FilesUploadTests.List_clamps_page_parameters_and_orders_newest_first_across_pages (query-string clamping + newest-first across pages); FilesUploadTests.List_orders_created_at_ties_by_id_for_stable_paging
+**Test gaps:** No remaining focused file-list paging/order gap; index note remains a perf nit, not a correctness bug.
 
 _Paging is clamped and owner-scoped. Index/tiebreaker notes are perf/stability nits, not bugs._
 
