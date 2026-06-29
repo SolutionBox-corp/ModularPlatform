@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ModularPlatform.Crm.Persistence.Migrations
 {
     [DbContext(typeof(CrmDbContext))]
-    [Migration("20260629101234_CrmTasks")]
-    partial class CrmTasks
+    [Migration("20260629102918_CrmDealsTasksAndContactIndex")]
+    partial class CrmDealsTasksAndContactIndex
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
