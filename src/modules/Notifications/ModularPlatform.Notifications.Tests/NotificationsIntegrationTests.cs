@@ -302,19 +302,42 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
         var after = await BuiltInTemplateCountAsync();
         after.ShouldBe(before);
 
-        var duplicateGroups = await fixture.ScalarAsync<long>(
-            """
-            SELECT count(*)::bigint
-            FROM (
-                SELECT "Key", "Locale", count(*)::bigint AS c
-                FROM notification_templates
-                WHERE ("Key" = 'welcome' AND "Locale" IN ('en', 'cs'))
-                   OR ("Key" = 'purchase_completed' AND "Locale" IN ('en', 'cs'))
-                GROUP BY "Key", "Locale"
-                HAVING count(*) > 1
-            ) duplicates
-            """);
+        var duplicateGroups = await BuiltInTemplateDuplicateGroupCountAsync();
         duplicateGroups.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Notifications_seeder_concurrent_hosts_leave_one_complete_builtin_template_set()
+    {
+        await DeleteBuiltInTemplatesAsync();
+
+        var hosts = Enumerable.Range(0, 4)
+            .Select(_ => fixture.CreateHost(("RunMigrationsAtStartup", "false")))
+            .ToArray();
+        try
+        {
+            var clients = await Task.WhenAll(hosts.Select(host => Task.Run(host.CreateClient)));
+            foreach (var client in clients)
+            {
+                client.Dispose();
+            }
+
+            var builtIns = await BuiltInTemplateCountAsync();
+            builtIns.ShouldBe(4);
+
+            var duplicateGroups = await BuiltInTemplateDuplicateGroupCountAsync();
+            duplicateGroups.ShouldBe(0);
+        }
+        finally
+        {
+            foreach (var host in hosts)
+            {
+                host.Dispose();
+            }
+
+            await RestoreWelcomeTemplatesAsync();
+            await RestorePurchaseCompletedTemplatesAsync();
+        }
     }
 
     [Fact]
@@ -816,6 +839,28 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
             """
             SELECT count(*)::bigint
             FROM notification_templates
+            WHERE ("Key" = 'welcome' AND "Locale" IN ('en', 'cs'))
+               OR ("Key" = 'purchase_completed' AND "Locale" IN ('en', 'cs'))
+            """);
+
+    private Task<long> BuiltInTemplateDuplicateGroupCountAsync() =>
+        fixture.ScalarAsync<long>(
+            """
+            SELECT count(*)::bigint
+            FROM (
+                SELECT "Key", "Locale", count(*)::bigint AS c
+                FROM notification_templates
+                WHERE ("Key" = 'welcome' AND "Locale" IN ('en', 'cs'))
+                   OR ("Key" = 'purchase_completed' AND "Locale" IN ('en', 'cs'))
+                GROUP BY "Key", "Locale"
+                HAVING count(*) > 1
+            ) duplicates
+            """);
+
+    private Task DeleteBuiltInTemplatesAsync() =>
+        fixture.ExecuteSqlAsync(
+            """
+            DELETE FROM notification_templates
             WHERE ("Key" = 'welcome' AND "Locale" IN ('en', 'cs'))
                OR ("Key" = 'purchase_completed' AND "Locale" IN ('en', 'cs'))
             """);
