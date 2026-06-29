@@ -30,6 +30,25 @@ public sealed class JobsHostWiringTests
         options.WaitForJobsToComplete.ShouldBeTrue();
     }
 
+    [Fact]
+    public void Platform_messaging_health_cron_uses_utc()
+    {
+        using var host = JobsHostBuilder.Create(
+        [
+            ..BootArgs(),
+            "--Messaging:HealthCheckCron=0 13 4 * * ?",
+        ]).Build();
+
+        var options = host.Services.GetRequiredService<IOptions<QuartzOptions>>().Value;
+
+        var trigger = options.Triggers
+            .OfType<ICronTrigger>()
+            .Single(x => x.JobKey.Name == "platform-messaging-health");
+
+        trigger.CronExpressionString.ShouldBe("0 13 4 * * ?");
+        trigger.TimeZone.ShouldBe(TimeZoneInfo.Utc);
+    }
+
     private static string[] BootArgs() =>
     [
         "--environment=Development",
