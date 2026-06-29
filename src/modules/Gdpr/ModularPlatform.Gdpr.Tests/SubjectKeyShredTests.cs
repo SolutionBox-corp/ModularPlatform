@@ -72,6 +72,28 @@ public sealed class SubjectKeyShredTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Concurrent_first_use_protect_calls_share_one_subject_key()
+    {
+        var subjectId = Guid.CreateVersion7();
+        var protector = fixture.Services.GetRequiredService<IPersonalDataProtector>();
+
+        var envelopes = await Task.WhenAll(Enumerable.Range(0, 16).Select(i =>
+            Task.Run(() => protector.Protect(subjectId, $"secret-{i}"))));
+
+        envelopes.Length.ShouldBe(16);
+        envelopes.ShouldAllBe(envelope => protector.IsProtected(envelope));
+        (await fixture.ScalarAsync<long>(
+            $"""SELECT count(*)::bigint FROM subject_keys WHERE "UserId" = '{subjectId}' """
+            + """AND "WrappedDek" IS NOT NULL AND "DeletedAt" IS NULL""")).ShouldBe(1);
+
+        for (var i = 0; i < envelopes.Length; i++)
+        {
+            protector.TryReveal(envelopes[i], out var plaintext).ShouldBeTrue();
+            plaintext.ShouldBe($"secret-{i}");
+        }
+    }
+
+    [Fact]
     public async Task V2_envelope_cannot_be_re_attached_to_another_subject()
     {
         var (subjectA, _) = await fixture.RegisterAndLoginAsync($"shred-aad-a-{Guid.CreateVersion7():N}@x.com", Password);
