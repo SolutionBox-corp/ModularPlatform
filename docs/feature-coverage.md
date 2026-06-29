@@ -1592,10 +1592,10 @@ _Solid contract with build-time i18n parity guard. Validation errors, production
 | Multi-instance distributed limiting | ◐ | In-memory PartitionedRateLimiter only; comment notes Redis-backed swap is the seam (PlatformWebExtensions.cs:171-172) but not implemented — limits are per-instance |
 | Retry-After header on 429 | ✓ | `OnRejected` copies limiter lease `RetryAfter` metadata to the `Retry-After` header and returns an RFC9457-shaped 429 body; PL12 asserts the header exists. |
 
-**Testy:** PlatformContractTests.PL9_ST5_low_limit_host_throttles_normal_traffic_but_never_the_stripe_webhook; PlatformContractTests.Register_endpoint_uses_the_auth_rate_limit_policy; PlatformContractTests.PL11_rate_limit_bucket_is_per_user_not_shared; PlatformContractTests.PL12_throttled_response_carries_retry_after
-**Test gaps:** No focused test for the login endpoint's auth policy specifically; the auth policy itself is covered through registration/forgot-password low-limit tests.
+**Testy:** PlatformContractTests.PL9_ST5_low_limit_host_throttles_normal_traffic_but_never_the_stripe_webhook; PlatformContractTests.Register_endpoint_uses_the_auth_rate_limit_policy; PlatformContractTests.Login_endpoint_uses_the_auth_rate_limit_policy; PlatformContractTests.Password_reset_endpoints_use_the_auth_rate_limit_policy; PlatformContractTests.PL11_rate_limit_bucket_is_per_user_not_shared; PlatformContractTests.PL12_throttled_response_carries_retry_after
+**Test gaps:** No remaining focused rate-limit policy gap in this slice.
 
-_The previously documented per-user partition and Retry-After defects are covered by PL11/PL12. Multi-instance distributed limiting remains a deployment-scale seam, not an in-process correctness bug._
+_The previously documented per-user partition, Retry-After and login auth-policy gaps are covered. Multi-instance distributed limiting remains a deployment-scale seam, not an in-process correctness bug._
 
 ### Forwarded headers (proxy trust) + audit IP — ✅ correct
 *Resolves real client IP behind a proxy for audit + rate-limiting, with a fail-fast trust-list validator in Production.*
