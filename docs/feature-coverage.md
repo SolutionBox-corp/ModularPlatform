@@ -1010,12 +1010,12 @@ _Owner-scoping + local fan-out are sound; unsupported tenant broadcast now fails
 | Slow/dead consumer back-pressure (unbounded memory growth) | ✓ | Channel.CreateBounded(256, DropOldest) (RealtimeStreamEndpoint.cs:57-62) — TryWrite never blocks/fails; oldest unread dropped under back-pressure. Best-effort by design, documented and covered by RealtimeSseTests.Sse_live_buffer_drops_oldest_events_under_back_pressure. |
 | Live events arriving while replay is being emitted | ✓ | Subscribes BEFORE emitting replay (RealtimeStreamEndpoint.cs:63-77) so no live event is lost in the gap; replay then live. |
 | Client disconnect mid-stream | ✓ | CancellationToken cancels ReadAllAsync; `using` disposes the subscription, removing the registry entry. |
-| Replay vs live duplicate (an event both replayed and delivered live) | ◐ | Possible narrow window: an event published between the registry Subscribe (line 63) and the replay XRANGE (line 72) could be both replayed AND delivered live, yielding a duplicate SSE frame with the same EventId. Client is expected to dedup by id; not handled server-side and not documented as such. |
+| Replay vs live duplicate (an event both replayed and delivered live) | ◐ | Possible narrow window: an event published between the registry Subscribe and replay read can be both replayed AND delivered live, yielding a duplicate SSE frame with the same EventId. This is now an explicit at-least-once contract; clients deduplicate by SSE EventId (RealtimeMessage and RealtimeStreamEndpoint docs). |
 
 **Testy:** RealtimeSseTests.Unauthenticated_stream_is_rejected; RealtimeSseTests.Sse_live_buffer_drops_oldest_events_under_back_pressure
 **Test gaps:** The authenticated streaming round-trip is explicitly NOT tested over TestServer (buffers infinite SSE) — acknowledged; only manual/real-server verified; No test for the replay-then-live ordering or the replay/live duplicate window
 
-_The replay/live duplicate-by-id window is the only substantive correctness nuance; relies on client-side id dedup._
+_The replay/live duplicate-by-id window is the only substantive correctness nuance; it is now documented as the SSE contract._
 
 ### Replay buffer (Last-Event-ID, TTL) — ✅ correct
 *Per-user short-lived event buffer (Redis Streams or in-memory ring) replayed on SSE reconnect; PII-minimized via MAXLEN + TTL.*
@@ -1029,13 +1029,13 @@ _The replay/live duplicate-by-id window is the only substantive correctness nuan
 | Ring buffer over capacity | ✓ | LocalRealtimePublisher UserBuffer trims front when > MaxEvents (Realtime.cs:252-263); Redis uses approximate MAXLEN (Realtime.cs:119-123). Both tested (local) / asserted via the eviction test. |
 | Cursor at the last event | ✓ | Returns empty — Redis IncrementStreamId bumps the seq for an exclusive XRANGE lower bound (Realtime.cs:154-156,181-197); local compares numerically > cursor (Realtime.cs:271-283). Tested for local. |
 | Malformed Redis stream id in IncrementStreamId | ✓ | Falls back to the original id (Realtime.cs:191-196); XRANGE on an unknown id returns empty — safe. No-dash case appends '-1' (line 184-187). Proven by RealtimeReplayTests.Redis_stream_cursor_increment_handles_missing_malformed_and_overflow_sequence. |
-| Approximate MAXLEN means Redis may retain MORE than MaxEvents | ◐ | useApproximateMaxLength:true (Realtime.cs:123) trades exactness for performance — slightly more PII may linger than MaxEvents implies (TTL still bounds it). Acceptable + documented intent (best-effort), but the PII-minimization bound is soft, unlike the local ring's exact trim. |
-| Local ring id overflow / cross-restart cursor | ◐ | LocalRealtimePublisher ids are a process-local Interlocked counter (Realtime.cs:210,216); on Api restart the counter resets to 1, so an old client cursor (e.g. '5000') would replay nothing or mismatch. Acceptable for a single-instance dev fallback but undocumented; Redis (prod) uses durable stream ids so this is a fallback-only quirk. |
+| Approximate MAXLEN means Redis may retain MORE than MaxEvents | ◐ | useApproximateMaxLength:true trades exactness for performance — slightly more PII may linger than MaxEvents implies. The options contract now calls MaxEvents a soft event-count bound for Redis; TTL remains the hard time bound. |
+| Local ring id overflow / cross-restart cursor | ◐ | LocalRealtimePublisher ids are a process-local Interlocked counter; on Api restart the counter resets to 1, so an old client cursor (e.g. '5000') would replay nothing or mismatch. The class contract now documents that local cursors are meaningful only within the current API process lifetime. |
 
 **Testy:** RealtimeReplayTests.ReadSinceAsync_with_null_or_empty_lastEventId_returns_empty; RealtimeReplayTests.ReadSinceAsync_returns_only_events_newer_than_cursor; RealtimeReplayTests.ReadSinceAsync_at_last_event_returns_empty; RealtimeReplayTests.Ring_buffer_bounded_to_maxEvents_evicts_oldest_first; RealtimeReplayTests.ReadSinceAsync_for_unknown_userId_returns_empty; RealtimeReplayTests.Events_from_different_users_are_isolated; RealtimeReplayTests.Disabled_replay_buffer_returns_empty_from_ReadSince; RealtimeReplayTests.Redis_stream_cursor_increment_handles_missing_malformed_and_overflow_sequence
 **Test gaps:** Zero live Redis impl tests for XADD MAXLEN, TTL refresh, and exclusive XRANGE behaviour — only the cursor helper and local ring are covered; no test for TTL expiry behavior.
 
-_Local path is well covered; the Redis (production) replay path has solid code but no automated tests, and approximate-MAXLEN makes the PII bound soft._
+_Local path is well covered; the Redis production replay path has solid code but no automated live-Redis tests, and approximate-MAXLEN intentionally makes the event-count PII bound soft._
 
 ### GDPR export / erasure (Notifications) — 🟢 minor-gaps
 *Export the subject's in-app feed and anonymize PII in place on erasure, keeping structural rows.*
@@ -1054,13 +1054,6 @@ _Local path is well covered; the Redis (production) replay path has solid code b
 **Test gaps:** No remaining focused Notifications GDPR export/erasure port gap in this slice.
 
 _Implementation is correct and matches platform conventions; exporter and eraser ports are now pinned through the same DI fan-out interfaces GDPR uses._
-
-**Nekonzistence v oblasti (4):**
-- SSE replay/live duplicate window: RealtimeStreamEndpoint.cs:63-77 subscribes before replaying, so an event published in the gap between Subscribe (line 63) and the XRANGE replay (line 72) can be emitted twice (once via replay, once live) with the same EventId. The code relies on client-side dedup-by-id but neither the code comment nor the IRealtimeReplay contract states this guarantee.
-- LocalRealtimePublisher.PublishToTenantAsync (Realtime.cs:227-228) is a silent no-op while RedisRealtimePublisher.PublishToTenantAsync (Realtime.cs:133-135) actually publishes — tenant broadcasts behave differently single-instance vs multi-instance with no warning. No current notifications-area producer uses it, so latent only.
-- PII-minimization bound is soft on Redis but hard locally: RedisRealtimePublisher uses useApproximateMaxLength:true (Realtime.cs:123) so the stream may retain more than RealtimeReplayOptions.MaxEvents, whereas the local ring trims exactly (Realtime.cs:258-262). The RealtimeReplayOptions doc-comment (Realtime.cs:36-48) presents MaxEvents as a firm PII bound; on Redis it is approximate (TTL is the firm bound).
-- LocalRealtimePublisher replay ids are a process-local Interlocked counter (Realtime.cs:210,216) that resets to 1 on Api restart, so a reconnecting client's old Last-Event-ID cursor becomes meaningless after a restart — a fallback-only quirk that diverges from the durable Redis stream ids and is undocumented.
-
 
 ---
 

@@ -16,7 +16,8 @@ namespace ModularPlatform.Realtime;
 /// disposed when the client disconnects (the enumerator is cancelled). Owner-scoped — a user only receives their
 /// own events. Multi-instance fan-out is transparent: the Redis subscriber delivers into the same registry.
 /// On reconnect the client sends <c>Last-Event-ID</c>; replay events are emitted first (preserving their
-/// original ids) before switching to the live stream.
+/// original ids) before switching to the live stream. The stream is at-least-once around the replay/live
+/// boundary: a client must deduplicate by SSE <c>EventId</c>.
 /// </summary>
 public static class RealtimeStreamEndpoint
 {
@@ -63,7 +64,9 @@ public static class RealtimeStreamEndpoint
             return Task.CompletedTask;
         });
 
-        // Replay buffered events (with their original ids) before serving the live stream.
+        // Replay buffered events (with their original ids) before serving the live stream. Because we subscribe
+        // first, an event published during this replay window can appear twice with the same EventId: once from
+        // replay and once from the live buffer. Clients must deduplicate by EventId.
         if (!string.IsNullOrWhiteSpace(lastEventId))
         {
             var missed = await replay.ReadSinceAsync(userId, lastEventId, ct);
