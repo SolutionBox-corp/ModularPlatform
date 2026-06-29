@@ -84,6 +84,52 @@ public sealed class SubscriptionCheckoutTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Concurrent_live_subscription_mirrors_leave_only_one_non_canceled_subscription_per_user()
+    {
+        var (userId, _) = await fixture.RegisterAndLoginAsync($"uc40-live-race-{Guid.CreateVersion7():N}@example.test", Password);
+        var firstSubscriptionId = $"sub_{Guid.CreateVersion7():N}";
+        var secondSubscriptionId = $"sub_{Guid.CreateVersion7():N}";
+
+        foreach (var subscriptionId in new[] { firstSubscriptionId, secondSubscriptionId })
+        {
+            Fake.SeedSubscription(new StripeSubscriptionState(
+                subscriptionId,
+                Status: "active",
+                CustomerId: "cus_test",
+                CurrentPeriodEnd: DateTimeOffset.UtcNow.AddMonths(1),
+                CancelAtPeriodEnd: false,
+                Metadata: new Dictionary<string, string> { ["user_id"] = userId.ToString(), ["plan_key"] = "pro" }));
+        }
+
+        await Task.WhenAll(
+            DispatchAsync(new UpsertSubscriptionFromStripeCommand(firstSubscriptionId)),
+            DispatchAsync(new UpsertSubscriptionFromStripeCommand(secondSubscriptionId)));
+
+        var liveRows = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM subscriptions WHERE \"UserId\" = '{userId}' AND \"Status\" <> 'Canceled'");
+        liveRows.ShouldBe(1);
+
+        var totalRows = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM subscriptions WHERE \"UserId\" = '{userId}'");
+        totalRows.ShouldBe(1);
+
+        var canceledSubscriptionId = $"sub_{Guid.CreateVersion7():N}";
+        Fake.SeedSubscription(new StripeSubscriptionState(
+            canceledSubscriptionId,
+            Status: "canceled",
+            CustomerId: "cus_test",
+            CurrentPeriodEnd: DateTimeOffset.UtcNow.AddMonths(1),
+            CancelAtPeriodEnd: false,
+            Metadata: new Dictionary<string, string> { ["user_id"] = userId.ToString(), ["plan_key"] = "pro" }));
+
+        await DispatchAsync(new UpsertSubscriptionFromStripeCommand(canceledSubscriptionId));
+
+        var totalWithCanceled = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM subscriptions WHERE \"UserId\" = '{userId}'");
+        totalWithCanceled.ShouldBe(2);
+    }
+
+    [Fact]
     public async Task Subscription_checkout_propagates_automatic_tax_config_to_provider_session()
     {
         using var host = fixture.CreateHost(("Billing:Stripe:AutomaticTax", "true"));
