@@ -1395,8 +1395,8 @@ _The closed null-escape is the load-bearing security fix and is well covered; th
 | RLS disabled deployment (managed DB, no role creation) | ✓ | Enabled=false uses admin conn for data, no policies (RlsOptions.cs:15-16; RlsConnectionString.cs:18-21; RlsBootstrapper.cs:29-33) |
 | System principal must bypass user-owned policy without admin role | ✓ | Policy checks app.is_system='on' (RlsBootstrapper.cs:131-133); proven through runtime role by RlsTests.System_principal_bypasses_user_owned_rls_without_using_the_admin_role |
 
-**Testy:** RlsTests.A_user_cannot_see_another_users_credit_account_even_with_a_raw_query (owner sees own, other sees zero, admin sees both); RlsTests.System_principal_bypasses_user_owned_rls_without_using_the_admin_role; RlsTests.Principal_guc_is_restamped_when_a_runtime_connection_is_reused_for_another_user
-**Test gaps:** No test that an RLS-disabled config path still functions (data via admin conn)
+**Testy:** RlsTests.A_user_cannot_see_another_users_credit_account_even_with_a_raw_query (owner sees own, other sees zero, admin sees both); RlsTests.System_principal_bypasses_user_owned_rls_without_using_the_admin_role; RlsTests.Principal_guc_is_restamped_when_a_runtime_connection_is_reused_for_another_user; RlsTests.Rls_disabled_host_can_read_user_owned_data_through_the_admin_connection
+**Test gaps:** No remaining focused RLS bootstrap/runtime-role gap in this slice.
 
 _Comprehensive, hardened implementation; cross-principal read denial, system bypass and same-connection principal restamping are proven end-to-end._
 

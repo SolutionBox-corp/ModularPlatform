@@ -1,3 +1,5 @@
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using ModularPlatform.IntegrationTesting;
 using Shouldly;
 
@@ -73,5 +75,38 @@ public sealed class RlsTests(PlatformApiFactory fixture)
 
         asAlice.ShouldBe(1);
         sameConnectionAsBob.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Rls_disabled_host_can_read_user_owned_data_through_the_admin_connection()
+    {
+        using var disabledRlsHost = fixture.CreateHost(("Persistence:Rls:Enabled", "false"));
+        using var client = disabledRlsHost.CreateClient();
+
+        var email = $"rls-disabled-{Guid.CreateVersion7():N}@example.com";
+        const string password = "Sup3rSecret!";
+
+        var register = await client.PostAsJsonAsync("/v1/identity/users", new { email, password });
+        register.IsSuccessStatusCode.ShouldBeTrue(await register.Content.ReadAsStringAsync());
+        var userId = (await PlatformApiFactory.ReadData(register)).GetProperty("userId").GetGuid();
+
+        var login = await client.PostAsJsonAsync("/v1/identity/auth/login", new { email, password });
+        login.IsSuccessStatusCode.ShouldBeTrue(await login.Content.ReadAsStringAsync());
+        var token = (await PlatformApiFactory.ReadData(login)).GetProperty("accessToken").GetString()!;
+
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{userId}'",
+            expected: 1);
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/v1/billing/credits/balance");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var balance = await client.SendAsync(request);
+        balance.IsSuccessStatusCode.ShouldBeTrue(await balance.Content.ReadAsStringAsync());
+
+        var data = await PlatformApiFactory.ReadData(balance);
+        data.GetProperty("userId").GetGuid().ShouldBe(userId);
+        data.GetProperty("accountId").GetGuid().ShouldNotBe(Guid.Empty);
+        data.GetProperty("available").GetInt64().ShouldBe(0);
     }
 }
