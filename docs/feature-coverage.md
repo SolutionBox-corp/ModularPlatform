@@ -487,7 +487,7 @@ _Symmetric with confirm; both rely on the same xmin + UNIQUE-key idempotency pat
 |---|:--:|---|
 | Expired bucket whose Remaining backs an active hold (would drive available negative) | ✓ | Skip the bucket fully when bucket.Remaining > account.Available (ExpireCreditsHandler.cs:69-72); expired on a later sweep once the hold resolves. Proven by LedgerLifecycleTests.Expiring_a_bucket_that_backs_an_active_reservation_does_not_crash_or_go_negative. |
 | Sweep run twice (idempotency) | ✓ | UNIQUE expire-hold:{id} / expire-bucket:{id} keys + the hold is no longer Active and bucket Remaining==0 on re-scan (ExpireCreditsHandler.cs:48,83). Proven by LedgerLifecycleTests BL-9 second sweep. |
-| One account's persistence failure aborting the whole sweep | ✓ | Per-account try/catch DbUpdateException (non-concurrency) clears the change tracker and continues (ExpireCreditsHandler.cs:95-103); explicit fix over prior abort-all bug. |
+| One account's persistence failure aborting the whole sweep | ✓ | Per-account try/catch DbUpdateException (non-concurrency) clears the change tracker and continues (ExpireCreditsHandler.cs:95-103); explicit fix over prior abort-all bug. Proven by LedgerLifecycleTests.Expiry_sweep_isolates_one_accounts_persistence_failure_and_continues_with_others. |
 | Concurrency conflict (xmin) during sweep | ✓ | Deliberately NOT caught (comment ExpireCreditsHandler.cs:99-101) -> bubbles to ConcurrencyRetryBehavior which retries the whole sweep; expire-*:{id} keys dedup already-applied accounts. |
 | Lapsed hold restored | ✓ | Active && ExpiresAt<=now -> Status Expired, Release-type credit entry expire-hold:{id}, available += / pending -= (ExpireCreditsHandler.cs:33-54). Proven by BL-9. |
 | Multiple accounts in one sweep | ✓ | The command collects all account ids up front and loops every account (ExpireCreditsHandler.cs:25-31); proven by LedgerLifecycleTests.Expiry_sweep_processes_multiple_accounts_in_one_run. |
@@ -495,10 +495,10 @@ _Symmetric with confirm; both rely on the same xmin + UNIQUE-key idempotency pat
 | Expired bucket has remaining LESS than available but a different bucket is partly reserved | ✓ | The skip guard is per-bucket against account.Available, and account.Available is recomputed in memory after each hold restore within the same account iteration, so ordering is consistent within a sweep. |
 | Non-expiring bucket (ExpiresAt null) | ✓ | Expiry query requires ExpiresAt != null and ExpiresAt <= now (ExpireCreditsHandler.cs:57); proven by LedgerLifecycleTests.Non_expiring_topup_bucket_is_not_touched_by_expiry_sweep. |
 
-**Testy:** LedgerLifecycleTests.Expiry_sweep_restores_lapsed_holds_destroys_expired_buckets_and_is_idempotent; LedgerLifecycleTests.Expiring_a_bucket_that_backs_an_active_reservation_does_not_crash_or_go_negative; LedgerLifecycleTests.Non_expiring_topup_bucket_is_not_touched_by_expiry_sweep; LedgerLifecycleTests.Expiry_sweep_processes_multiple_accounts_in_one_run
-**Test gaps:** No test for the per-account isolation branch (ExpireCreditsHandler.cs:95-103): one account failing must not block others in the same sweep — the documented bug-fix is unverified by a test
+**Testy:** LedgerLifecycleTests.Expiry_sweep_restores_lapsed_holds_destroys_expired_buckets_and_is_idempotent; LedgerLifecycleTests.Expiring_a_bucket_that_backs_an_active_reservation_does_not_crash_or_go_negative; LedgerLifecycleTests.Non_expiring_topup_bucket_is_not_touched_by_expiry_sweep; LedgerLifecycleTests.Expiry_sweep_processes_multiple_accounts_in_one_run; LedgerLifecycleTests.Expiry_sweep_isolates_one_accounts_persistence_failure_and_continues_with_others
+**Test gaps:** No remaining focused expiry-sweep correctness gap in this slice.
 
-_Logic is careful and well-commented; the untested per-account isolation branch is the notable coverage gap given it fixed a real bug. N+1 over accounts is a future scalability note, not a correctness issue._
+_Logic is careful and now covers the prior abort-all bug. N+1 over accounts is a future scalability note, not a correctness issue._
 
 ### Get credit balance (read) — ✅ correct
 *Return the authoritative stored posted/available projection for the caller's account.*
@@ -664,8 +664,8 @@ _Object-state mirroring is the right design and the happy/out-of-order/cancel pa
 | AllowPromotionCodes off | ✓ | StripeOptions.AllowPromotionCodes default true; threaded into CheckoutSessionSpec for both package and subscription checkouts (StripeGateway.cs:41) |
 | percent-off vs amount-off shape | ✓ | PromotionCodeState carries PercentOff/AmountOff/Currency from coupon (StripeGateway.cs:106-120) |
 
-**Testy:** BillingCommerceTests.Subscription_plans_come_from_config_and_promo_codes_validate_through_stripe (valid SUMMER10 percentOff + invalid NOPE→404)
-**Test gaps:** No test for an amount-off (fixed) coupon returning AmountOff+Currency; Validation is unauthenticated-data only — no test that an active-but-expired code (Stripe returns inactive) maps to 404 (covered implicitly by Active=true filter but not asserted)
+**Testy:** BillingCommerceTests.Subscription_plans_come_from_config_and_promo_codes_validate_through_stripe (valid SUMMER10 percentOff + invalid NOPE→404); PromoCodeTests.Promo_code_validate_returns_discount_shape_for_active_code; PromoCodeTests.Promo_code_validate_trims_ui_input_before_provider_lookup (amountOff+currency); PromoCodeTests.Promo_code_validate_returns_404_for_invalid_or_expired_code; PromoCodeTests.Promo_code_validate_translates_provider_rate_limit_to_domain_error
+**Test gaps:** No remaining focused promo-code validation gap in this slice.
 
 _Thin, correctly-scoped passthrough; authoritative enforcement is rightly left to Stripe. Coverage is adequate for the read._
 
