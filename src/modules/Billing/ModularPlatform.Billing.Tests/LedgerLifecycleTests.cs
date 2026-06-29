@@ -388,6 +388,45 @@ public sealed class LedgerLifecycleTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Expiry_sweep_processes_multiple_accounts_in_one_run()
+    {
+        var (aliceId, _) = await fixture.RegisterAndLoginAsync(Email("expire-alice"), Password);
+        var (bobId, _) = await fixture.RegisterAndLoginAsync(Email("expire-bob"), Password);
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{aliceId}'", 1);
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM credit_accounts WHERE \"UserId\" = '{bobId}'", 1);
+        var aliceKey = $"alice-expire-{Guid.CreateVersion7():N}";
+        var bobKey = $"bob-expire-{Guid.CreateVersion7():N}";
+
+        await fixture.GrantCreditsAsync(aliceId, 90, bucketExpiryDays: 1, idempotencyKey: aliceKey);
+        await fixture.GrantCreditsAsync(bobId, 110, bucketExpiryDays: 1, idempotencyKey: bobKey);
+
+        var aliceAccountId = await AccountIdAsync(aliceId);
+        var bobAccountId = await AccountIdAsync(bobId);
+        var aliceBucketId = await fixture.ScalarAsync<Guid>(
+            $"SELECT \"BucketId\" FROM credit_entries WHERE \"IdempotencyKey\" = '{aliceKey}'");
+        var bobBucketId = await fixture.ScalarAsync<Guid>(
+            $"SELECT \"BucketId\" FROM credit_entries WHERE \"IdempotencyKey\" = '{bobKey}'");
+
+        await fixture.ExecuteSqlAsync(
+            $"UPDATE credit_buckets SET \"ExpiresAt\" = now() - interval '1 hour' " +
+            $"WHERE \"Id\" IN ('{aliceBucketId}', '{bobBucketId}')");
+
+        await DispatchExpireSweepAsync();
+
+        (await ProjectionAsync(aliceId)).ShouldBe((Posted: 0, Available: 0, Pending: 0));
+        (await ProjectionAsync(bobId)).ShouldBe((Posted: 0, Available: 0, Pending: 0));
+
+        var aliceExpiry = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_entries WHERE \"AccountId\" = '{aliceAccountId}' AND \"Type\" = 'Expiry'");
+        var bobExpiry = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_entries WHERE \"AccountId\" = '{bobAccountId}' AND \"Type\" = 'Expiry'");
+        aliceExpiry.ShouldBe(1);
+        bobExpiry.ShouldBe(1);
+    }
+
+    [Fact]
     public void Expire_credits_job_is_a_non_overlapping_scheduler_adapter()
     {
         typeof(BillingExpireCreditsJob)
