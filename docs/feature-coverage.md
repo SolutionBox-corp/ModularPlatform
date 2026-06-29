@@ -912,8 +912,8 @@ _Behaviour is correct (retain-forever, purge-nothing), and the regression that p
 | In-app row always written even when only email/push requested | ✓ | By design a single inapp row is persisted per send regardless of channels (Notification.cs:8-12, handler line 39-48 always Adds); Channel is hard-coded 'inapp' (line 43) recording the feed origin. Intentional, documented. |
 | email/push delivered but commit later fails | ✓ | Both are outbox PublishAsync inside the same SaveChangesAndFlushMessagesAsync transaction (line 56-86) — delivered only if commit succeeds; that flush IS the commit (no separate tx.Commit). |
 
-**Testy:** NotificationsIntegrationTests.SendNotification_persists_an_inapp_row_and_enqueues_channel_delivery_via_the_outbox (NT-1); NotificationsIntegrationTests.SendNotification_deduplicates_channels_before_publishing_delivery_messages; NotificationsIntegrationTests.SendNotification_with_missing_template_key_returns_not_found; NotificationsIntegrationTests.SendNotification_falls_back_to_english_template_when_requested_locale_is_missing; TemplateRendererTests.SendNotificationCommand_carries_channels_and_data
-**Test gaps:** No test asserts an EmailDeliveryRequested/PushDeliveryRequested message actually landed in wolverine_outgoing_envelopes (NT-1 infers the outbox only from the 200 + persisted row; the handler-level fake outbox now pins one publish per distinct email/push channel)
+**Testy:** NotificationsIntegrationTests.SendNotification_persists_an_inapp_row_and_enqueues_channel_delivery_via_the_outbox (NT-1); NotificationsIntegrationTests.SendNotification_persists_durable_delivery_messages_for_email_and_push_channels; NotificationsIntegrationTests.SendNotification_deduplicates_channels_before_publishing_delivery_messages; NotificationsIntegrationTests.SendNotification_with_missing_template_key_returns_not_found; NotificationsIntegrationTests.SendNotification_falls_back_to_english_template_when_requested_locale_is_missing; TemplateRendererTests.SendNotificationCommand_carries_channels_and_data
+**Test gaps:** No remaining focused SendNotification outbox handoff gap in this slice; durable EmailDeliveryRequested/PushDeliveryRequested messages are now pinned via Wolverine's public message store API.
 
 _Clean reuse-first slice. The 'one inapp row regardless of channels' is intentional but slightly surprising; well documented._
 
@@ -930,7 +930,7 @@ _Clean reuse-first slice. The 'one inapp row regardless of channels' is intentio
 | SMTP auth optional | ✓ | SmtpEmailSender.cs:27-30 only authenticates when User is non-empty; StartTlsWhenAvailable used. |
 
 **Testy:** ChannelDeliveryHandlersTests.Email_delivery_handler_sends_exact_rendered_payload_to_email_sender; ChannelDeliveryHandlersTests.Email_delivery_handler_skips_missing_address_without_calling_smtp; ChannelDeliveryHandlersTests.Email_delivery_handler_propagates_smtp_failures_for_wolverine_retry_and_dlq; ChannelDeliveryHandlersTests.Push_delivery_handler_sends_exact_rendered_payload_to_push_sender; ChannelDeliveryHandlersTests.Push_delivery_handler_propagates_provider_failures_for_wolverine_retry_and_dlq; ChannelDeliveryHandlersTests.Noop_push_sender_completes_without_external_provider
-**Test gaps:** SmtpEmailSender has no live relay test (acknowledged — needs a configured SMTP relay or MailKit test server); Worker end-to-end delivery to a fake sender is still inferred from outbox tests plus direct handler tests.
+**Test gaps:** SmtpEmailSender has no live relay test (acknowledged — needs a configured SMTP relay or MailKit test server); Worker end-to-end send to a fake sender is still inferred from durable message-store coverage plus direct handler tests.
 
 _Push being a no-op is by design and documented; worker-side channel handlers now have direct unit coverage, while real SMTP remains an environment-backed integration concern._
 

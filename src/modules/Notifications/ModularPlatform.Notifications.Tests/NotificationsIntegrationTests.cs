@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -17,6 +18,7 @@ using ModularPlatform.Notifications.Seeding;
 using Shouldly;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
+using Wolverine.Persistence.Durability;
 
 namespace ModularPlatform.Notifications.Tests;
 
@@ -187,6 +189,34 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
         var item = (await PlatformApiFactory.ReadData(feed)).GetProperty("items").EnumerateArray()
             .Single(n => n.GetProperty("templateKey").GetString() == templateKey);
         item.GetProperty("title").GetString().ShouldBe("Hello Ada");
+    }
+
+    [Fact]
+    public async Task SendNotification_persists_durable_delivery_messages_for_email_and_push_channels()
+    {
+        var (recipientId, adminToken) = await AdminTokenAsync();
+
+        var templateKey = $"nt-delivery-{Guid.CreateVersion7():N}";
+        await fixture.ExecuteSqlAsync(
+            $"INSERT INTO notification_templates (\"Id\", \"Key\", \"Locale\", \"Subject\", \"Body\") " +
+            $"VALUES ('{Guid.CreateVersion7()}', '{templateKey}', 'en', 'Delivery {{displayName}}', 'Body {{displayName}}')");
+
+        var send = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/notifications/send", adminToken, new
+            {
+                userId = recipientId,
+                templateKey,
+                channels = new[] { "email", "push", "inapp" },
+                data = new Dictionary<string, string> { ["displayName"] = "Ada" },
+            }));
+
+        send.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var notificationId = await fixture.ScalarAsync<Guid>(
+            $"SELECT \"Id\" FROM notifications WHERE \"UserId\" = '{recipientId}' AND \"TemplateKey\" = '{templateKey}'");
+
+        await WaitForIncomingEnvelopeAsync<EmailDeliveryRequested>(notificationId);
+        await WaitForIncomingEnvelopeAsync<PushDeliveryRequested>(notificationId);
     }
 
     [Fact]
@@ -901,6 +931,49 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
             ["inapp"],
             new Dictionary<string, string>(),
             IdempotencyKey: $"direct:{templateKey}:{Guid.CreateVersion7():N}"));
+    }
+
+    private async Task WaitForIncomingEnvelopeAsync<TMessage>(Guid notificationId)
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IMessageStore>();
+        var messageTypeName = typeof(TMessage).Name;
+        var notificationIdText = notificationId.ToString();
+        var compactNotificationIdText = notificationId.ToString("N");
+
+        for (var i = 0; i < 100; i++)
+        {
+            var envelopes = await store.Admin.AllIncomingAsync();
+            if (envelopes.Any(envelope =>
+                {
+                    var data = EnvelopeDataText(envelope);
+                    return (envelope.MessageType ?? string.Empty).Contains(messageTypeName, StringComparison.Ordinal)
+                        && (data.Contains(notificationIdText, StringComparison.OrdinalIgnoreCase)
+                            || data.Contains(compactNotificationIdText, StringComparison.OrdinalIgnoreCase));
+                }))
+            {
+                return;
+            }
+
+            await Task.Delay(200);
+        }
+
+        throw new InvalidOperationException(
+            $"Timed out waiting for durable {messageTypeName} envelope carrying notification {notificationId}.");
+    }
+
+    private static string EnvelopeDataText(Envelope envelope)
+    {
+        object? data = envelope.Data;
+        return data switch
+        {
+            null => string.Empty,
+            byte[] bytes => Encoding.UTF8.GetString(bytes),
+            ReadOnlyMemory<byte> memory => Encoding.UTF8.GetString(memory.Span),
+            Memory<byte> memory => Encoding.UTF8.GetString(memory.Span),
+            string text => text,
+            _ => data.ToString() ?? string.Empty,
+        };
     }
 
     private sealed class TestTenantContext(Guid userId) : ITenantContext
