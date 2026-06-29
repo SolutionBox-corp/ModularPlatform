@@ -159,16 +159,88 @@ public sealed class StripeReconcileTests(PlatformApiFactory fixture)
     public async Task Stuck_purchase_reconcile_pass_is_capped_per_run()
     {
         var before = Fake.CheckoutSessionStatusLookupCount;
+        var purchaseIds = new List<Guid>();
 
-        for (var i = 0; i < 205; i++)
+        try
         {
-            await SeedStuckSagaAsync(Guid.CreateVersion7(), creditAmount: 1, status: "Abandoned");
+            for (var i = 0; i < 205; i++)
+            {
+                var (purchaseId, _) = await SeedStuckSagaAsync(Guid.CreateVersion7(), creditAmount: 1, status: "Abandoned");
+                purchaseIds.Add(purchaseId);
+            }
+
+            var result = await DispatchReconcileAsync();
+
+            var checkedSessions = Fake.CheckoutSessionStatusLookupCount - before;
+            checkedSessions.ShouldBe(200);
+            result.StuckPurchaseCapReached.ShouldBeTrue();
         }
+        finally
+        {
+            if (purchaseIds.Count > 0)
+            {
+                await fixture.ExecuteSqlAsync(
+                    $"""DELETE FROM credit_purchase_sagas WHERE "Id" IN ({string.Join(",", purchaseIds.Select(id => $"'{id}'"))})""");
+            }
+        }
+    }
 
-        await DispatchReconcileAsync();
+    [Fact]
+    public async Task Stuck_event_reconcile_pass_reports_when_the_per_run_cap_is_reached()
+    {
+        var prefix = $"evt_cap_{Guid.CreateVersion7():N}";
+        var receivedAt = DateTimeOffset.UtcNow.AddMinutes(-45);
 
-        var checkedSessions = Fake.CheckoutSessionStatusLookupCount - before;
-        checkedSessions.ShouldBe(200);
+        try
+        {
+            for (var i = 0; i < 200; i++)
+            {
+                await fixture.ExecuteSqlAsync(
+                    $"""
+                     INSERT INTO stripe_events ("Id", "StripeEventId", "Type", "ReceivedAt", "ProcessedAt")
+                     VALUES ('{Guid.CreateVersion7()}', '{prefix}_{i}', 'customer.subscription.updated', '{receivedAt:O}', NULL)
+                     """);
+            }
+
+            var result = await DispatchReconcileAsync();
+
+            result.StuckEventsRequeued.ShouldBe(200);
+            result.StuckEventCapReached.ShouldBeTrue();
+        }
+        finally
+        {
+            await fixture.ExecuteSqlAsync($"""DELETE FROM stripe_events WHERE "StripeEventId" LIKE '{prefix}_%'""");
+        }
+    }
+
+    [Fact]
+    public async Task Subscription_reconcile_pass_reports_when_the_per_run_cap_is_reached()
+    {
+        var prefix = $"sub_cap_{Guid.CreateVersion7():N}";
+        var now = DateTimeOffset.UtcNow;
+
+        var subscriptionRows = string.Join(",",
+            Enumerable.Range(1, 500).Select(i =>
+                $"('{Guid.CreateVersion7()}','{Guid.CreateVersion7()}','pro','{prefix}_{i}','cus_cap_{i}'," +
+                $"'Active','{now.AddDays(30):O}',false,'{now.AddMinutes(-5):O}','{now.AddMinutes(-5):O}')"));
+
+        try
+        {
+            await fixture.ExecuteSqlAsync($"""
+                INSERT INTO subscriptions
+                  ("Id", "UserId", "PlanKey", "StripeSubscriptionId", "StripeCustomerId", "Status",
+                   "CurrentPeriodEnd", "CancelAtPeriodEnd", "CreatedAt", "UpdatedAt")
+                VALUES {subscriptionRows};
+                """);
+
+            var result = await DispatchReconcileAsync();
+
+            result.SubscriptionCapReached.ShouldBeTrue();
+        }
+        finally
+        {
+            await fixture.ExecuteSqlAsync($"""DELETE FROM subscriptions WHERE "StripeSubscriptionId" LIKE '{prefix}_%'""");
+        }
     }
 
     private const string Password = "S3cure!pass";
