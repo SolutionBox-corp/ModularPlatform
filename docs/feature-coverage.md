@@ -41,9 +41,9 @@ v tabulkách níže jsou **snapshot PŘED** těmito fixy:
   `sub-invoice:{id}` chrání před double-grant, Stripe staging still validates which event set the deployment emits.
 - **CreateSubscriptionCheckout TOCTOU** (double subscription v okně před prvním webhookem) — inherentní „Stripe = source
   of truth, no pre-created rows" designu.
-- **Files orphan-blob při metadata fail** (PutAsync před SaveChanges, bez kompenzace) — vyžaduje saga/outbox-cleanup; gap.
+- **Files orphan-blob při metadata fail** — uzavřeno: upload handler při selhání metadata `SaveChanges` best-effort smaže už zapsaný blob a test pinne cleanup.
 - **Operations stuck-reaper** — uzavřeno: Operations má vlastní reconcile job, který staré Pending/Running operace terminalizuje jako Failed.
-- **ExpireCredits N+1** přes účty, **list ordering bez Guid-v7 tiebreaker/indexu** — perf/škálovatelnost, ne korektnost.
+- **ExpireCredits N+1** přes účty — perf/škálovatelnost, ne korektnost.
 - **LocalRealtimePublisher.PublishToTenantAsync no-op** vs Redis publikuje — tenant broadcast asymetrie (lokální fallback).
 - **Dead config** `Gdpr:Retention:ShreddedKeyRetentionDays` (jen v komentářích), **AAD whole-envelope** (mimo threat model),
   **multi-instance distributed rate-limiting** (Redis seam připravený, neimplementovaný), **duplikovaná account-provisioning
@@ -1184,13 +1184,13 @@ _IDOR protection is dual-gated and well tested. Missing metadata and missing blo
 | Unbounded / negative / oversized page request | ✓ | PageRequest (Paging.cs:21-29) clamps page>=1 and pageSize 1..100 default 20 — a caller cannot request an unbounded page |
 | Stable ordering for paging | ✓ | ListFilesHandler.cs:30-31 orders by CreatedAt desc, then Id desc as a deterministic tie-breaker; PagedQueryExtensions requires an ordered query |
 | Only metadata returned, never bytes | ✓ | ListFilesHandler.cs:22 projects FileListItem (no StorageKey, no content) |
-| Index supports the per-user ordered scan | ◐ | Migration IX_file_objects_UserId is on UserId only (InitialFiles.cs:55-58); the query filters UserId then orders by CreatedAt — for large per-user file counts a composite (UserId, CreatedAt) index would avoid a sort. Acceptable at expected scale; a perf note, not a correctness bug. |
+| Index supports the per-user ordered scan | ✓ | FileObjectConfiguration defines IX_file_objects_UserId_CreatedAt_Id with CreatedAt/Id descending, matching ListFilesHandler's UserId filter + CreatedAt/Id order; AddFileObjectListIndex migration replaces the old UserId-only index. |
 | CreatedAt tie ordering is deterministic | ✓ | ThenByDescending(Id) prevents two same-timestamp files from swapping between pages; covered by FilesUploadTests.List_orders_created_at_ties_by_id_for_stable_paging. |
 
 **Testy:** FilesUploadTests.List_is_paged_and_owner_scoped (pageSize, totalCount, items length, owner scoping); FilesUploadTests.List_clamps_page_parameters_and_orders_newest_first_across_pages (query-string clamping + newest-first across pages); FilesUploadTests.List_orders_created_at_ties_by_id_for_stable_paging
-**Test gaps:** No remaining focused file-list paging/order gap; index note remains a perf nit, not a correctness bug.
+**Test gaps:** No remaining focused file-list paging/order/index gap.
 
-_Paging is clamped and owner-scoped. Index/tiebreaker notes are perf/stability nits, not bugs._
+_Paging is clamped and owner-scoped. Ordering is deterministic and the file_objects index now matches the per-user newest-first query._
 
 ### Blob storage providers (local + S3) & path-traversal guard — ✅ correct
 *Persist/retrieve/delete bytes behind IFileStorage; local disk for dev, S3-compatible (AWS/MinIO/R2) for prod; reject path-traversal keys.*
@@ -1222,6 +1222,7 @@ _Defence-in-depth path guard (validate + resolved-path re-check) is excellent; S
 | Erasure is idempotent / retryable (multi-transaction fan-out) | ✓ | FilesPersonalDataEraser.cs:24-34 re-run finds no rows and DeleteAsync is a no-op for already-removed blobs (documented at lines 13-16) |
 | Runs under system context (no tenant) — must still match the user's rows | ✓ | FilesPersonalDataEraser doc lines 14-15: tenant filter does not restrict; the WHERE UserId == userId matches; FilesUploadTests.Gdpr_erasure_deletes_the_users_files_and_metadata verifies rows reach 0 after shred |
 | Blob delete fails mid-loop (e.g. S3 transient) leaving metadata referencing a partially-deleted set | ✓ | FilesPersonalDataEraser.cs:29-34 deletes blobs in a loop THEN ExecuteDeleteAsync the rows; if a blob DeleteAsync throws partway, the exception propagates before metadata deletion, so a retry re-deletes already-gone blobs (no-op) and finishes. Proven by FilesUploadTests.Gdpr_erasure_keeps_metadata_when_blob_delete_fails_so_retry_can_finish. |
+| Blob delete order changes after index/query-plan changes | ✓ | FilesPersonalDataEraser orders by FileName then StorageKey before deleting blobs, so retry behaviour is deterministic and not dependent on whichever DB index the planner chooses. |
 | Export omits raw bytes (only metadata) | ✓ | FilesPersonalDataExporter.cs:8-12 doc + projection returns id/filename/contentType/size/createdAt only |
 | Ports registered so the DI-driven fan-out actually runs | ✓ | FilesModule.cs:46-47 registers both IExportPersonalData and IErasePersonalData (doc warns omission makes files immortal) |
 | ExecuteDeleteAsync bypasses audit/xmin | ✓ | FilesPersonalDataEraser.cs:34 uses ExecuteDeleteAsync — intentional for a GDPR scrub (consistent with the platform caveat that scrubs may bypass the interceptor); file_objects are not an append-only retained ledger |
@@ -1232,11 +1233,6 @@ _Defence-in-depth path guard (validate + resolved-path re-check) is excellent; S
 _Erasure correctly deletes (not anonymizes), is idempotent, and keeps metadata until every blob delete succeeds so fan-out retry can finish._
 
 **Nekonzistence v oblasti (6):**
-- Download orphaned-metadata path: DownloadFileEndpoint.cs:28 → LocalFileStorage.GetAsync throws FileNotFoundException (LocalFileStorage.cs:37) / S3 throws AmazonS3Exception, neither a ModularPlatformException, so GlobalExceptionMiddleware.cs:36-40 returns 500 'error.unexpected' instead of a 404 file.not_found — the metadata layer is dual-gated to 404 but the blob layer is not, an inconsistency in how 'not found' surfaces.
-- Upload has no compensation: UploadFileHandler.cs:22 writes the blob via PutAsync before db.SaveChangesAsync (line 35); a failed metadata write leaves an orphaned blob with no storage.DeleteAsync rollback. Storage is outside the outbox/transaction boundary, unlike the rest of the platform's atomic-commit discipline.
-- Operation worker transition path is NOT covered by ConcurrencyRetryBehavior: OperationStore.TransitionAsync (OperationStore.cs:45-59) is invoked from the Wolverine handler (RunDemoOperationHandler), not via IDispatcher, so the documented xmin+ConcurrencyRetryBehavior protection (which is command-pipeline-only) does not apply here; the store relies on Wolverine redelivery instead — not wrong, but the operation entity inherits AuditableEntity/xmin implying retry that isn't wired on this path.
-- List index/order: ListFilesHandler.cs:21 orders by CreatedAt DESC but the migration only indexes UserId (InitialFiles.cs:55-58) and uses no Guid-v7 tiebreaker — a code-vs-schema perf/stability drift (sort + non-deterministic same-instant ordering).
-- Operations stuck Pending/Running reaper is implemented: `ReconcileStaleOperationsHandler` ages out stale non-terminal rows to Failed, and `OperationsReconcileStaleOperationsJob` schedules it from the Jobs host. MessagingHealthJob still reports the dead-letter signal; Operations now owns user-facing terminalization.
 - Operations.Tests contains RealtimeReplayTests.cs and RealtimeSseTests.cs which test the Realtime building block, not the Operations module — cross-cutting tests are co-located in the Operations test project (organizational drift, not a bug).
 
 
