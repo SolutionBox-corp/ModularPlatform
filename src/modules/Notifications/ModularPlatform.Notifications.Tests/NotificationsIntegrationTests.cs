@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using ModularPlatform.Abstractions;
@@ -8,10 +9,14 @@ using ModularPlatform.Cqrs;
 using ModularPlatform.Identity.Contracts;
 using ModularPlatform.IntegrationTesting;
 using ModularPlatform.Notifications.Contracts;
+using ModularPlatform.Notifications.Entities;
+using ModularPlatform.Notifications.Features.Notifications.SendNotification;
 using ModularPlatform.Notifications.Messaging;
+using ModularPlatform.Notifications.Persistence;
 using ModularPlatform.Notifications.Seeding;
 using Shouldly;
 using Wolverine;
+using Wolverine.EntityFrameworkCore;
 
 namespace ModularPlatform.Notifications.Tests;
 
@@ -182,6 +187,40 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
         var item = (await PlatformApiFactory.ReadData(feed)).GetProperty("items").EnumerateArray()
             .Single(n => n.GetProperty("templateKey").GetString() == templateKey);
         item.GetProperty("title").GetString().ShouldBe("Hello Ada");
+    }
+
+    [Fact]
+    public async Task SendNotification_deduplicates_channels_before_publishing_delivery_messages()
+    {
+        var recipientId = Guid.CreateVersion7();
+        var templateKey = $"nt-channel-dedup-{Guid.CreateVersion7():N}";
+        var tenant = new TestTenantContext(recipientId);
+        var options = new DbContextOptionsBuilder<NotificationsDbContext>()
+            .UseNpgsql(fixture.ConnectionString)
+            .Options;
+        await using var db = new NotificationsDbContext(options, tenant);
+        db.NotificationTemplates.Add(new NotificationTemplate
+        {
+            Key = templateKey,
+            Locale = "en",
+            Subject = "Hello {displayName}",
+            Body = "Body for {displayName}"
+        });
+        await db.SaveChangesAsync();
+
+        var outbox = new RecordingOutbox(db);
+        var handler = new SendNotificationHandler(outbox, new NoopRealtimePublisher(), new FixedClock());
+
+        await handler.Handle(new SendNotificationCommand(
+            recipientId,
+            templateKey,
+            ["email", "email", "push", "push", "inapp", "inapp"],
+            new Dictionary<string, string> { ["displayName"] = "Ada", ["email"] = "ada@example.com" }),
+            CancellationToken.None);
+
+        db.Notifications.Count(n => n.UserId == recipientId && n.TemplateKey == templateKey).ShouldBe(1);
+        outbox.Published.OfType<EmailDeliveryRequested>().Count().ShouldBe(1);
+        outbox.Published.OfType<PushDeliveryRequested>().Count().ShouldBe(1);
     }
 
     [Fact]
@@ -817,5 +856,100 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
             ["inapp"],
             new Dictionary<string, string>(),
             IdempotencyKey: $"direct:{templateKey}:{Guid.CreateVersion7():N}"));
+    }
+
+    private sealed class TestTenantContext(Guid userId) : ITenantContext
+    {
+        public Guid? UserId { get; } = userId;
+        public Guid? TenantId { get; } = Guid.CreateVersion7();
+        public bool IsSystem => false;
+        public string? IpAddress => "127.0.0.1";
+    }
+
+    private sealed class FixedClock : IClock
+    {
+        public DateTimeOffset UtcNow { get; } = new(2026, 6, 29, 12, 0, 0, TimeSpan.Zero);
+    }
+
+    private sealed class NoopRealtimePublisher : IRealtimePublisher
+    {
+        public Task PublishToUserAsync(Guid userId, string eventType, object payload, CancellationToken ct) =>
+            Task.CompletedTask;
+
+        public Task PublishToTenantAsync(Guid tenantId, string eventType, object payload, CancellationToken ct) =>
+            Task.CompletedTask;
+    }
+
+    private sealed class RecordingOutbox(NotificationsDbContext db) : IDbContextOutbox<NotificationsDbContext>
+    {
+        public List<object> Published { get; } = [];
+        public NotificationsDbContext DbContext => db;
+        public DbContext ActiveContext => db;
+        public string? TenantId { get; set; }
+
+        public Task SaveChangesAndFlushMessagesAsync(CancellationToken token = default) => db.SaveChangesAsync(token);
+        public Task FlushOutgoingMessagesAsync() => Task.CompletedTask;
+        public void Enroll(DbContext dbContext) { }
+
+        public ValueTask PublishAsync<T>(T message, DeliveryOptions? options = null)
+        {
+            Published.Add(message!);
+            return ValueTask.CompletedTask;
+        }
+
+        public Task InvokeForTenantAsync(
+            string tenantId,
+            object message,
+            CancellationToken cancellation = default,
+            TimeSpan? timeout = null) => throw new NotSupportedException();
+
+        public Task<T> InvokeForTenantAsync<T>(
+            string tenantId,
+            object message,
+            CancellationToken cancellation = default,
+            TimeSpan? timeout = null) => throw new NotSupportedException();
+
+        public IDestinationEndpoint EndpointFor(string endpointName) => throw new NotSupportedException();
+
+        public IDestinationEndpoint EndpointFor(Uri uri) => throw new NotSupportedException();
+
+        public IReadOnlyList<Envelope> PreviewSubscriptions(object message) => throw new NotSupportedException();
+
+        public IReadOnlyList<Envelope> PreviewSubscriptions(object message, DeliveryOptions options) =>
+            throw new NotSupportedException();
+
+        public ValueTask SendAsync<T>(T message, DeliveryOptions? options = null) => throw new NotSupportedException();
+
+        public ValueTask BroadcastToTopicAsync(string topicName, object message, DeliveryOptions? options = null) =>
+            throw new NotSupportedException();
+
+        public Task InvokeAsync(object message, CancellationToken cancellation = default, TimeSpan? timeout = null) =>
+            throw new NotSupportedException();
+
+        public Task InvokeAsync(
+            object message,
+            DeliveryOptions options,
+            CancellationToken cancellation = default,
+            TimeSpan? timeout = null) => throw new NotSupportedException();
+
+        public Task<T> InvokeAsync<T>(
+            object message,
+            CancellationToken cancellation = default,
+            TimeSpan? timeout = null) => throw new NotSupportedException();
+
+        public Task<T> InvokeAsync<T>(
+            object message,
+            DeliveryOptions options,
+            CancellationToken cancellation = default,
+            TimeSpan? timeout = null) => throw new NotSupportedException();
+
+        public IAsyncEnumerable<TResponse> StreamAsync<TResponse>(
+            object message,
+            CancellationToken cancellation = default) => throw new NotSupportedException();
+
+        public IAsyncEnumerable<TResponse> StreamAsync<TResponse>(
+            object message,
+            DeliveryOptions options,
+            CancellationToken cancellation = default) => throw new NotSupportedException();
     }
 }
