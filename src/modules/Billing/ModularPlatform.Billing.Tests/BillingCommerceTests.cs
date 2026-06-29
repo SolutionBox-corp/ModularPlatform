@@ -241,6 +241,53 @@ public sealed class BillingCommerceTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Invoice_payment_succeeded_grants_subscription_credits_like_invoice_paid()
+    {
+        var (userId, userToken) = await fixture.RegisterAndLoginAsync(
+            $"invoice-succeeded-{Guid.CreateVersion7():N}@test.io", Password);
+        var subId = $"sub_{Guid.CreateVersion7():N}";
+        var invoiceId = $"in_{Guid.CreateVersion7():N}";
+        var eventId = $"evt_{Guid.CreateVersion7():N}";
+
+        Fake.SeedSubscription(new StripeSubscriptionState(
+            SubscriptionId: subId,
+            Status: "active",
+            CustomerId: "cus_test",
+            CurrentPeriodEnd: DateTimeOffset.UtcNow.AddMonths(1),
+            CancelAtPeriodEnd: false,
+            Metadata: new Dictionary<string, string> { ["user_id"] = userId.ToString(), ["plan_key"] = "pro" }));
+        await SendSubscriptionEventAsync("customer.subscription.created", subId);
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM subscriptions WHERE \"StripeSubscriptionId\" = '{subId}' AND \"Status\" = 'Active'", 1);
+
+        Fake.SeedEvent(new Event
+        {
+            Id = eventId,
+            Type = "invoice.payment_succeeded",
+            Data = new EventData
+            {
+                Object = new Invoice
+                {
+                    Id = invoiceId,
+                    Parent = new InvoiceParent
+                    {
+                        SubscriptionDetails = new InvoiceParentSubscriptionDetails { SubscriptionId = subId },
+                    },
+                },
+            },
+        });
+
+        (await PostSignedWebhookAsync(eventId, "invoice.payment_succeeded")).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM credit_entries WHERE \"IdempotencyKey\" = 'sub-invoice:{invoiceId}'", 1);
+        var balance = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, "/v1/billing/credits/balance", userToken));
+        balance.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PlatformApiFactory.ReadData(balance)).GetProperty("available").GetInt64().ShouldBe(100);
+    }
+
+    [Fact]
     public async Task Unpaid_checkout_session_does_not_grant_credits()
     {
         var (purchaseId, providerPaymentId, tenantId) = await StartPackageCheckoutAsync(400, "price_test_unpaid");

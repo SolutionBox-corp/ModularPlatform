@@ -37,8 +37,8 @@ v tabulkách níže jsou **snapshot PŘED** těmito fixy:
 - **ConfirmSpend „bucket exhaustion"** — analýza flagla jako partial, ale money-reviewer dokázal invariantem, že
   `SUM(remaining) ≥ pending ≥ hold.Amount` vždy platí → under-draw je nedosažitelný. Ponecháno (proven safe).
 - **Subscription PastDue bez reakce** — mapuje se, ale žádná revokace/notifikace; feature gap (dunning flow), ne bug.
-- **`invoice.payment_succeeded` alias** k `invoice.paid` — možný missed recurring grant dle Stripe API verze;
-  idempotence `sub-invoice:{id}` chrání před double-grant, ale routing alias vyžaduje ověření ve Stripe stagingu.
+- **`invoice.payment_succeeded` alias** k `invoice.paid` — route now handles both success events; idempotence
+  `sub-invoice:{id}` chrání před double-grant, Stripe staging still validates which event set the deployment emits.
 - **CreateSubscriptionCheckout TOCTOU** (double subscription v okně před prvním webhookem) — inherentní „Stripe = source
   of truth, no pre-created rows" designu.
 - **Files orphan-blob při metadata fail** (PutAsync před SaveChanges, bez kompenzace) — vyžaduje saga/outbox-cleanup; gap.
@@ -620,17 +620,17 @@ _Ingest invariants (200/row/enqueue/exactly-once/500-on-non-unique/400-on-bad-si
 | invoice.paid without a subscription id | ✓ | when-guard requires Parent.SubscriptionDetails.SubscriptionId length>0 (cs:77-79); else falls to default (no metadata → no-op). Proven by BillingCommerceTests.Invoice_paid_without_subscription_id_is_processed_without_credit_grant. |
 | Generic event metadata: bad guid / amount<=0 | ✓ | TryExtractTopUp validates guid + long + amount>0 (cs:129-154) |
 | ProcessedAt stamp vs dispatched grant not in one transaction | ✓ | Subscription/invoice grants run their own SaveChanges on the same scoped context, then ProcessedAt commits separately; redelivery is safe because every downstream command is idempotent (sub-invoice:{id}, purchase:{id}, event-id). Package-confirm publish IS co-committed with ProcessedAt (cs:93-95) |
-| Stripe's invoice.payment_succeeded (legacy/alternate) instead of invoice.paid | ◐ | Only invoice.paid is routed (cs:77); if a deployment's Stripe API emits invoice.payment_succeeded for the recurring grant it would fall through to default and not grant. invoice.paid is Stripe's modern canonical event so this is usually fine, but it is an undocumented assumption. |
+| Stripe's invoice.payment_succeeded (legacy/alternate) instead of invoice.paid | ✓ | Router accepts invoice.paid OR invoice.payment_succeeded (ProcessStripeEventCommand.cs:85) and both converge on GrantSubscriptionCreditsCommand with the same sub-invoice:{invoiceId} idempotency key. Proven by BillingCommerceTests.Invoice_payment_succeeded_grants_subscription_credits_like_invoice_paid. |
 
-**Testy:** BillingCommerceTests.Signed_topup_event_applies_ledger_topup_exactly_once_and_stamps_processed (generic metadata path + redelivery exactly-once); BillingCommerceTests.Non_package_checkout_session_with_stray_credit_metadata_does_not_top_up; BillingCommerceTests.Invoice_paid_without_subscription_id_is_processed_without_credit_grant; BillingCommerceTests.Subscription_lifecycle_... (subscription + invoice.paid routing); StripeReconcileTests.Stuck_stripe_event_...end_to_end (default top-up via reconcile)
-**Test gaps:** No test pinning the invoice.paid vs invoice.payment_succeeded routing choice
+**Testy:** BillingCommerceTests.Signed_topup_event_applies_ledger_topup_exactly_once_and_stamps_processed (generic metadata path + redelivery exactly-once); BillingCommerceTests.Non_package_checkout_session_with_stray_credit_metadata_does_not_top_up; BillingCommerceTests.Invoice_paid_without_subscription_id_is_processed_without_credit_grant; BillingCommerceTests.Invoice_payment_succeeded_grants_subscription_credits_like_invoice_paid; BillingCommerceTests.Subscription_lifecycle_... (subscription + invoice.paid routing); StripeReconcileTests.Stuck_stripe_event_...end_to_end (default top-up via reconcile)
+**Test gaps:** No remaining focused Stripe event router gap in this slice.
 
-_Routing is careful and idempotent. The invoice.paid-only routing and the checkout.session.* leak-guard are correct but lack a regression test; flag the event-name assumption for any non-default Stripe version._
+_Routing is careful and idempotent. Both invoice success event names now share the same per-invoice idempotency key, so receiving both cannot double-grant._
 
 ### Subscriptions: checkout, object-state mirror, per-invoice grant, cancel — 🟢 minor-gaps
 *Config-driven subscription plans mirrored from Stripe object state, with exactly-once per-period credit grants and proration-safe cancel.*
 
-**Use cases:** User starts a subscription checkout for a config plan (CreateSubscriptionCheckoutHandler.cs); customer.subscription.* webhooks (or reconcile) upsert the local mirror from Stripe state (UpsertSubscriptionFromStripeCommand.cs); invoice.paid grants plan.CreditsPerPeriod exactly once per invoice (GrantSubscriptionCreditsCommand.cs); User cancels (Stripe-first, at period end by default) (CancelSubscriptionHandler.cs); GET /billing/subscriptions/me and /plans reads
+**Use cases:** User starts a subscription checkout for a config plan (CreateSubscriptionCheckoutHandler.cs); customer.subscription.* webhooks (or reconcile) upsert the local mirror from Stripe state (UpsertSubscriptionFromStripeCommand.cs); invoice.paid or invoice.payment_succeeded grants plan.CreditsPerPeriod exactly once per invoice (GrantSubscriptionCreditsCommand.cs); User cancels (Stripe-first, at period end by default) (CancelSubscriptionHandler.cs); GET /billing/subscriptions/me and /plans reads
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|

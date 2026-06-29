@@ -20,7 +20,8 @@ namespace ModularPlatform.Billing.Features.Credits.ProcessStripeEvent;
 /// <item><c>checkout.session.completed</c> with <c>purchase_type=package</c> → <see cref="CreditPurchaseConfirmed"/>
 /// for the purchase saga (published via the outbox, atomically with the ProcessedAt stamp).</item>
 /// <item><c>customer.subscription.*</c> → upsert the local mirror from Stripe OBJECT state (out-of-order safe).</item>
-/// <item><c>invoice.paid</c> → per-period credit grant (idempotency key <c>sub-invoice:{invoiceId}</c>).</item>
+/// <item><c>invoice.paid</c>/<c>invoice.payment_succeeded</c> → per-period credit grant
+/// (idempotency key <c>sub-invoice:{invoiceId}</c>).</item>
 /// <item>any event carrying <c>user_id</c>/<c>credit_amount</c> metadata → direct idempotent top-up
 /// (idempotency key = Stripe event id).</item>
 /// </list>
@@ -82,7 +83,7 @@ internal sealed class ProcessStripeEventHandler(
                 await dispatcher.Send(new UpsertSubscriptionFromStripeCommand(subscription.Id), ct);
                 break;
 
-            case "invoice.paid"
+            case "invoice.paid" or "invoice.payment_succeeded"
                 when stripeEvent.Data?.Object is Invoice invoice
                      && invoice.Parent?.SubscriptionDetails?.SubscriptionId is { Length: > 0 } subscriptionId:
                 await dispatcher.Send(new GrantSubscriptionCreditsCommand(subscriptionId, invoice.Id), ct);

@@ -9,10 +9,11 @@ using ModularPlatform.Cqrs;
 namespace ModularPlatform.Billing.Features.Subscriptions.GrantSubscriptionCredits;
 
 /// <summary>
-/// Per-period credit grant for a paid subscription invoice (<c>invoice.paid</c>). Exactly once per invoice:
-/// the ledger idempotency key is <c>sub-invoice:{invoiceId}</c>, so webhook redelivery, the reconciliation
-/// job, or an out-of-order replay can never double-grant. When the local mirror is missing (invoice arrived
-/// before the subscription event), it is upserted from Stripe object state first.
+/// Per-period credit grant for a paid subscription invoice (<c>invoice.paid</c> or
+/// <c>invoice.payment_succeeded</c>). Exactly once per invoice: the ledger idempotency key is
+/// <c>sub-invoice:{invoiceId}</c>, so webhook redelivery, the reconciliation job, or an out-of-order replay
+/// can never double-grant. When the local mirror is missing (invoice arrived before the subscription event), it
+/// is upserted from Stripe object state first.
 /// </summary>
 internal sealed record GrantSubscriptionCreditsCommand(string StripeSubscriptionId, string InvoiceId) : ICommand;
 
