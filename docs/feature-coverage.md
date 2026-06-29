@@ -1359,14 +1359,14 @@ _Best-tested unit in the area; the dual-stack mapping edge case is explicitly co
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
 | Missing tenant claim = cross-tenant leak (old null short-circuit) | ✓ | Filter is IsSystemContext \|\| TenantId==CurrentTenantId with NO null escape (PlatformDbContext.cs:96-98); documented 93-95 |
-| Stamping overwrites an explicit cross-tenant assignment (registration creating tenant+first user) | ✓ | Only fills TenantId when CurrentValue is null AND a tenant is in context (TenantStampingInterceptor.cs:42-45) |
+| Stamping overwrites an explicit cross-tenant assignment (registration creating tenant+first user) | ✓ | Only fills TenantId when CurrentValue is null AND a tenant is in context (TenantStampingInterceptor.cs:42-45); pinned by TenantStampingInterceptorTests.SavingChanges_does_not_overwrite_explicit_tenant_id |
 | Tenant + soft-delete filters overwriting each other | ✓ | EF Core 10 named query filters keyed 'Tenant'/'SoftDelete' coexist (PlatformDbContext.cs:60,65,88) |
 | An in-Api background Wolverine handler assumed tenant-scoped | ◐ | Documented as SYSTEM (CLAUDE.md) but relies on the host wiring HttpTenantContext/SystemTenantContext correctly; not enforced in this layer |
 
-**Testy:** TenantIsolationTests.Two_users_land_in_distinct_tenants_in_the_same_users_table; A_user_reading_through_the_tenant_filter_sees_only_their_own_tenant_data; Anonymous_caller_with_no_tenant_claim_is_rejected_not_granted_global_visibility
-**Test gaps:** No test that TenantStampingInterceptor does NOT overwrite an explicitly-set TenantId (the registration cross-tenant insert path); No test of tenant+soft-delete coexistence (both filters active on one entity)
+**Testy:** TenantIsolationTests.Two_users_land_in_distinct_tenants_in_the_same_users_table; A_user_reading_through_the_tenant_filter_sees_only_their_own_tenant_data; Anonymous_caller_with_no_tenant_claim_is_rejected_not_granted_global_visibility; TenantStampingInterceptorTests.SavingChanges_does_not_overwrite_explicit_tenant_id
+**Test gaps:** No test of tenant+soft-delete coexistence (both filters active on one entity)
 
-_The closed null-escape is the load-bearing security fix and is well covered; the non-overwrite stamping branch is only exercised implicitly by registration succeeding._
+_The closed null-escape is the load-bearing security fix and is well covered; the non-overwrite stamping branch now has a focused interceptor test._
 
 ### Postgres RLS (bootstrap, dual role, GUC stamping) — ✅ correct
 *DB-level row isolation on IUserOwned tables keyed on app.principal_id, run by a least-privilege role.*
