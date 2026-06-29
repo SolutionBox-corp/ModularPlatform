@@ -180,6 +180,18 @@ public sealed class OperationsTests(PlatformApiFactory fixture)
         status.Status.ShouldBe("Succeeded");
     }
 
+    [Fact]
+    public async Task Worker_transition_on_missing_operation_surfaces_not_found()
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IOperationStore>();
+
+        var ex = await Should.ThrowAsync<NotFoundException>(
+            () => store.MarkRunningAsync(Guid.CreateVersion7(), CancellationToken.None));
+
+        ex.ErrorCode.ShouldBe("operation.not_found");
+    }
+
     private async Task<Guid> StartDemoAsync(string token)
     {
         var start = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Post, "/v1/operations/demo", token));
