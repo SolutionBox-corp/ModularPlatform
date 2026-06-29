@@ -818,14 +818,15 @@ _Key handling and fail-fast are correct. The normalization contract is the one s
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
 | Idempotent replay of the erasure event | ✓ | Wolverine inbox dedups; ShredSubjectKeyHandler guards on DeletedAt==null so a replay never re-stamps (ShredSubjectKeyHandler.cs:27-32; SubjectKeyShredTests) |
+| Post-erasure PII write must not re-mint a readable DEK | ✓ | PersonalDataProtector returns `[pii-redacted]` when the subject key tombstone has WrappedDek null/DeletedAt set, and old envelopes no longer reveal. Proven by SubjectKeyShredTests.Post_shred_protect_redacts_instead_of_re_minting_a_readable_dek. |
 | Identity from token not body | ✓ | RequestErasureEndpoint takes tenant.UserId, no body id (RequestErasureEndpoint.cs:14-22) |
 | Missing subject key row (nothing ever encrypted) | ✓ | ShredSubjectKeyHandler no-op when row absent (ShredSubjectKeyHandler.cs:24-32) |
 | One eraser throws mid fan-out | ✓ | UserErasureRequestedHandler wraps each eraser, logs failures, still runs the remaining erasers, then dispatches ShredSubjectKeyCommand before throwing a retry exception for the failed module (UserErasureRequestedHandler.cs:40-67). Proven by ErasureFanOutTests.Throwing_eraser_does_not_block_other_erasers_or_crypto_shred. |
 | Erasure ordering: anonymize before shred | ✓ | erasers run first, then ShredSubjectKeyCommand; shred is described as authoritative, per-module anonymization is defence-in-depth (UserErasureRequestedHandler.cs:40-61) |
 | Durable, not fire-and-forget | ✓ | RequestErasureHandler publishes via outbox + SaveChangesAndFlushMessagesAsync (RequestErasureHandler.cs:22-27) |
 
-**Testy:** GdprIntegrationTests.Erasure_blanks_notification_pii_shreds_the_subject_key_and_retains_the_billing_ledger; GdprIntegrationTests.Consent_history_is_exported_and_deleted_on_erasure; SubjectKeyShredTests.Shred_drops_the_dek_and_stamps_deleted_at; SubjectKeyShredTests.Shred_is_idempotent_and_preserves_the_first_erasure_timestamp; ErasureFanOutTests.Throwing_eraser_does_not_block_other_erasers_or_crypto_shred
-**Test gaps:** No test that a PII write AFTER erasure does not resurrect a readable key (the re-mint guard end-to-end through Protect).
+**Testy:** GdprIntegrationTests.Erasure_blanks_notification_pii_shreds_the_subject_key_and_retains_the_billing_ledger; GdprIntegrationTests.Consent_history_is_exported_and_deleted_on_erasure; SubjectKeyShredTests.Shred_drops_the_dek_and_stamps_deleted_at; SubjectKeyShredTests.Shred_is_idempotent_and_preserves_the_first_erasure_timestamp; SubjectKeyShredTests.Post_shred_protect_redacts_instead_of_re_minting_a_readable_dek; ErasureFanOutTests.Throwing_eraser_does_not_block_other_erasers_or_crypto_shred
+**Test gaps:** No remaining focused erasure fan-out / crypto-shred gap in this slice.
 
 _End-to-end erasure is well tested and correct. Per-eraser isolation now matches the export fan-out: failed module anonymization retries, but the authoritative crypto-shred is not blocked._
 
@@ -870,14 +871,15 @@ _Resilience pattern is solid and tested at unit level. Note the asymmetry: expor
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
 | Shredded tombstone older than the old 30-day window | ✓ | retained (handler returns 0, deletes nothing) — RetentionSweepHandler.cs:25-31; asserted by RetentionSweepTests |
+| Tombstone blocks post-erasure DEK re-mint | ✓ | A later Protect call returns `[pii-redacted]` instead of creating a fresh key, and the old envelope remains unrevealable. Proven by SubjectKeyShredTests.Post_shred_protect_redacts_instead_of_re_minting_a_readable_dek. |
 | Concurrent sweep runs | ✓ | [DisallowConcurrentExecution] on the Quartz job (GdprRetentionSweepJob.cs:12) |
 | Cron timezone | ✓ | InTimeZone(Utc) so 03:00 UTC fires correctly on non-UTC hosts (GdprModule.cs:108-114) |
 | Live key never touched | ✓ | handler deletes nothing at all (RetentionSweepTests.Live_subject_key_is_not_deleted) |
 
-**Testy:** RetentionSweepTests.Shredded_tombstone_is_retained_permanently_so_the_dek_cannot_be_re_minted; RetentionSweepTests.Shredded_key_within_retention_window_is_not_deleted; RetentionSweepTests.Live_subject_key_is_not_deleted_by_retention_sweep
-**Test gaps:** No end-to-end test proving the GUARD itself: erase a subject, then attempt a PII write for the same UserId, and assert Protect returns RedactedMarker (i.e. the tombstone actually blocks re-minting) — the whole point of retaining the tombstone is untested
+**Testy:** RetentionSweepTests.Shredded_tombstone_is_retained_permanently_so_the_dek_cannot_be_re_minted; RetentionSweepTests.Shredded_key_within_retention_window_is_not_deleted; RetentionSweepTests.Live_subject_key_is_not_deleted_by_retention_sweep; SubjectKeyShredTests.Post_shred_protect_redacts_instead_of_re_minting_a_readable_dek
+**Test gaps:** No remaining focused tombstone retention / DEK re-mint guard gap in this slice.
 
-_Behaviour is correct (retain-forever, purge-nothing) and the regression that previously reopened the crypto-shred is fixed. But the re-mint guard — the entire reason this design exists — has no test; and there is stale documentation (see inconsistencies)._
+_Behaviour is correct (retain-forever, purge-nothing), and the regression that previously reopened the crypto-shred is fixed and now directly covered through the protector._
 
 **Nekonzistence v oblasti (6):**
 - CODE-vs-DOC: CLAUDE.md §4 'Retention sweep' row still says GdprRetentionSweepJob 'purges shredded subject_keys tombstones past Gdpr:Retention:ShreddedKeyRetentionDays (default 30)' and §9b/§10 imply purging — but RetentionSweepHandler.cs:25-31 now retains tombstones PERMANENTLY and returns 0 (purges nothing). The CLAUDE.md description is stale relative to the hardened code.

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Gdpr.Features.Erasure.ShredSubjectKey;
 using ModularPlatform.IntegrationTesting;
@@ -47,6 +48,27 @@ public sealed class SubjectKeyShredTests(PlatformApiFactory fixture)
             $"""SELECT "DeletedAt"::text FROM subject_keys WHERE "UserId" = '{userId}'""");
 
         secondDeletedAt.ShouldBe(firstDeletedAt, "a replayed shred must not re-stamp the erasure timestamp");
+    }
+
+    [Fact]
+    public async Task Post_shred_protect_redacts_instead_of_re_minting_a_readable_dek()
+    {
+        var (userId, _) = await fixture.RegisterAndLoginAsync($"shred-remint-{Guid.CreateVersion7():N}@x.com", Password);
+        var protector = fixture.Services.GetRequiredService<IPersonalDataProtector>();
+
+        var beforeShred = protector.Protect(userId, "still-secret");
+        protector.TryReveal(beforeShred, out var plaintext).ShouldBeTrue();
+        plaintext.ShouldBe("still-secret");
+
+        await DispatchShredAsync(userId);
+
+        var afterShred = protector.Protect(userId, "must-not-be-written");
+
+        afterShred.ShouldBe(PersonalDataProtection.RedactedMarker);
+        protector.TryReveal(beforeShred, out _).ShouldBeFalse();
+        (await fixture.ScalarAsync<long>(
+            $"""SELECT count(*)::bigint FROM subject_keys WHERE "UserId" = '{userId}' """
+            + """AND "WrappedDek" IS NULL AND "DeletedAt" IS NOT NULL""")).ShouldBe(1);
     }
 
     private async Task DispatchShredAsync(Guid userId)
