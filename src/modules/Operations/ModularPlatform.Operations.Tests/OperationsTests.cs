@@ -1,9 +1,11 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Operations.Features.Status;
+using ModularPlatform.Operations.Messaging;
 using ModularPlatform.IntegrationTesting;
 using Shouldly;
 
@@ -178,6 +180,32 @@ public sealed class OperationsTests(PlatformApiFactory fixture)
 
         var status = await dispatcher.Query(new GetOperationStatusQuery(operationId, userId));
         status.Status.ShouldBe("Succeeded");
+    }
+
+    [Fact]
+    public async Task Redelivered_worker_message_does_not_resurrect_a_failed_terminal_operation()
+    {
+        var userId = Guid.CreateVersion7();
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IOperationStore>();
+        var dispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
+        var handler = new RunDemoOperationHandler();
+
+        var operationId = await store.CreateAsync("generic-module-export", userId, CancellationToken.None);
+        await store.FailAsync(operationId, "module.export_failed", "The export failed.", CancellationToken.None);
+
+        // This is what a redelivered durable work message does: it enters the worker from the top and tries
+        // MarkRunning + Complete again. A terminal Failed operation must stay Failed with its original safe error.
+        await handler.Handle(
+            new RunDemoOperation(operationId),
+            store,
+            NullLogger<RunDemoOperationHandler>.Instance,
+            CancellationToken.None);
+
+        var status = await dispatcher.Query(new GetOperationStatusQuery(operationId, userId));
+        status.Status.ShouldBe("Failed");
+        status.ErrorCode.ShouldBe("module.export_failed");
+        status.ErrorDetail.ShouldBe("The export failed.");
     }
 
     [Fact]

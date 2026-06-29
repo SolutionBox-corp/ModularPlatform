@@ -1098,14 +1098,14 @@ _Canonical 202 pattern; clean, token-sourced owner, atomic outbox._
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
-| Terminal state must not be flipped/resurrected by a duplicate transition | ✓ | OperationStore.cs:52-55 early-returns (idempotent no-op) when Status is Succeeded/Failed; covered by OperationsTests.A_terminal_operation_is_not_resurrected_by_a_duplicate_worker_transition |
+| Terminal state must not be flipped/resurrected by a duplicate transition | ✓ | OperationStore.cs:52-55 early-returns (idempotent no-op) when Status is Succeeded/Failed; covered by OperationsTests.A_terminal_operation_is_not_resurrected_by_a_duplicate_worker_transition and Redelivered_worker_message_does_not_resurrect_a_failed_terminal_operation |
 | Transition on a missing operation id | ✓ | OperationStore.cs:47-48 throws NotFoundException('operation.not_found') if the row is absent; proven by OperationsTests.Worker_transition_on_missing_operation_surfaces_not_found. |
 | Worker work throws → operation must reach a terminal state (not stuck Running/Pending) | ✓ | RunDemoOperationHandler.cs:32 FailAsync in catch; MarkRunning is INSIDE the try (line 19) so a failed Pending→Running also terminalizes; covered by OperationWorkerFailureTests |
 | Concurrent transitions racing (xmin conflict) — worker path is NOT in the dispatcher pipeline so ConcurrencyRetryBehavior does NOT apply | ◐ | OperationStore.TransitionAsync (OperationStore.cs:45-59) calls db.SaveChangesAsync directly; a concurrent xmin conflict throws DbUpdateConcurrencyException which is NOT retried in-process — it relies on Wolverine handler redelivery to re-run. Inbox dedup makes a true concurrent double-delivery unlikely, but there is no explicit retry/serialization in the store itself. Acceptable but undocumented. |
 | FailAsync itself cannot write (DB down) | ✓ | RunDemoOperationHandler.cs:27-33 comment: the exception propagates and Wolverine retries the whole handler |
 
-**Testy:** OperationsTests.A_terminal_operation_is_not_resurrected_by_a_duplicate_worker_transition; OperationsTests.Worker_transition_on_missing_operation_surfaces_not_found; OperationWorkerFailureTests.Worker_marks_the_operation_failed_when_the_work_throws
-**Test gaps:** No test of MarkRunning on an already-Failed/Succeeded op via the worker path under concurrency; No stuck-Pending detection/reaper test — there is no job that finds operations stuck Pending/Running if a message was permanently dead-lettered (relies entirely on the catch terminalizing)
+**Testy:** OperationsTests.A_terminal_operation_is_not_resurrected_by_a_duplicate_worker_transition; OperationsTests.Redelivered_worker_message_does_not_resurrect_a_failed_terminal_operation; OperationsTests.Worker_transition_on_missing_operation_surfaces_not_found; OperationWorkerFailureTests.Worker_marks_the_operation_failed_when_the_work_throws
+**Test gaps:** No stuck-Pending detection/reaper test — there is no job that finds operations stuck Pending/Running if a message was permanently dead-lettered before the worker can terminalize it (relies on the generic messaging dead-letter health signal, not an Operations-owned reconciliation job)
 
 _State machine is solid and idempotent. The only soft spot: no in-process concurrency retry on the worker transition path and no reaper for operations whose work message is dead-lettered before terminalizing._
 
