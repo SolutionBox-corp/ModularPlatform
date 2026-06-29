@@ -349,9 +349,10 @@ _Erasure is the most thoroughly tested Identity concern; live export, post-erasu
 | Null DisplayName not force-touched | ✓ | Only marks DisplayName modified when non-null — PiiEncryptionBackfill.cs:42-44 |
 | Filtered unique index tolerates empty-hash legacy rows | ✓ | UNIQUE(EmailHash) WHERE EmailHash<>'' so pre-backfill rows don't collide — User.cs:57 |
 
-**Test gaps:** No test seeding a legacy '' EmailHash row and asserting the backfill seals it + computes the hash (hard to exercise without a legacy fixture; currently entirely untested)
+**Testy:** PiiColumnEncryptionTests.Startup_backfill_seals_legacy_plaintext_user_rows_and_computes_email_hash
+**Test gaps:** No remaining focused PII encryption backfill gap in this slice.
 
-_Logic mirrors the seeder's non-fatal retry pattern; untested because constructing a pre-encryption row requires bypassing the interceptors. Low runtime risk on fresh DBs (instant no-op)._
+_Logic mirrors the seeder's non-fatal retry pattern; the legacy-row path is now covered by raw SQL setup that bypasses the interceptors and then lets the hosted backfill seal the row on startup._
 
 ### Token issuance + password hashing (Security primitives) — ✅ correct
 *HMAC-signed JWT access tokens with role/permission/tenant claims; CSPRNG refresh tokens stored SHA-256 hashed; Argon2id passwords.*
