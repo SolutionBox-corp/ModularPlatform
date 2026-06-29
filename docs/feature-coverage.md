@@ -750,10 +750,10 @@ _Clean ACL with a hard production safety guard on the fake. The validator is a s
 | ExecuteUpdate/ExecuteDelete bypass the interceptor | ✓ | documented caveat; used deliberately only for erasure tombstones/constants (PersonalData.cs:18-19) |
 | empty-string [Encrypted] value | ✓ | plaintext.Length == 0 skipped (PersonalDataEncryption.cs:166) |
 
-**Testy:** GdprIntegrationTests.Subject_key_creation_is_never_audited_so_the_dek_never_reaches_the_audit_trail (indirect)
-**Test gaps:** No direct test that an [Encrypted] column (users.Email) is actually ciphertext at rest and decrypts on read via the converter; No test that a save with the protector unavailable throws (the refuse-plaintext guard); No test that a shredded subject's [Encrypted] live column reads back as [erased]
+**Testy:** PiiColumnEncryptionTests.Email_and_display_name_are_ciphertext_at_rest_but_plaintext_through_the_api; PersonalDataEncryptionInterceptorTests.Save_of_encrypted_plaintext_without_a_protector_is_rejected; PersonalDataEncryptionInterceptorTests.Decrypting_converter_surfaces_erased_marker_when_protected_value_cannot_be_revealed; GdprIntegrationTests.Subject_key_creation_is_never_audited_so_the_dek_never_reaches_the_audit_trail (indirect)
+**Test gaps:** No remaining focused [Encrypted] live-column encryption/decrypt/refuse-plaintext gap in this slice.
 
-_Logic is solid and well-documented; the load-bearing at-rest guarantees (ciphertext on disk, refuse-plaintext, [erased] after shred) are exercised only in the Identity module's tests (PiiEncryptionBackfill) — not asserted within the Gdpr test project. Encryption-correctness lives in the building-block, decrypt-on-read coverage worth a Gdpr-area test._
+_Logic is solid and now pinned at both levels: Identity proves real user rows are ciphertext at rest and plaintext through API reads; building-block tests prove the refuse-plaintext guard and [erased] read fallback._
 
 ### PersonalDataProtector (audit-PII crypto envelope) — ✅ correct
 *IPersonalDataProtector impl: encrypt audit/column PII under the subject DEK, reading the DEK live each call.*
