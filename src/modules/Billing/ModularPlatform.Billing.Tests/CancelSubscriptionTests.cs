@@ -56,6 +56,33 @@ public sealed class CancelSubscriptionTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Cancel_subscription_can_immediately_mark_the_local_mirror_canceled()
+    {
+        using var host = fixture.CreateHost(("Billing:Subscriptions:CancelAtPeriodEnd", "false"));
+        using var client = host.CreateClient();
+        var (userId, token) = await RegisterAndLoginAsync(
+            client, $"uc42-immediate-{Guid.CreateVersion7():N}@example.test");
+        var subscriptionId = await MirrorActiveSubscriptionAsync(
+            host.Services, userId, cancelAtPeriodEnd: false);
+
+        var response = await client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/billing/subscriptions/cancel", token));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var data = await PlatformApiFactory.ReadData(response);
+        data.GetProperty("status").GetString().ShouldBe("Canceled");
+        data.GetProperty("cancelAtPeriodEnd").GetBoolean().ShouldBeFalse();
+
+        var localState = await fixture.ScalarAsync<string>(
+            $"SELECT \"Status\" || ':' || \"CancelAtPeriodEnd\"::text FROM subscriptions WHERE \"StripeSubscriptionId\" = '{subscriptionId}'");
+        localState.ShouldBe("Canceled:false");
+
+        var me = await client.SendAsync(fixture.Authed(
+            HttpMethod.Get, "/v1/billing/subscriptions/me", token));
+        me.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
     public async Task Cancel_subscription_translates_provider_failure_to_domain_error()
     {
         var (userId, token) = await fixture.RegisterAndLoginAsync($"uc42-provider-{Guid.CreateVersion7():N}@example.test", Password);
@@ -74,24 +101,47 @@ public sealed class CancelSubscriptionTests(PlatformApiFactory fixture)
 
     private async Task<string> MirrorActiveSubscriptionAsync(Guid userId, bool cancelAtPeriodEnd)
     {
+        return await MirrorActiveSubscriptionAsync(fixture.Services, userId, cancelAtPeriodEnd);
+    }
+
+    private static async Task<string> MirrorActiveSubscriptionAsync(
+        IServiceProvider services, Guid userId, bool cancelAtPeriodEnd)
+    {
         var subscriptionId = $"sub_{Guid.CreateVersion7():N}";
-        Fake.SeedSubscription(new StripeSubscriptionState(
+        var fake = (FakeStripeGateway)services.GetRequiredService<IStripeGateway>();
+        fake.SeedSubscription(new StripeSubscriptionState(
             subscriptionId,
             Status: "active",
             CustomerId: "cus_test",
             CurrentPeriodEnd: DateTimeOffset.UtcNow.AddMonths(1),
             CancelAtPeriodEnd: cancelAtPeriodEnd,
             Metadata: new Dictionary<string, string> { ["user_id"] = userId.ToString(), ["plan_key"] = "pro" }));
-        await DispatchAsync(new UpsertSubscriptionFromStripeCommand(subscriptionId));
+        await DispatchAsync(services, new UpsertSubscriptionFromStripeCommand(subscriptionId));
         return subscriptionId;
     }
 
-    private FakeStripeGateway Fake => (FakeStripeGateway)fixture.Services.GetRequiredService<IStripeGateway>();
-
     private async Task DispatchAsync(ICommand command)
     {
-        await using var scope = fixture.Services.CreateAsyncScope();
+        await DispatchAsync(fixture.Services, command);
+    }
+
+    private static async Task DispatchAsync(IServiceProvider services, ICommand command)
+    {
+        await using var scope = services.CreateAsyncScope();
         var dispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
         await dispatcher.Send(command);
+    }
+
+    private static async Task<(Guid UserId, string AccessToken)> RegisterAndLoginAsync(HttpClient client, string email)
+    {
+        var register = await client.PostAsJsonAsync("/v1/identity/users", new { email, password = Password });
+        register.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var userId = (await PlatformApiFactory.ReadData(register)).GetProperty("userId").GetGuid();
+
+        var login = await client.PostAsJsonAsync("/v1/identity/auth/login", new { email, password = Password });
+        login.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var token = (await PlatformApiFactory.ReadData(login)).GetProperty("accessToken").GetString()!;
+
+        return (userId, token);
     }
 }
