@@ -171,13 +171,14 @@ _Canonical write slice; anonymous signup now shares the auth limiter with login/
 | Unknown email — timing leak | ✓ | Always runs Argon2 Verify against a cached dummy hash; passwordValid gated on hasRealHash — LoginHandler.cs:34-58 |
 | Unknown email — generic error | ✓ | Throws UnauthorizedException(auth.invalid_credentials) identical to wrong password — LoginHandler.cs:56-59,80 |
 | GDPR-erased account (blank PasswordHash) authenticating | ✓ | hasRealHash=false so passwordValid can never be true even if dummy matches — LoginHandler.cs:49-53; test Erasure_tombstones...reLogin 401 |
+| Email case/whitespace normalization | ✓ | Login hashes Email.Trim().ToUpperInvariant() before lookup (LoginHandler.cs:55-57); proven by PiiColumnEncryptionTests.Login_email_lookup_is_case_and_whitespace_insensitive_through_the_blind_index. |
 | Locked-out account with CORRECT password | ✓ | LockoutEndUtc>now rejected with auth.locked_out before issuing — LoginHandler.cs:62-66; test Locks_out_after_threshold...rejects_correct_credentials |
 | Lockout threshold + window expiry | ✓ | 5 strikes -> 15min lockout, counter reset on lockout/success — LoginHandler.cs:29-30,71-88; tests Lockout_expires..., A_successful_login_resets_the_failed_attempt_counter |
 | Lockout counter persistence on failure | ✓ | SaveChangesAsync on the failure branch — LoginHandler.cs:78 (tracked entity -> xmin + audit) |
 | Brute-force throttling at the edge | ✓ | Endpoint has RequireRateLimiting("auth") per-IP — LoginEndpoint.cs:22; proven by PlatformContractTests.Login_endpoint_uses_the_auth_rate_limit_policy. |
 | Concurrent failed logins racing the counter | ◐ | Counter increment is a tracked SaveChanges (xmin + ConcurrencyRetryBehavior), but parallel failures could under-count strikes; no test exercises this race. Low severity (lockout still eventually trips). |
 
-**Testy:** AuthRobustnessTests.Unknown_email_and_wrong_password_return_identical_401_invalid_credentials; AccountLockoutTests.Locks_out_after_threshold_failures_and_rejects_correct_credentials; AccountLockoutTests.Lockout_expires_after_the_window_and_the_correct_password_works_again; AccountLockoutTests.A_successful_login_resets_the_failed_attempt_counter; PlatformContractTests.Login_endpoint_uses_the_auth_rate_limit_policy; IdentityE2ETests login leg; PiiColumnEncryptionTests erased-login-fails leg
+**Testy:** AuthRobustnessTests.Unknown_email_and_wrong_password_return_identical_401_invalid_credentials; AccountLockoutTests.Locks_out_after_threshold_failures_and_rejects_correct_credentials; AccountLockoutTests.Lockout_expires_after_the_window_and_the_correct_password_works_again; AccountLockoutTests.A_successful_login_resets_the_failed_attempt_counter; PlatformContractTests.Login_endpoint_uses_the_auth_rate_limit_policy; IdentityE2ETests login leg; PiiColumnEncryptionTests erased-login-fails leg; PiiColumnEncryptionTests.Login_email_lookup_is_case_and_whitespace_insensitive_through_the_blind_index
 **Test gaps:** No concurrency test on the failed-attempt counter under parallel wrong-password logins
 
 _Strong: dummy-hash timing equalization + hasRealHash gate is the right pattern; erased accounts can't authenticate by construction; known-wrong vs unknown-email response parity is pinned directly._
@@ -804,12 +805,12 @@ _Standard, correct AES-GCM layout [nonce|tag|ciphertext]. AAD and malformed-blob
 | Dev fallback when key unset | ✓ | falls back to DevKeyPlaceholder so dev/tests work (HmacBlindIndexHasher.cs:52-55) |
 | null normalizedValue | ✓ | ArgumentNullException.ThrowIfNull (HmacBlindIndexHasher.cs:59) |
 | Same input lookup stability | ✓ | HMAC-SHA256 over the caller-normalized value is deterministic and key-bound (HmacBlindIndexHasher.cs:57-63); test BlindIndexHasherTests.Hash_is_deterministic_for_same_normalized_value_and_changes_for_other_values |
-| Caller-side normalization (Trim/ToUpperInvariant) consistency | ◐ | hasher hashes the value as-given; normalization is the CALLER's contract (PersonalData.cs:28-29). Correct by design but no shared helper enforces it — a caller that forgets normalization silently misses lookups |
+| Caller-side normalization (Trim/ToUpperInvariant) consistency | ✓ | hasher hashes the value as-given; normalization is the CALLER's contract (PersonalData.cs:28-29). Register/Login/ForgotPassword normalize before hashing; login is directly pinned by PiiColumnEncryptionTests.Login_email_lookup_is_case_and_whitespace_insensitive_through_the_blind_index. |
 
-**Testy:** BlindIndexHasherTests.Hash_is_deterministic_for_same_normalized_value_and_changes_for_other_values; BlindIndexHasherTests.Validator_rejects_missing_placeholder_or_short_key_outside_development; BlindIndexHasherTests.Validator_allows_dev_placeholder_in_development_only
-**Test gaps:** Normalization-contract test (e.g. Email login is case-insensitive) lives in Identity, not asserted here.
+**Testy:** BlindIndexHasherTests.Hash_is_deterministic_for_same_normalized_value_and_changes_for_other_values; BlindIndexHasherTests.Validator_rejects_missing_placeholder_or_short_key_outside_development; BlindIndexHasherTests.Validator_allows_dev_placeholder_in_development_only; PiiColumnEncryptionTests.Login_email_lookup_is_case_and_whitespace_insensitive_through_the_blind_index
+**Test gaps:** No remaining focused blind-index key/normalization gap in this slice.
 
-_Key handling and fail-fast are correct. The normalization contract is the one soft spot — it relies on every caller normalizing identically; only Identity uses it today._
+_Key handling and fail-fast are correct. The hasher stays deliberately dumb; Identity's login lookup now pins the caller-side normalization contract._
 
 ### Erasure fan-out + crypto-shred (UserErasureRequested -> shred) — 🟢 minor-gaps
 *On erasure, run each module's IErasePersonalData then crypto-shred the subject DEK as the authoritative act.*

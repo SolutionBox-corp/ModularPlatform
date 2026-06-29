@@ -72,6 +72,26 @@ public sealed class PiiColumnEncryptionTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Login_email_lookup_is_case_and_whitespace_insensitive_through_the_blind_index()
+    {
+        var email = $"login-pii-{Guid.CreateVersion7():N}@example.com";
+        var register = await fixture.Client.PostAsJsonAsync(
+            "/v1/identity/users", new { email, password = Password });
+        register.StatusCode.ShouldBe(HttpStatusCode.Created);
+
+        var login = await fixture.Client.PostAsJsonAsync(
+            "/v1/identity/auth/login", new { email = $"  {email.ToUpperInvariant()}  ", password = Password });
+        login.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var token = (await PlatformApiFactory.ReadData(login)).GetProperty("accessToken").GetString()!;
+
+        var profile = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/identity/users/me", token));
+        profile.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var data = await PlatformApiFactory.ReadData(profile);
+        data.GetProperty("email").GetString().ShouldBe(email);
+    }
+
+    [Fact]
     public async Task Erasure_tombstones_the_row_blanks_the_password_and_kills_the_ciphertext()
     {
         var email = $"erase-pii-{Guid.CreateVersion7():N}@example.com";
