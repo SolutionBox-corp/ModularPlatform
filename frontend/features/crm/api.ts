@@ -102,6 +102,14 @@ export interface CompaniesPage {
   totalCount: number;
 }
 
+export interface KanbanColumn { id: string; name: string; position: number; }
+export interface KanbanCard {
+  id: string; columnId: string; position: number; title: string; description: string | null;
+  contactId: string | null; dealId: string | null; dueAt: string | null;
+}
+export interface KanbanBoardListItem { id: string; name: string; createdAt: string; }
+export interface KanbanBoardDetail { id: string; name: string; columns: KanbanColumn[]; cards: KanbanCard[]; }
+
 export interface CrmTask {
   id: string;
   contactId: string | null;
@@ -294,6 +302,20 @@ export const crmQueries = {
       queryFn: () => apiFetch<Company>(`crm/companies/${id}`),
       enabled: id.length > 0,
     }),
+
+  boards: () =>
+    queryOptions({
+      queryKey: [...queryRoots.crm, "boards"],
+      queryFn: () => apiFetch<{ items: KanbanBoardListItem[] }>("crm/boards?page=1&pageSize=50"),
+      staleTime: 15_000,
+    }),
+
+  board: (id: string) =>
+    queryOptions({
+      queryKey: [...queryRoots.crm, "board", id],
+      queryFn: () => apiFetch<KanbanBoardDetail>(`crm/boards/${id}`),
+      enabled: id.length > 0,
+    }),
 };
 
 /* ----------------------------------------------------------------------------
@@ -429,4 +451,20 @@ export function updateCompany(id: string, input: Partial<CompanyInput>): Promise
 
 export function deleteCompany(id: string): Promise<void> {
   return apiFetch<void>(`crm/companies/${id}`, { method: "DELETE" });
+}
+
+export function createBoard(name: string): Promise<{ id: string }> {
+  return apiFetch<{ id: string }>("crm/boards", { method: "POST", body: { name } });
+}
+
+export function createCard(boardId: string, columnId: string, title: string): Promise<{ id: string }> {
+  return apiFetch<{ id: string }>(`crm/boards/${boardId}/cards`, { method: "POST", body: { columnId, title } });
+}
+
+export function moveCard(cardId: string, columnId: string, position: number): Promise<void> {
+  return apiFetch<void>(`crm/cards/${cardId}/move`, { method: "POST", body: { columnId, position } });
+}
+
+export function deleteCard(id: string): Promise<void> {
+  return apiFetch<void>(`crm/cards/${id}`, { method: "DELETE" });
 }

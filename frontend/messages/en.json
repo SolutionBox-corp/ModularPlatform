@@ -419,7 +419,8 @@
       "taskDeleted": "Task deleted",
       "companyCreated": "Company created",
       "companyUpdated": "Company updated",
-      "companyDeleted": "Company deleted"
+      "companyDeleted": "Company deleted",
+      "boardCreated": "Board created"
     },
     "validation": {
       "fullNameRequired": "Name is required.",
@@ -517,6 +518,14 @@
       "notes": "Notes",
       "save": "Save",
       "saving": "Saving…"
+    },
+    "board": {
+      "pageHeading": "Boards",
+      "pageDescription": "Kanban boards for your CRM work.",
+      "new": "New board",
+      "newPlaceholder": "Board name",
+      "empty": "No boards yet.",
+      "addCard": "Add card"
     }
   },
   "files": {
@@ -798,7 +807,8 @@
     "crm": "CRM",
     "crmDeals": "Deals",
     "crmTasks": "Tasks",
-    "crmCompanies": "Companies"
+    "crmCompanies": "Companies",
+    "crmBoard": "Board"
   },
   "notifications": {
     "badge": {

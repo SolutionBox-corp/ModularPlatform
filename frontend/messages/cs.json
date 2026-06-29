@@ -419,7 +419,8 @@
       "taskDeleted": "Úkol smazán",
       "companyCreated": "Firma vytvořena",
       "companyUpdated": "Firma upravena",
-      "companyDeleted": "Firma smazána"
+      "companyDeleted": "Firma smazána",
+      "boardCreated": "Nástěnka vytvořena"
     },
     "validation": {
       "fullNameRequired": "Jméno je povinné.",
@@ -517,6 +518,14 @@
       "notes": "Poznámky",
       "save": "Uložit",
       "saving": "Ukládám…"
+    },
+    "board": {
+      "pageHeading": "Nástěnky",
+      "pageDescription": "Kanban nástěnky pro CRM práci.",
+      "new": "Nová nástěnka",
+      "newPlaceholder": "Název nástěnky",
+      "empty": "Zatím žádné nástěnky.",
+      "addCard": "Přidat kartu"
     }
   },
   "files": {
@@ -798,7 +807,8 @@
     "crm": "CRM",
     "crmDeals": "Obchody",
     "crmTasks": "Úkoly",
-    "crmCompanies": "Firmy"
+    "crmCompanies": "Firmy",
+    "crmBoard": "Nástěnka"
   },
   "notifications": {
     "badge": {

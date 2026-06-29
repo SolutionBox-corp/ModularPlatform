@@ -84,6 +84,13 @@ export const NAV_ITEMS: NavItem[] = [
     moduleKey: "crm",
   },
   {
+    key: "crm-board",
+    href: "/crm/board",
+    labelKey: "crmBoard",
+    icon: LayoutDashboardIcon,
+    moduleKey: "crm",
+  },
+  {
     key: "marketing",
     href: "/marketing",
     labelKey: "marketing",

@@ -10,14 +10,18 @@ import {
   completeMeeting,
   createContact,
   createCompany,
+  createBoard,
+  createCard,
   createDeal,
   createMeeting,
   createTask,
   deleteContact,
   deleteCompany,
+  deleteCard,
   deleteDeal,
   deleteTask,
   completeTask,
+  moveCard,
   moveDealStage,
   updateContact,
   updateCompany,
@@ -237,5 +241,39 @@ export function useDeleteCompany() {
   return useMutation({
     mutationFn: (id: string) => deleteCompany(id),
     onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: queryRoots.crm }); toast.success(t("toast.companyDeleted")); },
+  });
+}
+
+export function useCreateBoard() {
+  const queryClient = useQueryClient();
+  const t = useTranslations("crm");
+  return useMutation({
+    mutationFn: (name: string) => createBoard(name),
+    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: queryRoots.crm }); toast.success(t("toast.boardCreated")); },
+  });
+}
+
+export function useCreateCard(boardId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ columnId, title }: { columnId: string; title: string }) => createCard(boardId, columnId, title),
+    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: queryRoots.crm }); },
+  });
+}
+
+export function useMoveCard() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ cardId, columnId, position }: { cardId: string; columnId: string; position: number }) =>
+      moveCard(cardId, columnId, position),
+    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: queryRoots.crm }); },
+  });
+}
+
+export function useDeleteCard() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteCard(id),
+    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: queryRoots.crm }); },
   });
 }
