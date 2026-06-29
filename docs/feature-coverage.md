@@ -1406,14 +1406,15 @@ _Comprehensive, hardened implementation; cross-principal read denial, system byp
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
 | No replica configured | ✓ | Caller passes the write connection as readConnectionString (docstring lines 8-9) |
-| Reads bypassing RLS (no interceptor on read path) | ✓ | Adds PrincipalSessionConnectionInterceptor when rls.Enabled (ReadDbContextFactory.cs:29-32); runtime role derived via RlsConnectionString in AddModuleReadDbContext (DI.cs:64-66) |
+| Reads bypassing RLS (no interceptor on read path) | ✓ | Adds PrincipalSessionConnectionInterceptor when rls.Enabled (ReadDbContextFactory.cs:29-32); runtime role derived via RlsConnectionString in AddModuleReadDbContext (DI.cs:64-66); pinned by ReadDbContextFactoryTests.AddModuleReadDbContext_uses_runtime_role_and_stamps_principal_when_rls_is_enabled |
+| RLS-disabled deployment still uses admin connection and no GUC interceptor | ✓ | RlsConnectionString.ForRuntime returns the admin connection when disabled (RlsConnectionString.cs:15-18); pinned by ReadDbContextFactoryTests.AddModuleReadDbContext_keeps_admin_connection_and_skips_principal_interceptor_when_rls_is_disabled |
 | Decryption on the interceptor-free read path | ✓ | PersonalDataDecryptingConverter is baked into the cached model, so reads decrypt without an interceptor (PlatformDbContext.cs:70-77; PersonalDataEncryption.cs docstring) |
 | No audit/concurrency interceptors on reads | ✓ | Factory deliberately omits them — reads only (docstring line 10) |
 
-**Testy:** RlsTests/TenantIsolationTests exercise the read path implicitly via /me and credit queries
-**Test gaps:** No direct test that the read factory uses the runtime (app_rls) role + stamps GUCs (covered transitively by RlsTests reading via the app, but not isolated); No no-replica fallback test
+**Testy:** ReadDbContextFactoryTests (runtime role + PrincipalSessionConnectionInterceptor when RLS enabled; admin connection + no principal interceptor when disabled); RlsTests/TenantIsolationTests exercise the read path implicitly via /me and credit queries
+**Test gaps:** No no-replica fallback test
 
-_Read-side RLS isolation is the subtle correctness point and is covered transitively._
+_Read-side RLS isolation is the subtle correctness point; the factory registration is now pinned directly and still exercised through module integration tests._
 
 ### PII at rest: encryption interceptor + decrypting converter — ✅ correct
 *Seal [Encrypted] columns under the subject DEK on write; decrypt transparently on read; erasure shreds the key.*
