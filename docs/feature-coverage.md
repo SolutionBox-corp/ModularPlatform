@@ -312,8 +312,8 @@ _Crypto-shred reveal is solid and end-to-end tested both pre- and post-erasure._
 | Distinct tenants per registration | ✓ | test Registration_provisions_a_tenant_and_the_token_carries_it |
 | Cross-user-within-same-tenant isolation | ◐ | Acknowledged residual: no admin 'list users in my tenant' query exists yet, so within-tenant multi-user isolation is not exercised — documented in TenancyTests.cs:11-12. Each registration gets its own tenant today, so cross-user==cross-tenant in practice. |
 
-**Testy:** TenancyTests.Registration_provisions_a_tenant_and_the_token_carries_it; TenancyTests.Registration_does_not_store_the_plaintext_email_in_the_tenant_name; TenancyTests.Registration_does_not_emit_a_dangling_location_header; TenantIsolationTests (all 3)
-**Test gaps:** No within-tenant multi-user isolation test (no listing query to exercise it — acknowledged); No test that a forged/edited tenant claim is rejected by JWT signature validation (covered at the Web/JWT layer, not here)
+**Testy:** TenancyTests.Registration_provisions_a_tenant_and_the_token_carries_it; TenancyTests.Registration_does_not_store_the_plaintext_email_in_the_tenant_name; TenancyTests.Registration_does_not_emit_a_dangling_location_header; TenantIsolationTests (cross-tenant isolation, client-supplied id ignored, soft-delete filter, forged tenant claim rejected)
+**Test gaps:** No within-tenant multi-user isolation test (no listing query to exercise it — acknowledged)
 
 _Isolation null-escape is provably closed; the only residual is the absence of a multi-user-per-tenant listing surface to test, which is documented._
 

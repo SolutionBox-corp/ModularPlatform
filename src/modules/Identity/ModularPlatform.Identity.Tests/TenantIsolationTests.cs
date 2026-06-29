@@ -1,4 +1,7 @@
 using System.Net;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using ModularPlatform.IntegrationTesting;
 using Shouldly;
 
@@ -87,6 +90,20 @@ public sealed class TenantIsolationTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Edited_tenant_claim_is_rejected_by_jwt_signature_validation()
+    {
+        var (_, accessToken) = await fixture.RegisterAndLoginAsync(
+            $"tiso-forged-tenant-{Guid.CreateVersion7():N}@example.com", "Sup3rSecret!");
+        var forgedToken = RewriteTenantClaimWithoutResigning(accessToken, Guid.CreateVersion7());
+
+        var response = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/identity/users/me", forgedToken));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized,
+            "changing tenant_id in the payload must invalidate the HMAC signature before HttpTenantContext can trust it");
+    }
+
+    [Fact]
     public async Task My_profile_is_not_returned_after_the_account_is_soft_deleted()
     {
         var (userId, accessToken) = await fixture.RegisterAndLoginAsync($"tiso-deleted-{Guid.CreateVersion7():N}@example.com", "Sup3rSecret!");
@@ -113,4 +130,31 @@ public sealed class TenantIsolationTests(PlatformApiFactory fixture)
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
+
+    private static string RewriteTenantClaimWithoutResigning(string jwt, Guid tenantId)
+    {
+        var parts = jwt.Split('.');
+        parts.Length.ShouldBe(3);
+
+        var payloadJson = Encoding.UTF8.GetString(Base64UrlDecode(parts[1]));
+        var payload = JsonNode.Parse(payloadJson)!.AsObject();
+        payload["tenant_id"] = tenantId.ToString();
+
+        parts[1] = Base64UrlEncode(Encoding.UTF8.GetBytes(payload.ToJsonString()));
+        return string.Join('.', parts);
+    }
+
+    private static byte[] Base64UrlDecode(string value)
+    {
+        var padded = value.PadRight(value.Length + (4 - value.Length % 4) % 4, '=')
+            .Replace('-', '+')
+            .Replace('_', '/');
+        return Convert.FromBase64String(padded);
+    }
+
+    private static string Base64UrlEncode(byte[] bytes) =>
+        Convert.ToBase64String(bytes)
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
 }
