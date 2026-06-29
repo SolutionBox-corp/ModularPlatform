@@ -52,6 +52,46 @@ public sealed class OperationsTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Demo_operation_accept_is_idempotent_for_the_same_user_type_and_key()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync($"op-idem-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+        var key = $"demo-{Guid.CreateVersion7():N}";
+
+        var firstRequest = fixture.Authed(HttpMethod.Post, "/v1/operations/demo", token);
+        firstRequest.Headers.Add("Idempotency-Key", key);
+        var first = await fixture.Client.SendAsync(firstRequest);
+
+        var retryRequest = fixture.Authed(HttpMethod.Post, "/v1/operations/demo", token);
+        retryRequest.Headers.Add("Idempotency-Key", key);
+        var retry = await fixture.Client.SendAsync(retryRequest);
+
+        first.StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        retry.StatusCode.ShouldBe(HttpStatusCode.Accepted);
+
+        var firstId = (await PlatformApiFactory.ReadData(first)).GetProperty("operationId").GetGuid();
+        var retryId = (await PlatformApiFactory.ReadData(retry)).GetProperty("operationId").GetGuid();
+        retryId.ShouldBe(firstId);
+
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM operations WHERE \"IdempotencyKey\" = '{key}'")).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Demo_operation_rejects_an_oversized_idempotency_key_before_creating_an_operation()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync($"op-idem-long-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+        var key = new string('x', 257);
+
+        var request = fixture.Authed(HttpMethod.Post, "/v1/operations/demo", token);
+        request.Headers.Add("Idempotency-Key", key);
+        var response = await fixture.Client.SendAsync(request);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM operations WHERE \"IdempotencyKey\" = '{key}'")).ShouldBe(0);
+    }
+
+    [Fact]
     public async Task Demo_invoke_runs_short_worker_request_and_times_out_predictably()
     {
         var (_, token) = await fixture.RegisterAndLoginAsync($"op-invoke-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");

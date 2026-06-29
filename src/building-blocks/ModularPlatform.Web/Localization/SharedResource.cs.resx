@@ -81,6 +81,7 @@
   <data name="operations.demo_input_invalid" xml:space="preserve"><value>Demo vstup je mimo povolený rozsah.</value></data>
   <data name="operations.demo_timeout_invalid" xml:space="preserve"><value>Demo timeout je mimo povolený rozsah.</value></data>
   <data name="operations.demo_delay_invalid" xml:space="preserve"><value>Demo zpoždění workeru je mimo povolený rozsah.</value></data>
+  <data name="operations.idempotency_key.too_long" xml:space="preserve"><value>Idempotency klíč je příliš dlouhý.</value></data>
   <data name="auth.required" xml:space="preserve"><value>Vyžadováno přihlášení.</value></data>
 
   <data name="marketing.source_unknown" xml:space="preserve"><value>Neznámý marketingový zdroj.</value></data>

@@ -1085,14 +1085,16 @@ _Implementation is correct and matches platform conventions; exporter and eraser
 |---|:--:|---|
 | Owner must come from token, not body (IDOR) | ✓ | StartDemoOperationEndpoint.cs:25 takes userId from ITenantContext.UserId; StartDemoOperationCommand carries it; row stamped IUserOwned at StartDemoOperationHandler.cs:22 |
 | Operation row + work message committed atomically (no orphan operation, no phantom message) | ✓ | StartDemoOperationHandler.cs:26-29 adds the Operation to outbox.DbContext and PublishAsync, then SaveChangesAndFlushMessagesAsync — single outbox commit |
+| Duplicate client retry of the accept request | ✓ | `Idempotency-Key` header is stored on operations; UNIQUE(UserId, Type, IdempotencyKey) plus pre-check/catch race returns the original operation id and does not publish a second work item. Covered by OperationsTests.Demo_operation_accept_is_idempotent_for_the_same_user_type_and_key. |
+| Malformed accept idempotency key | ✓ | StartDemoOperationValidator rejects keys longer than the DB column before persistence with operations.idempotency_key.too_long. Covered by OperationsTests.Demo_operation_rejects_an_oversized_idempotency_key_before_creating_an_operation. |
 | Location stays correct under the /v1 group prefix | ✓ | StartDemoOperationEndpoint.cs:29 uses LinkGenerator.GetPathByName('GetOperationStatus') with a string fallback; proven by OperationsTests Location assertion |
 | Unauthenticated request | ✓ | RequireAuthorization() at StartDemoOperationEndpoint.cs:33 + explicit UnauthorizedException at line 25 |
 | Slow work accidentally done in the accept handler | ✓ | Handler only enqueues; the canonical comment + RunDemoOperationHandler does the work on the worker |
 
-**Testy:** OperationsTests.Demo_operation_is_accepted_runs_on_the_worker_and_is_owner_scoped (202 + Location + worker drives to Succeeded)
-**Test gaps:** No test that a malformed/duplicate accept does not create two operations (outbox atomicity is implied, not directly asserted)
+**Testy:** OperationsTests.Demo_operation_is_accepted_runs_on_the_worker_and_is_owner_scoped (202 + Location + worker drives to Succeeded); OperationsTests.Demo_operation_accept_is_idempotent_for_the_same_user_type_and_key; OperationsTests.Demo_operation_rejects_an_oversized_idempotency_key_before_creating_an_operation
+**Test gaps:** No remaining focused accept/idempotency gap in this slice.
 
-_Canonical 202 pattern; clean, token-sourced owner, atomic outbox._
+_Canonical 202 pattern; clean, token-sourced owner, atomic outbox, and retry-safe accept via Idempotency-Key._
 
 ### Operation state machine + terminal guard (OperationStore) — 🟢 minor-gaps
 *Advance an operation Pending→Running→Succeeded/Failed with terminal states final and idempotent.*

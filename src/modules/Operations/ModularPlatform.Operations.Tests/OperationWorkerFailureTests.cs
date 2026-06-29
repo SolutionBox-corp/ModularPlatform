@@ -45,7 +45,7 @@ public sealed class OperationWorkerFailureTests
         public Guid? FailedOperationId { get; private set; }
         public string? FailedErrorCode { get; private set; }
 
-        public Task<Guid> CreateAsync(string type, Guid userId, CancellationToken ct) =>
+        public Task<Guid> CreateAsync(string type, Guid userId, CancellationToken ct, string? idempotencyKey = null) =>
             Task.FromResult(Guid.CreateVersion7());
 
         public Task MarkRunningAsync(Guid operationId, CancellationToken ct) => Task.CompletedTask;

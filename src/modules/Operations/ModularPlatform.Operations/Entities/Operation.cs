@@ -14,6 +14,7 @@ internal sealed class Operation : AuditableEntity, IUserOwned
 {
     public Guid UserId { get; set; }
     public string Type { get; set; } = string.Empty;
+    public string? IdempotencyKey { get; set; }
     public OperationStatus Status { get; set; }
     public string? ResultJson { get; set; }
     public string? ErrorCode { get; set; }
@@ -29,8 +30,12 @@ internal sealed class OperationConfiguration : IEntityTypeConfiguration<Operatio
         builder.HasKey(o => o.Id);
         builder.Property(o => o.UserId).IsRequired();
         builder.Property(o => o.Type).HasMaxLength(128).IsRequired();
+        builder.Property(o => o.IdempotencyKey).HasMaxLength(256);
         builder.Property(o => o.Status).HasConversion<string>().HasMaxLength(16).IsRequired();
         builder.Property(o => o.ErrorCode).HasMaxLength(128);
         builder.HasIndex(o => o.UserId);
+        builder.HasIndex(o => new { o.UserId, o.Type, o.IdempotencyKey })
+            .IsUnique()
+            .HasFilter("\"IdempotencyKey\" IS NOT NULL");
     }
 }

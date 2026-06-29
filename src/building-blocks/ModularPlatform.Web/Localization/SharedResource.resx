@@ -81,6 +81,7 @@
   <data name="operations.demo_input_invalid" xml:space="preserve"><value>The demo input is outside the allowed range.</value></data>
   <data name="operations.demo_timeout_invalid" xml:space="preserve"><value>The demo timeout is outside the allowed range.</value></data>
   <data name="operations.demo_delay_invalid" xml:space="preserve"><value>The demo worker delay is outside the allowed range.</value></data>
+  <data name="operations.idempotency_key.too_long" xml:space="preserve"><value>The idempotency key is too long.</value></data>
   <data name="auth.required" xml:space="preserve"><value>Authentication required.</value></data>
 
   <data name="marketing.source_unknown" xml:space="preserve"><value>Unknown marketing source.</value></data>
