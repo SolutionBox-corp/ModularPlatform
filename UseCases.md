@@ -1,9 +1,11 @@
-# ModularPlatform UseCases
+# ModularPlatform UseCases pro novy produktovy modul
 
 Datum: 2026-06-25
 
 Tento dokument je katalog pro noveho vyvojare, ktery stavi libovolny produktovy modul nad ModularPlatform.
-Neni to specifikace CRM ani jine konkretni domeny.
+Neni to specifikace CRM ani jine konkretni domeny. CRM modul v base dnes neexistuje; kdyz se v dokumentu objevi
+CRM, Helpdesk, Projects nebo Marketing, jsou to jen priklady domen, ktere by mohly na platforme vzniknout stejnym
+zpusobem.
 
 Format je zamerne prakticky:
 
@@ -14,7 +16,7 @@ Format je zamerne prakticky:
 
 Pravidlo pro cteni: kdyz delas novy produktovy modul, modul vlastni jen svoji domenu. Identity, tenanty, kredity, soubory, notifikace, GDPR, realtime, outbox, worker a audit uz existuji v base.
 
-Poznamka k nazvum: `ExampleModule` a `example` jsou v dokumentu jen placeholdery. Stejny postup plati pro libovolny produktovy modul, napr. Projects, Helpdesk, Marketing, Scheduling nebo CRM. CRM je tady jen priklad domeny, ne specialni cil platformy. Kdyz delas jiny modul, prepis prefixy `example`, `ExampleModule`, `ModularPlatform.ExampleModule` a routy `/example` na svoji domenu.
+Poznamka k nazvum: `ExampleModule` a `example` jsou v dokumentu jen placeholdery. Stejny postup plati pro libovolny produktovy modul, napr. Projects, Helpdesk, Marketing, Scheduling nebo CRM. Kdyz delas konkretni modul, prepis prefixy `example`, `ExampleModule`, `ModularPlatform.ExampleModule` a routy `/example` na svoji domenu.
 
 ## Identity
 
