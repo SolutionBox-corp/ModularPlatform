@@ -22,6 +22,7 @@ namespace ModularPlatform.Billing.Features.Credits.ProcessStripeEvent;
 /// <item><c>customer.subscription.*</c> → upsert the local mirror from Stripe OBJECT state (out-of-order safe).</item>
 /// <item><c>invoice.paid</c>/<c>invoice.payment_succeeded</c> → per-period credit grant
 /// (idempotency key <c>sub-invoice:{invoiceId}</c>).</item>
+/// <item><c>invoice.payment_failed</c> → refresh the subscription mirror only (typically PastDue); no credits.</item>
 /// <item>any event carrying <c>user_id</c>/<c>credit_amount</c> metadata → direct idempotent top-up
 /// (idempotency key = Stripe event id).</item>
 /// </list>
@@ -81,6 +82,12 @@ internal sealed class ProcessStripeEventHandler(
             case "customer.subscription.created" or "customer.subscription.updated" or "customer.subscription.deleted"
                 when stripeEvent.Data?.Object is Subscription subscription:
                 await dispatcher.Send(new UpsertSubscriptionFromStripeCommand(subscription.Id), ct);
+                break;
+
+            case "invoice.payment_failed"
+                when stripeEvent.Data?.Object is Invoice failedInvoice
+                     && failedInvoice.Parent?.SubscriptionDetails?.SubscriptionId is { Length: > 0 } failedSubscriptionId:
+                await dispatcher.Send(new UpsertSubscriptionFromStripeCommand(failedSubscriptionId), ct);
                 break;
 
             case "invoice.paid" or "invoice.payment_succeeded"

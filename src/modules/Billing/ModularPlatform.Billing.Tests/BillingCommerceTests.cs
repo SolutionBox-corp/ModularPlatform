@@ -534,6 +534,64 @@ public sealed class BillingCommerceTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Invoice_payment_failed_refreshes_subscription_to_past_due_without_granting_credits()
+    {
+        var (userId, userToken) = await fixture.RegisterAndLoginAsync(
+            $"sub-payment-failed-{Guid.CreateVersion7():N}@test.io", Password);
+        var subId = $"sub_{Guid.CreateVersion7():N}";
+        var invoiceId = $"in_{Guid.CreateVersion7():N}";
+        var eventId = $"evt_{Guid.CreateVersion7():N}";
+
+        Fake.SeedSubscription(new StripeSubscriptionState(
+            SubscriptionId: subId,
+            Status: "active",
+            CustomerId: "cus_test",
+            CurrentPeriodEnd: DateTimeOffset.UtcNow.AddMonths(1),
+            CancelAtPeriodEnd: false,
+            Metadata: new Dictionary<string, string> { ["user_id"] = userId.ToString(), ["plan_key"] = "pro" }));
+        await SendSubscriptionEventAsync("customer.subscription.created", subId);
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM subscriptions WHERE \"StripeSubscriptionId\" = '{subId}' AND \"Status\" = 'Active'", 1);
+
+        Fake.SeedSubscription(new StripeSubscriptionState(
+            SubscriptionId: subId,
+            Status: "past_due",
+            CustomerId: "cus_test",
+            CurrentPeriodEnd: DateTimeOffset.UtcNow.AddMonths(1),
+            CancelAtPeriodEnd: false,
+            Metadata: new Dictionary<string, string> { ["user_id"] = userId.ToString(), ["plan_key"] = "pro" }));
+        Fake.SeedEvent(new Event
+        {
+            Id = eventId,
+            Type = "invoice.payment_failed",
+            Data = new EventData
+            {
+                Object = new Invoice
+                {
+                    Id = invoiceId,
+                    Parent = new InvoiceParent
+                    {
+                        SubscriptionDetails = new InvoiceParentSubscriptionDetails { SubscriptionId = subId },
+                    },
+                },
+            },
+        });
+
+        (await PostSignedWebhookAsync(eventId, "invoice.payment_failed")).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM stripe_events WHERE \"StripeEventId\" = '{eventId}' AND \"ProcessedAt\" IS NOT NULL", 1);
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM subscriptions WHERE \"StripeSubscriptionId\" = '{subId}' AND \"Status\" = 'PastDue'", 1);
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_entries WHERE \"IdempotencyKey\" = 'sub-invoice:{invoiceId}'")).ShouldBe(0);
+
+        var me = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Get, "/v1/billing/subscriptions/me", userToken));
+        me.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PlatformApiFactory.ReadData(me)).GetProperty("status").GetString().ShouldBe("PastDue");
+    }
+
+    [Fact]
     public async Task Access_only_subscription_plan_does_not_grant_invoice_credits()
     {
         using var host = fixture.CreateHost(

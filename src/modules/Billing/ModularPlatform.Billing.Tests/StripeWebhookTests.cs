@@ -20,7 +20,7 @@ namespace ModularPlatform.Billing.Tests;
 /// <item>A BAD signature is rejected with 400 and NOTHING is persisted.</item>
 /// </list>
 ///
-/// IMPORTANT — what these tests can and cannot prove through the shared harness:
+/// IMPORTANT — what these tests prove through the shared harness:
 /// The webhook signature is verified with <c>EventUtility.ConstructEvent(rawBody, sig, WebhookSecret)</c>
 /// (StripeWebhookEndpoint.cs:43-44). The integration host configures NO <c>Billing:Stripe:WebhookSecret</c>
 /// (PlatformApiFactory.cs sets none; appsettings.json has none), so the secret is the empty string and a valid
@@ -28,12 +28,9 @@ namespace ModularPlatform.Billing.Tests;
 /// <c>EventUtility.ComputeSignature</c> does. So the SIGNED ingest path IS reachable in-test.
 /// One focused test overrides the host with a non-empty <c>Billing:Stripe:WebhookSecret</c> to prove an event
 /// signed with the default empty key is rejected before persistence.
-/// The DOWNSTREAM ledger top-up is NOT reachable: the worker command handler refetches the event with a LIVE
-/// Stripe API call — <c>new EventService().GetAsync(...)</c> (ProcessStripeEventCommand.cs:29) — and no Stripe API
-/// key is configured in the test host, so that call throws and the <c>CreditTopUpCommand</c> never runs. Therefore
-/// these tests assert the ingest guarantees (200 / row / enqueued envelope / exactly-once) but deliberately do NOT
-/// assert a Topup <c>credit_entries</c> row, a <c>CreditsToppedUp</c> envelope, or <c>ProcessedAt</c> being stamped
-/// — all of which depend on that live external call. See scenariosSkipped notes in the run report.
+/// These focused tests assert the ingest guarantees (200 / row / enqueue / exactly-once / 400 on bad signature).
+/// Full downstream processing is covered in <c>BillingCommerceTests</c>, where the worker refetches events through
+/// the <c>IStripeGateway</c> seam backed by <c>FakeStripeGateway</c> instead of the network.
 /// </summary>
 [Collection("Integration")]
 public sealed class StripeWebhookTests(PlatformApiFactory fixture)
