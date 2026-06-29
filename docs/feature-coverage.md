@@ -1299,11 +1299,12 @@ _errorCode==resx-key and status-code mapping are now both covered by focused tes
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
 | PII in request body | ✓ | Logs only typeof(TRequest).Name, never the body (LoggingBehavior.cs:8,15) |
-| Expected business error vs unexpected exception | ✓ | ModularPlatformException -> LogWarning with ErrorCode (LoggingBehavior.cs:24-29); other -> LogError with stack (31-36) |
+| Expected business error vs unexpected exception | ✓ | ModularPlatformException -> LogWarning with ErrorCode (LoggingBehavior.cs:24-29); other -> LogError with stack (31-36); pinned by LoggingBehaviorTests. |
 
-**Test gaps:** No direct test; low risk (pure logging)
+**Testy:** LoggingBehaviorTests.Successful_request_logs_type_and_elapsed_time_without_request_body; LoggingBehaviorTests.Business_exception_is_logged_as_warning_with_error_code; LoggingBehaviorTests.Unexpected_exception_is_logged_as_error_with_exception
+**Test gaps:** No remaining focused logging-behavior gap in this slice.
 
-_N/A test gap is acceptable for a logging shim._
+_The PII-safe logging contract is now covered directly: request values stay out of logs, business errors are warnings, unexpected failures are errors with exception details._
 
 ### xmin optimistic concurrency + ConcurrencyRetryBehavior — 🟢 minor-gaps
 *Detect concurrent writes via Postgres xmin token and retry the whole command up to 5x with backoff.*
