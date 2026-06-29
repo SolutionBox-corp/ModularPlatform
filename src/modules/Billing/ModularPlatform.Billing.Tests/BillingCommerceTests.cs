@@ -497,6 +497,40 @@ public sealed class BillingCommerceTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Duplicate_invoice_success_events_grant_subscription_credits_exactly_once()
+    {
+        var (userId, userToken) = await fixture.RegisterAndLoginAsync(
+            $"sub-duplicate-invoice-{Guid.CreateVersion7():N}@test.io", Password);
+        var subId = $"sub_{Guid.CreateVersion7():N}";
+        var invoiceId = $"in_{Guid.CreateVersion7():N}";
+
+        Fake.SeedSubscription(new StripeSubscriptionState(
+            SubscriptionId: subId,
+            Status: "active",
+            CustomerId: "cus_test",
+            CurrentPeriodEnd: DateTimeOffset.UtcNow.AddMonths(1),
+            CancelAtPeriodEnd: false,
+            Metadata: new Dictionary<string, string> { ["user_id"] = userId.ToString(), ["plan_key"] = "pro" }));
+        await SendSubscriptionEventAsync("customer.subscription.created", subId);
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM subscriptions WHERE \"StripeSubscriptionId\" = '{subId}' AND \"Status\" = 'Active'", 1);
+
+        await SendInvoiceEventAsync("invoice.paid", subId, invoiceId);
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM credit_entries WHERE \"IdempotencyKey\" = 'sub-invoice:{invoiceId}'", 1);
+
+        await SendInvoiceEventAsync("invoice.payment_succeeded", subId, invoiceId);
+        await Task.Delay(750);
+
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM credit_entries WHERE \"IdempotencyKey\" = 'sub-invoice:{invoiceId}'")).ShouldBe(1);
+        var balance = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, "/v1/billing/credits/balance", userToken));
+        balance.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PlatformApiFactory.ReadData(balance)).GetProperty("available").GetInt64().ShouldBe(100);
+    }
+
+    [Fact]
     public async Task Subscription_plans_come_from_config_and_promo_codes_validate_through_stripe()
     {
         var (_, token) = await fixture.RegisterAndLoginAsync($"plans-{Guid.CreateVersion7():N}@test.io", Password);
@@ -634,6 +668,28 @@ public sealed class BillingCommerceTests(PlatformApiFactory fixture)
             Id = eventId,
             Type = type,
             Data = new EventData { Object = new Subscription { Id = subscriptionId } },
+        });
+        return PostSignedWebhookAsync(eventId, type);
+    }
+
+    private Task<HttpResponseMessage> SendInvoiceEventAsync(string type, string subscriptionId, string invoiceId)
+    {
+        var eventId = $"evt_{Guid.CreateVersion7():N}";
+        Fake.SeedEvent(new Event
+        {
+            Id = eventId,
+            Type = type,
+            Data = new EventData
+            {
+                Object = new Invoice
+                {
+                    Id = invoiceId,
+                    Parent = new InvoiceParent
+                    {
+                        SubscriptionDetails = new InvoiceParentSubscriptionDetails { SubscriptionId = subscriptionId },
+                    },
+                },
+            },
         });
         return PostSignedWebhookAsync(eventId, type);
     }

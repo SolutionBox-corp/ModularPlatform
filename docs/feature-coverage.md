@@ -636,7 +636,7 @@ _Routing is careful and idempotent. Both invoice success event names now share t
 |---|:--:|---|
 | Out-of-order delivery (updated before created, invoice before subscription) | ✓ | Upsert reads Stripe OBJECT state and converges (UpsertSubscriptionFromStripeCommand.cs:12-18); GrantSubscriptionCredits upserts-then-retries when mirror missing (cs:31-40) |
 | Subscription not provisioned by this platform (no user_id metadata) | ✓ | Upsert returns no-op (cs:35-38); grant returns no-op if still missing after upsert (cs:37-39) |
-| Duplicate invoice / webhook redelivery / reconcile replay | ✓ | CreditTopUp idempotency key sub-invoice:{invoiceId} (cs:48-52) |
+| Duplicate invoice / webhook redelivery / reconcile replay | ✓ | CreditTopUp idempotency key sub-invoice:{invoiceId} (cs:48-52). Proven by BillingCommerceTests.Duplicate_invoice_success_events_grant_subscription_credits_exactly_once. |
 | Creation race on the local mirror (UNIQUE StripeSubscriptionId) | ✓ | catch DbUpdateException (not concurrency) — both writers mirrored same Stripe state (UpsertSubscriptionFromStripeCommand.cs:72-80) |
 | Activated/Canceled integration events double-fire | ✓ | Published only on actual status transitions guarded by previousStatus (cs:60-70) |
 | Plan has no credit grant (access-only) | ✓ | GrantSubscriptionCredits returns no-op when plan null or CreditsPerPeriod<=0 (cs:42-45) |
@@ -646,8 +646,8 @@ _Routing is careful and idempotent. Both invoice success event names now share t
 | past_due/unpaid subscription (failed renewal / dunning) | ◐ | MapStatus maps past_due/unpaid/paused→PastDue (UpsertSubscriptionFromStripeCommand.cs:88-90) but there is NO behavior on PastDue: no credit revocation, no notification, and GetMySubscription still returns it as a live subscription (Status!=Canceled). Access-only by design but undocumented; invoice.payment_failed is not routed at all. |
 | Subscription period end living on Stripe items not the subscription | ✓ | StripeGateway.ToState takes max item CurrentPeriodEnd (StripeGateway.cs:122-128) |
 
-**Testy:** BillingCommerceTests.Subscription_lifecycle_reconciles_object_state_out_of_order_and_grants_per_invoice (updated-before-created, invoice grant, cancel-at-period-end, deleted→Canceled, me→404); BillingCommerceTests.Subscription_plans_come_from_config_and_promo_codes_validate_through_stripe
-**Test gaps:** No test for the already_active conflict on a second checkout; No test that invoice.paid redelivery / a second invoice with the same id does NOT double-grant (sub-invoice idempotency); No test of a PastDue transition and what GetMySubscription returns for it; No test for an access-only plan (CreditsPerPeriod<=0) granting nothing; No test for the immediate-cancel branch (CancelAtPeriodEnd=false → Status=Canceled inline)
+**Testy:** BillingCommerceTests.Subscription_lifecycle_reconciles_object_state_out_of_order_and_grants_per_invoice (updated-before-created, invoice grant, cancel-at-period-end, deleted→Canceled, me→404); BillingCommerceTests.Duplicate_invoice_success_events_grant_subscription_credits_exactly_once; BillingCommerceTests.Subscription_plans_come_from_config_and_promo_codes_validate_through_stripe
+**Test gaps:** No test for the already_active conflict on a second checkout; No test of a PastDue transition and what GetMySubscription returns for it; No test for an access-only plan (CreditsPerPeriod<=0) granting nothing; No test for the immediate-cancel branch (CancelAtPeriodEnd=false → Status=Canceled inline)
 
 _Object-state mirroring is the right design and the happy/out-of-order/cancel paths are tested. Genuine gaps: the already-active TOCTOU (mitigated by reconcile but not DB-enforced) and the complete absence of dunning/PastDue handling (invoice.payment_failed unrouted) — fine for access-only products but should be an explicit documented decision._
 
