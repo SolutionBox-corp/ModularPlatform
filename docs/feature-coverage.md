@@ -1463,13 +1463,6 @@ _Clamp/math and the EF extension wrapper are now covered by focused building-blo
 
 _Conventions are solid; the `IUserOwned` -> `Guid UserId` contract is now enforced by an architecture test before RLS bootstrap._
 
-**Nekonzistence v oblasti (4):**
-- Doc-vs-code drift: AddPlatformPersistence XML summary says it registers the pipeline 'once per host' (Persistence/DependencyInjection.cs:17-20,33), but it is actually invoked once PER MODULE (via AddModuleDbContext, Messaging/DependencyInjection.cs:28) and relies on TryAdd*/TryAddEnumerable dedup. The comment understates the per-module invocation that the dedup exists to neutralize.
-- Convention enforced at build: IUserOwned requires a 'Guid UserId' column (Entity.cs:25-31, used by RlsBootstrapper.cs:130 OwnerColumn='UserId') and `RlsConventionTests` asserts it before a mismarked entity can fail later during RLS bootstrap.
-- Mechanism-vs-test mismatch: BillingConcurrencyTests is the only concurrency test and it exercises the atomic ExecuteUpdate debit guard (the money path), NOT the xmin + ConcurrencyRetryBehavior retry loop (ConcurrencyRetryBehavior.cs). The retry-and-succeed and retry-exhaustion behaviors of the command-only retry behavior are asserted nowhere directly.
-- PageRequest/PagedResponse clamping (Paging.cs:16-30, 7-10) is now directly covered by `PagingClampingTests`; `PagedQueryExtensions.ToPagedResponseAsync` remains covered through module list queries rather than a focused EF extension test.
-
-
 ---
 
 ## Messaging, hosts, jobs & Web
