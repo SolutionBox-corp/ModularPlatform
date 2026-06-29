@@ -1331,14 +1331,15 @@ _Logic is correct and well-documented; the xmin retry-and-succeed path itself is
 | Auditing the audit rows (recursion) | ✓ | Snapshots entries before adding audit rows and excludes AuditEntry (AuditInterceptor.cs:64-66) |
 | Update records all columns instead of changed-only | ✓ | ChangedColumns/ValueMap filter on p.IsModified for Update (lines 107,139-146) |
 | HasConversion<string>() enum audited as its int (PL-2) | ✓ | ProviderValue reads GetValueConverter() ?? FindTypeMapping().Converter (lines 184-186); documented at 181-183 |
+| Created/Updated stamps missing or wrong principal/time | ✓ | AuditInterceptor.cs:76-84 stamps AuditableEntity on Added/Modified from ITenantContext + IClock; covered by AuditInterceptorTests.Auditable_entities_are_stamped_on_create_and_update_from_the_current_context |
 | ExecuteUpdate/ExecuteDelete bypass the interceptor | ◐ | Documented limitation (CLAUDE.md, EncryptedAttribute docstring) — by design used only where the change need not be audited; no compile-time guard prevents a careless ExecuteUpdate on an audited table |
 | Composite / missing primary key | ✓ | PrimaryKey joins multi-prop keys; empty string when no key (lines 124-134) |
 | PII in audit values | ✓ | See Audit-PII crypto-shred feature |
 
-**Testy:** AuditPiiEncryptionTests (Create row exists, NewValues is enveloped) — proves rows are written
-**Test gaps:** No direct unit test that an UPDATE records ONLY changed columns (not the whole row); No test that a HasConversion<string>() enum audits as its string label, not the int (the PL-2 regression this code guards against); No test of Created/Updated stamping by/at values
+**Testy:** AuditPiiEncryptionTests (Create row exists, NewValues is enveloped) — proves rows are written; LedgerBackstopTests.PL2; AuditInterceptorTests.Auditable_entities_are_stamped_on_create_and_update_from_the_current_context
+**Test gaps:** No direct unit test that an UPDATE records ONLY changed columns (not the whole row); HasConversion<string>() and Created/Updated stamping are now pinned by targeted tests.
 
-_Correct and carefully written (PL-2 converter fix). The two most subtle behaviors — changed-only column capture and converter resolution — are asserted nowhere directly._
+_Correct and carefully written (PL-2 converter fix). The remaining subtle behavior to isolate directly is changed-only column capture; converter resolution and stamps are covered._
 
 ### Audit IP masking (data minimization) — ✅ correct
 *Apply Full/Truncated/None policy to the client IP recorded on each audit row.*
