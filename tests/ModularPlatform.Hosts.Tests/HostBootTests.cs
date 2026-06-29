@@ -36,6 +36,7 @@ public sealed class HostBootTests
             "--environment=Development",
             "--ConnectionStrings:Write",
             WriteConnectionString,
+            "--RunMigrationsAtStartup=false",
             "--Modules:Identity:Enabled=true",
             "--Modules:Billing:Enabled=true",
             "--Modules:Notifications:Enabled=true",
@@ -46,6 +47,10 @@ public sealed class HostBootTests
             "--Modules:Tenancy:Enabled=true",
             // The fake Stripe gateway is exempt from the prod guard in Development and avoids needing a real API key.
             "--Billing:Stripe:UseFakeGateway=true",
+            "--Jwt:Issuer=test",
+            "--Jwt:Audience=test",
+            "--Jwt:SigningKey=host-boot-signing-key-at-least-32b",
+            "--Secrets:MasterKeys:1=aG9zdC1ib290LXNlY3JldHMta2V5LTAwMDAwMDAwMDA=",
             "--Storage:Provider=local",
         };
 
@@ -56,6 +61,15 @@ public sealed class HostBootTests
         }
 
         return [.. args];
+    }
+
+    [Fact]
+    public async Task Api_host_composes_and_its_dependency_graph_is_valid()
+    {
+        await using var app = await ApiHostBuilder.CreateAsync(BootArgs());
+
+        app.ShouldNotBeNull();
+        AssertPiiRetention(app);
     }
 
     [Fact]

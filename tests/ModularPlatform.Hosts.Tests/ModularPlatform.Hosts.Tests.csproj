@@ -21,6 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\hosts\ModularPlatform.Api\ModularPlatform.Api.csproj" />
     <ProjectReference Include="..\..\src\hosts\ModularPlatform.Worker\ModularPlatform.Worker.csproj" />
     <ProjectReference Include="..\..\src\hosts\ModularPlatform.Jobs\ModularPlatform.Jobs.csproj" />
     <ProjectReference Include="..\..\src\hosts\ModularPlatform.MigrationService\ModularPlatform.MigrationService.csproj" />

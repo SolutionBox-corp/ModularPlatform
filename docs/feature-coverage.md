@@ -1520,8 +1520,8 @@ _Well-reasoned and regression-guarded for retention, service-location, retry-to-
 | One-host-per-process PII protector invariant | ✓ | HostBootTests deliberately Build but never Start (HostBootTests.cs:16-18); separate test assembly |
 | Migrations applied at Api startup AND a deploy that turns RunMigrationsAtStartup off | ✓ | RLS bootstrapped in BOTH Api startup (Program.cs:62) and dedicated MigrationService (Program.cs:20) — comment MigrationService Program.cs:12-14 |
 
-**Testy:** HostBootTests.Worker_host_composes_and_its_dependency_graph_is_valid; HostBootTests.Jobs_host_composes_and_its_dependency_graph_is_valid; HostBootTests.MigrationService_host_composes_and_its_dependency_graph_is_valid
-**Test gaps:** No boot test for the Api host's DI graph (only covered transitively by the integration harness which starts it); No test asserts the actual registered behavior ORDER (Telemetry outer-most) — only convention + comments enforce it
+**Testy:** HostBootTests.Api_host_composes_and_its_dependency_graph_is_valid; HostBootTests.Worker_host_composes_and_its_dependency_graph_is_valid; HostBootTests.Jobs_host_composes_and_its_dependency_graph_is_valid; HostBootTests.MigrationService_host_composes_and_its_dependency_graph_is_valid
+**Test gaps:** No test asserts the actual registered behavior ORDER (Telemetry outer-most) — only convention + comments enforce it
 
 _Strong: the boot tests are an explicit regression guard for the A4 DI-graph concern. Order-of-behaviors relies on registration order with no assertion._
 
