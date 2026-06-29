@@ -328,13 +328,13 @@ _Isolation null-escape is provably closed; the only residual is the absence of a
 | Erased account fails login on credentials | ✓ | PasswordHash blanked, not just non-routable email — IdentityPersonalDataEraser.cs:34; test Erasure_tombstones_the_row_blanks_the_password |
 | Sessions persist after erasure | ✓ | All outstanding refresh tokens revoked via set-based ExecuteUpdate (no PII) — IdentityPersonalDataEraser.cs:40-42; test Erasure_revokes_all_of_the_subjects_refresh_tokens |
 | ExecuteUpdate bypasses audit/encryption interceptors | ✓ | Intentional — tombstone constants are not PII and must stay readable; documented — IdentityPersonalDataEraser.cs:14-16 |
-| Export of a missing/erased user | ◐ | Exporter returns {profile: null} for a missing/soft-deleted user (read factory filters DeletedAt) — IdentityPersonalDataExporter.cs:21-26; reasonable, but no test asserts the post-erasure export shape |
+| Export of a missing/erased user | ✓ | Exporter returns {profile: null} for a missing/soft-deleted user (read factory filters DeletedAt) — IdentityPersonalDataExporter.cs:21-26; post-erasure shape proven by GdprIntegrationTests.Export_after_erasure_returns_null_identity_profile. |
 | Identity export profile shape | ✓ | IdentityPersonalDataExporter returns profile {email, displayName, locale, createdAt}; proven through GDPR fan-out by GdprIntegrationTests.Export_assembles_one_document_keyed_by_module_with_each_modules_section. |
 
-**Testy:** SessionRevocationTests.Erasure_revokes_all_of_the_subjects_refresh_tokens; PiiColumnEncryptionTests.Erasure_tombstones_the_row_blanks_the_password_and_kills_the_ciphertext; PiiColumnEncryptionTests.Erasure_can_be_replayed_without_restamping_the_identity_tombstone; AuditPiiEncryptionTests.Erasing_the_subject_makes_audit_pii_unrecoverable; GdprIntegrationTests.Export_assembles_one_document_keyed_by_module_with_each_modules_section
-**Test gaps:** No test that post-erasure/missing-user Identity export returns profile=null
+**Testy:** SessionRevocationTests.Erasure_revokes_all_of_the_subjects_refresh_tokens; PiiColumnEncryptionTests.Erasure_tombstones_the_row_blanks_the_password_and_kills_the_ciphertext; PiiColumnEncryptionTests.Erasure_can_be_replayed_without_restamping_the_identity_tombstone; AuditPiiEncryptionTests.Erasing_the_subject_makes_audit_pii_unrecoverable; GdprIntegrationTests.Export_assembles_one_document_keyed_by_module_with_each_modules_section; GdprIntegrationTests.Export_after_erasure_returns_null_identity_profile
+**Test gaps:** No remaining focused Identity GDPR export/erasure gap in this slice.
 
-_Erasure is the most thoroughly tested Identity concern; the live Identity export profile shape and replay/idempotency path are asserted._
+_Erasure is the most thoroughly tested Identity concern; live export, post-erasure export, and replay/idempotency paths are asserted._
 
 ### PII encryption backfill (legacy rows) — 🟢 minor-gaps
 *One-time idempotent sealing of pre-encryption user rows (empty EmailHash) by computing the blind index and re-saving through the interceptors.*

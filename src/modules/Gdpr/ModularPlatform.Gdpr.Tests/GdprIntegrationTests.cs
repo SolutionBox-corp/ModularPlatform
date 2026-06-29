@@ -180,6 +180,30 @@ public sealed class GdprIntegrationTests(PlatformApiFactory fixture)
         titles.ShouldContain("Welcome aboard");
     }
 
+    [Fact]
+    public async Task Export_after_erasure_returns_null_identity_profile()
+    {
+        var email = $"export-erased-{Guid.CreateVersion7():N}@example.com";
+        var (userId, accessToken) = await fixture.RegisterAndLoginAsync(email, Password);
+
+        var erase = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Post, "/v1/gdpr/me/erase", accessToken));
+        erase.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        await fixture.WaitForCountAsync(
+            $"""SELECT count(*)::bigint FROM users WHERE "Id" = '{userId}' AND "DeletedAt" IS NOT NULL""", 1);
+        await fixture.WaitForCountAsync(
+            $"""SELECT count(*)::bigint FROM subject_keys WHERE "UserId" = '{userId}' AND "DeletedAt" IS NOT NULL""", 1);
+
+        var response = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/gdpr/me/export", accessToken));
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var data = await PlatformApiFactory.ReadData(response);
+        var identity = data.GetProperty("Identity");
+        identity.GetProperty("profile").ValueKind.ShouldBe(JsonValueKind.Null);
+    }
+
     // ---------------------------------------------------------------------------------------------------------
     // GD-5 — Consent grant → withdraw → get round-trip (append-only).
     // POST /v1/gdpr/consents/grant (GrantConsentEndpoint.cs:14), POST /v1/gdpr/consents/withdraw
