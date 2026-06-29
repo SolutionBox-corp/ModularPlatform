@@ -56,9 +56,7 @@ public sealed class BillingModule : IModule
 
     public void RegisterServices(IServiceCollection services, IConfiguration configuration)
     {
-        var write = configuration.GetConnectionString("Write")
-            ?? throw new InvalidOperationException("Missing ConnectionStrings:Write");
-        var read = configuration.GetConnectionString("Read") ?? write;
+        var (write, read) = ModuleConnectionStrings.GetWriteAndRead(configuration);
 
         services.AddCqrs(typeof(BillingModule).Assembly);
         services.AddValidatorsFromAssembly(typeof(BillingModule).Assembly, includeInternalTypes: true);

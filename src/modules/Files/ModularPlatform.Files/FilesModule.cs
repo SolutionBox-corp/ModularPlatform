@@ -33,9 +33,7 @@ public sealed class FilesModule : IModule
 
     public void RegisterServices(IServiceCollection services, IConfiguration configuration)
     {
-        var write = configuration.GetConnectionString("Write")
-            ?? throw new InvalidOperationException("Missing ConnectionStrings:Write");
-        var read = configuration.GetConnectionString("Read") ?? write;
+        var (write, read) = ModuleConnectionStrings.GetWriteAndRead(configuration);
 
         services.AddCqrs(typeof(FilesModule).Assembly);
         services.AddValidatorsFromAssembly(typeof(FilesModule).Assembly, includeInternalTypes: true);
