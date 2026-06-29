@@ -110,8 +110,9 @@ public sealed class CrmModule : IModule
 
     public void ConfigureMessaging(WolverineOptions options)
     {
-        // No integration-event handlers yet. Each one is registered explicitly via
-        // options.Discovery.IncludeType<TheHandler>() when added.
+        // Consume Identity's UserRegistered to seed a starter workspace (first cross-module event for CRM).
+        // Registered EXPLICITLY (cross-assembly discovery is unreliable for module assemblies); public shell.
+        options.Discovery.IncludeType<Messaging.ProvisionCrmWorkspaceHandler>();
     }
 
     public async Task ApplyMigrationsAsync(IServiceProvider services, CancellationToken ct)
