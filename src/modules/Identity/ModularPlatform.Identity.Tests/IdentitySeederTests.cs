@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Http.Json;
 using ModularPlatform.Abstractions;
 using ModularPlatform.IntegrationTesting;
 using Shouldly;
@@ -24,6 +26,37 @@ public sealed class IdentitySeederTests(PlatformApiFactory fixture)
         using var host = fixture.CreateHost(("Identity:Auth:AdminEmails:1", email));
         using var client = host.CreateClient();
 
+        var adminAssignments = await fixture.ScalarAsync<long>(
+            $$"""
+              SELECT count(*)::bigint
+              FROM user_roles ur
+              JOIN roles r ON r."Id" = ur."RoleId"
+              WHERE ur."UserId" = '{{userId}}' AND r."Name" = 'admin'
+              """);
+        adminAssignments.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Login_time_admin_bootstrap_does_not_grant_admin_to_a_soft_deleted_configured_admin()
+    {
+        var email = $"deleted-login-admin-{Guid.CreateVersion7():N}@x.com";
+        using var host = fixture.CreateHost(("Identity:Auth:AdminEmails:1", email));
+        using var client = host.CreateClient();
+
+        var register = await client.PostAsJsonAsync(
+            "/v1/identity/users",
+            new { email, password = Password });
+        register.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var userId = (await PlatformApiFactory.ReadData(register)).GetProperty("userId").GetGuid();
+
+        await fixture.ExecuteSqlAsync(
+            $"""UPDATE users SET "DeletedAt" = now() WHERE "Id" = '{userId}'""");
+
+        var login = await client.PostAsJsonAsync(
+            "/v1/identity/auth/login",
+            new { email, password = Password });
+
+        login.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
         var adminAssignments = await fixture.ScalarAsync<long>(
             $$"""
               SELECT count(*)::bigint

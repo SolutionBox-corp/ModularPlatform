@@ -271,12 +271,12 @@ _Snapshot semantics are intentional: revoke affects the next login/refresh token
 | Soft-deleted admin email re-granted on restart | ✓ | AssignAdminsAsync excludes DeletedAt!=null so a deactivated admin is not silently re-granted — IdentitySeeder.cs:107-111. Proven by IdentitySeederTests.Startup_seeder_does_not_regrant_admin_to_a_soft_deleted_configured_admin. |
 | Admin role not yet seeded at login time | ✓ | EnsureConfiguredAdminAsync returns early; next login catches it — LoginHandler.cs:129-133 |
 | New permission added later | ✓ | Upsert loop adds missing permissions + links to admin role on each boot — IdentitySeeder.cs:56-90. Proven by IdentitySeederTests.Startup_seeder_relinks_missing_platform_permissions_to_the_admin_role_on_reboot. |
-| Login-time admin grant does NOT exclude soft-deleted | ◐ | DRIFT: AssignAdminsAsync (startup) filters DeletedAt==null (IdentitySeeder.cs:109), but EnsureConfiguredAdminAsync (login) does not — a soft-deleted admin can never reach login (erased PasswordHash blanked -> auth fails earlier), so unreachable in practice, but the two admin-grant paths diverge on the soft-delete guard. |
+| Login-time admin grant must not re-grant a soft-deleted configured admin | ✓ | EnsureConfiguredAdminAsync has its own DeletedAt guard, matching startup seeding. Proven by IdentitySeederTests.Login_time_admin_bootstrap_does_not_grant_admin_to_a_soft_deleted_configured_admin. |
 
-**Testy:** AuthzTests admin-token bootstrap (login-time grant); IdentitySeederTests.Startup_seeder_does_not_regrant_admin_to_a_soft_deleted_configured_admin; IdentitySeederTests.Startup_seeder_relinks_missing_platform_permissions_to_the_admin_role_on_reboot; IdentitySeederTests.Concurrent_startup_seeders_leave_one_complete_authorization_model; AuditPiiEncryptionTests admin reveal (exercises admin role seeding)
+**Testy:** AuthzTests admin-token bootstrap (login-time grant); IdentitySeederTests.Startup_seeder_does_not_regrant_admin_to_a_soft_deleted_configured_admin; IdentitySeederTests.Login_time_admin_bootstrap_does_not_grant_admin_to_a_soft_deleted_configured_admin; IdentitySeederTests.Startup_seeder_relinks_missing_platform_permissions_to_the_admin_role_on_reboot; IdentitySeederTests.Concurrent_startup_seeders_leave_one_complete_authorization_model; AuditPiiEncryptionTests admin reveal (exercises admin role seeding)
 **Test gaps:** No direct missing-table startup race test for the broad catch path.
 
-_Two admin-grant paths (startup seeder + login) with a benign divergence on the soft-delete guard; startup path now has focused coverage for the deleted-admin guard and permission relinking._
+_Two admin-grant paths (startup seeder + login) now share the same soft-delete guard; startup path and login-time bootstrap both have focused deleted-admin coverage._
 
 ### Audit trail reveal (admin forensics) + [erased] after shred — ✅ correct
 *Admin reads a user's identity_audit_entries with PII decrypted, surfacing [erased] once the DEK is shredded.*
@@ -891,7 +891,6 @@ _Behaviour is correct (retain-forever, purge-nothing), and the regression that p
 - DEAD CONFIG: Gdpr:Retention:ShreddedKeyRetentionDays is now referenced ONLY in comments (RetentionSweepCommand.cs:13) — no code reads it; RetentionSweepHandler takes no retention window. The setting is documented as 'remains configurable' but is inert.
 - DEAD/REDUNDANT VALIDATION: GrantConsentValidator.cs validates RuleFor(x => x.UserId).NotEmpty() but GrantConsentCommand.UserId is always populated from tenant.UserId in the endpoint (GrantConsentEndpoint.cs:21), so the rule can never fire under the authorized path; same shape for Withdraw. Harmless but dead.
 - UNUSED REQUEST FIELD: GrantConsentRequest/WithdrawConsentRequest carry a UserId field (GrantConsentCommand.cs:9) that the endpoints intentionally ignore (IDOR protection). Correct security posture but the wire field is misleading — a client may believe it is honoured.
-- CODE-vs-CODE ASYMMETRY: ExportUserDataHandler isolates each IExportPersonalData with per-exporter try/catch (ExportUserDataHandler.cs:23-43) but the sibling UserErasureRequestedHandler fan-out has NO per-eraser try/catch (UserErasureRequestedHandler.cs:38-43) — a throwing eraser aborts the loop and the crypto-shred. The two fan-outs (same author/area) handle partial failure differently; erasure relies on Wolverine retry+idempotency instead, which is defensible but undocumented as a deliberate divergence.
 
 
 ---
