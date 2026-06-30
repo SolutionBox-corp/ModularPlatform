@@ -65,6 +65,12 @@ internal sealed class NotificationsSeeder(
             // Another host won a concurrent seed race — the data is there, this is benign.
             logger.LogInformation(ex, "Notifications template seeding skipped a concurrent duplicate.");
         }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Non-fatal: Api/Worker can start before migrations finish or while Postgres is temporarily down.
+            // Readiness reports the dependency failure; seeding is idempotent and retries on the next boot.
+            logger.LogWarning(ex, "Notifications template seeding did not complete; it will retry on the next boot.");
+        }
     }
 
     public Task StopAsync(CancellationToken ct) => Task.CompletedTask;

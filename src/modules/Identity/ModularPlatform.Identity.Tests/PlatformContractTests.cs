@@ -1,6 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using ModularPlatform.IntegrationTesting;
 using Shouldly;
 
@@ -73,9 +76,25 @@ public sealed class PlatformContractTests(PlatformApiFactory fixture)
         errorBody.TryGetProperty("data", out _).ShouldBeFalse();
     }
 
-    // PL-7 down-case (ready 503 when Postgres dies) is NOT coverable here: a host with an unreachable DB
-    // never finishes startup (Wolverine persistence + seeders need the database), so there is no running
-    // /health/ready to probe. It needs an ops-level test that kills the DB under a RUNNING host.
+    [Fact]
+    public async Task PL7_liveness_stays_up_but_readiness_fails_when_postgres_is_unreachable()
+    {
+        using var badDbHost = fixture.CreateHost(
+                ("RunMigrationsAtStartup", "false"),
+                ("ConnectionStrings:Write", "Host=127.0.0.1;Port=1;Database=missing;Username=postgres;Password=postgres;Timeout=1;Command Timeout=1"),
+                ("ConnectionStrings:Read", "Host=127.0.0.1;Port=1;Database=missing;Username=postgres;Password=postgres;Timeout=1;Command Timeout=1"))
+            .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            {
+                // Simulate a DB outage AFTER the host is already running. Startup hosted services (Wolverine
+                // storage migration, seeders, backfills) legitimately need the DB during process boot and would
+                // fail before /health/ready can be probed, which is a different ops-level scenario.
+                services.RemoveAll<IHostedService>();
+            }));
+        using var client = badDbHost.CreateClient();
+
+        (await client.GetAsync("/health/live")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await client.GetAsync("/health/ready")).StatusCode.ShouldBe(HttpStatusCode.ServiceUnavailable);
+    }
 
     [Fact]
     public async Task PL8_openapi_is_not_served_anonymously_outside_development()

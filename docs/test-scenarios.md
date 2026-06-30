@@ -99,7 +99,7 @@ Status: **✓** implemented · **▢** gap (planned) · **◐** partially covere
 | PL-4 | `ApiResponse<T>` wraps success only; errors are always Problem Details | I | ✓ `PlatformContractTests.PL4_success_is_api_response_and_errors_are_problem_details_not_wrapped` |
 | PL-5 | **Tenant isolation**: tenant A & B rows; an authenticated non-system user with tenant A → sees only A's rows; a missing claim → NOT everyone's | I | ✓ `TenantIsolationTests` (`Two_users_land_in_distinct_tenants_in_the_same_users_table`, self-only filtered read, signed token with no `tenant_id` claim returns no row, anonymous 401) |
 | PL-6 | xmin concurrency: two updates to one row → second conflicts → `ConcurrencyRetryBehavior` retries (tracker cleared) → succeeds, no 500 | C | ✓ `ConcurrencyRetryBehaviorTests.Retries_after_concurrency_conflict_and_clears_the_change_tracker_before_rerun` + `Gives_up_after_max_retries_and_surfaces_the_concurrency_exception` |
-| PL-7 | Health: `/health/live` always `200`; `/health/ready` `200` when Postgres up, `503` when down | I/F | ✓ live+ready up; ▢ down case NOT coverable in-harness (a host with a dead DB never finishes startup — Wolverine + seeders need it); ops-level test |
+| PL-7 | Health: `/health/live` always `200`; `/health/ready` `200` when Postgres up, `503` when down | I/F | ✓ live+ready up (`HealthCheckTests`) + DB-down readiness 503 (`PlatformContractTests.PL7_liveness_stays_up_but_readiness_fails_when_postgres_is_unreachable`) |
 | PL-8 | OpenAPI gating: in Production anonymous `/openapi/v1.json` is not `200`; Development `200` | I | ✓ `PlatformContractTests` (Production derived host vs the Development shared host) |
 | PL-9 | Rate limiter: low-limit host, one IP partition → `429` | F | ✓ `PlatformContractTests` (5-permit derived host) |
 | PL-10 | Migration race: two contexts → same fresh DB, parallel `ApplyMigrationsAsync` → exactly one applies, no throw | C | ✓ `MigrationRaceTests.Parallel_identity_migrations_on_one_fresh_database_are_idempotent` |
@@ -116,6 +116,5 @@ plus the new commerce suite (package purchase saga e2e, subscription lifecycle, 
 sweep, PII column encryption, dead-letter, replay buffer).
 
 **Remaining, in priority order:**
-1. **EV-4** kill-worker-mid-message durability + **PL-7 down-case** — both need infrastructure the harness
-   can't fake (an out-of-process worker / killing the DB under a running host); Wolverine-/HealthChecks-native
-   behaviour, low risk.
+1. **EV-4** kill-worker-mid-message durability — needs infrastructure the harness can't fake (an out-of-process
+   worker that can be killed mid-message); Wolverine durability itself is native and covered by dead-letter/dedup tests.
