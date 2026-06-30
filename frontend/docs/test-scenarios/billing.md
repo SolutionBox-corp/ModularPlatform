@@ -146,8 +146,22 @@ Credit values render as `"N cr."` with tabular-nums via `MoneyAmount`. Checkout 
 
 - **Given** the backend returns a `checkoutUrl` of `https://checkout.stripe.com/pay/…`
 - **When** the user clicks **Buy now** on a package card
-- **Then** `window.location.href` is set to that URL; if the URL has a non-`stripe.com` host or is not `https:`, a sonner toast error is shown and no navigation occurs
+- **Then** the package `purchaseId` is saved in `sessionStorage`, `window.location.href` is set to that URL; if the URL has a non-`stripe.com` host or is not `https:`, a sonner toast error is shown and no navigation occurs
 - Priority: P0 · Type: security · Automated: partial (guard logic unit-testable in hooks.ts; full checkout redirect is manual — requires live Stripe session)
+
+### BILL-15a — Checkout success page polls purchase status
+
+- **Given** the user returns from Stripe to `/billing/success` with either `?purchaseId=...` or a stored `billing:lastPurchaseId`
+- **When** the page loads
+- **Then** it calls `GET /v1/billing/purchases/{purchaseId}` and shows Pending/Completed/Abandoned state, credit amount, resolved timestamp, and a link back to Billing
+- Priority: P0 · Type: happy/edge · Automated: backend integration test covers the status contract (`Purchase_status_is_owner_scoped_and_moves_through_pending_abandoned_completed`); frontend route is typechecked, full redirect remains manual
+
+### BILL-15b — Checkout cancel page clears pending purchase context
+
+- **Given** the user returns from Stripe to `/billing/cancel`
+- **When** the page loads
+- **Then** the stored `billing:lastPurchaseId` is cleared and the page explains no charge was completed with a link back to Billing
+- Priority: P1 · Type: happy · Automated: manual
 
 ---
 

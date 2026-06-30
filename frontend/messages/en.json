@@ -208,6 +208,30 @@
       "emptyDescription": "Credit packages will appear here once configured.",
       "emptyTitle": "No packages available"
     },
+    "purchaseCancel": {
+      "backToBilling": "Back to billing",
+      "description": "No charge was completed. You can choose another package or try again.",
+      "metaTitle": "Checkout canceled — ModularPlatform",
+      "title": "Checkout canceled"
+    },
+    "purchaseReturn": {
+      "abandoned": "This purchase was not completed. You can retry from Billing.",
+      "backToBilling": "Back to billing",
+      "completed": "Credits were added to your account.",
+      "credits": "Credits",
+      "description": "We are checking the persisted purchase record from Billing.",
+      "errorDescription": "The purchase status is not available yet, or this purchase belongs to another user.",
+      "errorTitle": "Could not load purchase status",
+      "loading": "Loading purchase status…",
+      "metaTitle": "Checkout status — ModularPlatform",
+      "missingDescription": "No purchase id was found in the URL or this browser session. Return to Billing to check your balance.",
+      "missingTitle": "Purchase id missing",
+      "notResolved": "Not resolved yet",
+      "pending": "Stripe is still processing the checkout. This page will refresh automatically.",
+      "resolvedAt": "Resolved",
+      "title": "Checkout status",
+      "viewOperations": "View operations"
+    },
     "paymentGateway": {
       "currency": "Currency",
       "description": "Configure the checkout provider this workspace uses when its own customers pay it.",

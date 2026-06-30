@@ -28,22 +28,25 @@ interface CheckoutRedirectMessages {
 function safeExternalRedirect(
   url: string,
   messages: CheckoutRedirectMessages,
-): void {
+  beforeRedirect?: () => void,
+): boolean {
   let parsed: URL;
   try {
     parsed = new URL(url);
   } catch {
     toast.error(messages.invalidRedirect);
-    return;
+    return false;
   }
   if (
     parsed.protocol !== "https:" ||
     !parsed.host.endsWith("stripe.com")
   ) {
     toast.error(messages.unexpectedRedirect);
-    return;
+    return false;
   }
+  beforeRedirect?.();
   window.location.href = url;
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -86,6 +89,12 @@ export function useCheckoutPackage() {
       safeExternalRedirect(data.checkoutUrl, {
         invalidRedirect: t("checkout.invalidRedirect"),
         unexpectedRedirect: t("checkout.unexpectedRedirect"),
+      }, () => {
+        try {
+          sessionStorage.setItem("billing:lastPurchaseId", data.purchaseId);
+        } catch {
+          // Browser storage can be unavailable; the success page still supports ?purchaseId=.
+        }
       });
     },
   });

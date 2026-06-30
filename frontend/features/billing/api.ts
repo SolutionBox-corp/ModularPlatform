@@ -61,6 +61,15 @@ export interface PurchaseCreditPackageResponse {
   checkoutUrl: string;
 }
 
+export interface CreditPurchaseStatusResponse {
+  purchaseId: string;
+  packageId: string;
+  creditAmount: number;
+  status: string;
+  startedAt: string;
+  resolvedAt: string | null;
+}
+
 export interface CreateSubscriptionCheckoutResponse {
   checkoutSessionId: string;
   checkoutUrl: string;
@@ -182,6 +191,18 @@ export const billingQueries = {
         ),
       staleTime: 60_000,
       retry: false,
+    }),
+
+  /** GET /v1/billing/purchases/{purchaseId} — package checkout status from the persisted saga row. */
+  purchase: (purchaseId: string) =>
+    queryOptions({
+      queryKey: [...queryRoots.billing, "purchases", purchaseId],
+      queryFn: () =>
+        apiFetch<CreditPurchaseStatusResponse>(
+          `billing/purchases/${purchaseId}`,
+        ),
+      staleTime: 5_000,
+      retry: 2,
     }),
 };
 

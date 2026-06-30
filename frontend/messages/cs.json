@@ -208,6 +208,30 @@
       "emptyDescription": "Kreditní balíčky se zde objeví po nastavení.",
       "emptyTitle": "Žádné balíčky nejsou k dispozici"
     },
+    "purchaseCancel": {
+      "backToBilling": "Zpět na platby",
+      "description": "Platba nebyla dokončena. Můžete vybrat jiný balíček nebo to zkusit znovu.",
+      "metaTitle": "Platba zrušena — ModularPlatform",
+      "title": "Platba zrušena"
+    },
+    "purchaseReturn": {
+      "abandoned": "Tento nákup nebyl dokončen. Můžete to zkusit znovu v Platbách.",
+      "backToBilling": "Zpět na platby",
+      "completed": "Kredity byly připsány na váš účet.",
+      "credits": "Kredity",
+      "description": "Kontrolujeme uložený stav nákupu v Billing modulu.",
+      "errorDescription": "Stav nákupu zatím není dostupný, nebo tento nákup patří jinému uživateli.",
+      "errorTitle": "Stav nákupu se nepodařilo načíst",
+      "loading": "Načítám stav nákupu…",
+      "metaTitle": "Stav platby — ModularPlatform",
+      "missingDescription": "V URL ani v této relaci prohlížeče nebylo nalezeno ID nákupu. Vraťte se do Plateb a zkontrolujte zůstatek.",
+      "missingTitle": "Chybí ID nákupu",
+      "notResolved": "Zatím nedokončeno",
+      "pending": "Stripe platbu stále zpracovává. Tato stránka se bude automaticky obnovovat.",
+      "resolvedAt": "Dokončeno",
+      "title": "Stav platby",
+      "viewOperations": "Zobrazit operace"
+    },
     "paymentGateway": {
       "currency": "Měna",
       "description": "Nastavte platební bránu, kterou tento workspace používá, když mu platí jeho vlastní zákazníci.",
