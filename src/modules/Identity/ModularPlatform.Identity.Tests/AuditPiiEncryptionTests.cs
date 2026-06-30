@@ -152,6 +152,51 @@ public sealed class AuditPiiEncryptionTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Audit_trail_uses_id_tie_breaker_when_timestamps_match()
+    {
+        var email = $"audit-stable-{Guid.CreateVersion7():N}@example.com";
+        var (userId, _) = await fixture.RegisterAndLoginAsync(email, Password);
+        var auditToken = await TenantAuditTokenAsync(userId, email);
+        var suffix = Guid.CreateVersion7().ToString("N")[..8];
+        var firstAction = $"StA{suffix}";
+        var secondAction = $"StB{suffix}";
+        var thirdAction = $"StC{suffix}";
+
+        foreach (var action in new[] { firstAction, secondAction, thirdAction })
+        {
+            await fixture.ExecuteSqlAsync(
+                "INSERT INTO identity_audit_entries " +
+                "(\"Id\", \"EntityType\", \"EntityId\", \"Action\", \"ChangedColumns\", \"NewValues\", \"UserId\", \"Timestamp\") " +
+                $"VALUES ('{Guid.CreateVersion7()}', 'User', '{userId}', '{action}', '[]'::jsonb, " +
+                $"'{{\"Action\":\"{action}\"}}'::jsonb, '{userId}', '2026-06-30 12:00:00+00')");
+        }
+
+        var expectedOrder = await fixture.ScalarAsync<string>(
+            $"""
+             SELECT string_agg("Action", ',')
+             FROM (
+                 SELECT "Action"
+                 FROM identity_audit_entries
+                 WHERE "EntityType" = 'User'
+                   AND "EntityId" = '{userId}'
+                   AND "Action" LIKE '%{suffix}'
+                 ORDER BY "Timestamp" DESC, "Id" DESC
+             ) ordered
+             """);
+
+        var response = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, $"/v1/identity/admin/users/{userId}/audit", auditToken));
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var actualOrder = string.Join(',', (await PlatformApiFactory.ReadData(response))
+            .GetProperty("entries")
+            .EnumerateArray()
+            .Where(e => e.GetProperty("action").GetString()?.EndsWith(suffix, StringComparison.Ordinal) == true)
+            .Select(e => e.GetProperty("action").GetString()));
+        actualOrder.ShouldBe(expectedOrder);
+    }
+
+    [Fact]
     public async Task Platform_audit_requires_platform_permission_and_keeps_erased_pii_unreadable()
     {
         var email = $"platform-audit-{Guid.CreateVersion7():N}@example.com";

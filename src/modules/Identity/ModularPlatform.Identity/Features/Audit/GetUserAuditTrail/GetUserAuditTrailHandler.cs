@@ -39,6 +39,7 @@ internal sealed class GetUserAuditTrailHandler(
         var rows = await db.AuditEntries
             .Where(a => a.EntityType == "User" && a.EntityId == entityId)
             .OrderByDescending(a => a.Timestamp)
+            .ThenByDescending(a => a.Id)
             .Select(a => new { a.Id, a.Action, a.Timestamp, a.NewValues })
             .ToListAsync(ct);
 
