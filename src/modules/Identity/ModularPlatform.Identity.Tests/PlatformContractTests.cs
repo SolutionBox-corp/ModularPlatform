@@ -195,6 +195,17 @@ public sealed class PlatformContractTests(PlatformApiFactory fixture)
     [Fact]
     public async Task Password_reset_endpoints_use_the_auth_rate_limit_policy()
     {
+        await AuthEndpointShouldThrottleAsync(
+            "/v1/identity/auth/forgot-password",
+            i => new { email = $"rl-forgot-{i}-{Guid.CreateVersion7():N}@t.io" });
+
+        await AuthEndpointShouldThrottleAsync(
+            "/v1/identity/auth/reset-password",
+            i => new { token = $"invalid-{i}-{Guid.CreateVersion7():N}", newPassword = "Sup3r-Secret-Pw!" });
+    }
+
+    private async Task AuthEndpointShouldThrottleAsync(string path, Func<int, object> bodyFactory)
+    {
         using var lowLimit = fixture.CreateHost(
             ("RateLimiting:GlobalPermitsPerMinute", "100"),
             ("RateLimiting:AuthPermitsPerMinute", "2"));
@@ -203,10 +214,7 @@ public sealed class PlatformContractTests(PlatformApiFactory fixture)
         var statuses = new List<HttpStatusCode>();
         for (var i = 0; i < 8; i++)
         {
-            var response = await client.PostAsJsonAsync("/v1/identity/auth/forgot-password", new
-            {
-                email = $"rl-forgot-{Guid.CreateVersion7():N}@t.io",
-            });
+            var response = await client.PostAsJsonAsync(path, bodyFactory(i));
             statuses.Add(response.StatusCode);
         }
 

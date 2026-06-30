@@ -55,6 +55,21 @@ public sealed class PasswordResetTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Forgot_password_for_soft_deleted_account_is_neutral_and_creates_no_token()
+    {
+        var email = $"forgot-deleted-{Guid.CreateVersion7():N}@example.com";
+        var (userId, _) = await fixture.RegisterAndLoginAsync(email, OldPassword);
+        await fixture.ExecuteSqlAsync($"UPDATE users SET \"DeletedAt\" = NOW() WHERE \"Id\" = '{userId}'");
+
+        var response = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/forgot-password", new { email });
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        (await response.Content.ReadAsStringAsync()).ShouldContain("\"accepted\":true");
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM password_reset_tokens WHERE \"UserId\" = '{userId}'")).ShouldBe(0);
+    }
+
+    [Fact]
     public async Task Reset_password_with_valid_token_changes_password_consumes_tokens_and_revokes_sessions()
     {
         var email = $"reset-success-{Guid.CreateVersion7():N}@example.com";
@@ -81,6 +96,52 @@ public sealed class PasswordResetTests(PlatformApiFactory fixture)
         var newLogin = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/login",
             new { email, password = NewPassword });
         newLogin.StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task Reset_password_rejects_the_current_password_without_consuming_the_token()
+    {
+        var email = $"reset-unchanged-{Guid.CreateVersion7():N}@example.com";
+        var (userId, _) = await fixture.RegisterAndLoginAsync(email, OldPassword);
+        var rawToken = $"reset-unchanged-{Guid.CreateVersion7():N}";
+        await InsertResetTokenAsync(userId, rawToken, expiresMinutesFromNow: 30);
+
+        var unchanged = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/reset-password",
+            new { token = rawToken, newPassword = OldPassword });
+
+        unchanged.StatusCode.ShouldBe(HttpStatusCode.UnprocessableContent);
+        (await unchanged.Content.ReadAsStringAsync()).ShouldContain("user.password_unchanged");
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM password_reset_tokens WHERE \"UserId\" = '{userId}' AND \"ConsumedAt\" IS NOT NULL"))
+            .ShouldBe(0);
+
+        var retryWithDifferentPassword = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/reset-password",
+            new { token = rawToken, newPassword = NewPassword });
+        retryWithDifferentPassword.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+    }
+
+    [Fact]
+    public async Task Reset_password_consumes_all_other_outstanding_tokens_for_the_user()
+    {
+        var email = $"reset-all-tokens-{Guid.CreateVersion7():N}@example.com";
+        var (userId, _) = await fixture.RegisterAndLoginAsync(email, OldPassword);
+        var firstRawToken = $"reset-first-{Guid.CreateVersion7():N}";
+        var secondRawToken = $"reset-second-{Guid.CreateVersion7():N}";
+        await InsertResetTokenAsync(userId, firstRawToken, expiresMinutesFromNow: 30);
+        await InsertResetTokenAsync(userId, secondRawToken, expiresMinutesFromNow: 30);
+
+        var response = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/reset-password",
+            new { token = firstRawToken, newPassword = NewPassword });
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM password_reset_tokens WHERE \"UserId\" = '{userId}' AND \"ConsumedAt\" IS NOT NULL"))
+            .ShouldBe(2);
+
+        var secondLink = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/reset-password",
+            new { token = secondRawToken, newPassword = "AnotherN3wSecret!" });
+        secondLink.StatusCode.ShouldBe(HttpStatusCode.UnprocessableContent);
+        (await secondLink.Content.ReadAsStringAsync()).ShouldContain("auth.password_reset_invalid");
     }
 
     [Theory]
