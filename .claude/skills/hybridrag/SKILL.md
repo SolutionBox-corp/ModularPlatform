@@ -31,6 +31,7 @@ je hotový (design docs), kód zatím NEexistuje.** Implementace = podle katalog
   **Chat/synthesis** = Claude (Anthropic.SDK). **Fake gateways pod `Rag:UseFakeGateways`** (vzor `FakeStripeGateway`).
 - **Porty** (anti-corruption, mirror `IStripeGateway`): `ILlmGateway` (jeden chokepoint pro VŠECHNA model volání — routing,
   fallback, cache, usage capture), `IEvaluator` (Deterministic → RagMetric → LlmJudge), `IEmbeddingGenerator`/rerank.
+- **Fine-tuning = NE na znalost** (PDF §7, CONVENTIONS §18): znalost→RAG (čerstvá/citovatelná/mazatelná crypto-shred), chování→prompt. Nefine-tunovat firemní dokumenty (erasure díra + rozbije citace). Hierarchy prompt→few-shot→RAG→fine-tune.
 - **Identity z tokenu** (`ITenantContext.UserId`), NIKDY z route/body/LLM argumentu. Vše UTC. Outbox commit =
   `SaveChangesAndFlushMessagesAsync`. Idempotency = UNIQUE + catch `DbUpdateException`. Handlery idempotentní + order-independent.
 

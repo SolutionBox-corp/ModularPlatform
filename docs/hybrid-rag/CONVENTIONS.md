@@ -251,3 +251,26 @@ první konzument → port v core / impl v RAG modulu, **promote až přijde 2. k
 **→ MODUL (RAG doména):** doc parsing (port `IDocumentTextExtractor` — promote do core/Files jen při 2. konzumentovi),
 vektor/BM25/RRF/rerank/chunking/graf/entity-res (`F23.StringSimilarity`)/citace/HITL fronty/golden-set datasety/RAG-UI
 (`DOMPurify`). `Polly`/`HtmlSanitizer` = knihovní ref použité kde třeba, ne samostatný building-block.
+
+
+---
+
+## Doplňky / Opravy z PDF audit (PDF §5 Durable orchestration)
+
+Doplňky k **§15 (Durable orchestrace = Wolverine, NE Temporal)**:
+
+- **Reference-only saga/stage zprávy (fat-state zákaz).** Ingest saga (oblast 04) a všechny její stage zprávy nesou VÝHRADNĚ identifikátory/reference (`Id`/sagaId, `DocumentId`, `IngestRunId`, `StorageKey`, `CollectionId`, `Scope`, `OwnerUserId`) — NIKDY chunk content, extrahovaný text ani embeddingy. Wolverine durable envelope se serializuje a perzistuje do Postgresu (`wolverine_incoming/outgoing_envelopes`), takže fat payload = bobtnání durable store, PII v durable frontě mimo `[Encrypted]` at-rest ochranu chunků a delší PII expozice v DLQ. Handler si data vždy načte z DB / `IFileStorage` podle Id. Tvrdý strop stage zprávy ~256 KB (překročení = code-smell/fail). (EC-04-01-11/12)
+- **Wolverine ≠ Temporal-style deterministický replay.** Wolverine NErobí event-sourced re-přehrání JEDNOHO workflow z zaznamenané historie — každý handler/stage je ČERSTVÁ exekuce, ne replay. Proto se Temporal past „`DateTime.Now`/`Guid.NewGuid()`/`Random` ve workflow rozbije deterministickou historii" na Wolverine sagu NEVZTAHUJE; nedeterministická volání uvnitř handleru jsou v pořádku. ALE: handler re-doručený/retryovaný po pádu může vzít JINOU časovou/logickou větev než původní pokus (`IClock.UtcNow` se posune, DB stav je jiný) → proto musí být handlery **commutative/idempotentní a order-independent** (UNIQUE klíče + catch `DbUpdateException`, Status guard, refetch live state); spoléhání na „stejný výsledek při re-doručení" je chyba (CLAUDE.md §9b race-defence vrstvy).
+
+---
+
+## 18. Fine-tuning: NE na znalost (frozen — PDF §7)
+
+Decision hierarchy: **prompt → few-shot → RAG/tool-use → fine-tune**; vrstvu výš zkus až když nižší **měřitelně** selhala (na eval setu, ne pocitově).
+**HybridRag NEfine-tunuje na znalosti** — *„For knowledge you retrieve, you don't bake it in."* Znalost žije venku v RAG: čerstvá,
+citovatelná přes `RagAnswerCitation`, mazatelná per-GDPR (crypto-shred). Fine-tuning na firemní dokumenty = (a) **crypto-shred/erasure
+díra** (znalost zapečená do vah nejde smazat → GDPR), (b) **rozbíjí citace** (model neumí říct zdroj), (c) zastará dnem tréninku +
+maintenance dluh (verzování/retrain/drift). Klasifikace/routing/entity-res = prompt/heuristika (flexibilní, bez tréninkového dluhu),
+ne fine-tuned klasifikátor. **Kdyby** fine-tune byl kdy nutný — JEN na **formu/styl/voice ve velkém objemu** (amortizace), pak
+LoRA/PEFT (zmrazený base, ne full fine-tune) + eval proti prompt-only baseline; ale nejdřív few-shot. Cost řešíme routing+cache
+(oblast 30/14), ne fine-tune.

@@ -20,7 +20,7 @@ Vyčerpávající číslovaný katalog **use cases** a **edge cases** pro nový 
 ## ⚠️ Otevřená rozhodnutí PŘED implementací (§11 — STOP) — [CONVENTIONS.md §12](CONVENTIONS.md)
 1. **PII × plaintext lexikální/graf index (KRITICKÉ)** · 2. **Tenant-level KEK/KMS** · 3. **Company-read RLS path** · 4. **Druhý rerank provider** · 5. **Základní search permission** · 6. **CORE `ModularPlatform.Ai`: building-block vs always-on modul** (UC-CORE-17) · 7. **Ledger write fail reconciliation** (EC-CORE-04-02) · 8. **Redis budget down: fail-open/closed** (EC-CORE-06-02).
 
-## Pokrytí (roll-up) — **prerekvizita (1) + 33 oblastí modulu = 429 UC, 2545 EC**
+## Pokrytí (roll-up) — **prerekvizita (1) + 33 oblastí modulu = 430 UC, 2608 EC**
 
 | # | Oblast | #UC | #EC | P0 | P1 | P2 | P3 |
 |---|---|---:|---:|---:|---:|---:|---:|

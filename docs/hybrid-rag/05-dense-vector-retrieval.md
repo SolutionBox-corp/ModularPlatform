@@ -208,3 +208,11 @@ Tato oblast pokrývá hustý (dense) sémantický retrieval nad `Chunk.Embedding
 
 ## Doplňky z completeness review
 - **EC-05-02-07 — Dense predikát neobsahuje EmbeddingModel/Dimensions drift guard (kontradikce s EC-03-03-04)** · Trigger: během re-embed/model-drift okna koexistují chunky dvou modelů; predikát UC-05-02 filtruje jen `TenantId/Scope/IsCurrent`, NE `EmbeddingModel==current` → `CosineDistance` míchá vektory dvou modelů v jednom žebříčku (nesmyslné skóre) · Očekávané chování: dense predikát MUSÍ obsahovat `c.EmbeddingModel == currentModel && c.EmbeddingDimensions == currentDims` (jak vyžaduje EC-03-03-04), drift chunky přeskočit + `Partial/Degraded` flag + `platform.rag.embed_model_drift` · Mechanismus: doplnit model/dim guard do sdíleného `CurrentOnly()` extension (UC-05-04) reusovaného všemi retrieval slice · Severity: P0 · Test: integ — smíšený index → dense vrací jen current-model chunky, drift metrika inkrementována.
+
+
+---
+
+## Doplňky / Opravy z PDF audit (PDF §2/§4 Retrieval)
+
+### UC-05-01 (základní dense retrieval) — protějšek UC-06-05
+- **EC-05-01-12 — Synonymum / parafráze dotazu: dense vrátí relevantní chunk, který BM25 mine** · Trigger: dotaz „vrácení zboží" nad korpusem, kde dokument píše „reklamace" (případně cross-lingual / opis); lexikální BM25 (Oblast 06) nemá termínový překryv a chunk nenajde, ale sémantický dense retrieval ho vrátí · Očekávané chování: dense větev je KOMPLEMENTÁRNÍ k lexikální — pro synonyma/parafráze/cross-lingual je dense primárním recall kanálem; relevantní chunk se NESMÍ ztratit jen proto, že chybí v BM25 listu (hybrid je full-outer union, ne průnik — viz EC-07-02-05). Multilingvní `text-embedding-3-large` zachytí sémantiku napříč formulacemi; toto je přesný protějšek UC-06-05 (exact-term / kód / vlastní jméno, kde dense mine a BM25 trefí) · Mechanismus: dense + BM25 jako komplementární retrievery slité RRF (Oblast 07, full outer union); zákon „RRF = recall přes komplementární kanály"; dense nemá LLM v cestě, takže dotaz je čistě embed vstup (EC-05-05-06) · Severity: P1 · Test: integrační — synonymní dotaz bez lexikálního překryvu → dense vrátí relevantní chunk; hybrid ho v union zachová i při prázdném BM25 listu.
