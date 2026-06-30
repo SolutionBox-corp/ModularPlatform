@@ -1,5 +1,6 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import {
@@ -49,6 +50,17 @@ interface DataTableProps<TData> {
 }
 
 const SKELETON_ROWS = 5;
+const subscribeHydration = () => () => {};
+const clientHydratedSnapshot = () => true;
+const serverHydratedSnapshot = () => false;
+
+function useHasHydrated(): boolean {
+  return useSyncExternalStore(
+    subscribeHydration,
+    clientHydratedSnapshot,
+    serverHydratedSnapshot,
+  );
+}
 
 /**
  * Generic, typed, accessible data table. Handles loading skeletons, empty state,
@@ -72,6 +84,8 @@ export function DataTable<TData>({
   const totalPages = total !== undefined ? Math.ceil(total / pageSize) : 1;
   const showPagination =
     total !== undefined && totalPages > 1 && onPageChange !== undefined;
+  const hasHydrated = useHasHydrated();
+  const showSkeleton = !hasHydrated || (isLoading && data === undefined);
 
   return (
     <div className="space-y-3">
@@ -87,7 +101,7 @@ export function DataTable<TData>({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading ? (
+            {showSkeleton ? (
               Array.from({ length: SKELETON_ROWS }).map((_, i) => (
                 <TableRow key={i} aria-busy="true">
                   {columns.map((col) => (
