@@ -230,6 +230,12 @@ detection — 12) · promptfoo (MIT, Node, CI eval brána — 18/31) · LiteLLM/
 
 ## 17. Core (building-block) vs modul — co kam patří
 
+> **Plný UC/EC: [`0-core-ai-gateway.md`](0-core-ai-gateway.md) (PREREKVIZITA, 18 UC / 122 EC) — postavit PŘED modulem.**
+> ⚠️ **Otevřená sub-decision (UC-CORE-17, §11 STOP):** `ModularPlatform.Ai` = čistý building-block s perzistencí
+> (`src/building-blocks/`, žádný `IModule`) NEBO tenký **always-on platform modul** (`src/modules/`, `IModule`, vždy Enabled)?
+> Pro modul mluví: nese entity + migrace + admin endpointy + GDPR eraser. Pro building-block: musí být volán Z modulů
+> (modul→modul Core je zakázán reference grafem). Určuje reference graf/migrace/DI — rozhodnout PŘED stavbou.
+
 Pravidlo CLAUDE.md §3: shared mechanismus, který potřebují **≥2 moduly**, → **building-block + port**, ne per-modul.
 
 **→ DO CORE (nový building-block `ModularPlatform.Ai`):** LLM gateway + cost/usage/budget vrstva.

@@ -70,6 +70,7 @@ bez nové infry; CLAUDE.md §6 zakazuje nový queue/outbox/job-engine.
 5. **Základní search permission** — existuje (15) vs neexistuje (13/16)?
 
 ## 5. Build pořadí (fáze) a registrace
+**Fáze −1 (PREREKVIZITA — PŘED modulem):** core building-block `ModularPlatform.Ai` (LLM gateway + cost/budget/cache/model-registry) — viz [`docs/hybrid-rag/0-core-ai-gateway.md`](../../docs/hybrid-rag/0-core-ai-gateway.md) (18 UC / 122 EC). Marketing přemigrovat (UC-CORE-18).
 **Fáze 0** infra+tenancy (trio, 4-host registrace, pgvector extension, custom RLS policy, entity model, `KnowledgeCollection`
 CRUD, cross-isolation test) → **1** ingest/chunk/embed (Wolverine saga) → **2** hybrid retrieval+rerank → **3** graf+entity
 resolution → **4** answer+MCP → **5** eval/HITL/model-cost/degradace/observ. Pak UI (oblasti 26–29).
@@ -94,6 +95,7 @@ evaluátory → `IEvaluator`) · FE **DOMPurify** (XSS). Optional: QuikGraph · 
 NEpřidávat (máme): Pgvector.EFCore, pg_search, Wolverine, MEAI+Anthropic.SDK, MCP SDK, Redis, Quartz, RateLimiter, Argon2, S3.
 
 ## 8. Core vs modul (CONVENTIONS §17 — pravidlo ≥2 moduly → building-block)
+- **Plný UC/EC = [`0-core-ai-gateway.md`](../../docs/hybrid-rag/0-core-ai-gateway.md) (PREREKVIZITA).** ⚠️ Otevřená sub-decision (UC-CORE-17): čistý building-block s perzistencí vs always-on platform modul — rozhodnout PŘED stavbou.
 - **DO CORE (nový building-block `ModularPlatform.Ai`):** LLM gateway + cost/usage/budget. `ILlmGateway`+`IEmbeddingGenerator`,
   **`AiUsageLedger`** (platform-wide, NE `Rag*`), budget enforce, cache, model registry+pricing, tokenizer, JSON-schema validace.
   Důvod: Marketing už LLM volá (2. konzument) + cost platform-wide + „jediný chokepoint". **Oblast 30 = core**, RAG konzumuje;

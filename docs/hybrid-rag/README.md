@@ -1,26 +1,30 @@
 # HybridRag — UC/EC katalog
 
-Vyčerpávající číslovaný katalog **use cases** a **edge cases** pro nový modul `HybridRag` (hybrid vektor + knowledge-graph RAG) v ModularPlatform — **produkčně robustní systém**: backend (retrieval, graf, durable ingest, eval, audit, cost) + **frontend UI** (upload, chat, dashboardy, tuning, HITL). **Design dokumentace — produkční kód zatím neexistuje**; katalog je zdroj pravdy chování + podklad pro test scaffolding a implementaci. Plán: `~/.claude/plans/pojdme-udelat-plan-na-moonlit-kahan.md`.
+Vyčerpávající číslovaný katalog **use cases** a **edge cases** pro nový modul `HybridRag` (hybrid vektor + knowledge-graph RAG) v ModularPlatform — **produkčně robustní systém**: backend (retrieval, graf, durable ingest, eval, audit, cost) + **frontend UI** (upload, chat, dashboardy, tuning, HITL) + **core LLM gateway prerekvizita**. **Design dokumentace — produkční kód zatím neexistuje**; katalog je zdroj pravdy chování + podklad pro test scaffolding a implementaci. Plán: `~/.claude/plans/pojdme-udelat-plan-na-moonlit-kahan.md`.
 
-> 📐 **[CONVENTIONS.md](CONVENTIONS.md) = nadřazený zdroj pravdy** pro pojmenování (route prefix `/v1/hybridrag/`, entity, tabulky `hybridrag_*`, permissions, config klíče, enum hodnoty) + konsolidovaná otevřená rozhodnutí. Katalog generovali paralelní agenti → místy drift; **kde se soubor rozchází, vyhrává CONVENTIONS.**
-> 🎛️ **Vše konfigurovatelné/laditelné/trasovatelné/auditovatelné:** parameter registry ([24](24-configuration-tuning.md)) se scope Global→Tenant→Collection→Query · model management + cost optimalizace ([30](30-model-cost-optimization.md), `ILlmGateway`, usage ledger, budgety, cache, routing, model A/B+shadow) · eval golden-set/rules/online ([18](18-evaluation.md)+[31](31-evaluation-deep.md)) · human-in-the-loop nastavitelný ([32](32-human-in-the-loop.md)) · audit ([25](25-audit-history.md)) · observability/OTel ([19](19-observability-cost.md)).
+> 📐 **[CONVENTIONS.md](CONVENTIONS.md) = nadřazený zdroj pravdy** pro pojmenování + konsolidovaná otevřená rozhodnutí. Kde se soubor rozchází, vyhrává CONVENTIONS.
 
-**Číslování:** `UC-NN-MM`, `EC-NN-MM-KK`. Severity/Priorita P0→P3. „Doplňky z completeness review" = adversariální review pass.
+## ⛔ PREREKVIZITA — postavit PŘED prací na modulu
 
-## Bloky
+| Prerekvizita | #UC | #EC | Proč první |
+|---|---:|---:|---|
+| [⛔ CORE — LLM/AI gateway (`ModularPlatform.Ai`)](0-core-ai-gateway.md) | 18 | 122 | **Core building-block** (ne modul): LLM volá ≥2 moduly (Marketing + RAG) → cost/budget musí být platform-wide, „jediný chokepoint" funguje jen v core. RAG oblast 30 ho konzumuje. Otevřená sub-decision: building-block vs always-on modul (UC-CORE-17). |
+
+> **Pozn.:** `ILlmGateway` + `AiUsageLedger` + budget + cache + model registry + tokenizer + structured-output validace = **core**, ne v RAG modulu (CONVENTIONS §17). Postavit a Marketing na něj přemigrovat (UC-CORE-18) PŘED/SOUBĚŽNĚ s modulem.
+
+## Bloky modulu (00–32)
 - **00–09** korpus & ingest & retrieval základ · **10–12** knowledge graph · **13–17** answer/cache/MCP/izolace/degradace
 - **18–25** eval · observability+cost · GDPR · streaming · rate-limit · admin · config-registry · audit
-- **26–29** UI (upload+kolekce · chat+citace · dashboardy · config+HITL konzole) · **30** model+cost · **31** eval-deep · **32** HITL
+- **26–29** UI (upload+kolekce · chat+citace · dashboardy · config+HITL konzole) · **30** model+cost (konzumuje CORE) · **31** eval-deep · **32** HITL
 
 ## ⚠️ Otevřená rozhodnutí PŘED implementací (§11 — STOP) — [CONVENTIONS.md §12](CONVENTIONS.md)
-1. **PII × plaintext lexikální/graf index (KRITICKÉ):** `[Encrypted]` Content/graf klíče vs BM25/tsvector/lookup → přežije crypto-shred → GDPR erasure díra.
-2. **Tenant-level encryption key (KEK/KMS)** — crypto-shred per-USER, tenant DEK infra není.
-3. **Company-read RLS path** — 00 hotové vs 05 nerozhodnuté. 4. **Druhý rerank provider.** 5. **Základní search permission.**
+1. **PII × plaintext lexikální/graf index (KRITICKÉ)** · 2. **Tenant-level KEK/KMS** · 3. **Company-read RLS path** · 4. **Druhý rerank provider** · 5. **Základní search permission** · 6. **CORE `ModularPlatform.Ai`: building-block vs always-on modul** (UC-CORE-17) · 7. **Ledger write fail reconciliation** (EC-CORE-04-02) · 8. **Redis budget down: fail-open/closed** (EC-CORE-06-02).
 
-## Pokrytí (roll-up) — **33 oblastí, 411 UC, 2423 EC**
+## Pokrytí (roll-up) — **prerekvizita (1) + 33 oblastí modulu = 429 UC, 2545 EC**
 
 | # | Oblast | #UC | #EC | P0 | P1 | P2 | P3 |
 |---|---|---:|---:|---:|---:|---:|---:|
+| [⛔CORE](0-core-ai-gateway.md) | LLM/AI gateway (prerekvizita) | 18 | 122 | 27 | 54 | 35 | 6 |
 | [00](00-collections-tenancy.md) | Collections & tenancy | 14 | 106 | 37 | 32 | 28 | 9 |
 | [01](01-document-ingestion.md) | Document ingestion (upload & text extraction) | 8 | 59 | 19 | 32 | 8 | 1 |
 | [02](02-chunking-contextualization.md) | Chunking & contextualization | 11 | 72 | 32 | 21 | 13 | 6 |
@@ -54,6 +58,6 @@ Vyčerpávající číslovaný katalog **use cases** a **edge cases** pro nový 
 | [30](30-model-cost-optimization.md) | Model management, comparison & cost optimization | 16 | 54 | 15 | 27 | 12 | 0 |
 | [31](31-evaluation-deep.md) | LLM evaluation — golden set, rules, online eval, model comparison | 16 | 51 | 8 | 20 | 11 | 3 |
 | [32](32-human-in-the-loop.md) | Human-in-the-loop — configurable review, approval & feedback | 18 | 58 | 14 | 31 | 12 | 0 |
-| | **CELKEM** | **411** | **2423** | **693** | **937** | **654** | **137** |
+| | **CELKEM** | **429** | **2545** | **720** | **991** | **689** | **143** |
 
-> P-rozpad = Severity (EC) + Priorita (UC). Passy: 24 generačních + completeness-critic (4) → ~38 EC + 34 konzist. nálezů → gap/consolidation (7) → +oblasti 26–32 (UI/model-cost/eval-deep/HITL) + competitor learnings (Langfuse/LangSmith/Braintrust/Ragas, HumanLayer/Argilla, LiteLLM/Portkey/Helicone, OpenAI/Vectara/Glean).
+> P-rozpad = Severity (EC) + Priorita (UC). Prerekvizita CORE = building-block `ModularPlatform.Ai` (CONVENTIONS §17). Competitor learnings: Langfuse/LangSmith/Braintrust/Ragas · HumanLayer/Argilla · LiteLLM/Portkey/Helicone · OpenAI/Vectara/Glean.
