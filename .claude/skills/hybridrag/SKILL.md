@@ -6,13 +6,13 @@ description: Use when implementing, extending, or reasoning about the HybridRag 
 # HybridRag — implementační rozcestník
 
 Nový modul `HybridRag` = produkčně robustní hybrid vektor + knowledge-graph RAG nad ModularPlatform. **UC/EC katalog
-je hotový (design docs), kód zatím NEexistuje.** Implementace = podle katalogu, gated na 5 otevřených rozhodnutích.
+je hotový (design docs), kód zatím NEexistuje.** Implementace = podle katalogu, gated na otevřených rozhodnutích (§4).
 
 ## 0. PŘEČTI NEJDŘÍV (pořadí)
 1. **`docs/hybrid-rag/CONVENTIONS.md`** — ZDROJ PRAVDY pro pojmenování (route prefix, entity, tabulky, permissions,
    config klíče, enum hodnoty) + konsolidovaná **otevřená rozhodnutí §12**. Katalog generovali paralelní agenti → místy
    drift; **kde se soubor rozchází, vyhrává CONVENTIONS.**
-2. **`docs/hybrid-rag/README.md`** — index 33 oblastí (00–32), roll-up (411 UC / 2423 EC).
+2. **`docs/hybrid-rag/README.md`** — index: ⛔ PREREKVIZITA [`0-core-ai-gateway.md`] + 33 oblastí (00–32), roll-up (**429 UC / 2545 EC**).
 3. **Relevantní `docs/hybrid-rag/NN-*.md`** pro oblast, kterou děláš (UC-NN-MM + EC-NN-MM-KK).
 4. **Platform kanon** (CLAUDE.md §2): kopíruj Identity/Files/Billing/Operations slice — NEvymýšlej paralelní flow.
 5. Plán: `~/.claude/plans/pojdme-udelat-plan-na-moonlit-kahan.md` (build roadmap fáze 0–5).
@@ -68,6 +68,8 @@ bez nové infry; CLAUDE.md §6 zakazuje nový queue/outbox/job-engine.
 3. **Company-read (tenant-wide) RLS path** — oblast 00 ho má za hotový, oblast 05 za nerozhodnutý.
 4. **Druhý rerank provider** (bge self-hosted) — `IRerankGateway` rozšíření vs §11.
 5. **Základní search permission** — existuje (15) vs neexistuje (13/16)?
+6. **CORE `ModularPlatform.Ai`: building-block vs always-on modul** (UC-CORE-17) — určuje reference graf/migrace/DI.
+7. **Ledger write fail → reconciliation** (EC-CORE-04-02) · 8. **Redis budget down: fail-open vs fail-closed** (EC-CORE-06-02).
 
 ## 5. Build pořadí (fáze) a registrace
 **Fáze −1 (PREREKVIZITA — PŘED modulem):** core building-block `ModularPlatform.Ai` (LLM gateway + cost/budget/cache/model-registry) — viz [`docs/hybrid-rag/0-core-ai-gateway.md`](../../docs/hybrid-rag/0-core-ai-gateway.md) (18 UC / 122 EC). Marketing přemigrovat (UC-CORE-18).
