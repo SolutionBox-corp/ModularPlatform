@@ -248,6 +248,40 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task SendNotification_email_delivery_message_uses_requested_locale_template()
+    {
+        var (recipientId, adminToken) = await AdminTokenAsync();
+
+        var templateKey = $"nt-email-locale-{Guid.CreateVersion7():N}";
+        await fixture.ExecuteSqlAsync(
+            $"INSERT INTO notification_templates (\"Id\", \"Key\", \"Locale\", \"Subject\", \"Body\") " +
+            $"VALUES ('{Guid.CreateVersion7()}', '{templateKey}', 'en', 'EN Hello {{displayName}}', 'EN Body {{displayName}}')");
+        await fixture.ExecuteSqlAsync(
+            $"INSERT INTO notification_templates (\"Id\", \"Key\", \"Locale\", \"Subject\", \"Body\") " +
+            $"VALUES ('{Guid.CreateVersion7()}', '{templateKey}', 'cs', 'CS Hello {{displayName}}', 'CS Body {{displayName}}')");
+
+        var send = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/notifications/send", adminToken, new
+            {
+                userId = recipientId,
+                templateKey,
+                channels = new[] { "email" },
+                data = new Dictionary<string, string> { ["displayName"] = "Ada", ["locale"] = "cs" },
+            }));
+
+        send.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var notificationId = await fixture.ScalarAsync<Guid>(
+            $"SELECT \"Id\" FROM notifications WHERE \"UserId\" = '{recipientId}' AND \"TemplateKey\" = '{templateKey}'");
+
+        var envelopeData = await WaitForIncomingEnvelopeDataAsync<EmailDeliveryRequested>(notificationId);
+        envelopeData.ShouldContain("CS Hello Ada");
+        envelopeData.ShouldContain("CS Body Ada");
+        envelopeData.ShouldNotContain("EN Hello Ada");
+        envelopeData.ShouldNotContain("EN Body Ada");
+    }
+
+    [Fact]
     public async Task SendNotification_deduplicates_channels_before_publishing_delivery_messages()
     {
         var recipientId = Guid.CreateVersion7();
@@ -963,6 +997,11 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
 
     private async Task WaitForIncomingEnvelopeAsync<TMessage>(Guid notificationId)
     {
+        _ = await WaitForIncomingEnvelopeDataAsync<TMessage>(notificationId);
+    }
+
+    private async Task<string> WaitForIncomingEnvelopeDataAsync<TMessage>(Guid notificationId)
+    {
         await using var scope = fixture.Services.CreateAsyncScope();
         var store = scope.ServiceProvider.GetRequiredService<IMessageStore>();
         var messageTypeName = typeof(TMessage).Name;
@@ -972,15 +1011,16 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
         for (var i = 0; i < 100; i++)
         {
             var envelopes = await store.Admin.AllIncomingAsync();
-            if (envelopes.Any(envelope =>
+            var match = envelopes.FirstOrDefault(envelope =>
                 {
                     var data = EnvelopeDataText(envelope);
                     return (envelope.MessageType ?? string.Empty).Contains(messageTypeName, StringComparison.Ordinal)
                         && (data.Contains(notificationIdText, StringComparison.OrdinalIgnoreCase)
                             || data.Contains(compactNotificationIdText, StringComparison.OrdinalIgnoreCase));
-                }))
+                });
+            if (match is not null)
             {
-                return;
+                return EnvelopeDataText(match);
             }
 
             await Task.Delay(200);

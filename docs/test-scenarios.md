@@ -75,7 +75,7 @@ Status: **✓** implemented · **▢** gap (planned) · **◐** partially covere
 |---|---|---|---|
 | NT-1 | `SendNotification` persists an in-app row + enqueues channel deliveries via the outbox (never inline) | I | ✓ `NotificationsIntegrationTests` (caller sends to its OWN id — RLS WITH CHECK on `IUserOwned` blocks cross-user HTTP sends; cross-user happens via the Worker/system) |
 | NT-2 | In-app realtime push happens AFTER commit (force first save to fail once → exactly one delivery, one row) | C/F | ▢ |
-| NT-3 | Email delivery handler runs in the Worker; per-user locale resolved | I | ▢ |
+| NT-3 | Email delivery handler runs in the Worker; per-user locale resolved | I | ✓ `SendNotification_email_delivery_message_uses_requested_locale_template` + `ChannelDeliveryHandlersTests` |
 | NT-4 | `GetMyNotifications(unreadOnly)` + `MarkNotificationRead` round-trip | I | ✓ `NotificationsIntegrationTests` |
 | NT-5 | Channel validation: unknown channel → `notification.channel.invalid` | U | ✓ `SendNotification_with_unknown_channel_returns_validation_problem` |
 
