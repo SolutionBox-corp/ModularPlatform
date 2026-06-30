@@ -492,15 +492,15 @@ _Symmetric with confirm; both rely on the same xmin + UNIQUE-key idempotency pat
 | One account's persistence failure aborting the whole sweep | ✓ | Per-account try/catch DbUpdateException (non-concurrency) clears the change tracker and continues (ExpireCreditsHandler.cs:95-103); explicit fix over prior abort-all bug. Proven by LedgerLifecycleTests.Expiry_sweep_isolates_one_accounts_persistence_failure_and_continues_with_others. |
 | Concurrency conflict (xmin) during sweep | ✓ | Deliberately NOT caught (comment ExpireCreditsHandler.cs:99-101) -> bubbles to ConcurrencyRetryBehavior which retries the whole sweep; expire-*:{id} keys dedup already-applied accounts. |
 | Lapsed hold restored | ✓ | Active && ExpiresAt<=now -> Status Expired, Release-type credit entry expire-hold:{id}, available += / pending -= (ExpireCreditsHandler.cs:33-54). Proven by BL-9. |
-| Multiple accounts in one sweep | ✓ | The command collects all account ids up front and loops every account (ExpireCreditsHandler.cs:25-31); proven by LedgerLifecycleTests.Expiry_sweep_processes_multiple_accounts_in_one_run. |
-| Each account loaded individually inside the loop (N+1 over accounts) | ◐ | accountIds loaded then per-account FirstAsync + per-account queries (ExpireCreditsHandler.cs:25-31). Correct but O(accounts) round-trips; fine at current scale, a scalability concern at large account counts (no batching/paging). |
+| Multiple accounts in one sweep | ✓ | The command collects only candidate account ids from lapsed holds / expired buckets and loops those accounts (ExpireCreditsHandler.cs:25-36); proven by LedgerLifecycleTests.Expiry_sweep_processes_multiple_accounts_in_one_run. |
+| Accounts with no expired work | ✓ | Not scanned: candidate ids come from CreditHolds/CreditBuckets via EF Union, so unrelated accounts are skipped before the per-account loop. |
 | Expired bucket has remaining LESS than available but a different bucket is partly reserved | ✓ | The skip guard is per-bucket against account.Available, and account.Available is recomputed in memory after each hold restore within the same account iteration, so ordering is consistent within a sweep. |
 | Non-expiring bucket (ExpiresAt null) | ✓ | Expiry query requires ExpiresAt != null and ExpiresAt <= now (ExpireCreditsHandler.cs:57); proven by LedgerLifecycleTests.Non_expiring_topup_bucket_is_not_touched_by_expiry_sweep. |
 
 **Testy:** LedgerLifecycleTests.Expiry_sweep_restores_lapsed_holds_destroys_expired_buckets_and_is_idempotent; LedgerLifecycleTests.Expiring_a_bucket_that_backs_an_active_reservation_does_not_crash_or_go_negative; LedgerLifecycleTests.Non_expiring_topup_bucket_is_not_touched_by_expiry_sweep; LedgerLifecycleTests.Expiry_sweep_processes_multiple_accounts_in_one_run; LedgerLifecycleTests.Expiry_sweep_isolates_one_accounts_persistence_failure_and_continues_with_others
 **Test gaps:** No remaining focused expiry-sweep correctness gap in this slice.
 
-_Logic is careful and now covers the prior abort-all bug. N+1 over accounts is a future scalability note, not a correctness issue._
+_Logic is careful and covers the prior abort-all bug. The sweep now bounds per-account work to accounts that actually have lapsed holds or expired buckets._
 
 ### Get credit balance (read) — ✅ correct
 *Return the authoritative stored posted/available projection for the caller's account.*
@@ -538,10 +538,7 @@ _Pure query, no transaction; uses the read factory per the platform law._
 
 _Strong defence-in-depth: app-level append-only guard + DB CHECK + per-account UNIQUE idempotency. The projection-vs-ledger reconciliation is only ever asserted in tests, not by a runtime reconciliation job for credits (Stripe has one; the credit ledger relies on correct arithmetic + the expiry sweep)._
 
-**Nekonzistence v oblasti (4):**
-- ConfirmSpendHandler.cs:51-61 vs :80 — the FIFO loop can leave remaining > 0 when buckets are exhausted yet the handler still posts the full hold.Amount unconditionally; there is no guard or assertion that sum-drawn == hold.Amount, so the documented invariant posted == sum(bucket.Remaining) (CreditEntry/LedgerLifecycleTests BL-12) could silently break if a backing bucket ever disappears. Currently masked by the expire sweep's skip-active-hold rule (ExpireCreditsHandler.cs:69-72).
-- Comment-vs-code drift in CreditAccount.cs:10 — the XML doc says the debit path uses 'SELECT ... FOR NO KEY UPDATE' (pessimistic SELECT lock), but ReserveCreditsHandler.cs:37-41 actually uses a conditional ExecuteUpdate (no explicit SELECT FOR UPDATE). The behavior is correct (the UPDATE takes the row lock) but the doc names a mechanism the code does not use.
-- ExpireCreditsHandler.cs:25-31 loads all account ids then issues per-account queries inside the loop (N+1 over accounts) — correct but unbounded; no paging/batching, a scalability divergence from the otherwise set-based handlers (e.g. the atomic ExecuteUpdate debit).
+**Nekonzistence v oblasti (1):**
 - Reservation ledger entry uses Type=Reservation as a Debit that only moves available->pending without reducing Posted, while Spend is a separate Debit that reduces Posted (ReserveCreditsHandler.cs:59-69 + ConfirmSpendHandler.cs:63-81). This is intentional and documented in LedgerLifecycleTests BL-12, but it means the naive double-entry rule posted == sum(credits) - sum(debits) does NOT hold — a subtle convention captured only in a test comment, not in the CreditEntry entity docs.
 
 

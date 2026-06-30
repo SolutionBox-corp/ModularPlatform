@@ -22,7 +22,16 @@ internal sealed class ExpireCreditsHandler(BillingDbContext db, IClock clock)
         var expiredBucketCount = 0;
         var expiredCredits = 0L;
 
-        var accountIds = await db.CreditAccounts.Select(a => a.Id).ToListAsync(ct);
+        var holdAccountIds = db.CreditHolds
+            .Where(h => h.Status == HoldStatus.Active && h.ExpiresAt <= now)
+            .Select(h => h.AccountId);
+        var bucketAccountIds = db.CreditBuckets
+            .Where(b => b.Remaining > 0 && b.ExpiresAt != null && b.ExpiresAt <= now)
+            .Select(b => b.AccountId);
+        var accountIds = await holdAccountIds
+            .Union(bucketAccountIds)
+            .OrderBy(id => id)
+            .ToListAsync(ct);
 
         foreach (var accountId in accountIds)
         {
