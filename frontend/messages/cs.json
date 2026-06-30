@@ -994,6 +994,12 @@
         "manage": "Spravovat",
         "emptyTitle": "Zatím žádní tenanti",
         "emptyDescription": "Začněte vytvořením prvního tenanta."
+      },
+      "filters": {
+        "allStatuses": "Všechny stavy",
+        "search": "Hledat tenanty",
+        "searchPlaceholder": "Název nebo subdoména",
+        "status": "Stav"
       }
     },
     "users": {

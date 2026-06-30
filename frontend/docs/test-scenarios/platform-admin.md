@@ -84,6 +84,13 @@ All mutating endpoints (`POST /v1/tenant/admin/tenants`, `PUT .../entitlements/{
 - **Then** the card displays "No billing data." (empty state); no crash
 - Priority: **P2** · Type: error · Automated: manual
 
+### PA-09a — Tenant registry search and status filter
+- **Preconditions** admin host + at least two tenants with distinct names/subdomains
+- **Given** the admin opens `/platform/tenants`
+- **When** they type part of a tenant name or subdomain and optionally select a status
+- **Then** `GET /v1/tenant/admin/tenants` is called with `search` and `status`; the table shows only matching tenants and pagination resets to the first page
+- Priority: **P0** · Type: happy/edge · Automated: backend integration test (`Tenant_list_can_be_filtered_by_search_and_status`); UI manual until admin-host E2E is available
+
 ### PA-10 — Provision tenant: happy path
 - **Preconditions** admin host + `platform.tenants.manage`
 - **Given** the admin opens the "Provision tenant" dialog, enters a valid organisation name (e.g. "Acme Corp") and a valid lowercase subdomain (e.g. "acme-test")

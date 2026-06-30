@@ -994,6 +994,12 @@
         "manage": "Manage",
         "emptyTitle": "No tenants yet",
         "emptyDescription": "Provision your first tenant to get started."
+      },
+      "filters": {
+        "allStatuses": "All statuses",
+        "search": "Search tenants",
+        "searchPlaceholder": "Name or subdomain",
+        "status": "Status"
       }
     },
     "users": {

@@ -79,6 +79,8 @@ export interface PlatformTenantsResponse {
 export interface ListPlatformTenantsParams {
   limit?: number;
   offset?: number;
+  search?: string;
+  status?: string;
 }
 
 /** GET /v1/tenant/admin/tenants/{id} — registry row + the tenant's PERSISTED module entitlements. */
@@ -169,14 +171,24 @@ export const platformQueries = {
     }),
 
   /**
-   * GET /v1/tenant/admin/tenants?limit&offset
+   * GET /v1/tenant/admin/tenants?limit&offset&search&status
    * Cross-tenant registry list. Requires platform.tenants.manage.
    */
-  tenants: ({ limit = 50, offset = 0 }: ListPlatformTenantsParams = {}) =>
+  tenants: ({ limit = 50, offset = 0, search, status }: ListPlatformTenantsParams = {}) =>
     queryOptions({
-      queryKey: [...queryRoots.admin, "platform", "tenants", limit, offset],
+      queryKey: [
+        ...queryRoots.admin,
+        "platform",
+        "tenants",
+        limit,
+        offset,
+        search?.trim() || null,
+        status?.trim() || null,
+      ],
       queryFn: () => {
         const sp = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+        if (search?.trim()) sp.set("search", search.trim());
+        if (status?.trim()) sp.set("status", status.trim());
         return apiFetch<PlatformTenantsResponse>(`tenant/admin/tenants?${sp.toString()}`);
       },
       staleTime: 30_000,

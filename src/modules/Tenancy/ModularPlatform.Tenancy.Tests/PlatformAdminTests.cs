@@ -170,6 +170,47 @@ public sealed class PlatformAdminTests(PlatformApiFactory fixture)
         firstIds.Intersect(secondIds).ShouldBeEmpty();
     }
 
+    [Fact]
+    public async Task Tenant_list_can_be_filtered_by_search_and_status()
+    {
+        var admin = await AdminTokenAsync();
+        var marker = Guid.CreateVersion7().ToString("N")[..8];
+        var alphaSubdomain = $"alpha-{marker}";
+        var betaSubdomain = $"beta-{marker}";
+
+        var alpha = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/tenant/admin/tenants", admin,
+            new { name = $"Needle Alpha {marker}", subdomain = alphaSubdomain }));
+        alpha.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var beta = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/tenant/admin/tenants", admin,
+            new { name = $"Haystack Beta {marker}", subdomain = betaSubdomain }));
+        beta.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var byName = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, $"/v1/tenant/admin/tenants?search=needle%20alpha%20{marker}&status=active", admin));
+        byName.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var byNameData = await PlatformApiFactory.ReadData(byName);
+        byNameData.GetProperty("total").GetInt32().ShouldBe(1);
+        var byNameItems = byNameData.GetProperty("items").EnumerateArray().ToArray();
+        byNameItems.Length.ShouldBe(1);
+        byNameItems[0].GetProperty("subdomain").GetString().ShouldBe(alphaSubdomain);
+
+        var bySubdomain = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, $"/v1/tenant/admin/tenants?search={betaSubdomain}", admin));
+        bySubdomain.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var bySubdomainItems = (await PlatformApiFactory.ReadData(bySubdomain)).GetProperty("items").EnumerateArray().ToArray();
+        bySubdomainItems.ShouldContain(i => i.GetProperty("subdomain").GetString() == betaSubdomain);
+
+        var invalidStatus = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, $"/v1/tenant/admin/tenants?search={marker}&status=not-a-status", admin));
+        invalidStatus.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var invalidStatusData = await PlatformApiFactory.ReadData(invalidStatus);
+        invalidStatusData.GetProperty("total").GetInt32().ShouldBe(0);
+        invalidStatusData.GetProperty("items").EnumerateArray().ShouldBeEmpty();
+    }
+
     private static void AssertPublicTenantListShape(JsonElement item)
     {
         var names = item.EnumerateObject().Select(p => p.Name).ToHashSet(StringComparer.Ordinal);

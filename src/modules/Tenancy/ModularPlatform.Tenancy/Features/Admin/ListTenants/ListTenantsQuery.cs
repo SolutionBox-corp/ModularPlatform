@@ -6,7 +6,7 @@ namespace ModularPlatform.Tenancy.Features.Admin.ListTenants;
 /// Platform-admin (CROSS-TENANT) read: list every tenant in the registry, paged. The registry is not
 /// tenant-scoped, so no per-tenant filter applies; the permission gate is the authorization.
 /// </summary>
-public sealed record ListTenantsQuery(int Limit, int Offset) : IQuery<TenantsResponse>;
+public sealed record ListTenantsQuery(int Limit, int Offset, string? Search, string? Status) : IQuery<TenantsResponse>;
 
 public sealed record TenantsResponse(
     IReadOnlyList<TenantItem> Items,

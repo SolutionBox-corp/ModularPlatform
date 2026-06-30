@@ -15,10 +15,12 @@ internal static class ListTenantsEndpoint
         app.MapGet("/tenant/admin/tenants", async (
                 int? limit,
                 int? offset,
+                string? search,
+                string? status,
                 IDispatcher dispatcher,
                 CancellationToken ct) =>
             {
-                var result = await dispatcher.Query(new ListTenantsQuery(limit ?? 50, offset ?? 0), ct);
+                var result = await dispatcher.Query(new ListTenantsQuery(limit ?? 50, offset ?? 0, search, status), ct);
                 return Results.Ok(ApiResponse<TenantsResponse>.Ok(result));
             })
             .RequirePermission(PlatformPermissions.PlatformTenantsManage)
