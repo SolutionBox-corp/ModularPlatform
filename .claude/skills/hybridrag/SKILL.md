@@ -86,6 +86,22 @@ override `RagSetting`) · `RetrievalStatus{Complete|Partial|Degraded}` · entity
 GraphEdge, EntityAlias, IngestSaga, RagConversation/Turn/AnswerCitation/Trace, RagSetting, RagModel, RagUsageLedger,
 RagDataset/Version/Item, RagReviewItem, RagReviewPolicy.
 
+## 7. Knihovny (free + battle-tested — CONVENTIONS §16)
+Přidat: **PdfPig** (PDF) · **DocumentFormat.OpenXml** (DOCX) · **AngleSharp** (HTML) · **Markdig** (MD) ·
+**Microsoft.ML.Tokenizers** (token count) · **HtmlSanitizer/Ganss.Xss** (ingest XSS) · **F23.StringSimilarity** (entity-res) ·
+**JsonSchema.Net** (structured-output validace) · **Polly** (resilience) · **Microsoft.Extensions.AI.Evaluation** (RAG
+evaluátory → `IEvaluator`) · FE **DOMPurify** (XSS). Optional: QuikGraph · graspologic (offline Leiden) · promptfoo · LiteLLM (infra).
+NEpřidávat (máme): Pgvector.EFCore, pg_search, Wolverine, MEAI+Anthropic.SDK, MCP SDK, Redis, Quartz, RateLimiter, Argon2, S3.
+
+## 8. Core vs modul (CONVENTIONS §17 — pravidlo ≥2 moduly → building-block)
+- **DO CORE (nový building-block `ModularPlatform.Ai`):** LLM gateway + cost/usage/budget. `ILlmGateway`+`IEmbeddingGenerator`,
+  **`AiUsageLedger`** (platform-wide, NE `Rag*`), budget enforce, cache, model registry+pricing, tokenizer, JSON-schema validace.
+  Důvod: Marketing už LLM volá (2. konzument) + cost platform-wide + „jediný chokepoint". **Oblast 30 = core**, RAG konzumuje;
+  Marketing přemigrovat. 
+- **CORE port, impl module-first:** `IEvaluator` (+ Microsoft.Extensions.AI.Evaluation) — RAG první konzument, promote později.
+- **MODUL (RAG):** doc parsing (`IDocumentTextExtractor`, promote jen při 2. konzumentovi), retrieval/graf/chunking/entity-res/
+  citace/HITL/datasety/UI. Polly/HtmlSanitizer = knihovní ref, ne building-block.
+
 ## Kdy použít tento skill
 Vždy když pracuješ na čemkoli v modulu HybridRag (implementace slice, nová oblast, review, rozhodnutí). Začni krokem 0
 (přečti CONVENTIONS + relevantní oblast), respektuj frozen rozhodnutí (krok 1–2), reuse seamy (krok 3), a u dotčené oblasti

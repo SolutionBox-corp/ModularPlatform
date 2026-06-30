@@ -201,3 +201,47 @@ Wolverine saga + outbox/inbox = ~70 % Temporalu na Postgresu, bez nové infry; C
   po hodinách/restartu (durable wait, co jiní řeší Temporalem). Status pro caller/UI = `IOperationStore` 202.
 
 → Durable orchestrace zůstává v **core (Wolverine)**; RAG modul ji jen POUŽÍVÁ (saga v module DbContextu, jako Billing).
+
+---
+
+## 16. Knihovny (free + battle-tested + reálně pomáhají)
+
+Pravidlo CLAUDE.md „battle-tested před vlastní implementací". Přidat do `Directory.Packages.props` (CPM):
+
+| Balíček | Licence | Co řeší | Oblast |
+|---|---|---|---|
+| **UglyToad.PdfPig** | Apache-2.0 | extrakce textu/layoutu z PDF | 01 |
+| **DocumentFormat.OpenXml** | MIT | DOCX/XLSX/PPTX extrakce | 01 |
+| **AngleSharp** | MIT | HTML parse + bezpečná extrakce textu | 01 |
+| **Markdig** | BSD-2 | Markdown parse | 01/02 |
+| **Microsoft.ML.Tokenizers** | MIT | token counting (chunking, context budget, cost) | 02/30 |
+| **HtmlSanitizer** (Ganss.Xss) | MIT | sanitizace ingestovaného HTML (injection) | 20 |
+| **F23.StringSimilarity** | MIT | Jaro-Winkler/Levenshtein pro entity resolution | 11 |
+| **JsonSchema.Net** (json-everything) | MIT | validace LLM structured-output / tool args | 13/15/31 |
+| **Polly** (nebo `Microsoft.Extensions.Resilience` MIT) | BSD-3 | per-leg timeout/retry/circuit-breaker/fallback | 17 |
+| **Microsoft.Extensions.AI.Evaluation** (`.Quality`/`.Safety`/`.Reporting`) | MIT | RAG evaluátory (groundedness/relevance/retrieval) → `IEvaluator` | 18/31 |
+| FE: **DOMPurify** | Apache-2.0 / MPL-2.0 | sanitizace renderovaného markdownu/citací (XSS) | 26/27 |
+
+**Optional (až když potřeba):** QuikGraph (MS-PL, graf algo PageRank/components — 12) · graspologic (MIT, offline Leiden community
+detection — 12) · promptfoo (MIT, Node, CI eval brána — 18/31) · LiteLLM/OpenRouter (infra proxy, ne lib — breadth providerů, 30).
+
+**NEpřidávat (máme / vlastní je správně):** Pgvector.EFCore (vektor), pg_search (BM25), Wolverine (durable), MEAI+Anthropic.SDK
+(LLM klient), MCP C# SDK, MEAI builder (cache/telemetry/tool-loop), StackExchange.Redis, Quartz, ASP.NET RateLimiter, Argon2, AWSSDK.S3.
+
+## 17. Core (building-block) vs modul — co kam patří
+
+Pravidlo CLAUDE.md §3: shared mechanismus, který potřebují **≥2 moduly**, → **building-block + port**, ne per-modul.
+
+**→ DO CORE (nový building-block `ModularPlatform.Ai`):** LLM gateway + cost/usage/budget vrstva.
+`ILlmGateway` (chat) + `IEmbeddingGenerator` (embed) wiring · **`AiUsageLedger`** (append-only, 4 token countery, USD —
+PLATFORM-wide, NE `Rag*`) · per-tenant budget enforcement (429) · cache (exact/semantic/prefix) · model registry + pricing ·
+`Microsoft.ML.Tokenizers` · `JsonSchema.Net` (structured-output validace). **Důvod:** Marketing už LLM volá
+(`IVibeAgentGateway`) = 2. konzument; cost musí být platform-wide (per-tenant napříč VŠÍM LLM použitím, ne jen RAG); „jediný
+chokepoint" funguje jen v core. **Oblast 30 = tento core building-block**, RAG ho jen konzumuje; Marketing přemigrovat na něj.
+
+**→ CORE port, impl module-first:** `IEvaluator` (+ `Microsoft.Extensions.AI.Evaluation`). Eval je cross-module, ale RAG je
+první konzument → port v core / impl v RAG modulu, **promote až přijde 2. konzument** (Marketing chat eval).
+
+**→ MODUL (RAG doména):** doc parsing (port `IDocumentTextExtractor` — promote do core/Files jen při 2. konzumentovi),
+vektor/BM25/RRF/rerank/chunking/graf/entity-res (`F23.StringSimilarity`)/citace/HITL fronty/golden-set datasety/RAG-UI
+(`DOMPurify`). `Polly`/`HtmlSanitizer` = knihovní ref použité kde třeba, ne samostatný building-block.
