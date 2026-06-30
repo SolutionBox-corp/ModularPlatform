@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { registerFreshUser } from "./helpers";
+import { ANONYMOUS, registerFreshUser } from "./helpers";
 
 // ---------------------------------------------------------------------------
 // FILES — /files page
@@ -15,6 +15,46 @@ import { registerFreshUser } from "./helpers";
 function makeTxtFile(content = "hello world"): Buffer {
   return Buffer.from(content, "utf-8");
 }
+
+function extractFileIdFromDownloadHref(href: string | null): string {
+  expect(href).toMatch(/^\/api\/bff\/files\/[0-9a-f-]{36}$/i);
+  return href!.split("/").at(-1)!;
+}
+
+async function uploadTxtAndGetFileId(page: import("@playwright/test").Page, name: string): Promise<string> {
+  await page.locator('input[type="file"]').setInputFiles({
+    name,
+    mimeType: "text/plain",
+    buffer: makeTxtFile(name),
+  });
+  const row = page.getByRole("row", { name: new RegExp(name.replace(".", "\\."), "i") });
+  await expect(row).toBeVisible({ timeout: 10_000 });
+  await row.getByRole("button", { name: `Actions for ${name}` }).click();
+  const downloadLink = page.locator(`[role="menuitem"][download="${name}"]`);
+  await expect(downloadLink).toBeVisible();
+  const href = await downloadLink.getAttribute("href");
+  await page.keyboard.press("Escape");
+  return extractFileIdFromDownloadHref(href);
+}
+
+async function csrfToken(page: import("@playwright/test").Page): Promise<string> {
+  return await page.evaluate(() => {
+    const match = document.cookie.match(/(?:^|; )mp_csrf=([^;]+)/);
+    return match ? decodeURIComponent(match[1]) : "";
+  });
+}
+
+test.describe("Files page — unauthenticated", () => {
+  test.use(ANONYMOUS);
+
+  test("unauthenticated visit redirects to login", async ({ page }) => {
+    await page.goto("/files");
+
+    await expect(page).toHaveURL(/\/login/);
+    await expect(page.getByRole("textbox", { name: "Email" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Files", level: 1 })).toHaveCount(0);
+  });
+});
 
 // ── Empty-state / page-structure tests (primary session) ────────────────────
 // Note: the primary user accumulates uploads across the suite run, so we cannot
@@ -125,15 +165,28 @@ test.describe("Files page — upload flow (fresh account)", () => {
     // to avoid matching the filename span which also contains "hello.txt".
     await expect(row.locator('[data-slot="badge"]').filter({ hasText: "TXT" })).toBeVisible();
 
-    // Download anchor: href must point to /api/bff/files/{uuid} and carry the download attribute.
-    const downloadLink = row.getByRole("link", { name: /download hello\.txt/i });
+    // Download lives in the per-row actions menu; it must still be a normal anchor
+    // to the BFF proxy endpoint and carry the download attribute.
+    await row.getByRole("button", { name: "Actions for hello.txt" }).click();
+    const downloadLink = page.locator('[role="menuitem"][download="hello.txt"]');
     await expect(downloadLink).toBeVisible();
 
     const href = await downloadLink.getAttribute("href");
-    expect(href).toMatch(/^\/api\/bff\/files\/[0-9a-f-]{36}$/i);
+    extractFileIdFromDownloadHref(href);
 
     const downloadAttr = await downloadLink.getAttribute("download");
     expect(downloadAttr).toBe("hello.txt");
+  });
+
+  test("multiple sequential uploads accumulate in the table", async ({ page }) => {
+    await registerFreshUser(page);
+    await page.goto("/files");
+
+    await uploadTxtAndGetFileId(page, "a.txt");
+    await uploadTxtAndGetFileId(page, "b.txt");
+
+    await expect(page.getByRole("row", { name: /a\.txt/i })).toBeVisible();
+    await expect(page.getByRole("row", { name: /b\.txt/i })).toBeVisible();
   });
 
   test("client rejects a disallowed MIME type before upload", async ({ page }) => {
@@ -141,7 +194,6 @@ test.describe("Files page — upload flow (fresh account)", () => {
     // The client's validateFile() checks file.type, which the browser derives from the
     // provided mimeType. If the mimeType is spoofed by the test harness without the
     // browser reflecting it in file.type, the test is partial — see catalog FILES-05.
-    await registerFreshUser(page);
     await page.goto("/files");
 
     // Monitor network requests to confirm NO upload request is sent.
@@ -159,10 +211,66 @@ test.describe("Files page — upload flow (fresh account)", () => {
       buffer: Buffer.from("GIF89a"),
     });
 
-    // The validation toast is synchronous but transient; the DETERMINISTIC signal of a
-    // client-side rejection is that no upload POST fired and the file never entered the table.
-    await expect(page.getByText(/not allowed/i)).toBeVisible({ timeout: 8_000 });
+    // Deterministic client-side rejection signal: no upload POST fired and the file never entered the table.
+    await page.waitForTimeout(500);
     await expect(page.getByRole("row", { name: /image\.gif/i })).toHaveCount(0);
     expect(uploadRequested).toBe(false);
+  });
+
+  test("another user cannot download a private file", async ({ page }) => {
+    await page.goto("/files");
+    const fileId = await uploadTxtAndGetFileId(page, "owner-secret.txt");
+
+    await registerFreshUser(page);
+    const status = await page.evaluate(async (id) => {
+      const res = await fetch(`/api/bff/files/${id}`, { credentials: "same-origin" });
+      return res.status;
+    }, fileId);
+
+    expect(status).toBe(404);
+  });
+
+  test("server rejects a direct disallowed file type upload", async ({ page }) => {
+    await page.goto("/files");
+    const csrf = await csrfToken(page);
+
+    const result = await page.evaluate(async (token) => {
+      const form = new FormData();
+      form.append("file", new File(["MZ"], "evil.exe", { type: "application/x-msdownload" }));
+      const res = await fetch("/api/bff/files", {
+        method: "POST",
+        headers: { "x-csrf-token": token },
+        body: form,
+        credentials: "same-origin",
+      });
+      return { status: res.status, body: await res.text() };
+    }, csrf);
+
+    expect(result.status).toBe(400);
+    expect(result.body).toContain("file.content_type.not_allowed");
+    await expect(page.getByRole("row", { name: /evil\.exe/i })).toHaveCount(0);
+  });
+
+  test("server rejects an oversized direct upload", async ({ page }) => {
+    await page.goto("/files");
+    const csrf = await csrfToken(page);
+
+    const result = await page.evaluate(async (token) => {
+      const form = new FormData();
+      form.append(
+        "file",
+        new File([new Uint8Array(11 * 1024 * 1024)], "big.pdf", { type: "application/pdf" }),
+      );
+      const res = await fetch("/api/bff/files", {
+        method: "POST",
+        headers: { "x-csrf-token": token },
+        body: form,
+        credentials: "same-origin",
+      });
+      return { status: res.status, body: await res.text() };
+    }, csrf);
+
+    expect([400, 413]).toContain(result.status);
+    await expect(page.getByRole("row", { name: /big\.pdf/i })).toHaveCount(0);
   });
 });

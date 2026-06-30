@@ -33,18 +33,16 @@ size hint in a subtitle; the file table shows empty state ("No files yet") befor
 
 - **FILES-04** — Download link targets the BFF proxy endpoint
   - Given: a file has been uploaded and its row is in the table
-  - When: the user inspects the download anchor for that file
-  - Then: the `href` attribute is `/api/bff/files/{id}` (a normal `<a>` with `download`, NOT
-    a JS-triggered fetch); the `download` attribute equals the original filename
+  - When: the user opens the file row actions menu and inspects the Download item
+  - Then: the menu item is a normal `<a>` with `href="/api/bff/files/{id}"` and `download="{original filename}"`,
+    NOT a JS-triggered fetch
   - Priority: P1 · Type: happy · Automated: yes (e2e: "upload a txt file and row appears in table")
 
 - **FILES-05** — Client-side rejection of a disallowed content type
   - Given: authenticated user on `/files`
   - When: they attempt to upload a `.gif` file (type `image/gif`, not in the allowlist)
-  - Then: the client validates synchronously and a toast error appears containing "not allowed";
-    no network request is made to the upload API; the file table is unchanged
-  - Priority: P1 · Type: error · Automated: partial
-    (browser MIME detection for `setInputFiles` uses the extension — see GAPS below)
+  - Then: the client validates synchronously, no network request is made to the upload API, and the file table is unchanged
+  - Priority: P1 · Type: error · Automated: yes (e2e: "client rejects a disallowed MIME type before upload")
 
 - **FILES-06** — Client-side rejection of an oversized file (> 10 MB)
   - Given: authenticated user on `/files`
@@ -57,7 +55,7 @@ size hint in a subtitle; the file table shows empty state ("No files yet") befor
   - Given: a user who is not logged in
   - When: they navigate to `/files`
   - Then: they are redirected to `/login` (or a 401/redirect) without seeing any file data
-  - Priority: P0 · Type: security · Automated: manual (requires ANONYMOUS context + redirect assertion)
+  - Priority: P0 · Type: security · Automated: yes (e2e: "unauthenticated visit redirects to login")
 
 - **FILES-08** — Token is never exposed in JS storage
   - Given: authenticated user on `/files`
@@ -70,7 +68,7 @@ size hint in a subtitle; the file table shows empty state ("No files yet") befor
   - Given: user A has uploaded a file with a known ID; user B is logged in
   - When: user B attempts to GET `/api/bff/files/{userA_file_id}`
   - Then: the response is 404 (RLS + explicit ownership check in the handler)
-  - Priority: P0 · Type: security · Automated: manual (requires two user sessions)
+  - Priority: P0 · Type: security · Automated: yes (e2e: "another user cannot download a private file")
 
 - **FILES-10** — Page heading and subtitle are accessible
   - Given: authenticated user navigates to `/files`
@@ -90,17 +88,16 @@ size hint in a subtitle; the file table shows empty state ("No files yet") befor
   - Given: fresh user on `/files`
   - When: they upload a first `a.txt`, then a second `b.txt`
   - Then: both rows appear in the file table
-  - Priority: P2 · Type: happy · Automated: manual (smoke-level; PRIMARY user state persists
-    across tests so a fresh user would need fresh registration per test — cost vs coverage)
+  - Priority: P2 · Type: happy · Automated: yes (e2e: "multiple sequential uploads accumulate in the table")
 
 - **FILES-13** — Backend rejects disallowed type (server-side enforcement)
   - Given: authenticated user makes a direct POST to `/api/bff/files` with an `.exe` file
   - When: the request reaches the backend
   - Then: the API returns a 422 with error code `file.content_type.not_allowed`
-  - Priority: P1 · Type: security · Automated: manual (requires direct API call, not UI flow)
+  - Priority: P1 · Type: security · Automated: yes (e2e: "server rejects a direct disallowed file type upload")
 
 - **FILES-14** — Backend rejects oversize file (server-side body size limit)
   - Given: authenticated user sends a POST to `/api/bff/files` with a body > 10 MB
   - When: the request reaches Kestrel
-  - Then: the request is rejected before it reaches the handler (413 or 400)
-  - Priority: P1 · Type: security · Automated: manual (requires direct API call with large body)
+  - Then: the request is rejected by the upload validator or request-body limit (400 or 413)
+  - Priority: P1 · Type: security · Automated: yes (e2e: "server rejects an oversized direct upload")
