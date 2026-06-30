@@ -29,6 +29,7 @@ public sealed class CrmCompaniesTests(PlatformApiFactory fixture)
             name = "Acme",
             domain = "acme.test",
             industry = "SaaS",
+            type = "customer",
             identificationNumber = "12345678",
             taxIdentificationNumber = "CZ12345678",
             registeredAddress = "Main 1",
@@ -42,6 +43,7 @@ public sealed class CrmCompaniesTests(PlatformApiFactory fixture)
         var data = await PlatformApiFactory.ReadData(get);
         data.GetProperty("name").GetString().ShouldBe("Acme");
         data.GetProperty("industry").GetString().ShouldBe("SaaS");
+        data.GetProperty("type").GetString().ShouldBe("customer");
         data.GetProperty("identificationNumber").GetString().ShouldBe("12345678");
         data.GetProperty("registeredAddress").GetString().ShouldBe("Main 1");
     }
@@ -53,7 +55,7 @@ public sealed class CrmCompaniesTests(PlatformApiFactory fixture)
         var companyId = await CreateCompanyAsync(token, new { name = "Globex" });
 
         var c = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Post, "/v1/crm/contacts", token,
-            new { firstName = "Jane", lastName = "Doe", status = "lead", companyId }));
+            new { firstName = "Jane", lastName = "Doe", status = "new", companyId }));
         c.StatusCode.ShouldBe(HttpStatusCode.Created, await c.Content.ReadAsStringAsync());
         var d = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Post, "/v1/crm/deals", token,
             new { title = "Big", amountCents = 1000L, stage = "lead", companyId }));
@@ -75,12 +77,12 @@ public sealed class CrmCompaniesTests(PlatformApiFactory fixture)
         var otherCompanyId = await CreateCompanyAsync(token, new { name = "Initech" });
 
         var contact = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Post, "/v1/crm/contacts", token,
-            new { firstName = "Jane", lastName = "Doe", status = "lead", companyId }));
+            new { firstName = "Jane", lastName = "Doe", status = "new", companyId }));
         contact.StatusCode.ShouldBe(HttpStatusCode.Created, await contact.Content.ReadAsStringAsync());
         var contactId = (await PlatformApiFactory.ReadData(contact)).GetProperty("id").GetGuid();
 
         var otherContact = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Post, "/v1/crm/contacts", token,
-            new { firstName = "Bob", lastName = "Builder", status = "lead", companyId = otherCompanyId }));
+            new { firstName = "Bob", lastName = "Builder", status = "new", companyId = otherCompanyId }));
         otherContact.StatusCode.ShouldBe(HttpStatusCode.Created, await otherContact.Content.ReadAsStringAsync());
         var otherContactId = (await PlatformApiFactory.ReadData(otherContact)).GetProperty("id").GetGuid();
 
@@ -106,7 +108,7 @@ public sealed class CrmCompaniesTests(PlatformApiFactory fixture)
     {
         var (_, token) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
         var resp = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Post, "/v1/crm/contacts", token,
-            new { firstName = "X", lastName = "Y", status = "lead", companyId = Guid.CreateVersion7() }));
+            new { firstName = "X", lastName = "Y", status = "new", companyId = Guid.CreateVersion7() }));
         resp.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
@@ -116,7 +118,7 @@ public sealed class CrmCompaniesTests(PlatformApiFactory fixture)
         var (_, token) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
         var companyId = await CreateCompanyAsync(token, new { name = "Initech" });
         var contact = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Post, "/v1/crm/contacts", token,
-            new { firstName = "Bob", lastName = "Builder", status = "lead", companyId }));
+            new { firstName = "Bob", lastName = "Builder", status = "new", companyId }));
         var contactId = (await PlatformApiFactory.ReadData(contact)).GetProperty("id").GetGuid();
 
         var del = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Delete, $"/v1/crm/companies/{companyId}", token));

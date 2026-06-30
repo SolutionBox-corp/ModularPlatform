@@ -24,6 +24,8 @@ internal sealed class Company : AuditableEntity, ITenantScoped, IUserOwned, ISof
     [PersonalData]
     public string? Industry { get; set; }
 
+    public string Type { get; set; } = CompanyTypes.Prospect;
+
     [PersonalData]
     public string? IdentificationNumber { get; set; }
 
@@ -50,6 +52,18 @@ internal sealed class Company : AuditableEntity, ITenantScoped, IUserOwned, ISof
     public DateTimeOffset? DeletedAt { get; set; }
 }
 
+internal static class CompanyTypes
+{
+    public const string Prospect = "prospect";
+    public const string Customer = "customer";
+    public const string Partner = "partner";
+    public const string Reseller = "reseller";
+    public const string Vendor = "vendor";
+
+    public static readonly string[] All = [Prospect, Customer, Partner, Reseller, Vendor];
+    public static bool IsValid(string? value) => value is not null && Array.IndexOf(All, value) >= 0;
+}
+
 internal sealed class CompanyConfiguration : IEntityTypeConfiguration<Company>
 {
     public void Configure(EntityTypeBuilder<Company> builder)
@@ -59,6 +73,7 @@ internal sealed class CompanyConfiguration : IEntityTypeConfiguration<Company>
         builder.Property(c => c.Name).HasMaxLength(256).IsRequired();
         builder.Property(c => c.Domain).HasMaxLength(256);
         builder.Property(c => c.Industry).HasMaxLength(128);
+        builder.Property(c => c.Type).HasMaxLength(32).IsRequired();
         builder.Property(c => c.IdentificationNumber).HasMaxLength(32);
         builder.Property(c => c.TaxIdentificationNumber).HasMaxLength(32);
         builder.Property(c => c.RegisteredAddress).HasMaxLength(512);
@@ -69,5 +84,6 @@ internal sealed class CompanyConfiguration : IEntityTypeConfiguration<Company>
 
         builder.HasIndex(c => new { c.UserId, c.CreatedAt });
         builder.HasIndex(c => new { c.UserId, c.Industry });
+        builder.HasIndex(c => new { c.UserId, c.Type });
     }
 }

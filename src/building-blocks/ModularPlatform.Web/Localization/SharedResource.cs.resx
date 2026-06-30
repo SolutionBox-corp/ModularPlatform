@@ -205,6 +205,7 @@
   <data name="crm.company.name.too_long" xml:space="preserve"><value>Název firmy je příliš dlouhý.</value></data>
   <data name="crm.company.domain.too_long" xml:space="preserve"><value>Doména firmy je příliš dlouhá.</value></data>
   <data name="crm.company.industry.too_long" xml:space="preserve"><value>Obor firmy je příliš dlouhý.</value></data>
+  <data name="crm.company.type.invalid" xml:space="preserve"><value>Typ firmy není platný.</value></data>
   <data name="crm.company.identification_number.too_long" xml:space="preserve"><value>IČO firmy je příliš dlouhé.</value></data>
   <data name="crm.company.tax_identification_number.too_long" xml:space="preserve"><value>DIČ firmy je příliš dlouhé.</value></data>
   <data name="crm.company.registered_address.too_long" xml:space="preserve"><value>Sídlo firmy je příliš dlouhé.</value></data>

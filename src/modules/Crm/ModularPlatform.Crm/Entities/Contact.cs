@@ -48,8 +48,8 @@ internal sealed class Contact : AuditableEntity, ITenantScoped, IUserOwned, ISof
 
     public string[] Tags { get; set; } = [];
 
-    /// <summary>Lifecycle bucket: lead | active | customer | archived. Validated at the edge; stored as text.</summary>
-    public string Status { get; set; } = ContactStatuses.Lead;
+    /// <summary>Engagement lifecycle bucket: new | engaged | qualified | inactive | archived.</summary>
+    public string Status { get; set; } = ContactStatuses.New;
 
     Guid IDataSubject.SubjectId => UserId;
 
@@ -59,12 +59,13 @@ internal sealed class Contact : AuditableEntity, ITenantScoped, IUserOwned, ISof
 /// <summary>The allowed <see cref="Contact.Status"/> values (stable, lowercase — also used as i18n-safe constants).</summary>
 internal static class ContactStatuses
 {
-    public const string Lead = "lead";
-    public const string Active = "active";
-    public const string Customer = "customer";
+    public const string New = "new";
+    public const string Engaged = "engaged";
+    public const string Qualified = "qualified";
+    public const string Inactive = "inactive";
     public const string Archived = "archived";
 
-    public static readonly string[] All = [Lead, Active, Customer, Archived];
+    public static readonly string[] All = [New, Engaged, Qualified, Inactive, Archived];
     public static bool IsValid(string? value) => value is not null && Array.IndexOf(All, value) >= 0;
 }
 

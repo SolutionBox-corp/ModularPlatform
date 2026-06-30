@@ -17,7 +17,7 @@ public sealed class CrmMeetingsTests(PlatformApiFactory fixture)
     private async Task<Guid> CreateContactAsync(string token, string name)
     {
         var resp = await fixture.Client.SendAsync(fixture.Authed(
-            HttpMethod.Post, "/v1/crm/contacts", token, new { firstName = name, lastName = "Contact", status = "active" }));
+            HttpMethod.Post, "/v1/crm/contacts", token, new { firstName = name, lastName = "Contact", status = "engaged" }));
         resp.StatusCode.ShouldBe(HttpStatusCode.Created, await resp.Content.ReadAsStringAsync());
         return (await PlatformApiFactory.ReadData(resp)).GetProperty("id").GetGuid();
     }

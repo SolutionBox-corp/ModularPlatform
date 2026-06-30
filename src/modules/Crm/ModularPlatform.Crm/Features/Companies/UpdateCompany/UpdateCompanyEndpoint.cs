@@ -28,6 +28,7 @@ internal static class UpdateCompanyEndpoint
                         request.Name,
                         request.Domain,
                         request.Industry,
+                        request.Type is null ? null : request.Type.Trim().ToLowerInvariant(),
                         request.IdentificationNumber,
                         request.TaxIdentificationNumber,
                         request.RegisteredAddress,

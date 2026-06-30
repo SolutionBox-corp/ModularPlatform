@@ -321,14 +321,23 @@
       "due": "Termín",
       "priority": "Priorita",
       "companyName": "Firma",
+      "companyType": "Typ",
       "domain": "Doména",
       "industry": "Obor"
     },
     "status": {
-      "lead": "Lead",
-      "active": "Aktivní",
-      "customer": "Zákazník",
+      "new": "Nový",
+      "engaged": "V kontaktu",
+      "qualified": "Kvalifikovaný",
+      "inactive": "Neaktivní",
       "archived": "Archivováno"
+    },
+    "companyType": {
+      "prospect": "Prospekt",
+      "customer": "Zákazník",
+      "partner": "Partner",
+      "reseller": "Reseller",
+      "vendor": "Dodavatel"
     },
     "meetingStatus": {
       "planned": "Naplánováno",
@@ -548,6 +557,7 @@
       "name": "Název",
       "domain": "Doména",
       "industry": "Obor",
+      "type": "Typ",
       "identificationNumber": "IČO",
       "taxIdentificationNumber": "DIČ",
       "registeredAddress": "Sídlo",

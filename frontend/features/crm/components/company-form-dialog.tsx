@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { type Company, type CompanyInput } from "@/features/crm/api";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { COMPANY_TYPES, type Company, type CompanyInput } from "@/features/crm/api";
 import { useCreateCompany, useUpdateCompany } from "@/features/crm/hooks";
 import { buildCompanySchema, type CompanyFormValues } from "@/features/crm/schema";
 
@@ -30,6 +37,7 @@ function toFormValues(company?: Company): CompanyFormValues {
     name: company?.name ?? "",
     domain: company?.domain ?? "",
     industry: company?.industry ?? "",
+    type: (company?.type as CompanyFormValues["type"]) ?? "prospect",
     identificationNumber: company?.identificationNumber ?? "",
     taxIdentificationNumber: company?.taxIdentificationNumber ?? "",
     registeredAddress: company?.registeredAddress ?? "",
@@ -49,6 +57,7 @@ export function CompanyFormDialog({ company, trigger }: CompanyFormDialogProps) 
 
   const {
     register,
+    control,
     handleSubmit,
     reset,
     setError,
@@ -63,6 +72,7 @@ export function CompanyFormDialog({ company, trigger }: CompanyFormDialogProps) 
       name: values.name.trim(),
       domain: values.domain?.trim() || null,
       industry: values.industry?.trim() || null,
+      type: values.type,
       identificationNumber: values.identificationNumber?.trim() || null,
       taxIdentificationNumber: values.taxIdentificationNumber?.trim() || null,
       registeredAddress: values.registeredAddress?.trim() || null,
@@ -113,6 +123,27 @@ export function CompanyFormDialog({ company, trigger }: CompanyFormDialogProps) 
                 <Label htmlFor="co-industry">{t("companyForm.industry")}</Label>
                 <Input id="co-industry" {...register("industry")} />
               </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="co-type">{t("companyForm.type")}</Label>
+              <Controller
+                control={control}
+                name="type"
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger id="co-type" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {COMPANY_TYPES.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {t(`companyType.${type}`)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">

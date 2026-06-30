@@ -37,7 +37,7 @@ public sealed class CrmContactsTests(PlatformApiFactory fixture)
             position = "CTO",
             notes = "met at conf",
             tags = new[] { "vip", "warm" },
-            status = "active",
+            status = "engaged",
         });
 
         var get = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Get, $"/v1/crm/contacts/{id}", token));
@@ -47,7 +47,7 @@ public sealed class CrmContactsTests(PlatformApiFactory fixture)
         data.GetProperty("lastName").GetString().ShouldBe("Doe");            // decrypted at rest
         data.GetProperty("email").GetString().ShouldBe("jane@acme.test");    // decrypted at rest
         data.GetProperty("phone").GetString().ShouldBe("+420123456789");
-        data.GetProperty("status").GetString().ShouldBe("active");
+        data.GetProperty("status").GetString().ShouldBe("engaged");
         data.GetProperty("tags").EnumerateArray().Select(t => t.GetString()).ShouldBe(["vip", "warm"]);
     }
 
@@ -55,13 +55,13 @@ public sealed class CrmContactsTests(PlatformApiFactory fixture)
     public async Task List_filters_by_status_and_email_and_is_owner_scoped()
     {
         var (_, token) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
-        await CreateContactAsync(token, new { firstName = "Lead", lastName = "One", status = "lead" });
+        await CreateContactAsync(token, new { firstName = "Lead", lastName = "One", status = "new" });
         var targetEmail = $"target-{Guid.CreateVersion7():N}@acme.test";
-        await CreateContactAsync(token, new { firstName = "Customer", lastName = "One", email = targetEmail, status = "customer" });
+        await CreateContactAsync(token, new { firstName = "Customer", lastName = "One", email = targetEmail, status = "qualified" });
 
         // Filter by status.
         var byStatus = await fixture.Client.SendAsync(
-            fixture.Authed(HttpMethod.Get, "/v1/crm/contacts?status=customer", token));
+            fixture.Authed(HttpMethod.Get, "/v1/crm/contacts?status=qualified", token));
         var statusData = await PlatformApiFactory.ReadData(byStatus);
         statusData.GetProperty("totalCount").GetInt32().ShouldBe(1);
         statusData.GetProperty("items")[0].GetProperty("firstName").GetString().ShouldBe("Customer");
@@ -81,22 +81,22 @@ public sealed class CrmContactsTests(PlatformApiFactory fixture)
     public async Task Update_changes_fields()
     {
         var (_, token) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
-        var id = await CreateContactAsync(token, new { firstName = "Old", lastName = "Name", status = "lead" });
+        var id = await CreateContactAsync(token, new { firstName = "Old", lastName = "Name", status = "new" });
 
         var update = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Patch, $"/v1/crm/contacts/{id}", token,
-            new { firstName = "New", lastName = "Name", status = "active" }));
+            new { firstName = "New", lastName = "Name", status = "engaged" }));
         update.StatusCode.ShouldBe(HttpStatusCode.OK);
         var data = await PlatformApiFactory.ReadData(update);
         data.GetProperty("firstName").GetString().ShouldBe("New");
         data.GetProperty("lastName").GetString().ShouldBe("Name");
-        data.GetProperty("status").GetString().ShouldBe("active");
+        data.GetProperty("status").GetString().ShouldBe("engaged");
     }
 
     [Fact]
     public async Task Delete_soft_deletes_and_hides_from_get_and_list()
     {
         var (_, token) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
-        var id = await CreateContactAsync(token, new { firstName = "To", lastName = "Delete", status = "lead" });
+        var id = await CreateContactAsync(token, new { firstName = "To", lastName = "Delete", status = "new" });
 
         var del = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Delete, $"/v1/crm/contacts/{id}", token));
         del.StatusCode.ShouldBe(HttpStatusCode.NoContent);
@@ -114,7 +114,7 @@ public sealed class CrmContactsTests(PlatformApiFactory fixture)
     public async Task Foreign_contact_is_not_found()
     {
         var (_, ownerToken) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
-        var id = await CreateContactAsync(ownerToken, new { firstName = "Private", lastName = "Contact", status = "lead" });
+        var id = await CreateContactAsync(ownerToken, new { firstName = "Private", lastName = "Contact", status = "new" });
 
         var (_, intruderToken) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
         var get = await fixture.Client.SendAsync(
@@ -126,7 +126,7 @@ public sealed class CrmContactsTests(PlatformApiFactory fixture)
     public async Task Interactions_add_and_list_newest_first()
     {
         var (_, token) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
-        var id = await CreateContactAsync(token, new { firstName = "Talkative", lastName = "Contact", status = "active" });
+        var id = await CreateContactAsync(token, new { firstName = "Talkative", lastName = "Contact", status = "engaged" });
 
         var first = await fixture.Client.SendAsync(fixture.Authed(
             HttpMethod.Post, $"/v1/crm/contacts/{id}/interactions", token,
@@ -151,7 +151,7 @@ public sealed class CrmContactsTests(PlatformApiFactory fixture)
         var (_, token) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
         var id = await CreateContactAsync(token, new
         {
-            firstName = "Keep", lastName = "Me", status = "customer", tags = new[] { "vip" },
+            firstName = "Keep", lastName = "Me", status = "qualified", tags = new[] { "vip" },
         });
 
         // Send ONLY a notes change — status/name/tags must survive (no full-replace, no silent reset to lead).
@@ -159,7 +159,7 @@ public sealed class CrmContactsTests(PlatformApiFactory fixture)
             new { notes = "called twice" }));
         patch.StatusCode.ShouldBe(HttpStatusCode.OK);
         var data = await PlatformApiFactory.ReadData(patch);
-        data.GetProperty("status").GetString().ShouldBe("customer");
+        data.GetProperty("status").GetString().ShouldBe("qualified");
         data.GetProperty("firstName").GetString().ShouldBe("Keep");
         data.GetProperty("lastName").GetString().ShouldBe("Me");
         data.GetProperty("notes").GetString().ShouldBe("called twice");
@@ -170,7 +170,7 @@ public sealed class CrmContactsTests(PlatformApiFactory fixture)
     public async Task Adding_interaction_to_foreign_contact_is_not_found()
     {
         var (_, ownerToken) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
-        var id = await CreateContactAsync(ownerToken, new { firstName = "Owned", lastName = "Contact", status = "lead" });
+        var id = await CreateContactAsync(ownerToken, new { firstName = "Owned", lastName = "Contact", status = "new" });
 
         var (_, intruderToken) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
         var resp = await fixture.Client.SendAsync(fixture.Authed(
@@ -197,10 +197,10 @@ public sealed class CrmContactsTests(PlatformApiFactory fixture)
         companyResp.StatusCode.ShouldBe(HttpStatusCode.Created);
         var companyId = (await PlatformApiFactory.ReadData(companyResp)).GetProperty("id").GetGuid();
 
-        var contactId = await CreateContactAsync(token, new { firstName = "Joe", lastName = "Contact", status = "lead", companyId });
+        var contactId = await CreateContactAsync(token, new { firstName = "Joe", lastName = "Contact", status = "new", companyId });
 
         var omitPatch = await fixture.Client.SendAsync(fixture.Authed(
-            HttpMethod.Patch, $"/v1/crm/contacts/{contactId}", token, new { status = "active" }));
+            HttpMethod.Patch, $"/v1/crm/contacts/{contactId}", token, new { status = "engaged" }));
         omitPatch.StatusCode.ShouldBe(HttpStatusCode.OK);
         var afterOmit = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Get, $"/v1/crm/contacts/{contactId}", token));
         var omitData = await PlatformApiFactory.ReadData(afterOmit);

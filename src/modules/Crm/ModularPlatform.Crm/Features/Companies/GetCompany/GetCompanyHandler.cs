@@ -21,6 +21,7 @@ internal sealed class GetCompanyHandler(IReadDbContextFactory<CrmDbContext> read
                 c.Name,
                 c.Domain,
                 c.Industry,
+                c.Type,
                 c.IdentificationNumber,
                 c.TaxIdentificationNumber,
                 c.RegisteredAddress,

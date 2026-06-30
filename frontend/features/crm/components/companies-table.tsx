@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { PlusIcon, Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { DataTable, type ColumnDef } from "@/components/app/data-table";
 import { crmQueries, type CompanyListItem } from "@/features/crm/api";
 import { useDeleteCompany } from "@/features/crm/hooks";
@@ -32,6 +33,7 @@ export function CompaniesTable() {
     },
     { key: "domain", header: t("table.domain"), cell: (row) => <span className="text-muted-foreground">{row.domain ?? "—"}</span> },
     { key: "industry", header: t("table.industry"), cell: (row) => <span className="text-muted-foreground">{row.industry ?? "—"}</span> },
+    { key: "type", header: t("table.companyType"), cell: (row) => <Badge variant="secondary">{t(`companyType.${row.type}`)}</Badge> },
     {
       key: "actions",
       header: "",

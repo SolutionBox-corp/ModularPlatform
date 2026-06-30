@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { PencilIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -38,6 +39,7 @@ export function CompanyDetail({ companyId }: { companyId: string }) {
             <CardDescription>
               {[company.industry, company.domain].filter(Boolean).join(" · ") || "—"}
             </CardDescription>
+            <Badge variant="secondary" className="mt-2">{t(`companyType.${company.type}`)}</Badge>
           </div>
           <CompanyFormDialog
             company={company}

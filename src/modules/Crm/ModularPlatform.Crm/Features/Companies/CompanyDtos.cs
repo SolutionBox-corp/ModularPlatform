@@ -6,6 +6,7 @@ public sealed record CompanyResponse(
     string Name,
     string? Domain,
     string? Industry,
+    string Type,
     string? IdentificationNumber,
     string? TaxIdentificationNumber,
     string? RegisteredAddress,
@@ -21,4 +22,5 @@ public sealed record CompanyListItem(
     string Name,
     string? Domain,
     string? Industry,
+    string Type,
     DateTimeOffset CreatedAt);

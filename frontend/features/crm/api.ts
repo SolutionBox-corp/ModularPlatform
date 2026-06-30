@@ -82,16 +82,18 @@ export interface InteractionsPage {
   totalCount: number;
 }
 
-export const CONTACT_STATUSES = ["lead", "active", "customer", "archived"] as const;
+export const CONTACT_STATUSES = ["new", "engaged", "qualified", "inactive", "archived"] as const;
 export const INTERACTION_TYPES = ["call", "email", "note", "meeting"] as const;
 export const DEAL_STAGES = ["lead", "qualified", "proposal", "negotiation", "won", "lost"] as const;
 export const TASK_PRIORITIES = ["low", "normal", "high"] as const;
+export const COMPANY_TYPES = ["prospect", "customer", "partner", "reseller", "vendor"] as const;
 
 export interface Company {
   id: string;
   name: string;
   domain: string | null;
   industry: string | null;
+  type: string;
   identificationNumber: string | null;
   taxIdentificationNumber: string | null;
   registeredAddress: string | null;
@@ -108,6 +110,7 @@ export interface CompanyListItem {
   name: string;
   domain: string | null;
   industry: string | null;
+  type: string;
   createdAt: string;
 }
 
@@ -310,7 +313,7 @@ export const crmQueries = {
     });
   },
 
-  companies: (params: { page?: number; pageSize?: number; industry?: string; name?: string } = {}) => {
+  companies: (params: { page?: number; pageSize?: number; industry?: string; type?: string; name?: string } = {}) => {
     const pageSize = params.pageSize ?? 20;
     return queryOptions({
       queryKey: [...queryRoots.crm, "companies", params],
@@ -319,6 +322,7 @@ export const crmQueries = {
         sp.set("page", String(params.page ?? 1));
         sp.set("pageSize", String(pageSize));
         if (params.industry) sp.set("industry", params.industry);
+        if (params.type) sp.set("type", params.type);
         if (params.name) sp.set("name", params.name);
         return apiFetch<CompaniesPage>(`crm/companies?${sp.toString()}`);
       },
@@ -470,6 +474,7 @@ export interface CompanyInput {
   name: string;
   domain?: string | null;
   industry?: string | null;
+  type?: string | null;
   identificationNumber?: string | null;
   taxIdentificationNumber?: string | null;
   registeredAddress?: string | null;

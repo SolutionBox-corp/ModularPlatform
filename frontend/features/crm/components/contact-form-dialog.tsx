@@ -44,7 +44,7 @@ function toFormValues(contact?: Contact): ContactFormValues {
     phone: contact?.phone ?? "",
     position: contact?.position ?? "",
     notes: contact?.notes ?? "",
-    status: (contact?.status as ContactFormValues["status"]) ?? "lead",
+    status: (contact?.status as ContactFormValues["status"]) ?? "new",
     tags: contact?.tags.join(", ") ?? "",
   };
 }

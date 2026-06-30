@@ -14,6 +14,7 @@ internal static class ListCompaniesEndpoint
     {
         app.MapGet("/crm/companies", async (
                 string? industry,
+                string? type,
                 string? name,
                 int? page,
                 int? pageSize,
@@ -23,7 +24,7 @@ internal static class ListCompaniesEndpoint
             {
                 var userId = tenant.UserId
                     ?? throw new UnauthorizedException("auth.required", "Authentication required.");
-                var result = await dispatcher.Query(new ListCompaniesQuery(userId, industry, name, page, pageSize), ct);
+                var result = await dispatcher.Query(new ListCompaniesQuery(userId, industry, type, name, page, pageSize), ct);
                 return Results.Ok(ApiResponse<PagedResponse<CompanyListItem>>.Ok(result));
             })
             .RequireAuthorization()

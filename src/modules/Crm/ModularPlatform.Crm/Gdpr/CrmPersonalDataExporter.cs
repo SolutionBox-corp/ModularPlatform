@@ -107,6 +107,7 @@ internal sealed class CrmPersonalDataExporter(IReadDbContextFactory<CrmDbContext
                 c.Name,
                 c.Domain,
                 c.Industry,
+                c.Type,
                 c.IdentificationNumber,
                 c.TaxIdentificationNumber,
                 c.RegisteredAddress,

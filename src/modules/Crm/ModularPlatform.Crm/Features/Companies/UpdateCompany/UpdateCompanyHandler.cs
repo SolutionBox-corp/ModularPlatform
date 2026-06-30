@@ -30,6 +30,11 @@ internal sealed class UpdateCompanyHandler(CrmDbContext db)
             company.Industry = string.IsNullOrWhiteSpace(command.Industry) ? null : command.Industry.Trim();
         }
 
+        if (command.Type is not null)
+        {
+            company.Type = command.Type;
+        }
+
         if (command.IdentificationNumber is not null)
         {
             company.IdentificationNumber = string.IsNullOrWhiteSpace(command.IdentificationNumber) ? null : command.IdentificationNumber.Trim();
@@ -68,7 +73,7 @@ internal sealed class UpdateCompanyHandler(CrmDbContext db)
         await db.SaveChangesAsync(ct);
 
         return new CompanyResponse(
-            company.Id, company.Name, company.Domain, company.Industry, company.IdentificationNumber,
+            company.Id, company.Name, company.Domain, company.Industry, company.Type, company.IdentificationNumber,
             company.TaxIdentificationNumber, company.RegisteredAddress, company.City, company.PostalCode,
             company.Country, company.Notes, company.CreatedAt, company.UpdatedAt);
     }

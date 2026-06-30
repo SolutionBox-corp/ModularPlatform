@@ -33,7 +33,7 @@ internal static class CreateContactEndpoint
                         request.Position,
                         request.Notes,
                         request.Tags ?? [],
-                        string.IsNullOrWhiteSpace(request.Status) ? ContactStatuses.Lead : request.Status.Trim().ToLowerInvariant()),
+                        string.IsNullOrWhiteSpace(request.Status) ? ContactStatuses.New : request.Status.Trim().ToLowerInvariant()),
                     ct);
                 var location = links.GetPathByName(http, "GetContact", new { contactId = result.Id })
                     ?? $"/crm/contacts/{result.Id}";

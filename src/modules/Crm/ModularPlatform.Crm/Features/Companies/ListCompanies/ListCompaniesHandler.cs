@@ -24,6 +24,12 @@ internal sealed class ListCompaniesHandler(IReadDbContextFactory<CrmDbContext> r
             filtered = filtered.Where(c => c.Industry == industry);
         }
 
+        if (!string.IsNullOrWhiteSpace(query.Type))
+        {
+            var type = query.Type.Trim().ToLowerInvariant();
+            filtered = filtered.Where(c => c.Type == type);
+        }
+
         if (!string.IsNullOrWhiteSpace(query.Name))
         {
             var name = query.Name.Trim();
@@ -36,7 +42,7 @@ internal sealed class ListCompaniesHandler(IReadDbContextFactory<CrmDbContext> r
             .OrderByDescending(c => c.CreatedAt)
             .Skip(paging.Skip)
             .Take(paging.PageSize)
-            .Select(c => new CompanyListItem(c.Id, c.Name, c.Domain, c.Industry, c.CreatedAt))
+            .Select(c => new CompanyListItem(c.Id, c.Name, c.Domain, c.Industry, c.Type, c.CreatedAt))
             .ToListAsync(ct);
 
         return new PagedResponse<CompanyListItem>(items, paging.Page, paging.PageSize, total);

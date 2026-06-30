@@ -84,6 +84,7 @@ internal sealed class CrmPersonalDataEraser(CrmDbContext db, IClock clock) : IEr
                     .SetProperty(c => c.Name, "[erased]")
                     .SetProperty(c => c.Domain, (string?)null)
                     .SetProperty(c => c.Industry, (string?)null)
+                    .SetProperty(c => c.Type, "prospect")
                     .SetProperty(c => c.IdentificationNumber, (string?)null)
                     .SetProperty(c => c.TaxIdentificationNumber, (string?)null)
                     .SetProperty(c => c.RegisteredAddress, (string?)null)

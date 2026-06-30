@@ -1,4 +1,5 @@
 using FluentValidation;
+using ModularPlatform.Crm.Entities;
 
 namespace ModularPlatform.Crm.Features.Companies.CreateCompany;
 
@@ -12,6 +13,7 @@ internal sealed class CreateCompanyValidator : AbstractValidator<CreateCompanyCo
 
         RuleFor(x => x.Domain).MaximumLength(256).WithErrorCode("crm.company.domain.too_long");
         RuleFor(x => x.Industry).MaximumLength(128).WithErrorCode("crm.company.industry.too_long");
+        RuleFor(x => x.Type).Must(CompanyTypes.IsValid).WithErrorCode("crm.company.type.invalid");
         RuleFor(x => x.IdentificationNumber).MaximumLength(32).WithErrorCode("crm.company.identification_number.too_long");
         RuleFor(x => x.TaxIdentificationNumber).MaximumLength(32).WithErrorCode("crm.company.tax_identification_number.too_long");
         RuleFor(x => x.RegisteredAddress).MaximumLength(512).WithErrorCode("crm.company.registered_address.too_long");

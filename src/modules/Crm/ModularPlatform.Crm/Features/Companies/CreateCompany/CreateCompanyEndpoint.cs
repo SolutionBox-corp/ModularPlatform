@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using ModularPlatform.Abstractions;
+using ModularPlatform.Crm.Entities;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Web;
 
@@ -27,6 +28,7 @@ internal static class CreateCompanyEndpoint
                         request.Name ?? string.Empty,
                         request.Domain,
                         request.Industry,
+                        string.IsNullOrWhiteSpace(request.Type) ? CompanyTypes.Prospect : request.Type.Trim().ToLowerInvariant(),
                         request.IdentificationNumber,
                         request.TaxIdentificationNumber,
                         request.RegisteredAddress,

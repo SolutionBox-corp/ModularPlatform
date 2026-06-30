@@ -321,14 +321,23 @@
       "due": "Due",
       "priority": "Priority",
       "companyName": "Company",
+      "companyType": "Type",
       "domain": "Domain",
       "industry": "Industry"
     },
     "status": {
-      "lead": "Lead",
-      "active": "Active",
-      "customer": "Customer",
+      "new": "New",
+      "engaged": "Engaged",
+      "qualified": "Qualified",
+      "inactive": "Inactive",
       "archived": "Archived"
+    },
+    "companyType": {
+      "prospect": "Prospect",
+      "customer": "Customer",
+      "partner": "Partner",
+      "reseller": "Reseller",
+      "vendor": "Vendor"
     },
     "meetingStatus": {
       "planned": "Planned",
@@ -548,6 +557,7 @@
       "name": "Name",
       "domain": "Domain",
       "industry": "Industry",
+      "type": "Type",
       "identificationNumber": "Company ID",
       "taxIdentificationNumber": "VAT ID",
       "registeredAddress": "Registered address",

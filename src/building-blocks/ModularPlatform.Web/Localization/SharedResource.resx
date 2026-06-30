@@ -205,6 +205,7 @@
   <data name="crm.company.name.too_long" xml:space="preserve"><value>The company name is too long.</value></data>
   <data name="crm.company.domain.too_long" xml:space="preserve"><value>The company domain is too long.</value></data>
   <data name="crm.company.industry.too_long" xml:space="preserve"><value>The company industry is too long.</value></data>
+  <data name="crm.company.type.invalid" xml:space="preserve"><value>The company type is not valid.</value></data>
   <data name="crm.company.identification_number.too_long" xml:space="preserve"><value>The company identification number is too long.</value></data>
   <data name="crm.company.tax_identification_number.too_long" xml:space="preserve"><value>The company tax identification number is too long.</value></data>
   <data name="crm.company.registered_address.too_long" xml:space="preserve"><value>The company registered address is too long.</value></data>

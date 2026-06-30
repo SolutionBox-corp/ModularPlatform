@@ -6,6 +6,7 @@ namespace ModularPlatform.Crm.Features.Companies.ListCompanies;
 public sealed record ListCompaniesQuery(
     Guid UserId,
     string? Industry,
+    string? Type,
     string? Name,
     int? Page,
     int? PageSize) : IQuery<PagedResponse<ModularPlatform.Crm.Features.Companies.CompanyListItem>>;

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CONTACT_STATUSES, INTERACTION_TYPES, DEAL_STAGES, TASK_PRIORITIES } from "@/features/crm/api";
+import { CONTACT_STATUSES, INTERACTION_TYPES, DEAL_STAGES, TASK_PRIORITIES, COMPANY_TYPES } from "@/features/crm/api";
 
 /** Translator shape (next-intl's `useTranslations('crm')`) — only what the schema needs. */
 type Translate = (key: string) => string;
@@ -94,6 +94,7 @@ export function buildCompanySchema(t: Translate) {
     name: z.string().min(1, t("validation.nameRequired")).max(256, t("validation.nameMax")),
     domain: z.string().max(256, t("validation.domainMax")).optional(),
     industry: z.string().max(128, t("validation.industryMax")).optional(),
+    type: z.enum(COMPANY_TYPES),
     identificationNumber: z.string().max(32, t("validation.identificationNumberMax")).optional(),
     taxIdentificationNumber: z.string().max(32, t("validation.taxIdentificationNumberMax")).optional(),
     registeredAddress: z.string().max(512, t("validation.registeredAddressMax")).optional(),
