@@ -316,6 +316,61 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task SendNotification_realtime_push_happens_only_after_successful_commit()
+    {
+        var recipientId = Guid.CreateVersion7();
+        var templateKey = $"nt-realtime-after-commit-{Guid.CreateVersion7():N}";
+        var tenant = new TestTenantContext(recipientId);
+        var realtime = new RecordingRealtimePublisher();
+
+        await using (var seedDb = NewNotificationsDbContext(tenant))
+        {
+            seedDb.NotificationTemplates.Add(new NotificationTemplate
+            {
+                Key = templateKey,
+                Locale = "en",
+                Subject = "Realtime {displayName}",
+                Body = "Body for {displayName}"
+            });
+            await seedDb.SaveChangesAsync();
+        }
+
+        await using (var failedDb = NewNotificationsDbContext(tenant))
+        {
+            var failingOutbox = new RecordingOutbox(failedDb, failBeforeSave: true);
+            var failingHandler = new SendNotificationHandler(failingOutbox, realtime, new FixedClock());
+
+            await Should.ThrowAsync<InvalidOperationException>(() => failingHandler.Handle(new SendNotificationCommand(
+                    recipientId,
+                    templateKey,
+                    ["inapp"],
+                    new Dictionary<string, string> { ["displayName"] = "Ada" }),
+                CancellationToken.None));
+        }
+
+        (await CountNotificationsAsync(recipientId, templateKey)).ShouldBe(0);
+        realtime.Published.Count.ShouldBe(0,
+            "a failed commit must not emit a phantom realtime notification");
+
+        await using (var successDb = NewNotificationsDbContext(tenant))
+        {
+            var successOutbox = new RecordingOutbox(successDb);
+            var successHandler = new SendNotificationHandler(successOutbox, realtime, new FixedClock());
+
+            await successHandler.Handle(new SendNotificationCommand(
+                    recipientId,
+                    templateKey,
+                    ["inapp"],
+                    new Dictionary<string, string> { ["displayName"] = "Ada" }),
+                CancellationToken.None);
+        }
+
+        (await CountNotificationsAsync(recipientId, templateKey)).ShouldBe(1);
+        realtime.Published.Count.ShouldBe(1);
+        realtime.Published.Single().ShouldBe((recipientId, "notification"));
+    }
+
+    [Fact]
     public async Task SendNotification_falls_back_to_english_template_when_requested_locale_is_missing()
     {
         var (recipientId, adminToken) = await AdminTokenAsync();
@@ -935,6 +990,18 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
                OR ("Key" = 'purchase_completed' AND "Locale" IN ('en', 'cs'))
             """);
 
+    private NotificationsDbContext NewNotificationsDbContext(ITenantContext tenant)
+    {
+        var options = new DbContextOptionsBuilder<NotificationsDbContext>()
+            .UseNpgsql(fixture.ConnectionString)
+            .Options;
+        return new NotificationsDbContext(options, tenant);
+    }
+
+    private Task<long> CountNotificationsAsync(Guid userId, string templateKey) =>
+        fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM notifications WHERE \"UserId\" = '{userId}' AND \"TemplateKey\" = '{templateKey}'");
+
     private Task<long> BuiltInTemplateDuplicateGroupCountAsync() =>
         fixture.ScalarAsync<long>(
             """
@@ -1066,14 +1133,32 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
             Task.CompletedTask;
     }
 
-    private sealed class RecordingOutbox(NotificationsDbContext db) : IDbContextOutbox<NotificationsDbContext>
+    private sealed class RecordingRealtimePublisher : IRealtimePublisher
+    {
+        public List<(Guid UserId, string EventType)> Published { get; } = [];
+
+        public Task PublishToUserAsync(Guid userId, string eventType, object payload, CancellationToken ct)
+        {
+            Published.Add((userId, eventType));
+            return Task.CompletedTask;
+        }
+
+        public Task PublishToTenantAsync(Guid tenantId, string eventType, object payload, CancellationToken ct) =>
+            Task.CompletedTask;
+    }
+
+    private sealed class RecordingOutbox(NotificationsDbContext db, bool failBeforeSave = false)
+        : IDbContextOutbox<NotificationsDbContext>
     {
         public List<object> Published { get; } = [];
         public NotificationsDbContext DbContext => db;
         public DbContext ActiveContext => db;
         public string? TenantId { get; set; }
 
-        public Task SaveChangesAndFlushMessagesAsync(CancellationToken token = default) => db.SaveChangesAsync(token);
+        public Task SaveChangesAndFlushMessagesAsync(CancellationToken token = default) =>
+            failBeforeSave
+                ? throw new InvalidOperationException("Injected save failure before commit.")
+                : db.SaveChangesAsync(token);
         public Task FlushOutgoingMessagesAsync() => Task.CompletedTask;
         public void Enroll(DbContext dbContext) { }
 

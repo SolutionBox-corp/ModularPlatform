@@ -74,7 +74,7 @@ Status: **✓** implemented · **▢** gap (planned) · **◐** partially covere
 | # | Scenario | Type | Status |
 |---|---|---|---|
 | NT-1 | `SendNotification` persists an in-app row + enqueues channel deliveries via the outbox (never inline) | I | ✓ `NotificationsIntegrationTests` (caller sends to its OWN id — RLS WITH CHECK on `IUserOwned` blocks cross-user HTTP sends; cross-user happens via the Worker/system) |
-| NT-2 | In-app realtime push happens AFTER commit (force first save to fail once → exactly one delivery, one row) | C/F | ▢ |
+| NT-2 | In-app realtime push happens AFTER commit (force first save to fail once → exactly one delivery, one row) | C/F | ✓ `SendNotification_realtime_push_happens_only_after_successful_commit` |
 | NT-3 | Email delivery handler runs in the Worker; per-user locale resolved | I | ✓ `SendNotification_email_delivery_message_uses_requested_locale_template` + `ChannelDeliveryHandlersTests` |
 | NT-4 | `GetMyNotifications(unreadOnly)` + `MarkNotificationRead` round-trip | I | ✓ `NotificationsIntegrationTests` |
 | NT-5 | Channel validation: unknown channel → `notification.channel.invalid` | U | ✓ `SendNotification_with_unknown_channel_returns_validation_problem` |
@@ -119,5 +119,3 @@ sweep, PII column encryption, dead-letter, replay buffer).
 1. **EV-4** kill-worker-mid-message durability + **PL-7 down-case** — both need infrastructure the harness
    can't fake (an out-of-process worker / killing the DB under a running host); Wolverine-/HealthChecks-native
    behaviour, low risk.
-2. **NT-2** realtime-push-after-commit fault injection (force the first save to fail) — the after-commit
-   ordering is a source invariant (`SendNotificationHandler`); a fault-injection seam would be test-only code.
