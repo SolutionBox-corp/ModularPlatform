@@ -110,8 +110,16 @@ internal sealed class UpdateCardHandler(CrmDbContext db)
 
         await db.SaveChangesAsync(ct);
 
+        var deal = card.DealId is { } linkedDealId
+            ? await db.Deals
+                .Where(d => d.Id == linkedDealId && d.UserId == command.UserId)
+                .Select(d => new { d.Title, d.AmountCents, d.Currency })
+                .FirstOrDefaultAsync(ct)
+            : null;
+
         return new KanbanCardDto(
             card.Id, card.ColumnId, card.Position, card.Title, card.Description, card.ContactId, card.DealId,
+            deal?.Title, deal?.AmountCents, deal?.Currency,
             card.MeetingId, card.TaskId, card.AssigneeUserId, card.Priority, card.Labels, card.StartAt, card.DueAt);
     }
 

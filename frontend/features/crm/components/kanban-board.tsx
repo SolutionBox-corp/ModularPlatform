@@ -84,6 +84,10 @@ function toDateInput(iso: string | null): string {
   return iso ? new Date(iso).toISOString().slice(0, 10) : "";
 }
 
+function formatMoney(cents: number, currency = "USD") {
+  return new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 0 }).format(cents / 100);
+}
+
 function isOverdue(card: KanbanCard): boolean {
   return card.dueAt ? new Date(card.dueAt).getTime() < TODAY_START.getTime() : false;
 }
@@ -304,7 +308,7 @@ function Card({
         {display.links && card.dealId && (
           <Badge variant="outline" className="gap-1 text-[11px]">
             <BriefcaseIcon className="h-3 w-3" />
-            {t("board.linkedDeal")}
+            {card.dealAmountCents !== null ? formatMoney(card.dealAmountCents, card.dealCurrency ?? "USD") : t("board.linkedDeal")}
           </Badge>
         )}
         {display.links && card.taskId && <Badge variant="outline" className="text-[11px]">{taskLabel(taskOptions, card.taskId) ?? t("board.linkedTask")}</Badge>}
@@ -355,6 +359,9 @@ function Column({
   const overWip = column.wipLimit !== null && allColumnCardsCount > column.wipLimit;
   const atWipLimit = column.wipLimit !== null && allColumnCardsCount >= column.wipLimit;
   const wipProgress = column.wipLimit ? Math.min(100, Math.round((allColumnCardsCount / column.wipLimit) * 100)) : null;
+  const columnDealAmount = allCards
+    .filter((card) => card.columnId === column.id)
+    .reduce((sum, card) => sum + (card.dealAmountCents ?? 0), 0);
 
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -398,7 +405,7 @@ function Column({
       <div className="flex items-center justify-between gap-2">
         <div>
           <div className="text-sm font-semibold">{column.name}</div>
-          <div className="text-xs text-muted-foreground">{t(`board.group.${column.group}`)}</div>
+          <div className="text-xs text-muted-foreground">{t(`board.group.${column.group}`)} · {formatMoney(columnDealAmount)}</div>
         </div>
         <div className="flex items-center gap-1">
           <Badge variant={overWip || atWipLimit ? "destructive" : "secondary"}>

@@ -28,12 +28,18 @@ internal sealed class GetBoardHandler(IReadDbContextFactory<CrmDbContext> readFa
             .Select(c => new KanbanColumnDto(c.Id, c.Name, c.Position, c.Color, c.Group, c.IsDefault, c.WipLimit))
             .ToListAsync(ct);
 
-        var cards = await db.KanbanCards
-            .Where(c => c.BoardId == board.Id && c.UserId == query.UserId)
-            .OrderBy(c => c.Position).ThenBy(c => c.CreatedAt).ThenBy(c => c.Id)
-            .Select(c => new KanbanCardDto(
-                c.Id, c.ColumnId, c.Position, c.Title, c.Description, c.ContactId, c.DealId, c.MeetingId, c.TaskId,
-                c.AssigneeUserId, c.Priority, c.Labels, c.StartAt, c.DueAt))
+        var cards = await (
+                from card in db.KanbanCards.Where(c => c.BoardId == board.Id && c.UserId == query.UserId)
+                join deal in db.Deals.Where(d => d.UserId == query.UserId)
+                    on card.DealId equals deal.Id into dealGroup
+                from deal in dealGroup.DefaultIfEmpty()
+                orderby card.Position, card.CreatedAt, card.Id
+                select new KanbanCardDto(
+                    card.Id, card.ColumnId, card.Position, card.Title, card.Description, card.ContactId, card.DealId,
+                    deal == null ? null : deal.Title,
+                    deal == null ? null : deal.AmountCents,
+                    deal == null ? null : deal.Currency,
+                    card.MeetingId, card.TaskId, card.AssigneeUserId, card.Priority, card.Labels, card.StartAt, card.DueAt))
             .ToListAsync(ct);
 
         return new KanbanBoardDetail(board.Id, board.Name, columns, cards);

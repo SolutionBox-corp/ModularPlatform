@@ -134,6 +134,7 @@ export interface KanbanColumn {
 export interface KanbanCard {
   id: string; columnId: string; position: number; title: string; description: string | null;
   contactId: string | null; dealId: string | null; meetingId: string | null; taskId: string | null;
+  dealTitle: string | null; dealAmountCents: number | null; dealCurrency: string | null;
   assigneeUserId: string | null; priority: string; labels: string[]; startAt: string | null; dueAt: string | null;
 }
 export interface KanbanBoardListItem { id: string; name: string; createdAt: string; }
