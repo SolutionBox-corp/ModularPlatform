@@ -6,6 +6,7 @@ import { getQueryClient } from "@/lib/api/query-client";
 import { crmQueries } from "@/features/crm/api";
 import { entitlementQueries, isModuleEnabled } from "@/features/entitlements/api";
 import { ContactsTable } from "@/features/crm/components/contacts-table";
+import { CrmDashboard } from "@/features/crm/components/crm-dashboard";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("crm");
@@ -19,12 +20,15 @@ export default async function CrmPage() {
   const ent = await queryClient.fetchQuery(entitlementQueries.me());
   if (!isModuleEnabled(ent, "crm")) notFound();
 
+  void queryClient.prefetchQuery(crmQueries.dashboard());
   void queryClient.prefetchQuery(crmQueries.contacts({ page: 1, pageSize: 20 }));
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
       <div className="space-y-6">
         <p className="text-sm text-muted-foreground">{t("page.description")}</p>
+
+        <CrmDashboard />
 
         <ContactsTable />
       </div>

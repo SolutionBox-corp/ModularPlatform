@@ -187,6 +187,29 @@ export interface DealsPage {
   totalCount: number;
 }
 
+export interface PipelineStageSummary {
+  stage: string;
+  count: number;
+  amountCents: number;
+}
+
+export interface LeadSourceSummary {
+  leadSource: string;
+  count: number;
+  amountCents: number;
+}
+
+export interface CrmDashboard {
+  openPipelineAmountCents: number;
+  openDealsCount: number;
+  wonDealsCount: number;
+  overdueDealsCount: number;
+  openTasksCount: number;
+  overdueTasksCount: number;
+  stages: PipelineStageSummary[];
+  leadSources: LeadSourceSummary[];
+}
+
 /* ----------------------------------------------------------------------------
  * Query factories — pages prefetch these; hooks consume them.
  * -------------------------------------------------------------------------- */
@@ -230,6 +253,13 @@ export interface TasksParams {
 }
 
 export const crmQueries = {
+  dashboard: () =>
+    queryOptions({
+      queryKey: [...queryRoots.crm, "dashboard"],
+      queryFn: () => apiFetch<CrmDashboard>("crm/dashboard"),
+      staleTime: 15_000,
+    }),
+
   contacts: (params: ContactsParams = {}) => {
     const pageSize = params.pageSize ?? 20;
     return queryOptions({

@@ -521,6 +521,19 @@
       "save": "Uložit",
       "saving": "Ukládám…"
     },
+    "dashboard": {
+      "openPipeline": "Otevřená pipeline",
+      "openDeals": "{count} otevřených obchodů",
+      "wonDeals": "Vyhrané obchody",
+      "closedWon": "Uzavřeno jako vyhráno",
+      "openTasks": "Otevřené úkoly",
+      "overdueTasks": "{count} po termínu",
+      "overdueDeals": "Obchody po termínu",
+      "needsAttention": "Vyžaduje pozornost",
+      "pipelineByStage": "Pipeline podle fáze",
+      "byLeadSource": "Podle zdroje leadu",
+      "noLeadSources": "Zatím žádné zdroje leadů."
+    },
     "tasks": {
       "metaTitle": "Úkoly",
       "heading": "Úkoly",

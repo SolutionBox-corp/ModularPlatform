@@ -521,6 +521,19 @@
       "save": "Save",
       "saving": "Saving…"
     },
+    "dashboard": {
+      "openPipeline": "Open pipeline",
+      "openDeals": "{count} open deals",
+      "wonDeals": "Won deals",
+      "closedWon": "Closed won",
+      "openTasks": "Open tasks",
+      "overdueTasks": "{count} overdue",
+      "overdueDeals": "Overdue deals",
+      "needsAttention": "Needs attention",
+      "pipelineByStage": "Pipeline by stage",
+      "byLeadSource": "By lead source",
+      "noLeadSources": "No lead sources yet."
+    },
     "tasks": {
       "metaTitle": "Tasks",
       "heading": "Tasks",

@@ -16,6 +16,7 @@ using ModularPlatform.Crm.Features.Contacts.GetContact;
 using ModularPlatform.Crm.Features.Contacts.ListContacts;
 using ModularPlatform.Crm.Features.Contacts.ListInteractions;
 using ModularPlatform.Crm.Features.Contacts.UpdateContact;
+using ModularPlatform.Crm.Features.Dashboard.GetCrmDashboard;
 using ModularPlatform.Crm.Features.Deals.CreateDeal;
 using ModularPlatform.Crm.Features.Deals.DeleteDeal;
 using ModularPlatform.Crm.Features.Deals.GetDeal;
@@ -88,6 +89,8 @@ public sealed class CrmModule : IModule
         endpoints.MapDeleteContact();
         endpoints.MapAddInteraction();
         endpoints.MapListInteractions();
+
+        endpoints.MapGetCrmDashboard();
 
         endpoints.MapCreateMeeting();
         endpoints.MapGetMeeting();
