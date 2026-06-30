@@ -20,7 +20,14 @@ internal sealed class CreateColumnHandler(CrmDbContext db)
         var position = await db.KanbanColumns.CountAsync(c => c.BoardId == command.BoardId, ct);
         var column = new KanbanColumn
         {
-            UserId = command.UserId, BoardId = command.BoardId, Name = command.Name.Trim(), Position = position,
+            UserId = command.UserId,
+            BoardId = command.BoardId,
+            Name = command.Name.Trim(),
+            Position = position,
+            Color = string.IsNullOrWhiteSpace(command.Color) ? "#94A3B8" : command.Color.Trim(),
+            Group = string.IsNullOrWhiteSpace(command.Group) ? KanbanColumnGroups.Unstarted : command.Group,
+            IsDefault = command.IsDefault ?? false,
+            WipLimit = command.WipLimit,
         };
         db.KanbanColumns.Add(column);
         await db.SaveChangesAsync(ct);

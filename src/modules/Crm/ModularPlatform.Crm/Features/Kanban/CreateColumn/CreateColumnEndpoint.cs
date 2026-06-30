@@ -15,7 +15,14 @@ internal static class CreateColumnEndpoint
                 Guid boardId, CreateColumnRequest request, ITenantContext tenant, IDispatcher dispatcher, CancellationToken ct) =>
             {
                 var userId = tenant.UserId ?? throw new UnauthorizedException("auth.required", "Authentication required.");
-                var result = await dispatcher.Send(new CreateColumnCommand(userId, boardId, request.Name ?? string.Empty), ct);
+                var result = await dispatcher.Send(new CreateColumnCommand(
+                    userId,
+                    boardId,
+                    request.Name ?? string.Empty,
+                    request.Color,
+                    request.Group?.Trim().ToLowerInvariant(),
+                    request.IsDefault,
+                    request.WipLimit), ct);
                 return Results.Created((string?)null, ApiResponse<CreateColumnResponse>.Ok(result));
             })
             .RequireAuthorization().RequireModule("crm").WithTags("Crm").WithName("CreateColumn");

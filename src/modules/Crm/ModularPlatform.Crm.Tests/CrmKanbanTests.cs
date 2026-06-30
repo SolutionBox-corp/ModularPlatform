@@ -42,7 +42,11 @@ public sealed class CrmKanbanTests(PlatformApiFactory fixture)
         var (_, token) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
         var id = await CreateBoardAsync(token, "Sales");
         var board = await GetBoardAsync(token, id);
-        board.GetProperty("columns").EnumerateArray().Count().ShouldBe(3);
+        var columns = board.GetProperty("columns").EnumerateArray().ToList();
+        columns.Count.ShouldBe(4);
+        columns[0].GetProperty("group").GetString().ShouldBe("backlog");
+        columns[1].GetProperty("isDefault").GetBoolean().ShouldBeTrue();
+        columns[2].GetProperty("color").GetString().ShouldBe("#F59E0B");
     }
 
     [Fact]
@@ -53,7 +57,7 @@ public sealed class CrmKanbanTests(PlatformApiFactory fixture)
         var board = await GetBoardAsync(token, id);
         var columns = board.GetProperty("columns").EnumerateArray().ToList();
         var todo = columns[0].GetProperty("id").GetGuid();
-        var done = columns[2].GetProperty("id").GetGuid();
+        var done = columns[3].GetProperty("id").GetGuid();
 
         var cardId = await AddCardAsync(token, id, todo, "First");
         await AddCardAsync(token, id, todo, "Second");
@@ -157,7 +161,43 @@ public sealed class CrmKanbanTests(PlatformApiFactory fixture)
         col.StatusCode.ShouldBe(HttpStatusCode.Created);
 
         var board = await GetBoardAsync(token, boardId);
-        board.GetProperty("columns").EnumerateArray().Count().ShouldBe(4);
+        board.GetProperty("columns").EnumerateArray().Count().ShouldBe(5);
+    }
+
+    [Fact]
+    public async Task Create_card_round_trips_rich_metadata()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
+        var boardId = await CreateBoardAsync(token, "Rich");
+        var board = await GetBoardAsync(token, boardId);
+        var columnId = board.GetProperty("columns").EnumerateArray().First(c => c.GetProperty("isDefault").GetBoolean()).GetProperty("id").GetGuid();
+        var start = DateTimeOffset.UtcNow.Date.AddDays(1);
+        var due = start.AddDays(2);
+        var assigneeId = Guid.CreateVersion7();
+
+        var create = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, $"/v1/crm/boards/{boardId}/cards", token,
+            new
+            {
+                columnId,
+                title = "Call buyer",
+                description = "Prepare next step",
+                priority = "high",
+                labels = new[] { "VIP", "vip", " proposal " },
+                assigneeUserId = assigneeId,
+                startAt = start,
+                dueAt = due,
+            }));
+        create.StatusCode.ShouldBe(HttpStatusCode.Created, await create.Content.ReadAsStringAsync());
+        var cardId = (await PlatformApiFactory.ReadData(create)).GetProperty("id").GetGuid();
+
+        var after = await GetBoardAsync(token, boardId);
+        var card = after.GetProperty("cards").EnumerateArray().Single(c => c.GetProperty("id").GetGuid() == cardId);
+        card.GetProperty("priority").GetString().ShouldBe("high");
+        card.GetProperty("assigneeUserId").GetGuid().ShouldBe(assigneeId);
+        card.GetProperty("labels").EnumerateArray().Select(x => x.GetString()).ShouldBe(["VIP", "proposal"]);
+        card.GetProperty("startAt").GetDateTimeOffset().ShouldBe(start);
+        card.GetProperty("dueAt").GetDateTimeOffset().ShouldBe(due);
     }
 
     [Fact]

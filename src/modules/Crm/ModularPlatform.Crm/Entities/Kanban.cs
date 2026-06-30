@@ -27,8 +27,25 @@ internal sealed class KanbanColumn : AuditableEntity, ITenantScoped, IUserOwned,
     public string Name { get; set; } = string.Empty;
 
     public int Position { get; set; }
+    public string Color { get; set; } = "#94A3B8";
+    public string Group { get; set; } = KanbanColumnGroups.Unstarted;
+    public bool IsDefault { get; set; }
+    public int? WipLimit { get; set; }
 
     Guid IDataSubject.SubjectId => UserId;
+}
+
+internal static class KanbanColumnGroups
+{
+    public const string Backlog = "backlog";
+    public const string Unstarted = "unstarted";
+    public const string Started = "started";
+    public const string Completed = "completed";
+    public const string Cancelled = "cancelled";
+    public const string Triage = "triage";
+
+    public static readonly string[] All = [Backlog, Unstarted, Started, Completed, Cancelled, Triage];
+    public static bool IsValid(string? value) => value is not null && Array.IndexOf(All, value) >= 0;
 }
 
 /// <summary>A card in a column; ordered by Position. May reference a contact/deal by Id. Title/Description PII.</summary>
@@ -47,6 +64,12 @@ internal sealed class KanbanCard : AuditableEntity, ITenantScoped, IUserOwned, I
 
     public Guid? ContactId { get; set; }
     public Guid? DealId { get; set; }
+    public Guid? MeetingId { get; set; }
+    public Guid? TaskId { get; set; }
+    public Guid? AssigneeUserId { get; set; }
+    public string Priority { get; set; } = TaskPriorities.Normal;
+    public string[] Labels { get; set; } = [];
+    public DateTimeOffset? StartAt { get; set; }
     public DateTimeOffset? DueAt { get; set; }
 
     Guid IDataSubject.SubjectId => UserId;
@@ -71,6 +94,8 @@ internal sealed class KanbanColumnConfiguration : IEntityTypeConfiguration<Kanba
         b.ToTable("crm_kanban_columns");
         b.HasKey(x => x.Id);
         b.Property(x => x.Name).HasMaxLength(128).IsRequired();
+        b.Property(x => x.Color).HasMaxLength(16).IsRequired();
+        b.Property(x => x.Group).HasMaxLength(32).IsRequired();
         b.HasIndex(x => new { x.BoardId, x.Position });
         b.HasIndex(x => x.UserId);
     }
@@ -84,8 +109,14 @@ internal sealed class KanbanCardConfiguration : IEntityTypeConfiguration<KanbanC
         b.HasKey(x => x.Id);
         b.Property(x => x.Title).HasMaxLength(256).IsRequired();
         b.Property(x => x.Description).HasMaxLength(8192);
+        b.Property(x => x.Priority).HasMaxLength(16).IsRequired();
+        b.Property(x => x.Labels).HasColumnType("text[]");
         b.HasIndex(x => new { x.ColumnId, x.Position });
         b.HasIndex(x => x.BoardId);
         b.HasIndex(x => x.UserId);
+        b.HasIndex(x => x.DealId);
+        b.HasIndex(x => x.TaskId);
+        b.HasIndex(x => x.MeetingId);
+        b.HasIndex(x => x.AssigneeUserId);
     }
 }

@@ -17,7 +17,8 @@ internal static class CreateCardEndpoint
                 var userId = tenant.UserId ?? throw new UnauthorizedException("auth.required", "Authentication required.");
                 var result = await dispatcher.Send(new CreateCardCommand(
                     userId, boardId, request.ColumnId, request.Title ?? string.Empty, request.Description,
-                    request.ContactId, request.DealId, request.DueAt), ct);
+                    request.ContactId, request.DealId, request.MeetingId, request.TaskId, request.AssigneeUserId,
+                    request.Priority?.Trim().ToLowerInvariant(), request.Labels, request.StartAt, request.DueAt), ct);
                 return Results.Created((string?)null, ApiResponse<CreateCardResponse>.Ok(result));
             })
             .RequireAuthorization().RequireModule("crm").WithTags("Crm").WithName("CreateCard");

@@ -25,13 +25,15 @@ internal sealed class GetBoardHandler(IReadDbContextFactory<CrmDbContext> readFa
         var columns = await db.KanbanColumns
             .Where(c => c.BoardId == board.Id && c.UserId == query.UserId)
             .OrderBy(c => c.Position).ThenBy(c => c.CreatedAt).ThenBy(c => c.Id)
-            .Select(c => new KanbanColumnDto(c.Id, c.Name, c.Position))
+            .Select(c => new KanbanColumnDto(c.Id, c.Name, c.Position, c.Color, c.Group, c.IsDefault, c.WipLimit))
             .ToListAsync(ct);
 
         var cards = await db.KanbanCards
             .Where(c => c.BoardId == board.Id && c.UserId == query.UserId)
             .OrderBy(c => c.Position).ThenBy(c => c.CreatedAt).ThenBy(c => c.Id)
-            .Select(c => new KanbanCardDto(c.Id, c.ColumnId, c.Position, c.Title, c.Description, c.ContactId, c.DealId, c.DueAt))
+            .Select(c => new KanbanCardDto(
+                c.Id, c.ColumnId, c.Position, c.Title, c.Description, c.ContactId, c.DealId, c.MeetingId, c.TaskId,
+                c.AssigneeUserId, c.Priority, c.Labels, c.StartAt, c.DueAt))
             .ToListAsync(ct);
 
         return new KanbanBoardDetail(board.Id, board.Name, columns, cards);

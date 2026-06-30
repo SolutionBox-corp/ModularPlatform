@@ -10,6 +10,12 @@ public sealed record CreateCardCommand(
     string? Description,
     Guid? ContactId,
     Guid? DealId,
+    Guid? MeetingId,
+    Guid? TaskId,
+    Guid? AssigneeUserId,
+    string? Priority,
+    string[]? Labels,
+    DateTimeOffset? StartAt,
     DateTimeOffset? DueAt) : ICommand<CreateCardResponse>;
 
 public sealed record CreateCardResponse(Guid Id);
@@ -20,4 +26,10 @@ public sealed record CreateCardRequest(
     string? Description,
     Guid? ContactId,
     Guid? DealId,
+    Guid? MeetingId,
+    Guid? TaskId,
+    Guid? AssigneeUserId,
+    string? Priority,
+    string[]? Labels,
+    DateTimeOffset? StartAt,
     DateTimeOffset? DueAt);

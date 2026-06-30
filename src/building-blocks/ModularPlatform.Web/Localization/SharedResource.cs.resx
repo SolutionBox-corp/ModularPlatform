@@ -218,8 +218,14 @@
   <data name="crm.column_not_found" xml:space="preserve"><value>Sloupec nenalezen.</value></data>
   <data name="crm.column.name.required" xml:space="preserve"><value>Název sloupce je povinný.</value></data>
   <data name="crm.column.name.too_long" xml:space="preserve"><value>Název sloupce je příliš dlouhý.</value></data>
+  <data name="crm.column.color.too_long" xml:space="preserve"><value>Barva sloupce je příliš dlouhá.</value></data>
+  <data name="crm.column.group.invalid" xml:space="preserve"><value>Skupina sloupce není platná.</value></data>
+  <data name="crm.column.wip_limit.invalid" xml:space="preserve"><value>WIP limit není platný.</value></data>
   <data name="crm.card_not_found" xml:space="preserve"><value>Karta nenalezena.</value></data>
   <data name="crm.card.title.required" xml:space="preserve"><value>Název karty je povinný.</value></data>
   <data name="crm.card.title.too_long" xml:space="preserve"><value>Název karty je příliš dlouhý.</value></data>
   <data name="crm.card.description.too_long" xml:space="preserve"><value>Popis karty je příliš dlouhý.</value></data>
+  <data name="crm.card.priority.invalid" xml:space="preserve"><value>Priorita karty není platná.</value></data>
+  <data name="crm.card.labels.too_many" xml:space="preserve"><value>Příliš mnoho štítků karty.</value></data>
+  <data name="crm.card.label.too_long" xml:space="preserve"><value>Štítek karty je příliš dlouhý.</value></data>
 </root>

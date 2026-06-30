@@ -28,6 +28,18 @@ internal sealed class CreateCardHandler(CrmDbContext db)
             throw new NotFoundException("crm.deal_not_found", "Deal not found.");
         }
 
+        if (command.MeetingId is { } meetingId
+            && !await db.Meetings.AnyAsync(m => m.Id == meetingId && m.UserId == command.UserId, ct))
+        {
+            throw new NotFoundException("crm.meeting_not_found", "Meeting not found.");
+        }
+
+        if (command.TaskId is { } taskId
+            && !await db.Tasks.AnyAsync(t => t.Id == taskId && t.UserId == command.UserId, ct))
+        {
+            throw new NotFoundException("crm.task_not_found", "Task not found.");
+        }
+
         var position = await db.KanbanCards.CountAsync(c => c.ColumnId == column.Id, ct);
         var card = new KanbanCard
         {
@@ -39,10 +51,26 @@ internal sealed class CreateCardHandler(CrmDbContext db)
             Description = string.IsNullOrWhiteSpace(command.Description) ? null : command.Description,
             ContactId = command.ContactId,
             DealId = command.DealId,
-            DueAt = command.DueAt,
+            MeetingId = command.MeetingId,
+            TaskId = command.TaskId,
+            AssigneeUserId = command.AssigneeUserId,
+            Priority = string.IsNullOrWhiteSpace(command.Priority) ? TaskPriorities.Normal : command.Priority,
+            Labels = NormalizeLabels(command.Labels),
+            StartAt = command.StartAt?.ToUniversalTime(),
+            DueAt = command.DueAt?.ToUniversalTime(),
         };
         db.KanbanCards.Add(card);
         await db.SaveChangesAsync(ct);
         return new CreateCardResponse(card.Id);
     }
+
+    private static string[] NormalizeLabels(string[]? labels) =>
+        labels is null
+            ? []
+            : labels
+                .Select(label => label.Trim())
+                .Where(label => label.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(16)
+                .ToArray();
 }

@@ -8,7 +8,13 @@ namespace ModularPlatform.Crm.Features.Kanban.CreateBoard;
 internal sealed class CreateBoardHandler(CrmDbContext db)
     : ICommandHandler<CreateBoardCommand, CreateBoardResponse>
 {
-    private static readonly string[] DefaultColumns = ["To Do", "In Progress", "Done"];
+    private static readonly (string Name, string Group, string Color, bool IsDefault)[] DefaultColumns =
+    [
+        ("Backlog", KanbanColumnGroups.Backlog, "#64748B", false),
+        ("To Do", KanbanColumnGroups.Unstarted, "#64748B", true),
+        ("In Progress", KanbanColumnGroups.Started, "#F59E0B", false),
+        ("Done", KanbanColumnGroups.Completed, "#22C55E", false),
+    ];
 
     public async Task<CreateBoardResponse> Handle(CreateBoardCommand command, CancellationToken ct)
     {
@@ -19,7 +25,13 @@ internal sealed class CreateBoardHandler(CrmDbContext db)
         {
             db.KanbanColumns.Add(new KanbanColumn
             {
-                UserId = command.UserId, BoardId = board.Id, Name = DefaultColumns[i], Position = i,
+                UserId = command.UserId,
+                BoardId = board.Id,
+                Name = DefaultColumns[i].Name,
+                Position = i,
+                Group = DefaultColumns[i].Group,
+                Color = DefaultColumns[i].Color,
+                IsDefault = DefaultColumns[i].IsDefault,
             });
         }
 
