@@ -34,6 +34,12 @@ internal sealed class ListDealsHandler(IReadDbContextFactory<CrmDbContext> readF
             filtered = filtered.Where(d => d.CompanyId == companyId);
         }
 
+        if (!string.IsNullOrWhiteSpace(query.LeadSource))
+        {
+            var leadSource = query.LeadSource.Trim().ToLowerInvariant();
+            filtered = filtered.Where(d => d.LeadSource == leadSource);
+        }
+
         var total = await filtered.CountAsync(ct);
 
         var items = await filtered

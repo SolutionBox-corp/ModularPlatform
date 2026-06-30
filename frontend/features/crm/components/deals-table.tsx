@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { PlusIcon, Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -33,17 +34,26 @@ const STAGE_VARIANT: Record<string, "default" | "secondary" | "outline" | "destr
 
 interface DealsTableProps {
   contactId?: string;
+  companyId?: string;
 }
 
-export function DealsTable({ contactId }: DealsTableProps) {
+export function DealsTable({ contactId, companyId }: DealsTableProps) {
   const t = useTranslations("crm");
   const [page, setPage] = useState(1);
   const [stage, setStage] = useState<string>(ALL);
+  const [leadSource, setLeadSource] = useState("");
   const moveMutation = useMoveDealStage();
   const deleteMutation = useDeleteDeal();
 
   const { data, isLoading } = useQuery(
-    crmQueries.deals({ page, pageSize: PAGE_SIZE, contactId, stage: stage === ALL ? undefined : stage }),
+    crmQueries.deals({
+      page,
+      pageSize: PAGE_SIZE,
+      contactId,
+      companyId,
+      stage: stage === ALL ? undefined : stage,
+      leadSource: leadSource.trim() || undefined,
+    }),
   );
 
   const fmtAmount = (cents: number, currency: string) =>
@@ -119,25 +129,36 @@ export function DealsTable({ contactId }: DealsTableProps) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <Select
-          value={stage}
-          onValueChange={(v) => {
-            setStage(v ?? ALL);
-            setPage(1);
-          }}
-        >
-          <SelectTrigger className="w-44" aria-label={t("filter.stage")}>
-            <SelectValue placeholder={t("filter.allStages")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>{t("filter.allStages")}</SelectItem>
-            {DEAL_STAGES.map((s) => (
-              <SelectItem key={s} value={s}>
-                {t(`dealStage.${s}`)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
+            value={stage}
+            onValueChange={(v) => {
+              setStage(v ?? ALL);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger className="w-44" aria-label={t("filter.stage")}>
+              <SelectValue placeholder={t("filter.allStages")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>{t("filter.allStages")}</SelectItem>
+              {DEAL_STAGES.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {t(`dealStage.${s}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
+            className="h-8 w-44"
+            value={leadSource}
+            onChange={(e) => {
+              setLeadSource(e.target.value);
+              setPage(1);
+            }}
+            placeholder={t("filter.leadSource")}
+          />
+        </div>
 
         <DealFormDialog
           contactId={contactId}

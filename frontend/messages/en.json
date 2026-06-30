@@ -357,7 +357,10 @@
       "status": "Status",
       "allStatuses": "All statuses",
       "stage": "Stage",
-      "allStages": "All stages"
+      "allStages": "All stages",
+      "leadSource": "Lead source",
+      "companyType": "Company type",
+      "allCompanyTypes": "All company types"
     },
     "contacts": {
       "new": "New contact",
@@ -557,6 +560,7 @@
       "notFound": "Company not found.",
       "backToCompanies": "Back to companies",
       "contactsHeading": "Contacts",
+      "dealsHeading": "Deals",
       "meetingsHeading": "Meetings",
       "emptyTitle": "No companies",
       "emptyDescription": "Create a company to group contacts and deals."

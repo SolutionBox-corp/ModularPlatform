@@ -28,6 +28,7 @@ export default async function CompanyDetailPage({ params }: PageProps) {
 
   void queryClient.prefetchQuery(crmQueries.company(id));
   void queryClient.prefetchQuery(crmQueries.contacts({ page: 1, pageSize: 20, companyId: id }));
+  void queryClient.prefetchQuery(crmQueries.deals({ page: 1, pageSize: 20, companyId: id }));
   void queryClient.prefetchQuery(crmQueries.meetings({ page: 1, pageSize: 20, companyId: id }));
 
   return (

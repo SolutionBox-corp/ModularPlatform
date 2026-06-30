@@ -19,6 +19,7 @@ import { useCompleteTask, useDeleteTask } from "@/features/crm/hooks";
 import { TaskFormDialog } from "@/features/crm/components/task-form-dialog";
 
 const PAGE_SIZE = 20;
+const ALL = "all";
 const OPEN = "open";
 const DONE = "done";
 
@@ -41,7 +42,7 @@ export function TasksTable({ contactId, dealId }: TasksTableProps) {
   const deleteMutation = useDeleteTask();
 
   const { data, isLoading } = useQuery(
-    crmQueries.tasks({ page, pageSize: PAGE_SIZE, contactId, dealId, status }),
+    crmQueries.tasks({ page, pageSize: PAGE_SIZE, contactId, dealId, status: status === ALL ? undefined : status }),
   );
 
   const columns: ColumnDef<CrmTask>[] = [
@@ -107,6 +108,7 @@ export function TasksTable({ contactId, dealId }: TasksTableProps) {
           <SelectContent>
             <SelectItem value={OPEN}>{t("taskStatus.open")}</SelectItem>
             <SelectItem value={DONE}>{t("taskStatus.done")}</SelectItem>
+            <SelectItem value={ALL}>{t("filter.allStatuses")}</SelectItem>
           </SelectContent>
         </Select>
 

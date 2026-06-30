@@ -7,19 +7,32 @@ import { useQuery } from "@tanstack/react-query";
 import { PlusIcon, Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { DataTable, type ColumnDef } from "@/components/app/data-table";
-import { crmQueries, type CompanyListItem } from "@/features/crm/api";
+import { COMPANY_TYPES, crmQueries, type CompanyListItem } from "@/features/crm/api";
 import { useDeleteCompany } from "@/features/crm/hooks";
 import { CompanyFormDialog } from "@/features/crm/components/company-form-dialog";
 
 const PAGE_SIZE = 20;
+const ALL = "all";
 
 export function CompaniesTable() {
   const t = useTranslations("crm");
   const [page, setPage] = useState(1);
+  const [type, setType] = useState(ALL);
   const deleteMutation = useDeleteCompany();
 
-  const { data, isLoading } = useQuery(crmQueries.companies({ page, pageSize: PAGE_SIZE }));
+  const { data, isLoading } = useQuery(crmQueries.companies({
+    page,
+    pageSize: PAGE_SIZE,
+    type: type === ALL ? undefined : type,
+  }));
 
   const columns: ColumnDef<CompanyListItem>[] = [
     {
@@ -55,7 +68,26 @@ export function CompaniesTable() {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-between gap-2">
+        <Select
+          value={type}
+          onValueChange={(value) => {
+            setType(value ?? ALL);
+            setPage(1);
+          }}
+        >
+          <SelectTrigger className="w-44" aria-label={t("filter.companyType")}>
+            <SelectValue placeholder={t("filter.allCompanyTypes")} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>{t("filter.allCompanyTypes")}</SelectItem>
+            {COMPANY_TYPES.map((companyType) => (
+              <SelectItem key={companyType} value={companyType}>
+                {t(`companyType.${companyType}`)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <CompanyFormDialog
           trigger={
             <Button size="sm">

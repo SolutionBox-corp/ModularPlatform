@@ -16,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { crmQueries } from "@/features/crm/api";
 import { CompanyFormDialog } from "@/features/crm/components/company-form-dialog";
 import { ContactsTable } from "@/features/crm/components/contacts-table";
+import { DealsTable } from "@/features/crm/components/deals-table";
 import { MeetingsTable } from "@/features/crm/components/meetings-table";
 
 export function CompanyDetail({ companyId }: { companyId: string }) {
@@ -71,6 +72,11 @@ export function CompanyDetail({ companyId }: { companyId: string }) {
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-muted-foreground">{t("companies.contactsHeading")}</h2>
         <ContactsTable companyId={companyId} />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium text-muted-foreground">{t("companies.dealsHeading")}</h2>
+        <DealsTable companyId={companyId} />
       </section>
 
       <section className="space-y-3">

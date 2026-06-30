@@ -16,6 +16,7 @@ internal static class ListDealsEndpoint
                 string? stage,
                 Guid? contactId,
                 Guid? companyId,
+                string? leadSource,
                 int? page,
                 int? pageSize,
                 ITenantContext tenant,
@@ -25,7 +26,7 @@ internal static class ListDealsEndpoint
                 var userId = tenant.UserId
                     ?? throw new UnauthorizedException("auth.required", "Authentication required.");
                 var result = await dispatcher.Query(
-                    new ListDealsQuery(userId, stage, contactId, companyId, page, pageSize), ct);
+                    new ListDealsQuery(userId, stage, contactId, companyId, leadSource, page, pageSize), ct);
                 return Results.Ok(ApiResponse<PagedResponse<DealListItem>>.Ok(result));
             })
             .RequireAuthorization()

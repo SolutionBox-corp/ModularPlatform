@@ -213,6 +213,8 @@ export interface DealsParams {
   pageSize?: number;
   stage?: string;
   contactId?: string;
+  companyId?: string;
+  leadSource?: string;
 }
 
 export interface TasksParams {
@@ -286,6 +288,8 @@ export const crmQueries = {
         sp.set("pageSize", String(pageSize));
         if (params.stage) sp.set("stage", params.stage);
         if (params.contactId) sp.set("contactId", params.contactId);
+        if (params.companyId) sp.set("companyId", params.companyId);
+        if (params.leadSource) sp.set("leadSource", params.leadSource);
         return apiFetch<DealsPage>(`crm/deals?${sp.toString()}`);
       },
       staleTime: 15_000,

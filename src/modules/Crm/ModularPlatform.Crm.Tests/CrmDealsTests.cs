@@ -88,11 +88,14 @@ public sealed class CrmDealsTests(PlatformApiFactory fixture)
     public async Task List_filters_by_stage_and_is_owner_scoped()
     {
         var (_, token) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
-        await CreateDealAsync(token, new { title = "Lead Deal", amountCents = 100L, stage = "lead" });
-        await CreateDealAsync(token, new { title = "Won Deal", amountCents = 100L, stage = "won" });
+        await CreateDealAsync(token, new { title = "Lead Deal", amountCents = 100L, stage = "lead", leadSource = "web" });
+        await CreateDealAsync(token, new { title = "Won Deal", amountCents = 100L, stage = "won", leadSource = "referral" });
 
         var won = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Get, "/v1/crm/deals?stage=won", token));
         (await PlatformApiFactory.ReadData(won)).GetProperty("totalCount").GetInt32().ShouldBe(1);
+
+        var web = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Get, "/v1/crm/deals?leadSource=web", token));
+        (await PlatformApiFactory.ReadData(web)).GetProperty("totalCount").GetInt32().ShouldBe(1);
 
         var (_, other) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
         var otherList = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Get, "/v1/crm/deals", other));

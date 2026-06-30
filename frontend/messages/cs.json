@@ -357,7 +357,10 @@
       "status": "Stav",
       "allStatuses": "Všechny stavy",
       "stage": "Fáze",
-      "allStages": "Všechny fáze"
+      "allStages": "Všechny fáze",
+      "leadSource": "Zdroj leadu",
+      "companyType": "Typ firmy",
+      "allCompanyTypes": "Všechny typy firem"
     },
     "contacts": {
       "new": "Nový kontakt",
@@ -557,6 +560,7 @@
       "notFound": "Firma nenalezena.",
       "backToCompanies": "Zpět na firmy",
       "contactsHeading": "Kontakty",
+      "dealsHeading": "Obchody",
       "meetingsHeading": "Schůzky",
       "emptyTitle": "Žádné firmy",
       "emptyDescription": "Vytvořte firmu pro seskupení kontaktů a obchodů."
