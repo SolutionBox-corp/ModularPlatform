@@ -12,7 +12,7 @@ je hotový (design docs), kód zatím NEexistuje.** Implementace = podle katalog
 1. **`docs/hybrid-rag/CONVENTIONS.md`** — ZDROJ PRAVDY pro pojmenování (route prefix, entity, tabulky, permissions,
    config klíče, enum hodnoty) + konsolidovaná **otevřená rozhodnutí §12**. Katalog generovali paralelní agenti → místy
    drift; **kde se soubor rozchází, vyhrává CONVENTIONS.**
-2. **`docs/hybrid-rag/README.md`** — index: ⛔ PREREKVIZITA [`0-core-ai-gateway.md`] + 33 oblastí (00–32), roll-up (**429 UC / 2545 EC**).
+2. **`docs/hybrid-rag/README.md`** — index: ⛔ PREREKVIZITA [`0-core-ai-gateway.md`] + 33 oblastí (00–32), roll-up (**430 UC / 2613 EC** — vč. core prereq + PDF-audit doplňků).
 3. **Relevantní `docs/hybrid-rag/NN-*.md`** pro oblast, kterou děláš (UC-NN-MM + EC-NN-MM-KK).
 4. **Platform kanon** (CLAUDE.md §2): kopíruj Identity/Files/Billing/Operations slice — NEvymýšlej paralelní flow.
 5. Plán: `~/.claude/plans/pojdme-udelat-plan-na-moonlit-kahan.md` (build roadmap fáze 0–5).
@@ -106,6 +106,18 @@ NEpřidávat (máme): Pgvector.EFCore, pg_search, Wolverine, MEAI+Anthropic.SDK,
 - **CORE port, impl module-first:** `IEvaluator` (+ Microsoft.Extensions.AI.Evaluation) — RAG první konzument, promote později.
 - **MODUL (RAG):** doc parsing (`IDocumentTextExtractor`, promote jen při 2. konzumentovi), retrieval/graf/chunking/entity-res/
   citace/HITL/datasety/UI. Polly/HtmlSanitizer = knihovní ref, ne building-block.
+
+## 9. Kritické gotchas z PDF auditu (NEopakovat tyto chyby — ověřeno proti příručce)
+- **Prompt cache wire-order:** prompt se renderuje **`tools (pozice 0) → system → retrieved-docs → volatilní`** (NE system před tools!). Breakpointy od nejvíc upstream (tools); změna tool setu busti vše následující. Min-prefix **per-model** (Opus 4.8 = 4096 tok., Sonnet 4.6 = 2048). Assistant-prefill pro JSON je **mrtvý → 400**, použij `output_config.format`. **20-block lookback** → rolling intermediate breakpoint ~á15 bloků. Mid-conversation závazná instrukce = `{role:system}` do `messages[]` (NE editovat top-level system = busted cache; NE do user/tool textu = spoofovatelné). `strict:true` = **top-level pole tool definice** (ne `tool_choice`). (oblast 14, 0-core UC-CORE-14)
+- **Multitenant izolace/audit:** **`SET LOCAL` ne `SET`** (GUC `app.tenant_id`/`app.principal_id` transaction-scoped, jinak přeteče přes pooled connection = leak). **RLS `ENABLE` + `FORCE`** (jinak app-owner role obejde policy). **PromptVersion/ConfigVersion** na `AiUsageLedger` + cost report (atribuce „v2 promptu +30 %"). (oblast 16, 19, 0-core)
+- **Durable (Wolverine):** saga/stage zprávy nesou **VÝHRADNĚ ID/reference** (DocumentId, IngestRunId, StorageKey), NIKDY chunk content/embeddings/text (fat envelope). Per-call timeout na každé LLM/embed volání. Cost-odstupňovaný retry (drahý stage míň pokusů). Stage versioning = additive-only + frozen wire names. (oblast 04)
+- **MCP:** server **NEexponuje sampling ani elicitation** (least-privilege, capability se nedeklaruje). `description` **preskriptivní o triggeru** („Call this when…"), ne jen co tool dělá. Parallel `tool_result` v **JEDNÉ** user zprávě + `tool_use_id` matching. (oblast 15)
+- **Retrieval:** chunk `MaxTokens` ≤ ~1024 (doporučeno 512) — velký chunk = embedding averaging do mdlého středu. Seed/entry-point lookup (`NormalizedKey`/`CanonicalKey`) **MUSÍ mít index** (GIN/btree), jinak seq scan na horké cestě. (oblast 02, 11, 12)
+
+## 10. N/A — vědomě se NEvztahuje (NEpřidávat, ověřeno auditem)
+- **Fine-tuning mechanika** (LoRA/QLoRA, catastrophic forgetting, overfitting) — **nefine-tunujeme** (znalost→RAG; stance CONVENTIONS §18). N/A je mechanika, ne rozhodnutí.
+- **Temporal-replay pasti** (`DateTime.Now`/`Guid`/`Random` ve workflow rozbije replay, heartbeat, `GetVersion`) — **Wolverine nereplayuje**, každý handler = čerstvá exekuce. Ekvivalent (idempotence, fat-state→ref, additive versioning) podchycen jinak.
+- **MCP stdio stdout-discipline** — používáme **Streamable HTTP** (multi-tenant + OAuth), ne stdio.
 
 ## Kdy použít tento skill
 Vždy když pracuješ na čemkoli v modulu HybridRag (implementace slice, nová oblast, review, rozhodnutí). Začni krokem 0
