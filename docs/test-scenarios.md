@@ -22,12 +22,12 @@ Status: **✓** implemented · **▢** gap (planned) · **◐** partially covere
 | ID-1 | New email / register → `201` + userId; profile readable with the access token | I | ✓ `IdentityE2ETests` |
 | ID-2 | Duplicate email → `409 user.email_taken`; only one user row | I | ✓ `AuthRobustnessTests` |
 | ID-3 | Register validator: empty/invalid email, password < 8 → field `errorCode`s | U/I | ✓ `RegisterUserValidatorTests` |
-| ID-4 | Login wrong password → `401 auth.invalid_credentials`; no user enumeration (same error for unknown email) | I | ◐ (lockout test covers wrong pw) |
+| ID-4 | Login wrong password → `401 auth.invalid_credentials`; no user enumeration (same error for unknown email) | I | ✓ `Unknown_email_and_wrong_password_return_identical_401_invalid_credentials` |
 | ID-5 | Login → refresh rotation → new tokens; old refresh replay → `401 auth.refresh_token_reused` | I | ✓ `IdentityE2ETests` |
 | ID-6 | **Reuse revoke is audited**: after reuse, ALL family tokens `RevokedAt` set AND ≥1 `identity_audit_entries` row for the revoke | I | ✓ `AuthRobustnessTests` |
 | ID-7 | **Lockout**: 5 wrong passwords → account locked 15 min; correct password while locked → still rejected `auth.locked_out`; success resets counters | I | ✓ `AccountLockoutTests` |
 | ID-8 | Two parallel `/refresh` with the same valid token → exactly one `200`, family ends revoked, no unhandled 500 | C | ✓ `AuthRobustnessTests` |
-| ID-9 | Brute-force: >10 `/login` from one IP in a minute → `429`; per-account lockout independent of the IP budget | F | ▢ (A13 shipped) |
+| ID-9 | Brute-force: >10 `/login` from one IP in a minute → `429`; per-account lockout independent of the IP budget | F | ✓ `Login_endpoint_uses_the_auth_rate_limit_policy` + `AccountLockoutTests` |
 | ID-10 | JWT issued validates under the configured key; a token signed with a wrong key is rejected | U | ✓ `TokenIssuerTests.Access_token_validates_with_configured_key_and_rejects_wrong_key` |
 | ID-11 | `JwtOptionsValidator`: empty/<32-byte key in non-Development → host fails to start; Development → allowed | U | ✓ `JwtOptionsValidatorTests` |
 | ID-12 | Audit after profile update records ONLY changed columns (JSONB) | I | ◐ (e2e checks Create row) |
