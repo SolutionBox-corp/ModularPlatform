@@ -1182,12 +1182,12 @@ _Paging is clamped and owner-scoped. Ordering is deterministic and the file_obje
 | Delete is idempotent (missing key) | ✓ | LocalFileStorage.cs:46-50 guards File.Exists; S3 DeleteObject is idempotent by S3 semantics; IFileStorage doc (Ports.cs:80) requires it |
 | GetAsync on a missing key | ✓ | LocalFileStorage.cs:37-41 throws NotFoundException('file.not_found') instead of a provider-native exception; pinned by StorageUnitTests.Local_missing_key_throws_file_not_found_error_code. S3FileStorage mirrors the same code path around missing blobs (S3FileStorage.cs:48-53). |
 | S3 stream lifecycle (AutoCloseStream) | ✓ | S3FileStorage.cs:33 AutoCloseStream=false so the caller-owned upload stream is not closed by the SDK; download returns response.ResponseStream which Results.Stream disposes |
-| Live S3 round-trip | – | StorageUnitTests note: a live S3 round-trip needs a MinIO Testcontainer/real bucket and is intentionally not covered; only config wiring + key guard are unit-tested |
+| Live S3/MinIO round-trip | ✓ | `S3FileStorageMinioTests.S3_provider_round_trips_bytes_against_minio_and_maps_missing_objects_to_file_not_found` starts a live MinIO Testcontainer, creates a bucket through the AWS SDK, and verifies put/get/delete/missing-object behavior through the real `S3FileStorage`. |
 
-**Testy:** StorageUnitTests.Invalid_storage_keys_are_rejected; StorageUnitTests.Opaque_keys_are_accepted; StorageUnitTests.Local_missing_key_throws_file_not_found_error_code; StorageUnitTests.Local_provider_rejects_key_whose_existing_parent_symlink_escapes_root; StorageUnitTests.S3_config_for_minio_uses_service_url_and_path_style; StorageUnitTests.S3_config_for_real_s3_uses_region_not_service_url
-**Test gaps:** No live S3/MinIO round-trip test (acknowledged)
+**Testy:** S3FileStorageMinioTests.S3_provider_round_trips_bytes_against_minio_and_maps_missing_objects_to_file_not_found; StorageUnitTests.Invalid_storage_keys_are_rejected; StorageUnitTests.Opaque_keys_are_accepted; StorageUnitTests.Local_missing_key_throws_file_not_found_error_code; StorageUnitTests.Local_provider_rejects_key_whose_existing_parent_symlink_escapes_root; StorageUnitTests.S3_config_for_minio_uses_service_url_and_path_style; StorageUnitTests.S3_config_for_real_s3_uses_region_not_service_url
+**Test gaps:** No remaining focused blob-storage provider gap in this slice.
 
-_Defence-in-depth path guard (validate + resolved-path re-check) is excellent; S3 config is unit-tested across all three backends._
+_Defence-in-depth path guard (validate + resolved-path re-check) is excellent; S3 config is unit-tested and the S3-compatible provider now has a live MinIO round-trip._
 
 ### Files GDPR export + erasure — 🟢 minor-gaps
 *Export the subject's file inventory; on erasure delete the user's blobs and metadata outright (no retention).*

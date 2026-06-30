@@ -8,7 +8,7 @@ namespace ModularPlatform.Files.Tests;
 /// <summary>
 /// Provider-level unit tests that need no live storage: the path-traversal guard on storage keys, and the S3 client
 /// config wiring that makes the SAME provider target AWS S3 / MinIO / Cloudflare R2 by configuration alone.
-/// A live S3 round-trip needs a MinIO Testcontainer or a real bucket and is intentionally NOT covered here.
+/// The live MinIO round-trip is covered in the cross-cutting building-block test project.
 /// </summary>
 public sealed class StorageUnitTests
 {

@@ -15,6 +15,7 @@
   <ItemGroup>
     <!-- Lets the Files module's test assembly unit-test the internal key/path + S3-config handling. -->
     <InternalsVisibleTo Include="ModularPlatform.Files.Tests" />
+    <InternalsVisibleTo Include="ModularPlatform.BuildingBlocks.Tests" />
   </ItemGroup>
 
   <ItemGroup>

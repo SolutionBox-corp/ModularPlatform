@@ -16,6 +16,7 @@
     <PackageReference Include="Shouldly" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
     <PackageReference Include="WolverineFx.Postgresql" />
+    <PackageReference Include="Testcontainers" />
     <PackageReference Include="Testcontainers.Redis" />
   </ItemGroup>
 
@@ -30,6 +31,7 @@
     <ProjectReference Include="..\..\src\building-blocks\ModularPlatform.Secrets\ModularPlatform.Secrets.csproj" />
     <ProjectReference Include="..\..\src\building-blocks\ModularPlatform.Payments\ModularPlatform.Payments.csproj" />
     <ProjectReference Include="..\..\src\building-blocks\ModularPlatform.Realtime\ModularPlatform.Realtime.csproj" />
+    <ProjectReference Include="..\..\src\building-blocks\ModularPlatform.Storage\ModularPlatform.Storage.csproj" />
     <ProjectReference Include="..\..\src\building-blocks\ModularPlatform.Telemetry\ModularPlatform.Telemetry.csproj" />
   </ItemGroup>
 
