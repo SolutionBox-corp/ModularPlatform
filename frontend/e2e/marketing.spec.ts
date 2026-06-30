@@ -42,7 +42,12 @@ test.describe("Marketing — data pull pipeline", () => {
   test("triggering a GA4 pull produces metric snapshots", async ({ page }) => {
     await page.goto("/marketing");
 
-    // Default source is ga4; just click the trigger.
+    await expect(page.getByLabel("Start date")).toBeVisible();
+    await expect(page.getByLabel("End date")).toBeVisible();
+    await page.getByLabel("Start date").fill("2026-06-01");
+    await page.getByLabel("End date").fill("2026-06-07");
+
+    // Default source is ga4; the selected date range is sent with the trigger.
     await page.getByRole("button", { name: "Pull data" }).click();
     await expect(page.getByText("Data pull started.")).toBeVisible();
 

@@ -774,6 +774,8 @@
       "sourcePlaceholder": "Choose a source",
       "sourceGa4": "Google Analytics 4",
       "sourceGsc": "Search Console",
+      "startDate": "Start date",
+      "endDate": "End date",
       "trigger": "Pull data",
       "triggering": "Starting…",
       "triggered": "Data pull started.",
@@ -818,6 +820,7 @@
     },
     "validation": {
       "sourceRequired": "Choose a data source.",
+      "dateRangeInvalid": "Start date must be on or before end date.",
       "messageRequired": "Enter a message.",
       "messageTooLong": "Message is too long (max 4000 characters)."
     }

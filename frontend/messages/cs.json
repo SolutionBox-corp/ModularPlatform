@@ -774,6 +774,8 @@
       "sourcePlaceholder": "Vyberte zdroj",
       "sourceGa4": "Google Analytics 4",
       "sourceGsc": "Search Console",
+      "startDate": "Počáteční datum",
+      "endDate": "Koncové datum",
       "trigger": "Stáhnout data",
       "triggering": "Spouštím…",
       "triggered": "Stahování dat bylo spuštěno.",
@@ -818,6 +820,7 @@
     },
     "validation": {
       "sourceRequired": "Vyberte zdroj dat.",
+      "dateRangeInvalid": "Počáteční datum musí být stejné nebo dřívější než koncové datum.",
       "messageRequired": "Zadejte zprávu.",
       "messageTooLong": "Zpráva je příliš dlouhá (max 4000 znaků)."
     }

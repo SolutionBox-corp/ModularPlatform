@@ -14,6 +14,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -27,6 +29,7 @@ import {
   type TriggerPullInput,
 } from "@/features/marketing/schema";
 import type { PullStatusResponse } from "@/features/marketing/api";
+import { useHasHydrated } from "@/hooks/use-has-hydrated";
 
 function pullStatusVariant(
   status: string,
@@ -65,21 +68,28 @@ export function PullPanel() {
   const locale = useLocale();
   const { data, isLoading } = usePulls();
   const trigger = useTriggerPull();
+  const hasHydrated = useHasHydrated();
 
   const {
     control,
     handleSubmit,
+    register,
     setValue,
     formState: { errors },
   } = useForm<TriggerPullInput>({
     resolver: zodResolver(buildTriggerPullSchema(t)),
-    defaultValues: { source: "ga4" },
+    defaultValues: { source: "ga4", startDate: "", endDate: "" },
   });
 
   const source = useWatch({ control, name: "source" });
+  const showSkeleton = !hasHydrated || (isLoading && data === undefined);
 
   const onSubmit = (values: TriggerPullInput) => {
-    trigger.mutate(values.source);
+    trigger.mutate({
+      source: values.source,
+      startDate: values.startDate || undefined,
+      endDate: values.endDate || undefined,
+    });
   };
 
   return (
@@ -92,7 +102,7 @@ export function PullPanel() {
         <form
           onSubmit={handleSubmit(onSubmit)}
           noValidate
-          className="flex items-end gap-2"
+          className="grid gap-2 sm:grid-cols-[10rem_1fr_1fr_auto] sm:items-end"
         >
           <div className="space-y-1">
             <Select
@@ -115,6 +125,34 @@ export function PullPanel() {
               <p className="text-xs text-destructive">{errors.source.message}</p>
             )}
           </div>
+          <div className="space-y-1">
+            <Label htmlFor="pull-start-date">
+              {t("pulls.startDate")}
+            </Label>
+            <Input
+              id="pull-start-date"
+              type="date"
+              aria-invalid={!!errors.startDate}
+              {...register("startDate")}
+            />
+            {errors.startDate && (
+              <p className="text-xs text-destructive">{errors.startDate.message}</p>
+            )}
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="pull-end-date">
+              {t("pulls.endDate")}
+            </Label>
+            <Input
+              id="pull-end-date"
+              type="date"
+              aria-invalid={!!errors.endDate}
+              {...register("endDate")}
+            />
+            {errors.endDate && (
+              <p className="text-xs text-destructive">{errors.endDate.message}</p>
+            )}
+          </div>
           <Button type="submit" disabled={trigger.isPending}>
             <RefreshCwIcon className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
             {trigger.isPending ? t("pulls.triggering") : t("pulls.trigger")}
@@ -125,7 +163,7 @@ export function PullPanel() {
           <h3 className="text-sm font-medium text-muted-foreground">
             {t("pulls.recent")}
           </h3>
-          {isLoading ? (
+          {showSkeleton ? (
             <div className="space-y-2">
               <Skeleton className="h-9 w-full" />
               <Skeleton className="h-9 w-full" />

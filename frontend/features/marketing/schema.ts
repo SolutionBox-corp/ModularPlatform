@@ -7,11 +7,24 @@ type Translate = (key: string) => string;
  * Trigger-pull input — the data source to pull. Mirrors the backend's currently wired gateways: "ga4" | "gsc".
  */
 export function buildTriggerPullSchema(t: Translate) {
-  return z.object({
-    source: z.enum(["ga4", "gsc"], {
-      message: t("validation.sourceRequired"),
-    }),
-  });
+  return z
+    .object({
+      source: z.enum(["ga4", "gsc"], {
+        message: t("validation.sourceRequired"),
+      }),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+    })
+    .refine(
+      (values) =>
+        !values.startDate ||
+        !values.endDate ||
+        values.startDate <= values.endDate,
+      {
+        message: t("validation.dateRangeInvalid"),
+        path: ["startDate"],
+      },
+    );
 }
 
 export type TriggerPullInput = z.infer<ReturnType<typeof buildTriggerPullSchema>>;

@@ -94,6 +94,13 @@ export interface TriggerPullResponse {
   dataPullId: string;
 }
 
+/** POST /v1/marketing/pulls request body. Dates are optional ISO yyyy-MM-dd strings. */
+export interface TriggerPullRequestBody {
+  source: "ga4" | "gsc";
+  startDate?: string;
+  endDate?: string;
+}
+
 /** POST /v1/marketing/vibe/conversations → StartConversationResponse. */
 export interface StartConversationResponse {
   conversationId: string;
@@ -219,11 +226,11 @@ export const marketingQueries = {
 // Mutation functions (called from hooks.ts)
 // ---------------------------------------------------------------------------
 
-/** POST /v1/marketing/pulls {source} → 202 — kicks off a durable data pull. */
-export function triggerPull(source: string): Promise<TriggerPullResponse> {
+/** POST /v1/marketing/pulls {source,startDate?,endDate?} → 202 — kicks off a durable data pull. */
+export function triggerPull(input: TriggerPullRequestBody): Promise<TriggerPullResponse> {
   return apiFetch<TriggerPullResponse>("marketing/pulls", {
     method: "POST",
-    body: { source },
+    body: input,
   });
 }
 

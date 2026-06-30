@@ -12,14 +12,17 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/app/empty-state";
 import { useAnalyses } from "@/features/marketing/hooks";
+import { useHasHydrated } from "@/hooks/use-has-hydrated";
 
 /** List of AI marketing analyses (summary + source + date), newest first. */
 export function AnalysesList() {
   const t = useTranslations("marketing");
   const locale = useLocale();
   const { data, isLoading } = useAnalyses();
+  const hasHydrated = useHasHydrated();
+  const showSkeleton = !hasHydrated || (isLoading && data === undefined);
 
-  if (isLoading) {
+  if (showSkeleton) {
     return (
       <div className="space-y-3">
         <Skeleton className="h-24 w-full" />

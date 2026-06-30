@@ -24,6 +24,7 @@ import {
 } from "@/features/marketing/schema";
 import { VibeMessage } from "@/features/marketing/components/vibe-message";
 import type { ConversationMessage } from "@/features/marketing/api";
+import { useHasHydrated } from "@/hooks/use-has-hydrated";
 
 /**
  * Vibe AI chat. Left rail = conversation list (+ new); right = the open thread with
@@ -41,7 +42,9 @@ export function VibeChat() {
 
   const { data: conversationsPage, isLoading: listLoading } = useVibeConversations();
   const startConversation = useStartConversation();
+  const hasHydrated = useHasHydrated();
   const conversations = conversationsPage?.items ?? [];
+  const showListSkeleton = !hasHydrated || (listLoading && conversationsPage === undefined);
   const dateFormatter = useMemo(
     () => new Intl.DateTimeFormat(undefined, { dateStyle: "short", timeStyle: "short" }),
     [],
@@ -71,7 +74,7 @@ export function VibeChat() {
           {t("vibeChat.newConversation")}
         </Button>
 
-        {listLoading ? (
+        {showListSkeleton ? (
           <div className="space-y-1.5 pt-1">
             <Skeleton className="h-8 w-full" />
             <Skeleton className="h-8 w-full" />

@@ -72,6 +72,29 @@ public sealed class PullPipelineTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Trigger_pull_persists_the_requested_date_window()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync($"mkt-window-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+
+        var start = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Post, "/v1/marketing/pulls", token, new
+            {
+                source = "ga4",
+                startDate = "2026-06-01",
+                endDate = "2026-06-07",
+            }));
+
+        start.StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        var dataPullId = (await PlatformApiFactory.ReadData(start)).GetProperty("dataPullId").GetGuid();
+
+        var paramsJson = await fixture.ScalarAsync<string>(
+            $"""SELECT "ParamsJson"::text FROM data_pulls WHERE "Id" = '{dataPullId}'""");
+
+        paramsJson.ShouldContain("\"Start\": \"2026-06-01\"");
+        paramsJson.ShouldContain("\"End\": \"2026-06-07\"");
+    }
+
+    [Fact]
     public async Task Unknown_source_is_rejected_by_validation()
     {
         var (_, token) = await fixture.RegisterAndLoginAsync($"mkt-bad-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");

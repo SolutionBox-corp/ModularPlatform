@@ -1,6 +1,5 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import {
@@ -22,6 +21,7 @@ import {
 } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/app/empty-state";
+import { useHasHydrated } from "@/hooks/use-has-hydrated";
 
 export interface ColumnDef<TData> {
   /** Unique key, used as React key. */
@@ -50,17 +50,6 @@ interface DataTableProps<TData> {
 }
 
 const SKELETON_ROWS = 5;
-const subscribeHydration = () => () => {};
-const clientHydratedSnapshot = () => true;
-const serverHydratedSnapshot = () => false;
-
-function useHasHydrated(): boolean {
-  return useSyncExternalStore(
-    subscribeHydration,
-    clientHydratedSnapshot,
-    serverHydratedSnapshot,
-  );
-}
 
 /**
  * Generic, typed, accessible data table. Handles loading skeletons, empty state,

@@ -14,6 +14,7 @@ import {
   deleteConversation,
   type StreamMessageCallbacks,
   type SnapshotsParams,
+  type TriggerPullRequestBody,
 } from "@/features/marketing/api";
 
 // ---------------------------------------------------------------------------
@@ -69,7 +70,7 @@ export function useTriggerPull() {
   const t = useTranslations("marketing");
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (source: string) => triggerPull(source),
+    mutationFn: (input: TriggerPullRequestBody) => triggerPull(input),
     onSuccess: () => {
       toast.success(t("pulls.triggered"));
       void queryClient.invalidateQueries({ queryKey: [...queryRoots.marketing, "pulls"] });
