@@ -130,15 +130,17 @@ public sealed class AuthzTests(PlatformApiFactory fixture)
             HttpMethod.Post, $"/v1/identity/admin/users/{userId}/roles", adminToken, new { role = "admin" }));
         grant.StatusCode.ShouldBe(HttpStatusCode.OK);
 
-        var tokenWithRole = await LoginAsync(email, Password);
-        ClaimValues(tokenWithRole, "permission").ShouldContain("identity.manage_roles");
+        var tokenWithRole = await LoginWithTokenExpiryAsync(email, Password);
+        tokenWithRole.AccessTokenExpiresAt.ShouldBeGreaterThan(DateTimeOffset.UtcNow);
+        tokenWithRole.AccessTokenExpiresAt.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow.AddMinutes(11));
+        ClaimValues(tokenWithRole.AccessToken, "permission").ShouldContain("identity.manage_roles");
 
         var revoke = await fixture.Client.SendAsync(fixture.Authed(
             HttpMethod.Delete, $"/v1/identity/admin/users/{userId}/roles/admin", adminToken));
         revoke.StatusCode.ShouldBe(HttpStatusCode.OK);
 
         var staleTokenStillAllowed = await fixture.Client.SendAsync(fixture.Authed(
-            HttpMethod.Post, $"/v1/identity/admin/users/{userId}/roles", tokenWithRole, new { role = "admin" }));
+            HttpMethod.Post, $"/v1/identity/admin/users/{userId}/roles", tokenWithRole.AccessToken, new { role = "admin" }));
         staleTokenStillAllowed.StatusCode.ShouldBe(HttpStatusCode.OK);
 
         var revokeAgain = await fixture.Client.SendAsync(fixture.Authed(
@@ -263,6 +265,18 @@ public sealed class AuthzTests(PlatformApiFactory fixture)
         login.EnsureSuccessStatusCode();
         var data = await PlatformApiFactory.ReadData(login);
         return (data.GetProperty("accessToken").GetString()!, data.GetProperty("refreshToken").GetString()!);
+    }
+
+    private async Task<(string AccessToken, DateTimeOffset AccessTokenExpiresAt)> LoginWithTokenExpiryAsync(
+        string email,
+        string password)
+    {
+        var login = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/login", new { email, password });
+        login.EnsureSuccessStatusCode();
+        var data = await PlatformApiFactory.ReadData(login);
+        return (
+            data.GetProperty("accessToken").GetString()!,
+            data.GetProperty("accessTokenExpiresAt").GetDateTimeOffset());
     }
 
     /// <summary>

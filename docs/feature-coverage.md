@@ -251,7 +251,7 @@ _Canonical read slice._
 | Permission gating across users/tenants | ✓ | Admin endpoints RequirePermission(IdentityManageRoles); IgnoreQueryFilters for cross-tenant user lookup — AssignRoleEndpoint.cs:27, AssignRoleHandler.cs:18 |
 | Claims become stale after grant | ✓ | Snapshot refreshed on next login/refresh (UserAuthorizationQuery) — documented + test AuthzTests re-login picks up new permission |
 | Permission union across multiple roles | ✓ | Distinct join over RolePermissions — UserAuthorizationQuery.cs:32-35 |
-| Revoke does not invalidate already-issued tokens | ◐ | By design: a revoked role still authorizes until the access token expires (snapshot model). Documented (UserAuthorizationQuery.cs:8-10) but no forced-revocation path; acceptable given short access-token lifetime, no test asserts the bounded staleness window on revoke. |
+| Revoke does not invalidate already-issued tokens | ✓ | By design: a revoked role still authorizes until the access token expires (snapshot model), then disappears on the next login/refresh. `AuthzTests.Revoke_role_is_idempotent_and_removes_permission_only_from_new_tokens` now asserts the stale token remains usable only with the bounded access-token expiry window. |
 
 **Testy:** AuthzTests.Permission_gated_endpoint_rejects_non_admins_and_admins_can_grant_roles; AuthzTests.Refreshed_token_carries_role_changes_while_the_old_access_token_stays_a_snapshot; AuthzTests.Concurrent_identical_role_grants_are_idempotent_not_a_500; AuthzTests.Assign_role_returns_not_found_for_unknown_user_or_role; AuthzTests.Revoke_role_is_idempotent_and_removes_permission_only_from_new_tokens; AuthzTests.Revoke_role_is_a_tracked_delete_that_writes_audit
 **Test gaps:** No remaining focused assign/revoke role gap in this slice.
