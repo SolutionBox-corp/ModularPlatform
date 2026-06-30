@@ -217,7 +217,8 @@ internal sealed class RedisRealtimePublisher(IConnectionMultiplexer redis, IOpti
 /// <summary>
 /// Single-instance fallback when Redis is not configured: deliver straight to the local registry and
 /// maintain a bounded in-memory ring buffer per user for Last-Event-ID replay. Ids are process-local monotonic
-/// integers, so reconnect cursors are meaningful only within the current API process lifetime.
+/// integers; if a client reconnects with a cursor from an older process, the current bounded buffer is replayed
+/// rather than silently returning nothing.
 /// </summary>
 internal sealed class LocalRealtimePublisher(RealtimeConnectionRegistry registry, IOptions<RealtimeReplayOptions> replayOpts)
     : IRealtimePublisher, IRealtimeReplay
@@ -289,6 +290,17 @@ internal sealed class LocalRealtimePublisher(RealtimeConnectionRegistry registry
                 if (!long.TryParse(lastEventId, out var lastLong))
                 {
                     return [];
+                }
+
+                if (_items.Count == 0)
+                {
+                    return [];
+                }
+
+                var newest = _items[^1];
+                if (long.TryParse(newest.Id, out var newestLong) && lastLong > newestLong)
+                {
+                    return [.. _items];
                 }
 
                 var result = new List<RealtimeMessage>();

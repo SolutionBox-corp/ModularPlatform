@@ -68,6 +68,20 @@ public sealed class RealtimeReplayTests
     }
 
     [Fact]
+    public async Task Local_replay_treats_a_future_cursor_as_stale_process_lifetime_and_replays_the_current_buffer()
+    {
+        var pub = CreatePublisher();
+        var userId = Guid.CreateVersion7();
+
+        await pub.PublishToUserAsync(userId, "after-restart-1", new { });
+        await pub.PublishToUserAsync(userId, "after-restart-2", new { });
+
+        var replay = await pub.ReadSinceAsync(userId, "5000");
+
+        replay.Select(message => message.EventType).ShouldBe(["after-restart-1", "after-restart-2"]);
+    }
+
+    [Fact]
     public async Task Ring_buffer_bounded_to_maxEvents_evicts_oldest_first()
     {
         const int max = 3;
