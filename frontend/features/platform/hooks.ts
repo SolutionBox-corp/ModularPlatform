@@ -58,6 +58,9 @@ export function useSetEntitlement() {
         queryKey: [...queryRoots.admin, "entitlements", variables.tenantId],
       });
       void queryClient.invalidateQueries({
+        queryKey: platformQueries.tenantById(variables.tenantId).queryKey,
+      });
+      void queryClient.invalidateQueries({
         queryKey: queryRoots.admin,
       });
       void queryClient.invalidateQueries({

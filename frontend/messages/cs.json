@@ -910,7 +910,7 @@
       "heading": "Editor oprávnění tenanta",
       "idLabel": "ID tenanta (UUID)",
       "moduleEntitlements": "Oprávnění modulů",
-      "note": "Koncový bod pro seznam tenantů ani pro načtení podle ID zatím neexistuje — použijte ID z odpovědi při vytvoření. Stav přepínače odráží vaše akce v této relaci, nikoli uloženou hodnotu.",
+      "note": "Zadejte nebo vyberte ID tenanta a načtou se jeho uložená oprávnění modulů. Po každém přepnutí se stav znovu načte ze serveru.",
       "open": "Otevřít",
       "inputHint": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
       "tenantIdLabel": "ID tenanta"
@@ -975,7 +975,7 @@
       "entitlements": {
         "description": "Zapínejte a vypínejte jednotlivé moduly pro tohoto tenanta. Změny jsou účinné okamžitě (kontrola oprávnění čte živá data).",
         "heading": "Oprávnění modulů",
-        "unknownState": "Aktuální stav zapnutí není znám — koncový bod GET /tenant/admin/tenants/'{'id'}' zatím neexistuje. Přepnutí odešle PUT; přepínač odráží vaši akci, nikoli uloženou hodnotu."
+        "unknownState": "Oprávnění modulů se načítají z endpointu detailu tenanta; po přepnutí se detail tenanta obnoví ze serveru."
       },
       "heading": "Detail tenanta",
       "invite": {

@@ -144,7 +144,7 @@ All mutating endpoints (`POST /v1/tenant/admin/tenants`, `PUT .../entitlements/{
 - **Preconditions** admin host + platform overview page visible
 - **Given** the admin types a valid tenant UUID into the "Tenant ID (UUID)" input
 - **When** the admin clicks "Open" (or presses Enter)
-- **Then** a separator appears with the tenant UUID displayed, a "Create invite" button, and a list of module toggles (billing, notifications, files, operations, gdpr) all initially shown as off (fallback-to-defaults mode, as no GET-by-id endpoint exists)
+- **Then** a separator appears with the tenant UUID displayed, a "Create invite" button, and a list of module toggles loaded from `GET /v1/tenant/admin/tenants/{id}` (billing, notifications, files, operations, gdpr, marketing)
 - Priority: **P0** · Type: happy · Automated: manual
 
 ### PA-19 — Entitlement editor: empty input keeps "Open" disabled
@@ -157,14 +157,14 @@ All mutating endpoints (`POST /v1/tenant/admin/tenants`, `PUT .../entitlements/{
 - **Preconditions** admin host + entitlement editor open with a valid tenant UUID
 - **Given** the "Billing" module switch shows as off
 - **When** the admin clicks the switch
-- **Then** the switch moves to "on" optimistically; `PUT /v1/tenant/admin/tenants/{id}/entitlements/billing` is called with `{ enabled: true }`; a "billing enabled." toast appears
+- **Then** the switch moves to "on" optimistically; `PUT /v1/tenant/admin/tenants/{id}/entitlements/billing` is called with `{ enabled: true }`; a "billing enabled." toast appears; the tenant detail query is refetched so the switch reconciles with persisted state
 - Priority: **P0** · Type: happy · Automated: manual
 
 ### PA-21 — Toggle a module entitlement OFF
 - **Preconditions** admin host + entitlement editor open; a switch currently showing "on"
 - **Given** a module switch is in the "on" position
 - **When** the admin clicks the switch
-- **Then** the switch moves to "off" optimistically; the PUT is called with `{ enabled: false }`; a "billing disabled." toast appears
+- **Then** the switch moves to "off" optimistically; the PUT is called with `{ enabled: false }`; a "billing disabled." toast appears; the tenant detail query is refetched so the switch reconciles with persisted state
 - Priority: **P0** · Type: happy · Automated: manual
 
 ### PA-22 — Toggle reverts on API error

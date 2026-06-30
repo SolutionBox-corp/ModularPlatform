@@ -910,7 +910,7 @@
       "heading": "Tenant entitlement editor",
       "idLabel": "Tenant ID (UUID)",
       "moduleEntitlements": "Module entitlements",
-      "note": "No list-tenants or get-by-id endpoint exists yet — use the ID from the provision response. Switch state reflects your actions in this session, not the persisted value.",
+      "note": "Enter or select a tenant ID to load its persisted module entitlements. Changes are refetched after each toggle.",
       "open": "Open",
       "inputHint": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
       "tenantIdLabel": "Tenant ID"
@@ -975,7 +975,7 @@
       "entitlements": {
         "description": "Toggle individual modules on or off for this tenant. Changes are effective immediately (the entitlement guard reads live).",
         "heading": "Module entitlements",
-        "unknownState": "Current enabled state is unknown — no GET /tenant/admin/tenants/'{'id'}' endpoint exists yet. Toggling sends the PUT; the switch reflects your action, not the persisted value."
+        "unknownState": "Module entitlements are loaded from the tenant detail endpoint; after a toggle, the tenant detail is refreshed from the server."
       },
       "heading": "Tenant detail",
       "invite": {
