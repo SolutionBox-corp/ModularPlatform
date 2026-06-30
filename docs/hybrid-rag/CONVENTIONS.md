@@ -1,9 +1,12 @@
 # HybridRag — kanonické konvence (zdroj pravdy)
 
-UC/EC katalog (oblasti 00–23) generovalo 24 nezávislých agentů paralelně, takže jednotlivé soubory místy
+UC/EC katalog (oblasti 00–32) generovaly nezávislé agenti paralelně, takže jednotlivé soubory místy
 **driftují v pojmenování** (route prefix, názvy entit/tabulek, permission konstanty, enum hodnoty). Tento soubor
 **zmrazuje kanonickou volbu** — při implementaci platí TOHLE, ne zdrojový drift v konkrétním souboru. Sjednocení nálezů
-z completeness-critic passu (34 konzistenčních poznámek). **Kde se katalog rozchází, vyhrává tento dokument.**
+z completeness-critic passu + gap/konsolidačního passu. **Kde se katalog rozchází, vyhrává tento dokument.**
+
+> **Route prefix drift (časté):** mnoho souborů píše `/v1/rag/...`. Kanonicky je **`/v1/hybridrag/...`** (viz §2).
+> Čti každý `/v1/rag/...` jako `/v1/hybridrag/...`.
 
 ---
 
@@ -46,6 +49,14 @@ z completeness-critic passu (34 konzistenčních poznámek). **Kde se katalog ro
 **Konfigurace/audit:** `RagSetting` (`ITenantScoped`, per-tenant/collection override knobů, auditovaný přes `AuditInterceptor`
 — oblast 24/25). Audit operací (search/answer/ingest) + config změn jde do `hybridrag_audit_entries`; query-text je `[PersonalData]`
 (crypto-shred) — oblast 25.
+**Model/cost (oblast 30):** `RagModel` (registry: name, provider, kind chat|embed|rerank, pricing, status), `RagUsageLedger`
+(append-only per-LLM-volání: tenant/user/feature/model, 4 token countery prompt/completion/cache_creation/cache_read, USD, cache-hit).
+Všechna model volání jdou přes **`ILlmGateway` port** (jeden chokepoint, fake pod `Rag:UseFakeGateways`) — žádná feature nevolá provider přímo.
+**Eval (oblast 18/31):** `RagDataset`/`RagDatasetVersion` (append-only, immutable)/`RagDatasetItem` (input+expected-context+expected-output);
+score přes **`IEvaluator` port** (Deterministic → RagMetric → LlmJudge, v tomto pořadí). Eval run = 202 long-running operace.
+**HITL (oblast 32):** `RagReviewItem` (type entity_merge|answer_approval|ingest_approval|feedback_label, status Pending/Reserved/Decided,
+reservation TTL), `RagReviewPolicy` (declarative per-tenant: thresholdy three-band auto-serve/flag/abstain, action classes, sampling %, reviewer role).
+**Sjednocení (gap pass):** review fronty entity-res (UC-11-05) i golden harvest (UC-18-07) → JEDNA abstrakce `RagReviewItem` (oblast 32 je autoritativní).
 
 Tabulky vždy `hybridrag_` prefix: `hybridrag_collections`, `hybridrag_documents`, `hybridrag_chunks`,
 `hybridrag_graph_nodes`, `hybridrag_graph_edges`, `hybridrag_entity_aliases`, `hybridrag_ingest_sagas`,
@@ -114,9 +125,10 @@ v effective-config). Cron pod `Modules:HybridRag:Jobs:*`. Per-tenant/collection 
 
 ## 10. Cost — jeden autoritativní zdroj
 
-**Real-time enforcement = oblast 22** (Redis token/cost bucket per tenant, per-call). Oblast 19 `rag_usage_daily`
-rollup je **jen reporting/lagging**, NEenforcuje (cron flip lagne o interval). Jeden zdroj pravdy pro „překročil kvótu" =
-Redis bucket (22), ne denní rollup (19).
+**Real-time enforcement = oblast 22** (Redis token/cost bucket per tenant, per-call) + **`ILlmGateway` budget guard (oblast 30)**
+→ 429 + errorCode `rag.quota_exceeded`. Oblast 19 `rag_usage_daily` rollup + UC-19-10 budget-alert jsou **jen reporting/alerting/lagging**,
+NEenforcují (cron lagne o interval). Autoritativní „překročil kvótu" = Redis bucket (22)/gateway (30), ne denní rollup (19).
+Per-LLM-volání cost se zapisuje do **`RagUsageLedger`** přes `ILlmGateway` (oblast 30) — jeden zdroj nákladů; oblast 19 nad ním reportuje.
 
 ## 11. RLS pro dvouvrstvý Scope (custom policy, ne stock `IUserOwned`)
 
@@ -160,3 +172,19 @@ RLS (keyed `app.principal_id == UserId`) **NELZE** — skryl by sdílené `Scope
   delete cesta musí adresovat všechny tři explicitně.
 - **Permission claims jsou token-snapshot** (note 24): revoke se projeví až při refresh/expiraci; MCP per-call DB check je
   výjimka (EC-15-06-05), ne default.
+
+---
+
+## 14. Konsolidace (gap pass) — sjednocené průřezové vzory
+
+- **Per-query persistence — jeden lifecycle.** `rag_query_trace` (19 diagnostika), `eval_samples` (18/31 online eval),
+  trace effective-config stamp (24-12) a operation audit (25) řeší tentýž „per-query record". Sjednotit schéma + retention +
+  PII-shred do jednoho modelu (nebo explicitně zdokumentovat dělbu), aby nevznikaly duplicitní zápisy a divergentní GDPR erasure.
+- **Společný „admin read slice" pattern.** Dashboard/read endpointy (18-08 eval, 19-06 cost, 19-07 explain, 24-03 effective-config,
+  25 audit, 23 list/detail, 28 UI) sdílejí: RLS tenant-scope, IDOR→404, range-cap proti DoS, PII-redakce v agregátu, permission gate.
+  Vyextrahovat jeden pattern; **UI oblasti 26–29 ho jen KONZUMUJÍ, neredefinují** business logiku/izolaci.
+- **Admin/dashboard routes (kanonicky pod `/v1/hybridrag/`):** `/admin/cost`, `/admin/queries/{id}/explain`,
+  `/admin/config/{registry,effective,tenant,collection}`, `/admin/audit`, `/eval/summary`, `/eval/datasets`, `/eval/runs`,
+  `/models`, `/models/compare`, `/reviews`, `/reviews/{id}/decision`, `/query/{id}/feedback`. (Drift `/v1/rag/...` → čti jako `/v1/hybridrag/...`.)
+- **UI ↔ backend.** Frontend (26–29) = tenký konzument přes BFF (Model A, token jen server-side) + TanStack Query (jeden data source) +
+  jeden SSE provider. Validace/izolace/identita je VŽDY backend; UI prvky se jen skrývají/disablují dle permission (autorita = backend → 403/404).

@@ -409,7 +409,7 @@
 ## UC-24-13 — A/B config experiment (řízené porovnání dvou konfigurací)
 
 - **Actor / role:** platform-admin / tenant-admin (`Rag.Manage`) · system (deterministické přiřazení varianty)
-- **Precondition:** Experiment = pojmenovaná dvojice (control, variant) config sad/presetů + alokace (% trafficu / deterministicky per-user-hash). Volitelný eval (oblast 22) měří kvalitu.
+- **Precondition:** Experiment = pojmenovaná dvojice (control, variant) config sad/presetů + alokace (% trafficu / deterministicky per-user-hash). Volitelný eval (oblast 18/31) měří kvalitu; cost per varianta (oblast 30) → rozhodnutí kvalita+cena.
 - **Trigger:** CRUD `POST/PUT/DELETE /v1/hybridrag/admin/config/experiments` + start/stop; runtime resolver konzultuje aktivní experiment.
 - **Main flow:**
   1. Admin definuje experiment: control = baseline (preset/override), variant = alternativa (např. CandidateK 100 vs 200, rerank on/off), alokace 50/50, scope (collection/tenant), trvání.
