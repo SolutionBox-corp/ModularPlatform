@@ -44,6 +44,7 @@ internal sealed class ListTenantsHandler(IReadDbContextFactory<TenancyDbContext>
 
         var items = await tenants
             .OrderByDescending(t => t.CreatedAt)
+            .ThenByDescending(t => t.Id)
             .Skip(offset)
             .Take(limit)
             .Select(t => new TenantItem(

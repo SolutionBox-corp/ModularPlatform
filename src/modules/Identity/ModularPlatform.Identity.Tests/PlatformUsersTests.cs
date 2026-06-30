@@ -77,6 +77,30 @@ public sealed class PlatformUsersTests(PlatformApiFactory fixture)
         deletedItems.Select(UserId).ShouldNotContain(deletedUserId);
     }
 
+    [Fact]
+    public async Task Platform_user_list_orders_created_at_ties_by_user_id_for_stable_paging()
+    {
+        var (firstUserId, _) = await fixture.RegisterAndLoginAsync(
+            $"platform-list-stable-1-{Guid.CreateVersion7():N}@example.com", Password);
+        var (secondUserId, _) = await fixture.RegisterAndLoginAsync(
+            $"platform-list-stable-2-{Guid.CreateVersion7():N}@example.com", Password);
+        var (thirdUserId, _) = await fixture.RegisterAndLoginAsync(
+            $"platform-list-stable-3-{Guid.CreateVersion7():N}@example.com", Password);
+
+        await fixture.ExecuteSqlAsync(
+            "UPDATE users " +
+            "SET \"CreatedAt\" = timestamp with time zone '2030-01-01 00:00:00+00' " +
+            $"WHERE \"Id\" IN ('{firstUserId}', '{secondUserId}', '{thirdUserId}')");
+
+        var response = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, "/v1/identity/platform/users?limit=3&offset=0", await AdminTokenAsync()));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PlatformApiFactory.ReadData(response)).GetProperty("items").EnumerateArray()
+            .Select(UserId)
+            .ShouldBe(new[] { firstUserId, secondUserId, thirdUserId }.OrderByDescending(id => id).ToArray());
+    }
+
     private async Task<Guid> TenantIdOf(Guid userId) =>
         await fixture.ScalarAsync<Guid>($"SELECT \"TenantId\" FROM users WHERE \"Id\" = '{userId}'");
 

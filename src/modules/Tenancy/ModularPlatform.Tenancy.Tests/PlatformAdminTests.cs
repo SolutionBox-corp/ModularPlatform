@@ -171,6 +171,35 @@ public sealed class PlatformAdminTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Tenant_list_orders_created_at_ties_by_tenant_id_for_stable_paging()
+    {
+        var admin = await AdminTokenAsync();
+        var tenantIds = new List<Guid>();
+
+        for (var i = 0; i < 3; i++)
+        {
+            var subdomain = $"stable-{i}-{Guid.CreateVersion7():N}".Substring(0, 30);
+            var provision = await fixture.Client.SendAsync(fixture.Authed(
+                HttpMethod.Post, "/v1/tenant/admin/tenants", admin, new { name = $"Stable {i}", subdomain }));
+            provision.StatusCode.ShouldBe(HttpStatusCode.OK);
+            tenantIds.Add((await PlatformApiFactory.ReadData(provision)).GetProperty("tenantId").GetGuid());
+        }
+
+        await fixture.ExecuteSqlAsync(
+            "UPDATE tenants " +
+            "SET \"CreatedAt\" = timestamp with time zone '2030-01-01 00:00:00+00' " +
+            $"WHERE \"Id\" IN ('{tenantIds[0]}', '{tenantIds[1]}', '{tenantIds[2]}')");
+
+        var response = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, "/v1/tenant/admin/tenants?limit=3&offset=0", admin));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PlatformApiFactory.ReadData(response)).GetProperty("items").EnumerateArray()
+            .Select(item => item.GetProperty("tenantId").GetGuid())
+            .ShouldBe(tenantIds.OrderByDescending(id => id).ToArray());
+    }
+
+    [Fact]
     public async Task Tenant_list_can_be_filtered_by_search_and_status()
     {
         var admin = await AdminTokenAsync();

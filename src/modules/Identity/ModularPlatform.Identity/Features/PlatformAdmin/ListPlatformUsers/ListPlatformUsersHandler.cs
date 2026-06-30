@@ -41,6 +41,7 @@ internal sealed class ListPlatformUsersHandler(
 
         var items = await filtered
             .OrderByDescending(u => u.CreatedAt)
+            .ThenByDescending(u => u.Id)
             .Skip(offset)
             .Take(limit)
             .Select(u => new PlatformUserItem(
