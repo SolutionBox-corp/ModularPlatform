@@ -148,7 +148,7 @@ export function CreateInviteDialog({
                   id="ci-days"
                   type="number"
                   min={1}
-                  max={90}
+                  max={30}
                   aria-invalid={!!errors.expiresInDays}
                   {...register("expiresInDays", { valueAsNumber: true })}
                 />

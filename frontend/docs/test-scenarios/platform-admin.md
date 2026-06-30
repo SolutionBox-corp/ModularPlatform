@@ -209,16 +209,15 @@ All mutating endpoints (`POST /v1/tenant/admin/tenants`, `PUT .../entitlements/{
 - **Then** client-side error "Minimum 1 day" appears; no API call
 - Priority: **P1** · Type: error · Automated: manual
 
-### PA-28 — Create invite: expiry > 90 days validation
+### PA-28 — Create invite: expiry > 30 days validation
 - **Preconditions** create-invite dialog open
-- **Given** the admin enters 91 days
+- **Given** the admin enters 31 days
 - **When** the admin submits
-- **Then** client-side error "Maximum 90 days" appears
-- Note: the backend caps at 30 days (`InclusiveBetween(1, 30)`); the frontend schema allows up to 90 (mismatch — backend will reject 31–90 with `tenant.invite.expiry_out_of_range`). This discrepancy should be fixed.
+- **Then** client-side error "Maximum 30 days" appears and no API call is made
 - Priority: **P1** · Type: edge · Automated: manual
 
 ### PA-29 — Create invite: backend expiry range error surfaced
-- **Preconditions** create-invite dialog; admin sets expiry to 31 (passes FE, fails BE)
+- **Preconditions** create-invite dialog; the backend rejects the expiry range despite client validation passing (for example, a stale client bundle or direct API call)
 - **When** the API returns 400 `tenant.invite.expiry_out_of_range`
 - **Then** an error toast is shown; the dialog stays in the form view
 - Priority: **P1** · Type: error · Automated: manual

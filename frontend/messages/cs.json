@@ -1010,7 +1010,7 @@
       }
     },
     "validation": {
-      "daysMax": "Maximálně 90 dní",
+      "daysMax": "Maximálně 30 dní",
       "daysMin": "Minimálně 1 den",
       "daysNumber": "Musí být číslo",
       "daysWhole": "Musí být celé číslo",

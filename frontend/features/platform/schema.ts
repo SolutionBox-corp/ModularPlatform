@@ -27,7 +27,7 @@ export function buildCreateInviteSchema(t: Translate) {
       .number({ error: t("validation.daysNumber") })
       .int(t("validation.daysWhole"))
       .min(1, t("validation.daysMin"))
-      .max(90, t("validation.daysMax")),
+      .max(30, t("validation.daysMax")),
   });
 }
 

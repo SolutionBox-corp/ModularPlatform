@@ -1010,7 +1010,7 @@
       }
     },
     "validation": {
-      "daysMax": "Maximum 90 days",
+      "daysMax": "Maximum 30 days",
       "daysMin": "Minimum 1 day",
       "daysNumber": "Must be a number",
       "daysWhole": "Must be a whole number",
