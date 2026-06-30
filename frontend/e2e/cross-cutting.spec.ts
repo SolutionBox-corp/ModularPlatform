@@ -1,6 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { ANONYMOUS } from "./helpers";
 
 /**
  * Wait until next-themes has applied a concrete theme class to <html>. Scanning during the
@@ -19,7 +18,7 @@ async function waitForThemeSettled(page: Page): Promise<void> {
  * dark-mode persistence, entitlement-gated nav, and axe a11y scans.
  *
  * All tests in this file run as the authenticated primary user (storageState from setup)
- * EXCEPT the login axe scan and the 404 anon test, which opt out via ANONYMOUS / test.use.
+ * except the login axe scan, which clears cookies before visiting /login.
  */
 
 // ---------------------------------------------------------------------------

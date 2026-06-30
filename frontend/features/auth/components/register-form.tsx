@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -29,9 +29,9 @@ export function RegisterForm() {
 
   const {
     register,
+    control,
     handleSubmit,
     setValue,
-    watch,
     setError,
     formState: { errors },
   } = useForm<RegisterFormValues>({
@@ -44,7 +44,7 @@ export function RegisterForm() {
     },
   });
 
-  const acceptTerms = watch("acceptTerms");
+  const acceptTerms = useWatch({ control, name: "acceptTerms" });
 
   function onSubmit(values: RegisterFormValues) {
     setServerError(null);

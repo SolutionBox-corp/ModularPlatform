@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { RefreshCwIcon, CheckCircle2Icon, XCircleIcon, ClockIcon } from "lucide-react";
 import {
@@ -67,16 +67,16 @@ export function PullPanel() {
   const trigger = useTriggerPull();
 
   const {
+    control,
     handleSubmit,
     setValue,
-    watch,
     formState: { errors },
   } = useForm<TriggerPullInput>({
     resolver: zodResolver(buildTriggerPullSchema(t)),
     defaultValues: { source: "ga4" },
   });
 
-  const source = watch("source");
+  const source = useWatch({ control, name: "source" });
 
   const onSubmit = (values: TriggerPullInput) => {
     trigger.mutate(values.source);
