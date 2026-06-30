@@ -23,7 +23,7 @@ internal static class UpdateTaskEndpoint
                     ?? throw new UnauthorizedException("auth.required", "Authentication required.");
                 var priority = request.Priority is null ? null : request.Priority.Trim().ToLowerInvariant();
                 var result = await dispatcher.Send(
-                    new UpdateTaskCommand(userId, taskId, request.Title, request.Description, request.DueAt, priority), ct);
+                    new UpdateTaskCommand(userId, taskId, request.Title, request.Description, request.DueAt, priority, request.AssigneeUserId), ct);
                 return Results.Ok(ApiResponse<TaskResponse>.Ok(result));
             })
             .RequireAuthorization()

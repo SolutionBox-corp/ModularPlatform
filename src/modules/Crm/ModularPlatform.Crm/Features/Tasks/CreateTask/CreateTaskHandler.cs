@@ -34,6 +34,7 @@ internal sealed class CreateTaskHandler(CrmDbContext db)
             Title = command.Title.Trim(),
             Description = string.IsNullOrWhiteSpace(command.Description) ? null : command.Description,
             DueAt = command.DueAt,
+            AssigneeUserId = command.AssigneeUserId,
             Priority = command.Priority,
         };
 

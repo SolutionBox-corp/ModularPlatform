@@ -12,5 +12,6 @@ public sealed record ListTasksQuery(
     DateTimeOffset? DueBefore,
     Guid? ContactId,
     Guid? DealId,
+    Guid? AssigneeUserId,
     int? Page,
     int? PageSize) : IQuery<PagedResponse<ModularPlatform.Crm.Features.Tasks.TaskResponse>>;

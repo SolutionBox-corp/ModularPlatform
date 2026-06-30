@@ -76,7 +76,8 @@ public sealed class CrmTasksTests(PlatformApiFactory fixture)
     public async Task Patch_is_partial()
     {
         var (_, token) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
-        var id = await CreateTaskAsync(token, new { title = "Keep", priority = "high" });
+        var assigneeId = Guid.CreateVersion7();
+        var id = await CreateTaskAsync(token, new { title = "Keep", priority = "high", assigneeUserId = assigneeId });
 
         var patch = await fixture.Client.SendAsync(fixture.Authed(
             HttpMethod.Patch, $"/v1/crm/tasks/{id}", token, new { title = "Renamed" }));
@@ -84,6 +85,22 @@ public sealed class CrmTasksTests(PlatformApiFactory fixture)
         var data = await PlatformApiFactory.ReadData(patch);
         data.GetProperty("title").GetString().ShouldBe("Renamed");
         data.GetProperty("priority").GetString().ShouldBe("high");
+        data.GetProperty("assigneeUserId").GetGuid().ShouldBe(assigneeId);
+    }
+
+    [Fact]
+    public async Task List_filters_by_assignee()
+    {
+        var (userId, token) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
+        var otherAssignee = Guid.CreateVersion7();
+        var mine = await CreateTaskAsync(token, new { title = "Mine", assigneeUserId = userId });
+        await CreateTaskAsync(token, new { title = "Other", assigneeUserId = otherAssignee });
+
+        var list = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, $"/v1/crm/tasks?assigneeUserId={userId}", token));
+        var items = (await PlatformApiFactory.ReadData(list)).GetProperty("items").EnumerateArray().ToList();
+        items.Count.ShouldBe(1);
+        items[0].GetProperty("id").GetGuid().ShouldBe(mine);
     }
 
     [Fact]

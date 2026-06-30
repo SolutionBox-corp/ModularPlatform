@@ -60,6 +60,21 @@ internal sealed class CreateCardHandler(CrmDbContext db)
             DueAt = command.DueAt?.ToUniversalTime(),
         };
         db.KanbanCards.Add(card);
+
+        if (card.TaskId is { } linkedTaskId)
+        {
+            var task = await db.Tasks
+                .FirstOrDefaultAsync(t => t.Id == linkedTaskId && t.UserId == command.UserId, ct);
+            if (task is not null)
+            {
+                task.Title = card.Title;
+                task.Description = card.Description;
+                task.DueAt = card.DueAt;
+                task.Priority = card.Priority;
+                task.AssigneeUserId = card.AssigneeUserId;
+            }
+        }
+
         await db.SaveChangesAsync(ct);
         return new CreateCardResponse(card.Id);
     }

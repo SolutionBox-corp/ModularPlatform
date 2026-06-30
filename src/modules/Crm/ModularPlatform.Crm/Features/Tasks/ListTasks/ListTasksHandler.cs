@@ -39,6 +39,11 @@ internal sealed class ListTasksHandler(IReadDbContextFactory<CrmDbContext> readF
             filtered = filtered.Where(t => t.DealId == dealId);
         }
 
+        if (query.AssigneeUserId is { } assigneeUserId)
+        {
+            filtered = filtered.Where(t => t.AssigneeUserId == assigneeUserId);
+        }
+
         var total = await filtered.CountAsync(ct);
 
         var items = await filtered
@@ -48,7 +53,7 @@ internal sealed class ListTasksHandler(IReadDbContextFactory<CrmDbContext> readF
             .Skip(paging.Skip)
             .Take(paging.PageSize)
             .Select(t => new TaskResponse(
-                t.Id, t.ContactId, t.DealId, t.Title, t.Description, t.DueAt, t.Priority, t.Status,
+                t.Id, t.ContactId, t.DealId, t.AssigneeUserId, t.Title, t.Description, t.DueAt, t.Priority, t.Status,
                 t.CompletedAt, t.CreatedAt, t.UpdatedAt))
             .ToListAsync(ct);
 

@@ -17,7 +17,7 @@ internal sealed class GetTaskHandler(IReadDbContextFactory<CrmDbContext> readFac
         return await db.Tasks
             .Where(t => t.Id == query.TaskId && t.UserId == query.UserId)
             .Select(t => new TaskResponse(
-                t.Id, t.ContactId, t.DealId, t.Title, t.Description, t.DueAt, t.Priority, t.Status,
+                t.Id, t.ContactId, t.DealId, t.AssigneeUserId, t.Title, t.Description, t.DueAt, t.Priority, t.Status,
                 t.CompletedAt, t.CreatedAt, t.UpdatedAt))
             .FirstOrDefaultAsync(ct)
             ?? throw new NotFoundException("crm.task_not_found", "Task not found.");

@@ -10,6 +10,7 @@ public sealed record CreateTaskCommand(
     string Title,
     string? Description,
     DateTimeOffset? DueAt,
+    Guid? AssigneeUserId,
     string Priority) : ICommand<CreateTaskResponse>;
 
 public sealed record CreateTaskResponse(Guid Id);
@@ -20,4 +21,5 @@ public sealed record CreateTaskRequest(
     string Title,
     string? Description,
     DateTimeOffset? DueAt,
+    Guid? AssigneeUserId,
     string? Priority);

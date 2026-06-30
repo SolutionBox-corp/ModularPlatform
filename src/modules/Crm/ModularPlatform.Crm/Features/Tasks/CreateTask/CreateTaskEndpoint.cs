@@ -25,7 +25,7 @@ internal static class CreateTaskEndpoint
                 var result = await dispatcher.Send(
                     new CreateTaskCommand(
                         userId, request.ContactId, request.DealId, request.Title ?? string.Empty,
-                        request.Description, request.DueAt,
+                        request.Description, request.DueAt, request.AssigneeUserId,
                         string.IsNullOrWhiteSpace(request.Priority) ? TaskPriorities.Normal : request.Priority.Trim().ToLowerInvariant()),
                     ct);
                 var location = links.GetPathByName(http, "GetTask", new { taskId = result.Id })

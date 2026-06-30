@@ -17,6 +17,7 @@ internal static class ListTasksEndpoint
                 DateTimeOffset? dueBefore,
                 Guid? contactId,
                 Guid? dealId,
+                Guid? assigneeUserId,
                 int? page,
                 int? pageSize,
                 ITenantContext tenant,
@@ -26,7 +27,7 @@ internal static class ListTasksEndpoint
                 var userId = tenant.UserId
                     ?? throw new UnauthorizedException("auth.required", "Authentication required.");
                 var result = await dispatcher.Query(
-                    new ListTasksQuery(userId, status, dueBefore, contactId, dealId, page, pageSize), ct);
+                    new ListTasksQuery(userId, status, dueBefore, contactId, dealId, assigneeUserId, page, pageSize), ct);
                 return Results.Ok(ApiResponse<PagedResponse<TaskResponse>>.Ok(result));
             })
             .RequireAuthorization()

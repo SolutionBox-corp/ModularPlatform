@@ -142,6 +142,7 @@ export interface CrmTask {
   id: string;
   contactId: string | null;
   dealId: string | null;
+  assigneeUserId: string | null;
   title: string;
   description: string | null;
   dueAt: string | null;
@@ -224,6 +225,7 @@ export interface TasksParams {
   dueBefore?: string;
   contactId?: string;
   dealId?: string;
+  assigneeUserId?: string;
 }
 
 export const crmQueries = {
@@ -315,6 +317,7 @@ export const crmQueries = {
         if (params.dueBefore) sp.set("dueBefore", params.dueBefore);
         if (params.contactId) sp.set("contactId", params.contactId);
         if (params.dealId) sp.set("dealId", params.dealId);
+        if (params.assigneeUserId) sp.set("assigneeUserId", params.assigneeUserId);
         return apiFetch<TasksPage>(`crm/tasks?${sp.toString()}`);
       },
       staleTime: 15_000,
@@ -404,6 +407,7 @@ export function addInteraction(contactId: string, input: InteractionInput): Prom
 export interface MeetingInput {
   contactId?: string | null;
   dealId?: string | null;
+  assigneeUserId?: string | null;
   title: string;
   scheduledAt: string;
   durationMinutes: number;
@@ -460,6 +464,7 @@ export function deleteDeal(id: string): Promise<void> {
 export interface TaskInput {
   contactId?: string | null;
   dealId?: string | null;
+  assigneeUserId?: string | null;
   title: string;
   description?: string | null;
   dueAt?: string | null;

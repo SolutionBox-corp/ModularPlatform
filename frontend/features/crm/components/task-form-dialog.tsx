@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslations } from "next-intl";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { accountQueries } from "@/features/account/api";
 import { TASK_PRIORITIES, type TaskInput } from "@/features/crm/api";
 import { useCreateTask } from "@/features/crm/hooks";
 import { buildTaskSchema, type TaskFormValues } from "@/features/crm/schema";
@@ -37,7 +39,10 @@ export function TaskFormDialog({ contactId, dealId, trigger }: TaskFormDialogPro
   const t = useTranslations("crm");
   const [open, setOpen] = useState(false);
   const [priority, setPriority] = useState<(typeof TASK_PRIORITIES)[number]>("normal");
+  const [assigneeUserId, setAssigneeUserId] = useState("none");
   const createMutation = useCreateTask();
+  const { data: users } = useQuery(accountQueries.users({ page: 1, pageSize: 50 }));
+  const userOptions = users?.items ?? [];
 
   const {
     register,
@@ -54,6 +59,7 @@ export function TaskFormDialog({ contactId, dealId, trigger }: TaskFormDialogPro
     const input: TaskInput = {
       contactId: contactId ?? null,
       dealId: dealId ?? null,
+      assigneeUserId: assigneeUserId === "none" ? null : assigneeUserId,
       title: values.title.trim(),
       description: values.description?.trim() || null,
       dueAt: values.dueAt ? new Date(values.dueAt).toISOString() : null,
@@ -62,6 +68,7 @@ export function TaskFormDialog({ contactId, dealId, trigger }: TaskFormDialogPro
     try {
       await createMutation.mutateAsync(input);
       reset();
+      setAssigneeUserId("none");
       setOpen(false);
     } catch (err: unknown) {
       if (err && typeof err === "object" && "fieldErrors" in err && err.fieldErrors) {
@@ -109,6 +116,29 @@ export function TaskFormDialog({ contactId, dealId, trigger }: TaskFormDialogPro
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="tk-assignee">{t("board.assignee")}</Label>
+              <Select value={assigneeUserId} onValueChange={(value) => setAssigneeUserId(value ?? "none")}>
+                <SelectTrigger id="tk-assignee" className="w-full">
+                  <span data-slot="select-value" className="flex flex-1 text-left">
+                    {assigneeUserId === "none"
+                      ? t("board.unassigned")
+                      : userOptions.find((user) => user.id === assigneeUserId)?.displayName
+                        ?? userOptions.find((user) => user.id === assigneeUserId)?.email
+                        ?? t("board.unknownAssignee")}
+                  </span>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">{t("board.unassigned")}</SelectItem>
+                  {userOptions.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.displayName ?? user.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-1.5">

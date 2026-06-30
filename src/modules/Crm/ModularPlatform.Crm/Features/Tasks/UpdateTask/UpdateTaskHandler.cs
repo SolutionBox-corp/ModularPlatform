@@ -35,10 +35,15 @@ internal sealed class UpdateTaskHandler(CrmDbContext db)
             task.Priority = command.Priority;
         }
 
+        if (command.AssigneeUserId is not null)
+        {
+            task.AssigneeUserId = command.AssigneeUserId;
+        }
+
         await db.SaveChangesAsync(ct);
 
         return new TaskResponse(
-            task.Id, task.ContactId, task.DealId, task.Title, task.Description, task.DueAt, task.Priority,
+            task.Id, task.ContactId, task.DealId, task.AssigneeUserId, task.Title, task.Description, task.DueAt, task.Priority,
             task.Status, task.CompletedAt, task.CreatedAt, task.UpdatedAt);
     }
 }

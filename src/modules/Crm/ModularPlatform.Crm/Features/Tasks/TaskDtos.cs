@@ -5,6 +5,7 @@ public sealed record TaskResponse(
     Guid Id,
     Guid? ContactId,
     Guid? DealId,
+    Guid? AssigneeUserId,
     string Title,
     string? Description,
     DateTimeOffset? DueAt,

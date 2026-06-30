@@ -360,7 +360,8 @@
       "allStages": "Všechny fáze",
       "leadSource": "Zdroj leadu",
       "companyType": "Typ firmy",
-      "allCompanyTypes": "Všechny typy firem"
+      "allCompanyTypes": "Všechny typy firem",
+      "allAssignees": "Všichni přiřazení"
     },
     "contacts": {
       "new": "Nový kontakt",
@@ -603,7 +604,10 @@
       "noTask": "Bez úkolu",
       "unknownTask": "Neznámý úkol",
       "linkedMeeting": "Schůzka",
+      "assignee": "Přiřazeno",
       "assigned": "Přiřazeno",
+      "unassigned": "Nepřiřazeno",
+      "unknownAssignee": "Neznámý uživatel",
       "group": {
         "backlog": "Backlog",
         "unstarted": "Nezačato",

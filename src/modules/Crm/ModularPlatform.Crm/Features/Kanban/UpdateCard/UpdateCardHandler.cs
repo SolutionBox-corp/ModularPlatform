@@ -104,6 +104,7 @@ internal sealed class UpdateCardHandler(CrmDbContext db)
                 task.Description = card.Description;
                 task.DueAt = card.DueAt;
                 task.Priority = card.Priority;
+                task.AssigneeUserId = card.AssigneeUserId;
             }
         }
 

@@ -9,10 +9,12 @@ public sealed record UpdateTaskCommand(
     string? Title,
     string? Description,
     DateTimeOffset? DueAt,
-    string? Priority) : ICommand<ModularPlatform.Crm.Features.Tasks.TaskResponse>;
+    string? Priority,
+    Guid? AssigneeUserId) : ICommand<ModularPlatform.Crm.Features.Tasks.TaskResponse>;
 
 public sealed record UpdateTaskRequest(
     string? Title,
     string? Description,
     DateTimeOffset? DueAt,
-    string? Priority);
+    string? Priority,
+    Guid? AssigneeUserId);

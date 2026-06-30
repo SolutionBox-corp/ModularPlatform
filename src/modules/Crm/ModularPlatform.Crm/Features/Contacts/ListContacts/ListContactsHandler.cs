@@ -40,22 +40,25 @@ internal sealed class ListContactsHandler(
 
         var total = await filtered.CountAsync(ct);
 
-        var items = await filtered
+        var pageContacts = filtered
             .OrderByDescending(c => c.CreatedAt)
             .Skip(paging.Skip)
-            .Take(paging.PageSize)
-            .Select(c => new ContactListItem(
-                c.Id,
-                c.CompanyId,
-                db.Companies
-                    .Where(company => company.Id == c.CompanyId && company.UserId == query.UserId)
-                    .Select(company => company.Name)
-                    .FirstOrDefault(),
-                c.FirstName,
-                c.LastName,
-                c.Email,
-                c.Status,
-                c.CreatedAt))
+            .Take(paging.PageSize);
+
+        var items = await (
+                from contact in pageContacts
+                join company in db.Companies.Where(c => c.UserId == query.UserId)
+                    on contact.CompanyId equals company.Id into companyGroup
+                from company in companyGroup.DefaultIfEmpty()
+                select new ContactListItem(
+                    contact.Id,
+                    contact.CompanyId,
+                    company == null ? null : company.Name,
+                    contact.FirstName,
+                    contact.LastName,
+                    contact.Email,
+                    contact.Status,
+                    contact.CreatedAt))
             .ToListAsync(ct);
 
         return new PagedResponse<ContactListItem>(items, paging.Page, paging.PageSize, total);

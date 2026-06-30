@@ -16,6 +16,7 @@ internal sealed class CrmTask : AuditableEntity, ITenantScoped, IUserOwned, ISof
     public Guid UserId { get; set; }
     public Guid? ContactId { get; set; }
     public Guid? DealId { get; set; }
+    public Guid? AssigneeUserId { get; set; }
 
     [PersonalData]
     public string Title { get; set; } = string.Empty;
@@ -66,5 +67,6 @@ internal sealed class CrmTaskConfiguration : IEntityTypeConfiguration<CrmTask>
         builder.HasIndex(t => new { t.UserId, t.Status, t.DueAt });
         builder.HasIndex(t => t.ContactId);
         builder.HasIndex(t => t.DealId);
+        builder.HasIndex(t => t.AssigneeUserId);
     }
 }

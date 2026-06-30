@@ -360,7 +360,8 @@
       "allStages": "All stages",
       "leadSource": "Lead source",
       "companyType": "Company type",
-      "allCompanyTypes": "All company types"
+      "allCompanyTypes": "All company types",
+      "allAssignees": "All assignees"
     },
     "contacts": {
       "new": "New contact",
@@ -603,7 +604,10 @@
       "noTask": "No linked task",
       "unknownTask": "Unknown task",
       "linkedMeeting": "Meeting",
+      "assignee": "Assignee",
       "assigned": "Assigned",
+      "unassigned": "Unassigned",
+      "unknownAssignee": "Unknown assignee",
       "group": {
         "backlog": "Backlog",
         "unstarted": "Unstarted",
