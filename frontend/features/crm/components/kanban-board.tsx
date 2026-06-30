@@ -12,12 +12,25 @@ import {
   useDraggable,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { BriefcaseIcon, CalendarIcon, ContactIcon, GripVerticalIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import {
+  AlertTriangleIcon,
+  BriefcaseIcon,
+  CalendarIcon,
+  ContactIcon,
+  FilterIcon,
+  GripVerticalIcon,
+  PencilIcon,
+  PlusIcon,
+  SearchIcon,
+  Trash2Icon,
+  UsersIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Progress } from "@/components/ui/progress";
 import {
   Dialog,
   DialogContent,
@@ -39,6 +52,8 @@ import { useCreateCard, useDeleteCard, useMoveCard, useUpdateCard } from "@/feat
 
 const TODAY_START = new Date();
 TODAY_START.setHours(0, 0, 0, 0);
+const ALL = "all";
+const UNASSIGNED = "unassigned";
 
 const PRIORITY_VARIANT: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
   low: "outline",
@@ -46,8 +61,18 @@ const PRIORITY_VARIANT: Record<string, "default" | "secondary" | "outline" | "de
   high: "destructive",
 };
 
+const PRIORITY_COLOR: Record<string, string> = {
+  low: "#94A3B8",
+  normal: "#2563EB",
+  high: "#DC2626",
+};
+
 function toDateInput(iso: string | null): string {
   return iso ? new Date(iso).toISOString().slice(0, 10) : "";
+}
+
+function isOverdue(card: KanbanCard): boolean {
+  return card.dueAt ? new Date(card.dueAt).getTime() < TODAY_START.getTime() : false;
 }
 
 function taskLabel(taskOptions: CrmTask[], taskId: string | null): string | null {
@@ -57,6 +82,30 @@ function taskLabel(taskOptions: CrmTask[], taskId: string | null): string | null
 function userLabel(users: TenantUserListItem[], userId: string | null): string | null {
   const user = userId ? users.find((item) => item.id === userId) : null;
   return user ? user.displayName ?? user.email : null;
+}
+
+function matchesBoardFilters(
+  card: KanbanCard,
+  taskOptions: CrmTask[],
+  assigneeFilter: string,
+  priorityFilter: string,
+  search: string,
+) {
+  if (priorityFilter !== ALL && card.priority !== priorityFilter) return false;
+  if (assigneeFilter === UNASSIGNED && card.assigneeUserId) return false;
+  if (assigneeFilter !== ALL && assigneeFilter !== UNASSIGNED && card.assigneeUserId !== assigneeFilter) return false;
+
+  const term = search.trim().toLowerCase();
+  if (!term) return true;
+
+  const task = taskLabel(taskOptions, card.taskId);
+  const haystack = [
+    card.title,
+    card.description ?? "",
+    task ?? "",
+    ...card.labels,
+  ].join(" ").toLowerCase();
+  return haystack.includes(term);
 }
 
 function EditCardDialog({ card, taskOptions, users }: { card: KanbanCard; taskOptions: CrmTask[]; users: TenantUserListItem[] }) {
@@ -187,14 +236,15 @@ function Card({ card, taskOptions, users }: { card: KanbanCard; taskOptions: Crm
   const del = useDeleteCard();
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: card.id });
   const due = card.dueAt ? new Date(card.dueAt) : null;
-  const isOverdue = due ? due.getTime() < TODAY_START.getTime() : false;
+  const overdue = isOverdue(card);
 
   return (
     <div
       ref={setNodeRef}
       style={transform ? { transform: `translate(${transform.x}px, ${transform.y}px)` } : undefined}
-      className={`rounded-lg border bg-card p-3 text-sm shadow-sm transition-shadow hover:shadow-md ${isDragging ? "opacity-50" : ""}`}
+      className={`relative overflow-hidden rounded-lg border bg-card p-3 pl-4 text-sm shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${isDragging ? "opacity-50" : ""}`}
     >
+      <div className="absolute inset-y-0 left-0 w-1" style={{ backgroundColor: PRIORITY_COLOR[card.priority] ?? PRIORITY_COLOR.normal }} />
       <div className="flex items-start justify-between gap-2">
         <div {...attributes} {...listeners} className="flex flex-1 cursor-grab items-start gap-1.5">
           <GripVerticalIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -217,7 +267,7 @@ function Card({ card, taskOptions, users }: { card: KanbanCard; taskOptions: Crm
           {t(`taskPriority.${card.priority}`)}
         </Badge>
         {due && (
-          <Badge variant={isOverdue ? "destructive" : "secondary"} className="gap-1 text-[11px]">
+          <Badge variant={overdue ? "destructive" : "secondary"} className="gap-1 text-[11px]">
             <CalendarIcon className="h-3 w-3" />
             {due.toLocaleDateString()}
           </Badge>
@@ -271,6 +321,7 @@ function Column({
   const [taskId, setTaskId] = useState("none");
   const [assigneeUserId, setAssigneeUserId] = useState("none");
   const overWip = column.wipLimit !== null && cards.length > column.wipLimit;
+  const wipProgress = column.wipLimit ? Math.min(100, Math.round((cards.length / column.wipLimit) * 100)) : null;
 
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -295,7 +346,7 @@ function Column({
   };
 
   return (
-    <div ref={setNodeRef} className={`flex w-80 shrink-0 flex-col gap-3 rounded-xl border p-3 ${isOver ? "bg-accent" : "bg-muted/30"}`}>
+    <div ref={setNodeRef} className={`flex w-80 shrink-0 flex-col gap-3 rounded-xl border p-3 shadow-sm transition-colors ${isOver ? "bg-accent" : "bg-muted/30"}`}>
       <div className="h-1 rounded-full" style={{ backgroundColor: column.color }} />
       <div className="flex items-center justify-between gap-2">
         <div>
@@ -306,7 +357,16 @@ function Column({
           {column.wipLimit ? `${cards.length}/${column.wipLimit}` : cards.length}
         </Badge>
       </div>
-      <div className="flex min-h-20 flex-col gap-2">{cards.map((c) => <Card key={c.id} card={c} taskOptions={taskOptions} users={users} />)}</div>
+      {wipProgress !== null && <Progress value={wipProgress} className="h-1.5" />}
+      <div className="flex min-h-24 flex-col gap-2">
+        {cards.length === 0 ? (
+          <div className="rounded-lg border border-dashed bg-background/50 p-4 text-center text-xs text-muted-foreground">
+            {t("board.emptyColumn")}
+          </div>
+        ) : (
+          cards.map((c) => <Card key={c.id} card={c} taskOptions={taskOptions} users={users} />)
+        )}
+      </div>
       <form
         className="space-y-2 rounded-lg border border-dashed bg-background/60 p-2"
         onSubmit={submit}
@@ -371,10 +431,21 @@ export function KanbanBoardView({ boardId }: { boardId: string }) {
   const { data } = useQuery(crmQueries.board(boardId));
   const { data: tasks } = useQuery(crmQueries.tasks({ page: 1, pageSize: 100, status: "open" }));
   const { data: users } = useQuery(accountQueries.users({ page: 1, pageSize: 50 }));
+  const t = useTranslations("crm");
+  const [search, setSearch] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState(ALL);
+  const [assigneeFilter, setAssigneeFilter] = useState(ALL);
   const move = useMoveCard();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   if (!data) return null;
+  const taskOptions = tasks?.items ?? [];
+  const userOptions = users?.items ?? [];
+  const filteredCards = data.cards.filter((card) =>
+    matchesBoardFilters(card, taskOptions, assigneeFilter, priorityFilter, search));
+  const highPriorityCount = data.cards.filter((card) => card.priority === "high").length;
+  const overdueCount = data.cards.filter(isOverdue).length;
+  const assignedCount = data.cards.filter((card) => !!card.assigneeUserId).length;
 
   const onDragEnd = (e: DragEndEvent) => {
     const cardId = String(e.active.id);
@@ -386,13 +457,74 @@ export function KanbanBoardView({ boardId }: { boardId: string }) {
 
   return (
     <DndContext sensors={sensors} onDragEnd={onDragEnd}>
-      <div className="flex gap-3 overflow-x-auto pb-4">
-        {data.columns.map((col) => (
-          <Column key={col.id} column={col} boardId={boardId}
-            taskOptions={tasks?.items ?? []}
-            users={users?.items ?? []}
-            cards={data.cards.filter((c) => c.columnId === col.id).sort((a, b) => a.position - b.position)} />
-        ))}
+      <div className="space-y-4">
+        <div className="rounded-xl border bg-card p-4 shadow-sm">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-medium">{t("board.boardFocus")}</div>
+              <div className="text-xs text-muted-foreground">
+                {t("board.showingCards", { shown: filteredCards.length, total: data.cards.length })}
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="secondary" className="gap-1"><UsersIcon className="h-3 w-3" />{assignedCount}</Badge>
+              <Badge variant="destructive" className="gap-1"><AlertTriangleIcon className="h-3 w-3" />{overdueCount}</Badge>
+              <Badge variant="outline">{t("taskPriority.high")}: {highPriorityCount}</Badge>
+            </div>
+          </div>
+          <div className="grid gap-2 md:grid-cols-[1fr_180px_220px]">
+            <div className="relative">
+              <SearchIcon className="pointer-events-none absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={t("board.searchPlaceholder")}
+                className="h-8 pl-8"
+              />
+            </div>
+            <Select value={priorityFilter} onValueChange={(value) => setPriorityFilter(value ?? ALL)}>
+              <SelectTrigger className="h-8 w-full">
+                <FilterIcon className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
+                <span data-slot="select-value" className="flex flex-1 text-left">
+                  {priorityFilter === ALL ? t("board.allPriorities") : t(`taskPriority.${priorityFilter}`)}
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>{t("board.allPriorities")}</SelectItem>
+                {TASK_PRIORITIES.map((priority) => (
+                  <SelectItem key={priority} value={priority}>{t(`taskPriority.${priority}`)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={assigneeFilter} onValueChange={(value) => setAssigneeFilter(value ?? ALL)}>
+              <SelectTrigger className="h-8 w-full">
+                <span data-slot="select-value" className="flex flex-1 text-left">
+                  {assigneeFilter === ALL
+                    ? t("filter.allAssignees")
+                    : assigneeFilter === UNASSIGNED
+                      ? t("board.unassigned")
+                      : userLabel(userOptions, assigneeFilter) ?? t("board.unknownAssignee")}
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>{t("filter.allAssignees")}</SelectItem>
+                <SelectItem value={UNASSIGNED}>{t("board.unassigned")}</SelectItem>
+                {userOptions.map((user) => (
+                  <SelectItem key={user.id} value={user.id}>{user.displayName ?? user.email}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="flex gap-3 overflow-x-auto pb-4">
+          {data.columns.map((col) => (
+            <Column key={col.id} column={col} boardId={boardId}
+              taskOptions={taskOptions}
+              users={userOptions}
+              cards={filteredCards.filter((c) => c.columnId === col.id).sort((a, b) => a.position - b.position)} />
+          ))}
+        </div>
       </div>
     </DndContext>
   );
