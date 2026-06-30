@@ -21,6 +21,7 @@ internal sealed class NotificationsPersonalDataExporter(IReadDbContextFactory<No
         var notifications = await db.Notifications
             .Where(n => n.UserId == userId)
             .OrderByDescending(n => n.CreatedAt)
+            .ThenByDescending(n => n.Id)
             .Select(n => new
             {
                 n.Id,

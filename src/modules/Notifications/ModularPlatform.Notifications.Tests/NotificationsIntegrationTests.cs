@@ -883,6 +883,23 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
         await SendDirectAsync(aliceId, aliceTemplate);
         await SendDirectAsync(bobId, bobTemplate);
 
+        var aliceSecondTemplate = $"gdpr-notif-alice-2-{Guid.CreateVersion7():N}";
+        var aliceThirdTemplate = $"gdpr-notif-alice-3-{Guid.CreateVersion7():N}";
+        await SeedTemplateAsync(aliceSecondTemplate, "Alice export marker 2");
+        await SeedTemplateAsync(aliceThirdTemplate, "Alice export marker 3");
+        await SendDirectAsync(aliceId, aliceSecondTemplate);
+        await SendDirectAsync(aliceId, aliceThirdTemplate);
+        await fixture.ExecuteSqlAsync(
+            "UPDATE notifications " +
+            "SET \"CreatedAt\" = timestamp with time zone '2030-01-01 00:00:00+00' " +
+            $"WHERE \"UserId\" = '{aliceId}' AND \"TemplateKey\" IN ('{aliceTemplate}', '{aliceSecondTemplate}', '{aliceThirdTemplate}')");
+        var expectedExportIds = new[]
+        {
+            await NotificationIdForTemplateAsync(aliceId, aliceTemplate),
+            await NotificationIdForTemplateAsync(aliceId, aliceSecondTemplate),
+            await NotificationIdForTemplateAsync(aliceId, aliceThirdTemplate),
+        }.OrderByDescending(id => id).ToArray();
+
         await using var scope = fixture.Services.CreateAsyncScope();
         var exporter = scope.ServiceProvider.GetServices<IExportPersonalData>()
             .Single(e => e.ModuleName == "Notifications");
@@ -893,6 +910,7 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
         var rows = ((IEnumerable<object>)export["notifications"]!).ToArray();
         rows.ShouldContain(row => row.ToString()!.Contains(aliceTemplate, StringComparison.Ordinal));
         rows.ShouldNotContain(row => row.ToString()!.Contains(bobTemplate, StringComparison.Ordinal));
+        rows.Select(NotificationExportId).Take(3).ToArray().ShouldBe(expectedExportIds);
 
         await eraser.EraseAsync(aliceId, CancellationToken.None);
         await eraser.EraseAsync(aliceId, CancellationToken.None);
@@ -1099,6 +1117,14 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
     private Task<Guid> NotificationIdForTemplateAsync(Guid userId, string templateKey) =>
         fixture.ScalarAsync<Guid>(
             $"SELECT \"Id\" FROM notifications WHERE \"UserId\" = '{userId}' AND \"TemplateKey\" = '{templateKey}'");
+
+    private static Guid NotificationExportId(object row)
+    {
+        var id = row.GetType().GetProperty("Id")?.GetValue(row);
+        return id is Guid value
+            ? value
+            : throw new InvalidOperationException("Notification export row does not expose an Id property.");
+    }
 
     private Task<long> BuiltInTemplateDuplicateGroupCountAsync() =>
         fixture.ScalarAsync<long>(
