@@ -22,7 +22,7 @@ using Wolverine;
 namespace ModularPlatform.Notifications;
 
 /// <summary>
-/// Notifications module wiring. Owns its DbContext, channel senders (email via MailKit SMTP, push stub),
+/// Notifications module wiring. Owns its DbContext, channel senders (email via MailKit SMTP, push webhook/no-op),
 /// CQRS handlers/validators and endpoints. Consumes Identity's UserRegistered event to send a welcome
 /// notification, and hands off per-channel delivery durably to the Worker via the outbox.
 /// </summary>
@@ -42,7 +42,16 @@ public sealed class NotificationsModule : IModule
 
         services.Configure<EmailOptions>(configuration.GetSection(EmailOptions.SectionName));
         services.AddScoped<IEmailSender, SmtpEmailSender>();
-        services.AddScoped<IPushSender, NoOpPushSender>();
+        services.Configure<PushOptions>(configuration.GetSection(PushOptions.SectionName));
+        services.AddHttpClient("notifications-push");
+        if (string.IsNullOrWhiteSpace(configuration["Notifications:Push:WebhookUrl"]))
+        {
+            services.AddScoped<IPushSender, NoOpPushSender>();
+        }
+        else
+        {
+            services.AddScoped<IPushSender, WebhookPushSender>();
+        }
 
         services.AddScoped<IExportPersonalData, NotificationsPersonalDataExporter>();
         services.AddScoped<IErasePersonalData, NotificationsPersonalDataEraser>();

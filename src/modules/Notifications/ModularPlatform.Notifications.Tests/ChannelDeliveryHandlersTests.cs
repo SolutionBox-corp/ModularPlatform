@@ -1,7 +1,10 @@
 using ModularPlatform.Notifications.Channels;
 using ModularPlatform.Notifications.Contracts;
 using ModularPlatform.Notifications.Messaging;
+using Microsoft.Extensions.Options;
 using Shouldly;
+using System.Net;
+using System.Text.Json;
 
 namespace ModularPlatform.Notifications.Tests;
 
@@ -87,6 +90,47 @@ public sealed class ChannelDeliveryHandlersTests
         await sender.SendAsync(Guid.CreateVersion7(), "Deal assigned", "Open deal A", CancellationToken.None);
     }
 
+    [Fact]
+    public async Task Webhook_push_sender_posts_the_exact_push_payload()
+    {
+        var userId = Guid.CreateVersion7();
+        var handler = new CapturingHttpHandler(new HttpResponseMessage(HttpStatusCode.Accepted));
+        var sender = new WebhookPushSender(
+            new SingleClientFactory(new HttpClient(handler)),
+            Options.Create(new PushOptions
+            {
+                WebhookUrl = "https://push.test/deliver",
+                TimeoutSeconds = 5,
+            }));
+
+        await sender.SendAsync(userId, "Deal assigned", "Open deal A", CancellationToken.None);
+
+        handler.Requests.ShouldHaveSingleItem();
+        var request = handler.Requests[0];
+        request.Method.ShouldBe(HttpMethod.Post);
+        request.RequestUri!.ToString().ShouldBe("https://push.test/deliver");
+        var payload = JsonDocument.Parse(handler.Bodies[0]).RootElement;
+        payload.GetProperty("userId").GetGuid().ShouldBe(userId);
+        payload.GetProperty("title").GetString().ShouldBe("Deal assigned");
+        payload.GetProperty("body").GetString().ShouldBe("Open deal A");
+    }
+
+    [Fact]
+    public async Task Webhook_push_sender_propagates_provider_failures_for_wolverine_retry_and_dlq()
+    {
+        var sender = new WebhookPushSender(
+            new SingleClientFactory(new HttpClient(new CapturingHttpHandler(
+                new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)))),
+            Options.Create(new PushOptions
+            {
+                WebhookUrl = "https://push.test/deliver",
+                TimeoutSeconds = 5,
+            }));
+
+        await Should.ThrowAsync<HttpRequestException>(
+            () => sender.SendAsync(Guid.CreateVersion7(), "Deal assigned", "Open deal A", CancellationToken.None));
+    }
+
     private static EmailDeliveryRequested NewEmail(string toAddress, string subject, string body) =>
         new(
             EventId: Guid.CreateVersion7(),
@@ -151,6 +195,28 @@ public sealed class ChannelDeliveryHandlersTests
             }
 
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class SingleClientFactory(HttpClient client) : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => client;
+    }
+
+    private sealed class CapturingHttpHandler(HttpResponseMessage response) : HttpMessageHandler
+    {
+        public List<HttpRequestMessage> Requests { get; } = [];
+        public List<string> Bodies { get; } = [];
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            Bodies.Add(request.Content is null
+                ? string.Empty
+                : await request.Content.ReadAsStringAsync(cancellationToken));
+            return response;
         }
     }
 }

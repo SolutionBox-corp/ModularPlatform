@@ -1,8 +1,8 @@
 namespace ModularPlatform.Notifications.Channels;
 
 /// <summary>
-/// Sends a push notification for the push channel. Called from the Worker. The real FCM/Expo transport
-/// is not implemented yet — <see cref="NoOpPushSender"/> is the current stub.
+/// Sends a push notification for the push channel. Called from the Worker. Production deployments can route through
+/// <see cref="WebhookPushSender"/>; local/dev deployments without a provider use <see cref="NoOpPushSender"/>.
 /// </summary>
 public interface IPushSender
 {

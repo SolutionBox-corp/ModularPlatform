@@ -45,8 +45,7 @@ v tabulkách níže jsou **snapshot PŘED** těmito fixy:
 - **Operations stuck-reaper** — uzavřeno: Operations má vlastní reconcile job, který staré Pending/Running operace terminalizuje jako Failed.
 - **ExpireCredits N+1** přes účty — perf/škálovatelnost, ne korektnost.
 - **LocalRealtimePublisher.PublishToTenantAsync no-op** vs Redis publikuje — tenant broadcast asymetrie (lokální fallback).
-- **Push delivery** zůstává provider stub; **duplikovaná account-provisioning logika** (EnsureCreditAccount vs
-  inline v CreditTopUp) — DRY.
+- **Duplikovaná account-provisioning logika** (EnsureCreditAccount vs inline v CreditTopUp) — DRY.
 
 ## Přehled — verdikt per feature
 
@@ -90,7 +89,7 @@ v tabulkách níže jsou **snapshot PŘED** těmito fixy:
 | gdpr-pii | Export fan-out (IExportPersonalData) | ✅ correct |
 | gdpr-pii | Retention sweep (tombstone permanent re-mint guard) | 🟢 minor-gaps |
 | notifications-realtime | SendNotification (multi-channel dispatch) | ✅ correct |
-| notifications-realtime | Email / Push channel delivery (Worker-side) | 🟢 minor-gaps |
+| notifications-realtime | Email / Push channel delivery (Worker-side) | ✅ correct |
 | notifications-realtime | Templates + rendering + seeding | 🟢 minor-gaps |
 | notifications-realtime | In-app feed (get / mark-read) | ✅ correct |
 | notifications-realtime | Cross-module reaction handlers (welcome + purchase-completed) | ✅ correct |
@@ -902,23 +901,23 @@ _Behaviour is correct (retain-forever, purge-nothing), and the regression that p
 
 _Clean reuse-first slice. The 'one inapp row regardless of channels' is intentional but slightly surprising; well documented._
 
-### Email / Push channel delivery (Worker-side) — 🟢 minor-gaps
-*Durable Worker handlers that perform the real SMTP (MailKit) or push (stub) send for outboxed delivery messages.*
+### Email / Push channel delivery (Worker-side) — ✅ correct
+*Durable Worker handlers that perform the real SMTP (MailKit) or push webhook send for outboxed delivery messages.*
 
-**Use cases:** Worker drains EmailDeliveryRequested -> SmtpEmailSender connects to a relay and sends plaintext mail; Worker drains PushDeliveryRequested -> NoOpPushSender stub (real FCM/Expo later)
+**Use cases:** Worker drains EmailDeliveryRequested -> SmtpEmailSender connects to a relay and sends plaintext mail; Worker drains PushDeliveryRequested -> WebhookPushSender posts a provider-agnostic payload to an infra-owned push bridge, or NoOpPushSender in local/dev when no webhook is configured
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
 | Empty ToAddress on the email message | ✓ | ChannelDeliveryHandlers.cs:13-15 returns Task.CompletedTask without touching SMTP. Proven by ChannelDeliveryHandlersTests.Email_delivery_handler_skips_missing_address_without_calling_smtp. |
 | SMTP relay unreachable / send throws | ✓ | Handler lets the exception bubble; PlatformMessaging retry-with-cooldown + durable dead-letter (per CLAUDE.md §4 messaging resilience) governs it. SmtpEmailSender connects per-send (SmtpEmailSender.cs:24-33). Proven at handler boundary by ChannelDeliveryHandlersTests.Email_delivery_handler_propagates_smtp_failures_for_wolverine_retry_and_dlq. |
 | Worker-side SMTP delivery uses the rendered locale-specific payload | ✓ | `WorkerEmailDeliveryTests.Worker_delivers_email_channel_to_smtp_with_the_requested_locale_template` runs API as publisher-only, starts a real `ModularPlatform.Worker` child process, points MailKit at a local SMTP listener, and verifies the delivered message contains the `cs` template, not the `en` fallback. |
-| Push delivery | ◐ | NoOpPushSender.cs:9 is a deliberate stub — push is a documented no-op until a real provider lands; the handler contract and no-op provider are directly tested. No device receives anything until a real provider replaces the stub. |
+| Push delivery | ✓ | `Notifications:Push:WebhookUrl` switches `IPushSender` to WebhookPushSender, which POSTs `{userId,title,body}` to an infra-owned push bridge; no webhook configured uses NoOpPushSender for local/dev. Provider non-2xx propagates for Wolverine retry/DLQ. Proven by Webhook_push_sender_posts_the_exact_push_payload and Webhook_push_sender_propagates_provider_failures_for_wolverine_retry_and_dlq. |
 | SMTP auth optional | ✓ | SmtpEmailSender.cs:27-30 only authenticates when User is non-empty; StartTlsWhenAvailable used. |
 
-**Testy:** WorkerEmailDeliveryTests.Worker_delivers_email_channel_to_smtp_with_the_requested_locale_template; ChannelDeliveryHandlersTests.Email_delivery_handler_sends_exact_rendered_payload_to_email_sender; ChannelDeliveryHandlersTests.Email_delivery_handler_skips_missing_address_without_calling_smtp; ChannelDeliveryHandlersTests.Email_delivery_handler_propagates_smtp_failures_for_wolverine_retry_and_dlq; ChannelDeliveryHandlersTests.Push_delivery_handler_sends_exact_rendered_payload_to_push_sender; ChannelDeliveryHandlersTests.Push_delivery_handler_propagates_provider_failures_for_wolverine_retry_and_dlq; ChannelDeliveryHandlersTests.Noop_push_sender_completes_without_external_provider
+**Testy:** WorkerEmailDeliveryTests.Worker_delivers_email_channel_to_smtp_with_the_requested_locale_template; ChannelDeliveryHandlersTests.Email_delivery_handler_sends_exact_rendered_payload_to_email_sender; ChannelDeliveryHandlersTests.Email_delivery_handler_skips_missing_address_without_calling_smtp; ChannelDeliveryHandlersTests.Email_delivery_handler_propagates_smtp_failures_for_wolverine_retry_and_dlq; ChannelDeliveryHandlersTests.Push_delivery_handler_sends_exact_rendered_payload_to_push_sender; ChannelDeliveryHandlersTests.Push_delivery_handler_propagates_provider_failures_for_wolverine_retry_and_dlq; ChannelDeliveryHandlersTests.Noop_push_sender_completes_without_external_provider; ChannelDeliveryHandlersTests.Webhook_push_sender_posts_the_exact_push_payload; ChannelDeliveryHandlersTests.Webhook_push_sender_propagates_provider_failures_for_wolverine_retry_and_dlq
 **Test gaps:** SmtpEmailSender still has no external relay test (acknowledged — environment concern), but Worker-side SMTP delivery is now covered against a local SMTP listener.
 
-_Push being a no-op is by design and documented; worker-side email delivery now has an out-of-process Worker + SMTP harness, while real external relay behaviour remains an environment-backed integration concern._
+_Worker-side email delivery has an out-of-process Worker + SMTP harness. Push delivery now has a real webhook transport while keeping local/dev no-op fallback._
 
 ### Templates + rendering + seeding — 🟢 minor-gaps
 *Reusable {placeholder} message templates keyed by (Key,Locale), rendered at send time, idempotently seeded on startup.*
