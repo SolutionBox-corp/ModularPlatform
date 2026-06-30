@@ -48,6 +48,29 @@ public sealed class FilesUploadTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Upload_ignores_client_declared_size_and_stores_the_actual_file_length()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync(
+            $"file-size-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+        var bytes = Encoding.UTF8.GetBytes("actual bytes");
+
+        var upload = await UploadWithDeclaredSizeFieldAsync(
+            token, "declared-size.txt", "text/plain", bytes, declaredSize: "999999999");
+
+        upload.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var data = await PlatformApiFactory.ReadData(upload);
+        var fileId = data.GetProperty("id").GetGuid();
+        data.GetProperty("size").GetInt64().ShouldBe(bytes.LongLength);
+
+        var list = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/files", token));
+        list.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var first = (await PlatformApiFactory.ReadData(list)).GetProperty("items")[0];
+        first.GetProperty("id").GetGuid().ShouldBe(fileId);
+        first.GetProperty("size").GetInt64().ShouldBe(bytes.LongLength);
+    }
+
+    [Fact]
     public async Task List_is_paged_and_owner_scoped()
     {
         var (_, token) = await fixture.RegisterAndLoginAsync($"list-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
@@ -655,6 +678,27 @@ public sealed class FilesUploadTests(PlatformApiFactory fixture)
     {
         var content = new MultipartFormDataContent(Boundary);
         content.Add(new ByteArrayContent(bytes), "file", fileName);
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "/v1/files")
+        {
+            Content = content,
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return await fixture.Client.SendAsync(request);
+    }
+
+    private async Task<HttpResponseMessage> UploadWithDeclaredSizeFieldAsync(
+        string token,
+        string fileName,
+        string contentType,
+        byte[] bytes,
+        string declaredSize)
+    {
+        var content = new MultipartFormDataContent(Boundary);
+        var filePart = new ByteArrayContent(bytes);
+        filePart.Headers.ContentType = new MediaTypeHeaderValue(contentType);
+        content.Add(filePart, "file", fileName);
+        content.Add(new StringContent(declaredSize), "size");
 
         var request = new HttpRequestMessage(HttpMethod.Post, "/v1/files")
         {
