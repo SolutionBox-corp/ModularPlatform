@@ -96,7 +96,7 @@ Status: **✓** implemented · **▢** gap (planned) · **◐** partially covere
 | PL-1 | Module boundaries: `*.Contracts` depend on no infra; a module Core depends on no other Core | A | ✓ `ArchitectureTests` |
 | PL-2 | Audit interceptor: update records ONLY changed columns; value-converted enum serialized as string, not int | I | ✓ `LedgerBackstopTests` (hold release: `"Released"` string present, immutable Amount absent) |
 | PL-3 | Error contract: a domain exception → RFC 9457 `application/problem+json`, stable `errorCode`, localized `detail` (Accept-Language en/cs) | I | ✓ `PlatformContractTests` |
-| PL-4 | `ApiResponse<T>` wraps success only; errors are always Problem Details | I | ◐ |
+| PL-4 | `ApiResponse<T>` wraps success only; errors are always Problem Details | I | ✓ `PlatformContractTests.PL4_success_is_api_response_and_errors_are_problem_details_not_wrapped` |
 | PL-5 | **Tenant isolation**: tenant A & B rows; an authenticated non-system user with tenant A → sees only A's rows; a missing claim → NOT everyone's | I | ◐ `TenantIsolationTests` (distinct tenants + self-only filtered read + anonymous 401 proven; the "authenticated principal with NO tenant claim" case needs a token-minting seam — the no-null-escape filter is a source invariant at `PlatformDbContext.cs:84`) |
 | PL-6 | xmin concurrency: two updates to one row → second conflicts → `ConcurrencyRetryBehavior` retries (tracker cleared) → succeeds, no 500 | C | ◐ (BL-2 exercises it) |
 | PL-7 | Health: `/health/live` always `200`; `/health/ready` `200` when Postgres up, `503` when down | I/F | ✓ live+ready up; ▢ down case NOT coverable in-harness (a host with a dead DB never finishes startup — Wolverine + seeders need it); ops-level test |
@@ -123,5 +123,5 @@ sweep, PII column encryption, dead-letter, replay buffer).
    the shared container; medium value.
 3. **NT-2** realtime-push-after-commit fault injection (force the first save to fail) — the after-commit
    ordering is a source invariant (`SendNotificationHandler`); a fault-injection seam would be test-only code.
-4. **NT-3 / NT-5** e-mail Worker locale assertion + channel validation; **ID-3/4/9/10/11, PL-4/5/6/11** —
+4. **NT-3 / NT-5** e-mail Worker locale assertion + channel validation; **ID-3/4/9/10/11, PL-5/6/11** —
    smaller ◐/▢ from wave 1 notes.

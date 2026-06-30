@@ -40,6 +40,39 @@ public sealed class PlatformContractTests(PlatformApiFactory fixture)
         csBody.GetProperty("detail").GetString().ShouldNotBe(enDetail);
     }
 
+    [Fact]
+    public async Task PL4_success_is_api_response_and_errors_are_problem_details_not_wrapped()
+    {
+        var register = await fixture.Client.PostAsJsonAsync("/v1/identity/users", new
+        {
+            email = $"pl4-success-{Guid.CreateVersion7():N}@test.io",
+            password = "Sup3r-Secret-Pw!",
+            displayName = "PL4 Success",
+        });
+
+        register.StatusCode.ShouldBe(HttpStatusCode.Created);
+        register.Content.Headers.ContentType!.MediaType.ShouldBe("application/json");
+        var successBody = JsonDocument.Parse(await register.Content.ReadAsStringAsync()).RootElement;
+        successBody.GetProperty("success").GetBoolean().ShouldBeTrue();
+        successBody.TryGetProperty("data", out _).ShouldBeTrue();
+        successBody.TryGetProperty("errorCode", out _).ShouldBeFalse();
+        successBody.TryGetProperty("type", out _).ShouldBeFalse();
+
+        var error = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/login", new
+        {
+            email = $"pl4-error-{Guid.CreateVersion7():N}@test.io",
+            password = "wrong-password",
+        });
+
+        error.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        error.Content.Headers.ContentType!.MediaType.ShouldBe("application/problem+json");
+        var errorBody = JsonDocument.Parse(await error.Content.ReadAsStringAsync()).RootElement;
+        errorBody.GetProperty("errorCode").GetString().ShouldBe("auth.invalid_credentials");
+        errorBody.GetProperty("type").GetString().ShouldBe("https://errors.modularplatform.dev/auth.invalid_credentials");
+        errorBody.TryGetProperty("success", out _).ShouldBeFalse();
+        errorBody.TryGetProperty("data", out _).ShouldBeFalse();
+    }
+
     // PL-7 down-case (ready 503 when Postgres dies) is NOT coverable here: a host with an unreachable DB
     // never finishes startup (Wolverine persistence + seeders need the database), so there is no running
     // /health/ready to probe. It needs an ops-level test that kills the DB under a RUNNING host.
