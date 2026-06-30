@@ -34,9 +34,8 @@ public interface IRealtimeReplay
 /// <summary>
 /// Configuration for the realtime replay buffer. Replayed payloads (notification title/body) can be personal
 /// data, so the buffer is deliberately SHORT-LIVED and small — it is best-effort UX smoothing on reconnect, not a
-/// durable store. Redis uses approximate MAXLEN trimming, so <see cref="MaxEvents"/> is a soft event-count bound;
-/// <see cref="TtlMinutes"/> is the hard time bound. The durable system-of-record (the Notifications DB rows) is
-/// where erasure actually applies.
+/// durable store. Redis and local replay both trim to <see cref="MaxEvents"/>; <see cref="TtlMinutes"/> is the hard
+/// time bound. The durable system-of-record (the Notifications DB rows) is where erasure actually applies.
 /// </summary>
 public sealed class RealtimeReplayOptions
 {
@@ -46,8 +45,7 @@ public sealed class RealtimeReplayOptions
     public bool Enabled { get; set; } = true;
 
     /// <summary>
-    /// Maximum events retained per user. Local replay trims exactly; Redis Streams use approximate MAXLEN, so Redis
-    /// may retain slightly more entries. Default 100.
+    /// Maximum events retained per user. Local replay and Redis Streams both trim to this count. Default 100.
     /// </summary>
     public int MaxEvents { get; set; } = 100;
 
@@ -123,12 +121,12 @@ internal sealed class RedisRealtimePublisher(IConnectionMultiplexer redis, IOpti
         {
             var streamKey = $"{StreamKeyPrefix}{userId}";
             var db = redis.GetDatabase();
-            // XADD with approximate MAXLEN; returns the auto-generated stream id (e.g. "1718000000000-0").
+            // XADD with exact MAXLEN; returns the auto-generated stream id (e.g. "1718000000000-0").
             streamId = await db.StreamAddAsync(
                 streamKey,
                 [new NameValueEntry("e", eventType), new NameValueEntry("j", json)],
                 maxLength: opts.MaxEvents,
-                useApproximateMaxLength: true);
+                useApproximateMaxLength: false);
             // Refresh the TTL on each publish so idle streams expire.
             await db.KeyExpireAsync(streamKey, TimeSpan.FromMinutes(opts.TtlMinutes));
         }

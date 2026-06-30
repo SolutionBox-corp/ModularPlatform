@@ -81,6 +81,26 @@ public sealed class RedisRealtimeReplayTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Redis_replay_trims_the_stream_exactly_to_max_events()
+    {
+        var publisher = CreatePublisher(maxEvents: 3, ttlMinutes: 1);
+        var userId = Guid.CreateVersion7();
+
+        await publisher.PublishToUserAsync(userId, "one", new { value = 1 });
+        await publisher.PublishToUserAsync(userId, "two", new { value = 2 });
+        await publisher.PublishToUserAsync(userId, "three", new { value = 3 });
+        await publisher.PublishToUserAsync(userId, "four", new { value = 4 });
+
+        var db = _connection!.GetDatabase();
+        var streamKey = $"{RedisRealtimePublisher.StreamKeyPrefix}{userId}";
+        var streamLength = await db.StreamLengthAsync(streamKey);
+        streamLength.ShouldBe(3);
+
+        var replay = await publisher.ReadSinceAsync(userId, "0-0");
+        replay.Select(message => message.EventType).ShouldBe(["two", "three", "four"]);
+    }
+
+    [Fact]
     public async Task Redis_subscriber_forwards_user_channel_messages_to_the_local_registry_with_the_stream_id()
     {
         var registry = new RealtimeConnectionRegistry();
