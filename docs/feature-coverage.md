@@ -38,7 +38,9 @@ v tabulkách níže jsou **snapshot PŘED** těmito fixy:
   tradeoff pro non-negative `available` + unique idempotency key. Změna money enginu = návrh, ne tichý hack.
 - **ConfirmSpend „bucket exhaustion"** — analýza flagla jako partial, ale money-reviewer dokázal invariantem, že
   `SUM(remaining) ≥ pending ≥ hold.Amount` vždy platí → under-draw je nedosažitelný. Ponecháno (proven safe).
-- **Subscription PastDue bez reakce** — mapuje se, ale žádná revokace/notifikace; feature gap (dunning flow), ne bug.
+- **Subscription PastDue bez revocation/dunning workflowu** — PastDue se mapuje a posila uzivateli in-app
+  notification; odebrani entitlementu, opakovane dunning reminders a provider-specific bounce flow zustavaji
+  produktove rozhodnuti.
 - **`invoice.payment_succeeded` alias** k `invoice.paid` — route now handles both success events; idempotence
   `sub-invoice:{id}` chrání před double-grant, Stripe staging still validates which event set the deployment emits.
 - **CreateSubscriptionCheckout TOCTOU** (double subscription v okně před prvním webhookem) — inherentní „Stripe = source
@@ -91,7 +93,7 @@ v tabulkách níže jsou **snapshot PŘED** těmito fixy:
 | notifications-realtime | Email / Push channel delivery (Worker-side) | ✅ correct |
 | notifications-realtime | Templates + rendering + seeding | 🟢 minor-gaps |
 | notifications-realtime | In-app feed (get / mark-read) | ✅ correct |
-| notifications-realtime | Cross-module reaction handlers (welcome + purchase-completed) | ✅ correct |
+| notifications-realtime | Cross-module reaction handlers (welcome + purchase-completed + subscription-past-due) | ✅ correct |
 | notifications-realtime | Realtime fan-out (publisher + Redis + registry) | ✅ correct |
 | notifications-realtime | SSE stream endpoint (/realtime/stream) | 🟢 minor-gaps |
 | notifications-realtime | Replay buffer (Last-Event-ID, TTL) | ✅ correct |
@@ -617,7 +619,7 @@ _Ingest invariants (200/row/enqueue/exactly-once/500-on-non-unique/400-on-bad-si
 | Generic event metadata: bad guid / amount<=0 | ✓ | TryExtractTopUp validates guid + long + amount>0 (cs:154-166) |
 | ProcessedAt stamp vs dispatched grant not in one transaction | ✓ | Subscription/invoice grants run their own SaveChanges on the same scoped context, then ProcessedAt commits separately; redelivery is safe because every downstream command is idempotent (sub-invoice:{id}, purchase:{id}, event-id). Package-confirm publish IS co-committed with ProcessedAt (cs:109-111) |
 | Stripe's invoice.payment_succeeded (legacy/alternate) instead of invoice.paid | ✓ | Router accepts invoice.paid OR invoice.payment_succeeded (ProcessStripeEventCommand.cs:93) and both converge on GrantSubscriptionCreditsCommand with the same sub-invoice:{invoiceId} idempotency key. Proven by BillingCommerceTests.Invoice_payment_succeeded_grants_subscription_credits_like_invoice_paid. |
-| Stripe's invoice.payment_failed for a renewal | ✓ | Router refreshes the subscription mirror through UpsertSubscriptionFromStripeCommand and does NOT grant invoice credits. Proven by BillingCommerceTests.Invoice_payment_failed_refreshes_subscription_to_past_due_without_granting_credits. |
+| Stripe's invoice.payment_failed for a renewal | ✓ | Router refreshes the subscription mirror through UpsertSubscriptionFromStripeCommand, publishes the PastDue transition for Notifications, and does NOT grant invoice credits. Proven by BillingCommerceTests.Invoice_payment_failed_refreshes_subscription_to_past_due_without_granting_credits. |
 
 **Testy:** BillingCommerceTests.Signed_topup_event_applies_ledger_topup_exactly_once_and_stamps_processed (generic metadata path + redelivery exactly-once); BillingCommerceTests.Non_package_checkout_session_with_stray_credit_metadata_does_not_top_up; BillingCommerceTests.Invoice_paid_without_subscription_id_is_processed_without_credit_grant; BillingCommerceTests.Invoice_payment_succeeded_grants_subscription_credits_like_invoice_paid; BillingCommerceTests.Invoice_payment_failed_refreshes_subscription_to_past_due_without_granting_credits; BillingCommerceTests.Subscription_lifecycle_... (subscription + invoice.paid routing); StripeReconcileTests.Stuck_stripe_event_...end_to_end (default top-up via reconcile)
 **Test gaps:** No remaining focused Stripe event router gap in this slice.
@@ -641,13 +643,13 @@ _Routing is careful and idempotent. Both invoice success event names now share t
 | Cancel when no active subscription | ✓ | CancelSubscriptionHandler.cs:24-28 throws billing.subscription.not_found |
 | Cancel-at-period-end then period elapses | ✓ | Eager local CancelAtPeriodEnd=true; authoritative Canceled arrives via webhook→upsert (CancelSubscriptionHandler.cs:11-14,33-40) |
 | Immediate cancel config | ✓ | With Billing:Subscriptions:CancelAtPeriodEnd=false, CancelSubscriptionHandler sets Status=Canceled inline and /subscriptions/me stops returning it. Proven by CancelSubscriptionTests.Cancel_subscription_can_immediately_mark_the_local_mirror_canceled. |
-| past_due/unpaid subscription (failed renewal / dunning) | ✓ | MapStatus maps past_due/unpaid/paused→PastDue (UpsertSubscriptionFromStripeCommand.cs:101-105) and GetMySubscription still returns it as the live subscription (Status!=Canceled). Failed invoice webhooks refresh the mirror without granting credits. Proven by MySubscriptionTests.My_subscription_reflects_past_due_and_cancel_at_period_end_from_reconciled_state and BillingCommerceTests.Invoice_payment_failed_refreshes_subscription_to_past_due_without_granting_credits. There is intentionally no dunning/revocation behavior yet; that is product scope, not a current handler bug. |
+| past_due/unpaid subscription (failed renewal / dunning) | ✓ | MapStatus maps past_due/unpaid/paused→PastDue (UpsertSubscriptionFromStripeCommand.cs:101-105) and GetMySubscription still returns it as the live subscription (Status!=Canceled). Failed invoice webhooks refresh the mirror, publish `SubscriptionPastDueIntegrationEvent`, create one `subscription_past_due` in-app notification, and do NOT grant invoice credits. Proven by MySubscriptionTests.My_subscription_reflects_past_due_and_cancel_at_period_end_from_reconciled_state and BillingCommerceTests.Invoice_payment_failed_refreshes_subscription_to_past_due_without_granting_credits. Entitlement revocation / repeated dunning reminders are product scope. |
 | Subscription period end living on Stripe items not the subscription | ✓ | StripeGateway.ToState takes max item CurrentPeriodEnd (StripeGateway.cs:122-128) |
 
-**Testy:** BillingCommerceTests.Subscription_lifecycle_reconciles_object_state_out_of_order_and_grants_per_invoice (updated-before-created, invoice grant, cancel-at-period-end, deleted→Canceled, me→404); BillingCommerceTests.Duplicate_invoice_success_events_grant_subscription_credits_exactly_once; BillingCommerceTests.Access_only_subscription_plan_does_not_grant_invoice_credits; BillingCommerceTests.Subscription_plans_come_from_config_and_promo_codes_validate_through_stripe; SubscriptionCheckoutTests.Subscription_checkout_rejects_user_with_existing_live_subscription; SubscriptionCheckoutTests.Concurrent_live_subscription_mirrors_leave_only_one_non_canceled_subscription_per_user; CancelSubscriptionTests.Cancel_subscription_can_immediately_mark_the_local_mirror_canceled; MySubscriptionTests.My_subscription_reflects_past_due_and_cancel_at_period_end_from_reconciled_state
+**Testy:** BillingCommerceTests.Subscription_lifecycle_reconciles_object_state_out_of_order_and_grants_per_invoice (updated-before-created, invoice grant, cancel-at-period-end, deleted→Canceled, me→404); BillingCommerceTests.Duplicate_invoice_success_events_grant_subscription_credits_exactly_once; BillingCommerceTests.Access_only_subscription_plan_does_not_grant_invoice_credits; BillingCommerceTests.Invoice_payment_failed_refreshes_subscription_to_past_due_without_granting_credits; BillingCommerceTests.Subscription_plans_come_from_config_and_promo_codes_validate_through_stripe; SubscriptionCheckoutTests.Subscription_checkout_rejects_user_with_existing_live_subscription; SubscriptionCheckoutTests.Concurrent_live_subscription_mirrors_leave_only_one_non_canceled_subscription_per_user; CancelSubscriptionTests.Cancel_subscription_can_immediately_mark_the_local_mirror_canceled; MySubscriptionTests.My_subscription_reflects_past_due_and_cancel_at_period_end_from_reconciled_state
 **Test gaps:** No remaining focused already-active subscription race gap in this slice.
 
-_Object-state mirroring is the right design and the happy/out-of-order/cancel/failed-renewal paths are tested. The live mirror race is DB-enforced; dunning/PastDue revocation or notification remains a product decision rather than a handler bug._
+_Object-state mirroring is the right design and the happy/out-of-order/cancel/failed-renewal paths are tested. The live mirror race is DB-enforced; PastDue now has a user notification, while entitlement revocation and repeated dunning cadence remain product decisions._
 
 ### Promo-code validation (coupons) — ✅ correct
 *Pre-checkout read so the UI can confirm a promotion code before redirecting to Stripe Checkout (Stripe enforces it authoritatively).*
@@ -921,7 +923,7 @@ _Worker-side email delivery has an out-of-process Worker + SMTP harness. Push de
 ### Templates + rendering + seeding — 🟢 minor-gaps
 *Reusable {placeholder} message templates keyed by (Key,Locale), rendered at send time, idempotently seeded on startup.*
 
-**Use cases:** welcome (en/cs) and purchase_completed (en/cs) seeded so the cross-module handlers find a template; Render substitutes data dict values into Subject/Body; Admin can insert custom templates (tests do via SQL)
+**Use cases:** welcome (en/cs), purchase_completed (en/cs), and subscription_past_due (en/cs) seeded so the cross-module handlers find a template; Render substitutes data dict values into Subject/Body; Admin can insert custom templates (tests do via SQL)
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
@@ -954,23 +956,24 @@ _Rendering logic is directly covered; seeding is covered for repeated same-host 
 
 _Solid identity-from-token + idempotent design; owner scoping, unread filtering, default feed and clamping are pinned end-to-end._
 
-### Cross-module reaction handlers (welcome + purchase-completed) — ✅ correct
-*React to Identity UserRegistered and Billing CreditPurchaseCompleted by dispatching SendNotificationCommand, reusing the one delivery slice.*
+### Cross-module reaction handlers (welcome + purchase-completed + subscription-past-due) — ✅ correct
+*React to Identity/Billing events by dispatching SendNotificationCommand, reusing the one delivery slice.*
 
-**Use cases:** New signup -> welcome notification (email+inapp); Credit purchase completes -> purchase_completed in-app notification
+**Use cases:** New signup -> welcome notification (email+inapp); Credit purchase completes -> purchase_completed in-app notification; Subscription renewal fails -> subscription_past_due in-app notification
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
-| Template not seeded in a fresh deploy | ✓ | Both handlers catch NotFoundException and LogWarning instead of dead-lettering (SendWelcomeHandler.cs:30-34, SendPurchaseCompletedHandler.cs:33-39). Proven by Welcome_handler_tolerates_missing_template_and_deduplicates_retries and Purchase_completed_handler_is_idempotent_and_missing_template_is_non_fatal. |
-| Duplicate delivery of the integration event | ✓ | Wolverine inbox dedups by MessageId; handler-level idempotency keys also collapse direct duplicate/retry calls to one row. Proven by Welcome_handler_tolerates_missing_template_and_deduplicates_retries and Purchase_completed_handler_is_idempotent_and_missing_template_is_non_fatal. |
+| Template not seeded in a fresh deploy | ✓ | Reaction handlers catch NotFoundException and LogWarning instead of dead-lettering (SendWelcomeHandler.cs, SendPurchaseCompletedHandler.cs, SendSubscriptionPastDueHandler.cs). Proven by Welcome_handler_tolerates_missing_template_and_deduplicates_retries, Purchase_completed_handler_is_idempotent_and_missing_template_is_non_fatal, and Subscription_past_due_handler_is_idempotent_and_missing_template_is_non_fatal. |
+| Duplicate delivery of the integration event | ✓ | Wolverine inbox dedups by MessageId; handler-level idempotency keys also collapse direct duplicate/retry calls to one row. Proven by Welcome_handler_tolerates_missing_template_and_deduplicates_retries, Purchase_completed_handler_is_idempotent_and_missing_template_is_non_fatal, and Subscription_past_due_handler_is_idempotent_and_missing_template_is_non_fatal. |
 | DisplayName null on UserRegistered | ✓ | SendWelcomeHandler.cs:22 coalesces message.DisplayName ?? message.Email for the {displayName} placeholder. |
 | Welcome cross-user send is rejected by RLS | ✓ | These run in the Worker under the SYSTEM context (no per-user RLS principal), so they legitimately write a row for another user's id — unlike the HTTP path. Documented in the test's AdminTokenAsync rationale (NotificationsIntegrationTests.cs:246-258). |
+| Subscription PastDue repeats | ✓ | Billing publishes PastDue when the mirrored state enters PastDue; the notification idempotency key is user+plan, so retries/redelivery do not spam duplicate rows. Repeated per-invoice dunning cadence would need a product-level invoice id/key, not a generic reaction handler change. |
 | A non-NotFound exception (e.g. DB outage) during dispatch | ✓ | Only NotFoundException is swallowed; any other exception propagates to Wolverine retry/dead-letter — correct (don't silently drop real failures). |
 
-**Testy:** NotificationsIntegrationTests.Register_creates_welcome_notification_after_seeder_has_seeded_the_template (EV-2); NotificationsIntegrationTests.Welcome_handler_tolerates_missing_template_and_deduplicates_retries; NotificationsIntegrationTests.CreditPurchaseCompleted_event_creates_purchase_completed_notification; NotificationsIntegrationTests.Purchase_completed_handler_is_idempotent_and_missing_template_is_non_fatal
+**Testy:** NotificationsIntegrationTests.Register_creates_welcome_notification_after_seeder_has_seeded_the_template (EV-2); NotificationsIntegrationTests.Welcome_handler_tolerates_missing_template_and_deduplicates_retries; NotificationsIntegrationTests.CreditPurchaseCompleted_event_creates_purchase_completed_notification; NotificationsIntegrationTests.Purchase_completed_handler_is_idempotent_and_missing_template_is_non_fatal; NotificationsIntegrationTests.Subscription_past_due_handler_is_idempotent_and_missing_template_is_non_fatal
 **Test gaps:** No remaining focused cross-module notification reaction-handler gap in this slice.
 
-_The non-fatal-missing-template and retry/idempotency behavior is now pinned directly for both reaction handlers._
+_The non-fatal-missing-template and retry/idempotency behavior is now pinned directly for all built-in notification reaction handlers._
 
 ### Realtime fan-out (publisher + Redis + registry) — ✅ correct
 *Deliver an after-commit event to whichever Api instance holds the user's SSE connection, via Redis pub/sub or a local fallback.*

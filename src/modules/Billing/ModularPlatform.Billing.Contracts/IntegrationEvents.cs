@@ -54,3 +54,11 @@ public sealed record SubscriptionCanceledIntegrationEvent(
     DateTimeOffset OccurredAt,
     Guid UserId,
     string PlanKey) : IIntegrationEvent;
+
+/// <summary>Published when a Stripe subscription first enters PastDue locally (failed renewal / dunning).</summary>
+public sealed record SubscriptionPastDueIntegrationEvent(
+    Guid EventId,
+    DateTimeOffset OccurredAt,
+    Guid UserId,
+    string PlanKey,
+    DateTimeOffset? CurrentPeriodEnd) : IIntegrationEvent;

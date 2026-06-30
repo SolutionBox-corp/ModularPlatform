@@ -14,7 +14,7 @@ namespace ModularPlatform.Billing.Features.Subscriptions.UpsertSubscriptionFromS
 /// <c>customer.subscription.*</c> webhook AND the reconciliation job, so out-of-order/duplicate deliveries
 /// all converge on whatever Stripe currently says (the source of truth). Idempotent: UNIQUE
 /// <c>subscriptions.StripeSubscriptionId</c> + catch <c>DbUpdateException</c> resolves creation races.
-/// Publishes Activated/Canceled integration events only on actual transitions.
+/// Publishes Activated/Canceled/PastDue integration events only on actual transitions.
 /// </summary>
 internal sealed record UpsertSubscriptionFromStripeCommand(string StripeSubscriptionId) : ICommand;
 
@@ -61,6 +61,8 @@ internal sealed class UpsertSubscriptionFromStripeHandler(
         var activated = previousStatus != SubscriptionStatus.Active && subscription.Status == SubscriptionStatus.Active;
         var canceled = previousStatus is not null and not SubscriptionStatus.Canceled
                        && subscription.Status == SubscriptionStatus.Canceled;
+        var pastDue = previousStatus != SubscriptionStatus.PastDue
+                      && subscription.Status == SubscriptionStatus.PastDue;
 
         if (activated)
         {
@@ -71,6 +73,11 @@ internal sealed class UpsertSubscriptionFromStripeHandler(
         {
             await outbox.PublishAsync(new SubscriptionCanceledIntegrationEvent(
                 Guid.CreateVersion7(), clock.UtcNow, userId, subscription.PlanKey));
+        }
+        else if (pastDue)
+        {
+            await outbox.PublishAsync(new SubscriptionPastDueIntegrationEvent(
+                Guid.CreateVersion7(), clock.UtcNow, userId, subscription.PlanKey, subscription.CurrentPeriodEnd));
         }
 
         try
@@ -86,9 +93,9 @@ internal sealed class UpsertSubscriptionFromStripeHandler(
         }
 
         // Post-commit realtime nudge so the FE refreshes subscription state live (no polling). Non-transactional,
-        // so it MUST fire AFTER the commit — only an actual activation/cancellation transition that committed
+        // so it MUST fire AFTER the commit — only an actual activation/cancellation/past-due transition that committed
         // emits an event; the FE uses the event TYPE to invalidate its subscription query.
-        if (activated || canceled)
+        if (activated || canceled || pastDue)
         {
             await realtime.PublishToUserAsync(
                 userId, "billing.subscription_changed", new { status = subscription.Status.ToString() }, ct);

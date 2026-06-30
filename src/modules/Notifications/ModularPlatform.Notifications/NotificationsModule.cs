@@ -73,6 +73,7 @@ public sealed class NotificationsModule : IModule
         // Register this module's message handlers explicitly (cross-assembly conventional discovery is unreliable).
         options.Discovery.IncludeType<Messaging.SendWelcomeHandler>();
         options.Discovery.IncludeType<Messaging.SendPurchaseCompletedHandler>();
+        options.Discovery.IncludeType<Messaging.SendSubscriptionPastDueHandler>();
         options.Discovery.IncludeType<Messaging.EmailDeliveryHandler>();
         options.Discovery.IncludeType<Messaging.PushDeliveryHandler>();
     }

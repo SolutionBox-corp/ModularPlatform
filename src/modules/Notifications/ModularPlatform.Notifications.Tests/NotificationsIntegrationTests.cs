@@ -437,7 +437,7 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
     public async Task Notifications_seeder_can_run_repeatedly_without_duplicate_builtin_templates()
     {
         var before = await BuiltInTemplateCountAsync();
-        before.ShouldBe(4);
+        before.ShouldBe(6);
 
         var seeder = new NotificationsSeeder(
             fixture.Services,
@@ -470,7 +470,7 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
             }
 
             var builtIns = await BuiltInTemplateCountAsync();
-            builtIns.ShouldBe(4);
+            builtIns.ShouldBe(6);
 
             var duplicateGroups = await BuiltInTemplateDuplicateGroupCountAsync();
             duplicateGroups.ShouldBe(0);
@@ -484,6 +484,7 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
 
             await RestoreWelcomeTemplatesAsync();
             await RestorePurchaseCompletedTemplatesAsync();
+            await RestoreSubscriptionPastDueTemplatesAsync();
         }
     }
 
@@ -944,6 +945,53 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
         }
     }
 
+    [Fact]
+    public async Task Subscription_past_due_handler_is_idempotent_and_missing_template_is_non_fatal()
+    {
+        var (userId, _) = await fixture.RegisterAndLoginAsync(
+            $"past-due-retry-{Guid.CreateVersion7():N}@example.com", Password);
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var dispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
+        var handler = new SendSubscriptionPastDueHandler(
+            NullLogger<SendSubscriptionPastDueHandler>.Instance);
+        var message = new SubscriptionPastDueIntegrationEvent(
+            EventId: Guid.CreateVersion7(),
+            OccurredAt: DateTimeOffset.UtcNow,
+            UserId: userId,
+            PlanKey: "pro",
+            CurrentPeriodEnd: DateTimeOffset.UtcNow.AddDays(5));
+
+        await handler.Handle(message, dispatcher, CancellationToken.None);
+        await handler.Handle(message with { EventId = Guid.CreateVersion7() }, dispatcher, CancellationToken.None);
+
+        var duplicateRows = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM notifications WHERE \"UserId\" = '{userId}' " +
+            $"AND \"TemplateKey\" = 'subscription_past_due' " +
+            $"AND \"IdempotencyKey\" = 'subscription-past-due:{userId:N}:pro'");
+        duplicateRows.ShouldBe(1);
+
+        await fixture.ExecuteSqlAsync("DELETE FROM notification_templates WHERE \"Key\" = 'subscription_past_due'");
+        try
+        {
+            var missingTemplateUser = Guid.CreateVersion7();
+            await handler.Handle(message with
+            {
+                EventId = Guid.CreateVersion7(),
+                UserId = missingTemplateUser,
+            }, dispatcher, CancellationToken.None);
+
+            var missingTemplateRows = await fixture.ScalarAsync<long>(
+                $"SELECT count(*)::bigint FROM notifications WHERE \"UserId\" = '{missingTemplateUser}' " +
+                "AND \"TemplateKey\" = 'subscription_past_due'");
+            missingTemplateRows.ShouldBe(0);
+        }
+        finally
+        {
+            await RestoreSubscriptionPastDueTemplatesAsync();
+        }
+    }
+
     /// <summary>
     /// The configured platform admin (PlatformApiFactory.AdminEmail), which holds every permission including
     /// notifications.send (admins are granted ALL permissions — IdentitySeeder + PlatformPermissions). Returns the
@@ -991,6 +1039,7 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
             FROM notification_templates
             WHERE ("Key" = 'welcome' AND "Locale" IN ('en', 'cs'))
                OR ("Key" = 'purchase_completed' AND "Locale" IN ('en', 'cs'))
+               OR ("Key" = 'subscription_past_due' AND "Locale" IN ('en', 'cs'))
             """);
 
     private NotificationsDbContext NewNotificationsDbContext(ITenantContext tenant)
@@ -1014,6 +1063,7 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
                 FROM notification_templates
                 WHERE ("Key" = 'welcome' AND "Locale" IN ('en', 'cs'))
                    OR ("Key" = 'purchase_completed' AND "Locale" IN ('en', 'cs'))
+                   OR ("Key" = 'subscription_past_due' AND "Locale" IN ('en', 'cs'))
                 GROUP BY "Key", "Locale"
                 HAVING count(*) > 1
             ) duplicates
@@ -1025,6 +1075,7 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
             DELETE FROM notification_templates
             WHERE ("Key" = 'welcome' AND "Locale" IN ('en', 'cs'))
                OR ("Key" = 'purchase_completed' AND "Locale" IN ('en', 'cs'))
+               OR ("Key" = 'subscription_past_due' AND "Locale" IN ('en', 'cs'))
             """);
 
     private async Task RestoreWelcomeTemplatesAsync()
@@ -1051,6 +1102,20 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
             $"SELECT '{Guid.CreateVersion7()}', 'purchase_completed', 'cs', 'Nákup dokončen', " +
             $"'Váš nákup {{creditAmount}} kreditů je dokončen.' " +
             "WHERE NOT EXISTS (SELECT 1 FROM notification_templates WHERE \"Key\" = 'purchase_completed' AND \"Locale\" = 'cs')");
+    }
+
+    private async Task RestoreSubscriptionPastDueTemplatesAsync()
+    {
+        await fixture.ExecuteSqlAsync(
+            "INSERT INTO notification_templates (\"Id\", \"Key\", \"Locale\", \"Subject\", \"Body\") " +
+            $"SELECT '{Guid.CreateVersion7()}', 'subscription_past_due', 'en', 'Subscription payment failed', " +
+            $"'Your {{planKey}} subscription payment failed. Please update your payment method.' " +
+            "WHERE NOT EXISTS (SELECT 1 FROM notification_templates WHERE \"Key\" = 'subscription_past_due' AND \"Locale\" = 'en')");
+        await fixture.ExecuteSqlAsync(
+            "INSERT INTO notification_templates (\"Id\", \"Key\", \"Locale\", \"Subject\", \"Body\") " +
+            $"SELECT '{Guid.CreateVersion7()}', 'subscription_past_due', 'cs', 'Platba předplatného selhala', " +
+            $"'Platba za předplatné {{planKey}} selhala. Aktualizujte prosím platební metodu.' " +
+            "WHERE NOT EXISTS (SELECT 1 FROM notification_templates WHERE \"Key\" = 'subscription_past_due' AND \"Locale\" = 'cs')");
     }
 
     private async Task SendDirectAsync(Guid userId, string templateKey)

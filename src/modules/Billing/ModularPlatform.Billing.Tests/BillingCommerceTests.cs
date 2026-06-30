@@ -583,6 +583,9 @@ public sealed class BillingCommerceTests(PlatformApiFactory fixture)
             $"SELECT count(*)::bigint FROM stripe_events WHERE \"StripeEventId\" = '{eventId}' AND \"ProcessedAt\" IS NOT NULL", 1);
         await fixture.WaitForCountAsync(
             $"SELECT count(*)::bigint FROM subscriptions WHERE \"StripeSubscriptionId\" = '{subId}' AND \"Status\" = 'PastDue'", 1);
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM notifications " +
+            $"WHERE \"UserId\" = '{userId}' AND \"TemplateKey\" = 'subscription_past_due'", 1);
         (await fixture.ScalarAsync<long>(
             $"SELECT count(*)::bigint FROM credit_entries WHERE \"IdempotencyKey\" = 'sub-invoice:{invoiceId}'")).ShouldBe(0);
 

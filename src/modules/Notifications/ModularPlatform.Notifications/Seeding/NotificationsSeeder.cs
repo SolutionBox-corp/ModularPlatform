@@ -11,7 +11,7 @@ namespace ModularPlatform.Notifications.Seeding;
 /// Idempotently seeds the built-in notification templates on startup. Safe to run on multiple
 /// concurrent hosts — the UNIQUE(Key,Locale) index on notification_templates turns a concurrent
 /// duplicate insert into a no-op (caught as <see cref="DbUpdateException"/>).
-/// Templates seeded: <c>welcome</c> (en/cs) and <c>purchase_completed</c> (en/cs).
+/// Templates seeded: <c>welcome</c>, <c>purchase_completed</c> and <c>subscription_past_due</c> (en/cs).
 /// </summary>
 internal sealed class NotificationsSeeder(
     IServiceProvider services,
@@ -32,6 +32,12 @@ internal sealed class NotificationsSeeder(
         ("purchase_completed", "cs",
             "Nákup dokončen",
             "Váš nákup {creditAmount} kreditů je dokončen."),
+        ("subscription_past_due", "en",
+            "Subscription payment failed",
+            "Your {planKey} subscription payment failed. Please update your payment method."),
+        ("subscription_past_due", "cs",
+            "Platba předplatného selhala",
+            "Platba za předplatné {planKey} selhala. Aktualizujte prosím platební metodu."),
     ];
 
     public async Task StartAsync(CancellationToken ct)

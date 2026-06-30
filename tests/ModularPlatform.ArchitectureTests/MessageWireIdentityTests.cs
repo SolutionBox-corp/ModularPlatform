@@ -27,6 +27,7 @@ public sealed class MessageWireIdentityTests
         "ModularPlatform.Billing.Contracts.CreditsToppedUpIntegrationEvent",
         "ModularPlatform.Billing.Contracts.SubscriptionActivatedIntegrationEvent",
         "ModularPlatform.Billing.Contracts.SubscriptionCanceledIntegrationEvent",
+        "ModularPlatform.Billing.Contracts.SubscriptionPastDueIntegrationEvent",
         "ModularPlatform.Gdpr.Contracts.UserErasureRequested",
         "ModularPlatform.Identity.Contracts.UserRegisteredIntegrationEvent",
         "ModularPlatform.Notifications.Contracts.EmailDeliveryRequested",

@@ -1976,7 +1976,7 @@ price id, nebo druhy checkout button bez pending disable.
 **EC:**
 
 - EC201 no subscription -> empty state → endpoint vraci 404 `billing.subscription.not_found`.
-- EC202 past_due state → Stripe `past_due/unpaid/paused` se mapuje na `PastDue`.
+- EC202 past_due state → Stripe `past_due/unpaid/paused` se mapuje na `PastDue`; pri vstupu do PastDue Billing publikuje `SubscriptionPastDueIntegrationEvent`, aby Notifications poslaly `subscription_past_due` in-app upozorneni.
 - EC203 cancel at period end → response nese `cancelAtPeriodEnd`.
 - EC204 stale webhook state resi reconcile → lokalni mirror se aktualizuje pres `UpsertSubscriptionFromStripeCommand`/reconcile ze Stripe object state.
 - EC205 no ExampleModule-local subscription copy → ExampleModule cte `/billing/subscriptions/me`, nedrzi vlastni subscription tabulku.
@@ -2246,6 +2246,54 @@ public sealed class SendRecordCompletedHandler(ILogger<SendRecordCompletedHandle
 - EC268 purchase event order → handler necte aktualni Billing stav a nespoléha na poradi eventu; bere event jako hotovy fakt.
 - EC269 missing template → `NotFoundException` se zachyti a zaloguje; jeden chybejici seed nesmi otravit Wolverine inbox.
 - EC270 retry nesmi poslat dva emaily → duplicitni send rollbackne na UNIQUE idempotency key jeste pred outbox handoffem, tak stejny retry nevytvori dalsi feed row ani dalsi delivery message.
+
+### UC54b Subscription past-due notification
+
+**Status:** Implemented + tested — `BillingCommerceTests.Invoice_payment_failed_refreshes_subscription_to_past_due_without_granting_credits` a `NotificationsIntegrationTests.Subscription_past_due_handler_is_idempotent_and_missing_template_is_non_fatal`.
+
+**Pouzijes:** Billing event `SubscriptionPastDueIntegrationEvent` + Notifications handler `SendSubscriptionPastDueHandler`.
+
+**Co se stane:** Stripe posle failed-renewal signal (`invoice.payment_failed`). Billing pres `UpsertSubscriptionFromStripeCommand` nacte live Stripe subscription object, zrcadli stav na `PastDue`, negrantuje zadne kredity a publikuje `SubscriptionPastDueIntegrationEvent`. Notifications tento event zpracuji jako normalni cross-module reakci: zavolaji `SendNotificationCommand` s template `subscription_past_due`, channel `inapp` a stabilnim idempotency key.
+
+**Napises v novem modulu (napr. ExampleModule):** pokud mas podobny domenovy stav typu "akce se nepovedla a user to ma videt", nedavej notifikaci primo do domenoveho handleru. Domenovy modul publikuje fakt v `*.Contracts`, napr. `ExampleImportFailedIntegrationEvent`. Notifications modul k nemu prida tenky public handler, ktery slozi template data a vola `SendNotificationCommand`.
+
+**Vzor kodu:**
+
+```csharp
+public sealed class SendImportFailedHandler(ILogger<SendImportFailedHandler> logger)
+{
+    public async Task Handle(ExampleImportFailedIntegrationEvent message, IDispatcher dispatcher, CancellationToken ct)
+    {
+        try
+        {
+            await dispatcher.Send(new SendNotificationCommand(
+                message.UserId,
+                "example_import_failed",
+                ["inapp"],
+                new Dictionary<string, string>
+                {
+                    ["locale"] = "en",
+                    ["importName"] = message.ImportName,
+                },
+                IdempotencyKey: $"example-import-failed:{message.ImportId:N}"), ct);
+        }
+        catch (NotFoundException)
+        {
+            logger.LogWarning("Import-failed notification skipped: template missing for {ImportId}.", message.ImportId);
+        }
+    }
+}
+```
+
+**Co nepises:** `notifications` insert v Billing/ExampleModule handleru, dotaz do cizi Core tabulky, nebo vlastni "processed events" tabulku. Wolverine resi delivery/retry, `SendNotificationCommand.IdempotencyKey` resi business dedup.
+
+**EC:**
+
+- EC270a failed invoice nesmi grantovat kredity → `invoice.payment_failed` jen zrcadli subscription stav a posle upozorneni.
+- EC270b prvni lokalni mirror uz je PastDue → event se posle i pri prvnim zapsani PastDue mirroru, protoze user ma dostat signal o failed-renewal stavu.
+- EC270c duplicate PastDue event/retry → idempotency key `subscription-past-due:{userId}:{planKey}` zajisti jednu in-app row pro dany user+plan.
+- EC270d missing template → handler chyti `NotFoundException`, zaloguje warning a nedeadletteruje Billing event.
+- EC270e revocation/dunning cadence → odebrani entitlements, opakovane reminder notifikace nebo per-invoice dunning jsou produktova pravidla; base platforma zatim garantuje jeden bezpecny notification reaction pattern.
 
 ### UC55 Email delivery
 
