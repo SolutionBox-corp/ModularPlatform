@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslations } from "next-intl";
@@ -24,7 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { crmQueries, INTERACTION_TYPES, type Interaction } from "@/features/crm/api";
+import { contactDisplayName, crmQueries, INTERACTION_TYPES, type Interaction } from "@/features/crm/api";
 import { useAddInteraction } from "@/features/crm/hooks";
 import { buildInteractionSchema, type InteractionFormValues } from "@/features/crm/schema";
 import { ContactFormDialog } from "@/features/crm/components/contact-form-dialog";
@@ -147,11 +148,16 @@ export function ContactDetail({ contactId }: { contactId: string }) {
         <CardHeader className="flex flex-row items-start justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              {contact.fullName}
+              {contactDisplayName(contact)}
               <Badge variant="secondary">{t(`status.${contact.status}`)}</Badge>
             </CardTitle>
             <CardDescription>
-              {[contact.position, contact.company].filter(Boolean).join(" · ") || "—"}
+              {contact.position ? `${contact.position}${contact.companyName ? " · " : ""}` : ""}
+              {contact.companyId && contact.companyName ? (
+                <Link href={`/crm/companies/${contact.companyId}`} className="hover:underline">
+                  {contact.companyName}
+                </Link>
+              ) : contact.position ? "" : "—"}
             </CardDescription>
           </div>
           <ContactFormDialog

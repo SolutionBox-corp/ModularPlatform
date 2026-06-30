@@ -26,10 +26,10 @@ internal static class CreateContactEndpoint
                     new CreateContactCommand(
                         userId,
                         request.CompanyId,
-                        request.FullName ?? string.Empty,
+                        request.FirstName ?? string.Empty,
+                        request.LastName ?? string.Empty,
                         request.Email,
                         request.Phone,
-                        request.Company,
                         request.Position,
                         request.Notes,
                         request.Tags ?? [],

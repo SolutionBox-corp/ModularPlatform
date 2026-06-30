@@ -8,10 +8,15 @@ internal sealed class UpdateContactValidator : AbstractValidator<UpdateContactCo
     public UpdateContactValidator()
     {
         // PATCH: every field is optional. A null field is "unchanged"; only validate what was supplied.
-        When(x => x.FullName is not null, () =>
-            RuleFor(x => x.FullName)
-                .NotEmpty().WithErrorCode("crm.contact.full_name.required")
-                .MaximumLength(256).WithErrorCode("crm.contact.full_name.too_long"));
+        When(x => x.FirstName is not null, () =>
+            RuleFor(x => x.FirstName)
+                .NotEmpty().WithErrorCode("crm.contact.first_name.required")
+                .MaximumLength(128).WithErrorCode("crm.contact.first_name.too_long"));
+
+        When(x => x.LastName is not null, () =>
+            RuleFor(x => x.LastName)
+                .NotEmpty().WithErrorCode("crm.contact.last_name.required")
+                .MaximumLength(128).WithErrorCode("crm.contact.last_name.too_long"));
 
         When(x => !string.IsNullOrWhiteSpace(x.Email), () =>
             RuleFor(x => x.Email)
@@ -19,7 +24,6 @@ internal sealed class UpdateContactValidator : AbstractValidator<UpdateContactCo
                 .MaximumLength(256).WithErrorCode("crm.contact.email.too_long"));
 
         RuleFor(x => x.Phone).MaximumLength(64).WithErrorCode("crm.contact.phone.too_long");
-        RuleFor(x => x.Company).MaximumLength(256).WithErrorCode("crm.contact.company.too_long");
         RuleFor(x => x.Position).MaximumLength(256).WithErrorCode("crm.contact.position.too_long");
         RuleFor(x => x.Notes).MaximumLength(8192).WithErrorCode("crm.contact.notes.too_long");
 

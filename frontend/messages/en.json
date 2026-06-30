@@ -358,10 +358,12 @@
     "contactForm": {
       "createTitle": "New contact",
       "editTitle": "Edit contact",
-      "fullName": "Full name",
+      "firstName": "First name",
+      "lastName": "Last name",
       "email": "Email",
       "phone": "Phone",
       "company": "Company",
+      "noCompany": "No company",
       "position": "Position",
       "status": "Status",
       "tags": "Tags",
@@ -393,6 +395,8 @@
     "meetingForm": {
       "createTitle": "Schedule meeting",
       "editTitle": "Edit meeting",
+      "contact": "Contact",
+      "contactPlaceholder": "Select contact",
       "title": "Title",
       "scheduledAt": "When",
       "duration": "Duration (min)",
@@ -424,8 +428,11 @@
       "boardCreated": "Board created"
     },
     "validation": {
-      "fullNameRequired": "Name is required.",
-      "fullNameMax": "Name is too long.",
+      "firstNameRequired": "First name is required.",
+      "firstNameMax": "First name is too long.",
+      "lastNameRequired": "Last name is required.",
+      "lastNameMax": "Last name is too long.",
+      "meetingContactRequired": "Select a contact.",
       "emailMax": "Email is too long.",
       "emailInvalid": "Email is not valid.",
       "phoneMax": "Phone is too long.",
@@ -444,7 +451,13 @@
       "nameRequired": "Name is required",
       "nameMax": "Name is too long",
       "domainMax": "Domain too long",
-      "industryMax": "Industry too long"
+      "industryMax": "Industry too long",
+      "identificationNumberMax": "Identification number too long",
+      "taxIdentificationNumberMax": "Tax identification number too long",
+      "registeredAddressMax": "Registered address too long",
+      "cityMax": "City too long",
+      "postalCodeMax": "Postal code too long",
+      "countryMax": "Country too long"
     },
     "deals": {
       "metaTitle": "Deals",
@@ -504,18 +517,31 @@
     },
     "companies": {
       "metaTitle": "Companies",
+      "detailMetaTitle": "Company",
       "pageHeading": "Companies",
       "pageDescription": "B2B accounts — group contacts and deals.",
       "new": "New company",
+      "edit": "Edit",
       "delete": "Delete",
+      "notFound": "Company not found.",
+      "backToCompanies": "Back to companies",
+      "contactsHeading": "Contacts",
+      "meetingsHeading": "Meetings",
       "emptyTitle": "No companies",
       "emptyDescription": "Create a company to group contacts and deals."
     },
     "companyForm": {
       "createTitle": "New company",
+      "editTitle": "Edit company",
       "name": "Name",
       "domain": "Domain",
       "industry": "Industry",
+      "identificationNumber": "Company ID",
+      "taxIdentificationNumber": "VAT ID",
+      "registeredAddress": "Registered address",
+      "city": "City",
+      "postalCode": "Postal code",
+      "country": "Country",
       "notes": "Notes",
       "save": "Save",
       "saving": "Saving…"

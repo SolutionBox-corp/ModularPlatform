@@ -12,8 +12,7 @@ namespace ModularPlatform.Crm.Entities;
 /// — sealed on save, decrypted on read), so the existing user-erasure DEK shred renders the third-party PII (in the
 /// live row and the audit trail) unrecoverable. Lookups by e-mail go through <see cref="EmailHash"/>, the keyed
 /// blind index over the normalized address (an HMAC is not reversible, so the hash is not personal data).
-/// Company/Position/Notes are plain text (so the list can filter on them) but [PersonalData] so audit values are
-/// shreddable; the eraser scrubs the live row.
+/// Position/Notes are plain text but [PersonalData] so audit values are shreddable; the eraser scrubs the live row.
 /// </summary>
 internal sealed class Contact : AuditableEntity, ITenantScoped, IUserOwned, ISoftDeletable, IDataSubject
 {
@@ -24,7 +23,11 @@ internal sealed class Contact : AuditableEntity, ITenantScoped, IUserOwned, ISof
 
     [PersonalData]
     [Encrypted]
-    public string FullName { get; set; } = string.Empty;
+    public string FirstName { get; set; } = string.Empty;
+
+    [PersonalData]
+    [Encrypted]
+    public string LastName { get; set; } = string.Empty;
 
     [PersonalData]
     [Encrypted]
@@ -36,9 +39,6 @@ internal sealed class Contact : AuditableEntity, ITenantScoped, IUserOwned, ISof
     [PersonalData]
     [Encrypted]
     public string? Phone { get; set; }
-
-    [PersonalData]
-    public string? Company { get; set; }
 
     [PersonalData]
     public string? Position { get; set; }
@@ -75,11 +75,11 @@ internal sealed class ContactConfiguration : IEntityTypeConfiguration<Contact>
         builder.ToTable("crm_contacts");
         builder.HasKey(c => c.Id);
         // Encrypted at rest: columns store a penc:v2 envelope, not the value — size accordingly.
-        builder.Property(c => c.FullName).HasMaxLength(2048).IsRequired();
+        builder.Property(c => c.FirstName).HasMaxLength(2048).IsRequired();
+        builder.Property(c => c.LastName).HasMaxLength(2048).IsRequired();
         builder.Property(c => c.Email).HasMaxLength(2048);
         builder.Property(c => c.EmailHash).HasMaxLength(64);
         builder.Property(c => c.Phone).HasMaxLength(2048);
-        builder.Property(c => c.Company).HasMaxLength(256);
         builder.Property(c => c.Position).HasMaxLength(256);
         builder.Property(c => c.Notes).HasMaxLength(8192);
         builder.Property(c => c.Tags).HasColumnType("text[]");

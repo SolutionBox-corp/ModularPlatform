@@ -22,7 +22,20 @@ internal static class UpdateCompanyEndpoint
                 var userId = tenant.UserId
                     ?? throw new UnauthorizedException("auth.required", "Authentication required.");
                 var result = await dispatcher.Send(
-                    new UpdateCompanyCommand(userId, companyId, request.Name, request.Domain, request.Industry, request.Notes), ct);
+                    new UpdateCompanyCommand(
+                        userId,
+                        companyId,
+                        request.Name,
+                        request.Domain,
+                        request.Industry,
+                        request.IdentificationNumber,
+                        request.TaxIdentificationNumber,
+                        request.RegisteredAddress,
+                        request.City,
+                        request.PostalCode,
+                        request.Country,
+                        request.Notes),
+                    ct);
                 return Results.Ok(ApiResponse<CompanyResponse>.Ok(result));
             })
             .RequireAuthorization()

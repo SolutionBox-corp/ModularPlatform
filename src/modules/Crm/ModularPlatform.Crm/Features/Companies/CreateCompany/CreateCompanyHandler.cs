@@ -16,6 +16,12 @@ internal sealed class CreateCompanyHandler(CrmDbContext db)
             Name = command.Name.Trim(),
             Domain = string.IsNullOrWhiteSpace(command.Domain) ? null : command.Domain.Trim(),
             Industry = string.IsNullOrWhiteSpace(command.Industry) ? null : command.Industry.Trim(),
+            IdentificationNumber = string.IsNullOrWhiteSpace(command.IdentificationNumber) ? null : command.IdentificationNumber.Trim(),
+            TaxIdentificationNumber = string.IsNullOrWhiteSpace(command.TaxIdentificationNumber) ? null : command.TaxIdentificationNumber.Trim(),
+            RegisteredAddress = string.IsNullOrWhiteSpace(command.RegisteredAddress) ? null : command.RegisteredAddress.Trim(),
+            City = string.IsNullOrWhiteSpace(command.City) ? null : command.City.Trim(),
+            PostalCode = string.IsNullOrWhiteSpace(command.PostalCode) ? null : command.PostalCode.Trim(),
+            Country = string.IsNullOrWhiteSpace(command.Country) ? null : command.Country.Trim(),
             Notes = string.IsNullOrWhiteSpace(command.Notes) ? null : command.Notes,
         };
 

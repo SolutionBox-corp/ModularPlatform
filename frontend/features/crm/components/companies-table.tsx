@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { PlusIcon, Trash2Icon } from "lucide-react";
@@ -20,7 +21,15 @@ export function CompaniesTable() {
   const { data, isLoading } = useQuery(crmQueries.companies({ page, pageSize: PAGE_SIZE }));
 
   const columns: ColumnDef<CompanyListItem>[] = [
-    { key: "name", header: t("table.companyName"), cell: (row) => <span className="font-medium">{row.name}</span> },
+    {
+      key: "name",
+      header: t("table.companyName"),
+      cell: (row) => (
+        <Link href={`/crm/companies/${row.id}`} className="font-medium hover:underline">
+          {row.name}
+        </Link>
+      ),
+    },
     { key: "domain", header: t("table.domain"), cell: (row) => <span className="text-muted-foreground">{row.domain ?? "—"}</span> },
     { key: "industry", header: t("table.industry"), cell: (row) => <span className="text-muted-foreground">{row.industry ?? "—"}</span> },
     {

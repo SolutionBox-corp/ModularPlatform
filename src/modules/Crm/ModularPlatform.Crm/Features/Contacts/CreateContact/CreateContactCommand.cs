@@ -6,10 +6,10 @@ namespace ModularPlatform.Crm.Features.Contacts.CreateContact;
 public sealed record CreateContactCommand(
     Guid UserId,
     Guid? CompanyId,
-    string FullName,
+    string FirstName,
+    string LastName,
     string? Email,
     string? Phone,
-    string? Company,
     string? Position,
     string? Notes,
     string[] Tags,
@@ -19,10 +19,10 @@ public sealed record CreateContactResponse(Guid Id);
 
 public sealed record CreateContactRequest(
     Guid? CompanyId,
-    string FullName,
+    string FirstName,
+    string LastName,
     string? Email,
     string? Phone,
-    string? Company,
     string? Position,
     string? Notes,
     string[]? Tags,

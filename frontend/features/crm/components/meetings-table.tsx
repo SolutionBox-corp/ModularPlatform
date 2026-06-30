@@ -32,9 +32,11 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline" | "dest
 interface MeetingsTableProps {
   /** When set, only this contact's meetings are shown and new meetings are pre-linked to it. */
   contactId?: string;
+  /** When set, meetings are rolled up from contacts belonging to this company. */
+  companyId?: string;
 }
 
-export function MeetingsTable({ contactId }: MeetingsTableProps) {
+export function MeetingsTable({ contactId, companyId }: MeetingsTableProps) {
   const t = useTranslations("crm");
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<string>(ALL);
@@ -46,6 +48,7 @@ export function MeetingsTable({ contactId }: MeetingsTableProps) {
       page,
       pageSize: PAGE_SIZE,
       contactId,
+      companyId,
       status: status === ALL ? undefined : status,
     }),
   );
@@ -132,6 +135,7 @@ export function MeetingsTable({ contactId }: MeetingsTableProps) {
 
         <MeetingFormDialog
           contactId={contactId}
+          companyId={companyId}
           trigger={
             <Button size="sm">
               <CalendarPlusIcon className="h-3.5 w-3.5 mr-1.5" />

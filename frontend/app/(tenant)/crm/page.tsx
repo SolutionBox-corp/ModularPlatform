@@ -24,10 +24,7 @@ export default async function CrmPage() {
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">{t("page.heading")}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{t("page.description")}</p>
-        </div>
+        <p className="text-sm text-muted-foreground">{t("page.description")}</p>
 
         <ContactsTable />
       </div>

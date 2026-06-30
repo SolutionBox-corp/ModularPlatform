@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { DataTable, type ColumnDef } from "@/components/app/data-table";
-import { crmQueries, CONTACT_STATUSES, type ContactListItem } from "@/features/crm/api";
+import { contactDisplayName, crmQueries, CONTACT_STATUSES, type ContactListItem } from "@/features/crm/api";
 import { useDeleteContact } from "@/features/crm/hooks";
 import { ContactFormDialog } from "@/features/crm/components/contact-form-dialog";
 
@@ -30,13 +30,17 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline"> = {
   archived: "outline",
 };
 
-export function ContactsTable() {
+interface ContactsTableProps {
+  companyId?: string;
+}
+
+export function ContactsTable({ companyId }: ContactsTableProps) {
   const t = useTranslations("crm");
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<string>(ALL);
 
   const { data, isLoading } = useQuery(
-    crmQueries.contacts({ page, pageSize: PAGE_SIZE, status: status === ALL ? undefined : status }),
+    crmQueries.contacts({ page, pageSize: PAGE_SIZE, companyId, status: status === ALL ? undefined : status }),
   );
   const deleteMutation = useDeleteContact();
 
@@ -46,7 +50,7 @@ export function ContactsTable() {
       header: t("table.name"),
       cell: (row) => (
         <Link href={`/crm/contacts/${row.id}`} className="font-medium hover:underline">
-          {row.fullName}
+          {contactDisplayName(row)}
         </Link>
       ),
     },
@@ -58,7 +62,14 @@ export function ContactsTable() {
     {
       key: "company",
       header: t("table.company"),
-      cell: (row) => row.company ?? "—",
+      cell: (row) =>
+        row.companyId && row.companyName ? (
+          <Link href={`/crm/companies/${row.companyId}`} className="hover:underline">
+            {row.companyName}
+          </Link>
+        ) : (
+          "—"
+        ),
     },
     {
       key: "status",

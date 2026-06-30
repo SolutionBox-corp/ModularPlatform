@@ -17,7 +17,20 @@ internal sealed class GetContactHandler(IReadDbContextFactory<CrmDbContext> read
         var contact = await db.Contacts
             .Where(c => c.Id == query.ContactId && c.UserId == query.UserId)
             .Select(c => new ContactResponse(
-                c.Id, c.CompanyId, c.FullName, c.Email, c.Phone, c.Company, c.Position, c.Notes, c.Tags, c.Status,
+                c.Id,
+                c.CompanyId,
+                db.Companies
+                    .Where(company => company.Id == c.CompanyId && company.UserId == query.UserId)
+                    .Select(company => company.Name)
+                    .FirstOrDefault(),
+                c.FirstName,
+                c.LastName,
+                c.Email,
+                c.Phone,
+                c.Position,
+                c.Notes,
+                c.Tags,
+                c.Status,
                 c.CreatedAt, c.UpdatedAt))
             .FirstOrDefaultAsync(ct);
 

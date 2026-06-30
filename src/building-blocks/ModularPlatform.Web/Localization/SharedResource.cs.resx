@@ -163,12 +163,13 @@
   <data name="billing.subscription.plan_key.required" xml:space="preserve"><value>Klíč plánu je povinný.</value></data>
   <data name="billing.subscription.plan_key.too_long" xml:space="preserve"><value>Klíč plánu je příliš dlouhý.</value></data>
   <data name="crm.contact_not_found" xml:space="preserve"><value>Kontakt nenalezen.</value></data>
-  <data name="crm.contact.full_name.required" xml:space="preserve"><value>Jméno kontaktu je povinné.</value></data>
-  <data name="crm.contact.full_name.too_long" xml:space="preserve"><value>Jméno kontaktu je příliš dlouhé.</value></data>
+  <data name="crm.contact.first_name.required" xml:space="preserve"><value>Křestní jméno je povinné.</value></data>
+  <data name="crm.contact.first_name.too_long" xml:space="preserve"><value>Křestní jméno je příliš dlouhé.</value></data>
+  <data name="crm.contact.last_name.required" xml:space="preserve"><value>Příjmení je povinné.</value></data>
+  <data name="crm.contact.last_name.too_long" xml:space="preserve"><value>Příjmení je příliš dlouhé.</value></data>
   <data name="crm.contact.email.invalid" xml:space="preserve"><value>E-mail kontaktu není platný.</value></data>
   <data name="crm.contact.email.too_long" xml:space="preserve"><value>E-mail kontaktu je příliš dlouhý.</value></data>
   <data name="crm.contact.phone.too_long" xml:space="preserve"><value>Telefon kontaktu je příliš dlouhý.</value></data>
-  <data name="crm.contact.company.too_long" xml:space="preserve"><value>Název firmy je příliš dlouhý.</value></data>
   <data name="crm.contact.position.too_long" xml:space="preserve"><value>Pozice je příliš dlouhá.</value></data>
   <data name="crm.contact.notes.too_long" xml:space="preserve"><value>Poznámky jsou příliš dlouhé.</value></data>
   <data name="crm.contact.status.invalid" xml:space="preserve"><value>Stav kontaktu není platný.</value></data>
@@ -177,6 +178,7 @@
   <data name="crm.interaction.type.invalid" xml:space="preserve"><value>Typ interakce není platný.</value></data>
   <data name="crm.interaction.body.too_long" xml:space="preserve"><value>Poznámka k interakci je příliš dlouhá.</value></data>
   <data name="crm.meeting_not_found" xml:space="preserve"><value>Schůzka nenalezena.</value></data>
+  <data name="crm.meeting.contact.required" xml:space="preserve"><value>Schůzka musí být navázaná na kontakt.</value></data>
   <data name="crm.meeting.title.required" xml:space="preserve"><value>Název schůzky je povinný.</value></data>
   <data name="crm.meeting.title.too_long" xml:space="preserve"><value>Název schůzky je příliš dlouhý.</value></data>
   <data name="crm.meeting.scheduled_at.required" xml:space="preserve"><value>Čas schůzky je povinný.</value></data>
@@ -203,6 +205,12 @@
   <data name="crm.company.name.too_long" xml:space="preserve"><value>Název firmy je příliš dlouhý.</value></data>
   <data name="crm.company.domain.too_long" xml:space="preserve"><value>Doména firmy je příliš dlouhá.</value></data>
   <data name="crm.company.industry.too_long" xml:space="preserve"><value>Obor firmy je příliš dlouhý.</value></data>
+  <data name="crm.company.identification_number.too_long" xml:space="preserve"><value>IČO firmy je příliš dlouhé.</value></data>
+  <data name="crm.company.tax_identification_number.too_long" xml:space="preserve"><value>DIČ firmy je příliš dlouhé.</value></data>
+  <data name="crm.company.registered_address.too_long" xml:space="preserve"><value>Sídlo firmy je příliš dlouhé.</value></data>
+  <data name="crm.company.city.too_long" xml:space="preserve"><value>Město firmy je příliš dlouhé.</value></data>
+  <data name="crm.company.postal_code.too_long" xml:space="preserve"><value>PSČ firmy je příliš dlouhé.</value></data>
+  <data name="crm.company.country.too_long" xml:space="preserve"><value>Země firmy je příliš dlouhá.</value></data>
   <data name="crm.company.notes.too_long" xml:space="preserve"><value>Poznámky firmy jsou příliš dlouhé.</value></data>
   <data name="crm.board_not_found" xml:space="preserve"><value>Nástěnka nenalezena.</value></data>
   <data name="crm.board.name.required" xml:space="preserve"><value>Název nástěnky je povinný.</value></data>

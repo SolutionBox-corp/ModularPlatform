@@ -25,10 +25,10 @@ internal sealed class CrmPersonalDataExporter(IReadDbContextFactory<CrmDbContext
             {
                 c.Id,
                 c.CompanyId,
-                c.FullName,
+                c.FirstName,
+                c.LastName,
                 c.Email,
                 c.Phone,
-                c.Company,
                 c.Position,
                 c.Notes,
                 c.Tags,
@@ -100,7 +100,21 @@ internal sealed class CrmPersonalDataExporter(IReadDbContextFactory<CrmDbContext
         var companies = await db.Companies
             .IgnoreQueryFilters()
             .Where(c => c.UserId == userId)
-            .Select(c => new { c.Id, c.Name, c.Domain, c.Industry, c.Notes, c.CreatedAt })
+            .Select(c => new
+            {
+                c.Id,
+                c.Name,
+                c.Domain,
+                c.Industry,
+                c.IdentificationNumber,
+                c.TaxIdentificationNumber,
+                c.RegisteredAddress,
+                c.City,
+                c.PostalCode,
+                c.Country,
+                c.Notes,
+                c.CreatedAt,
+            })
             .ToListAsync(ct);
 
         var boards = await db.KanbanBoards.IgnoreQueryFilters().Where(b => b.UserId == userId)

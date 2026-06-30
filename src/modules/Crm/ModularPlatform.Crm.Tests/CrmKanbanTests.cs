@@ -131,7 +131,7 @@ public sealed class CrmKanbanTests(PlatformApiFactory fixture)
     {
         var (_, tokenA) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
         var contactResp = await fixture.Client.SendAsync(fixture.Authed(
-            HttpMethod.Post, "/v1/crm/contacts", tokenA, new { fullName = "A", status = "lead" }));
+            HttpMethod.Post, "/v1/crm/contacts", tokenA, new { firstName = "A", lastName = "Contact", status = "lead" }));
         contactResp.StatusCode.ShouldBe(HttpStatusCode.Created);
         var contactAId = (await PlatformApiFactory.ReadData(contactResp)).GetProperty("id").GetGuid();
 

@@ -4,10 +4,11 @@ namespace ModularPlatform.Crm.Features.Contacts;
 public sealed record ContactResponse(
     Guid Id,
     Guid? CompanyId,
-    string FullName,
+    string? CompanyName,
+    string FirstName,
+    string LastName,
     string? Email,
     string? Phone,
-    string? Company,
     string? Position,
     string? Notes,
     string[] Tags,
@@ -18,9 +19,10 @@ public sealed record ContactResponse(
 public sealed record ContactListItem(
     Guid Id,
     Guid? CompanyId,
-    string FullName,
+    string? CompanyName,
+    string FirstName,
+    string LastName,
     string? Email,
-    string? Company,
     string Status,
     DateTimeOffset CreatedAt);
 

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslations } from "next-intl";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,7 +17,19 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { type Meeting, type MeetingInput } from "@/features/crm/api";
+import {
+  contactDisplayName,
+  crmQueries,
+  type Meeting,
+  type MeetingInput,
+} from "@/features/crm/api";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useCreateMeeting, useUpdateMeeting } from "@/features/crm/hooks";
 import { buildMeetingSchema, type MeetingFormValues } from "@/features/crm/schema";
 
@@ -24,6 +37,8 @@ interface MeetingFormDialogProps {
   meeting?: Meeting;
   /** Pre-links the meeting to a contact (e.g. scheduling from the contact detail page). */
   contactId?: string | null;
+  /** When set, contact choices are limited to that company's contacts. */
+  companyId?: string;
   trigger: ReactNode;
 }
 
@@ -36,8 +51,9 @@ function toLocalInput(iso: string | undefined): string {
   return local.toISOString().slice(0, 16);
 }
 
-function defaultValues(meeting?: Meeting): MeetingFormValues {
+function defaultValues(meeting?: Meeting, contactId?: string | null): MeetingFormValues {
   return {
+    contactId: meeting?.contactId ?? contactId ?? "",
     title: meeting?.title ?? "",
     scheduledAt: toLocalInput(meeting?.scheduledAt),
     durationMinutes: meeting?.durationMinutes ?? 30,
@@ -46,27 +62,30 @@ function defaultValues(meeting?: Meeting): MeetingFormValues {
   };
 }
 
-export function MeetingFormDialog({ meeting, contactId, trigger }: MeetingFormDialogProps) {
+export function MeetingFormDialog({ meeting, contactId, companyId, trigger }: MeetingFormDialogProps) {
   const t = useTranslations("crm");
   const [open, setOpen] = useState(false);
   const createMutation = useCreateMeeting();
   const updateMutation = useUpdateMeeting(meeting?.id ?? "");
   const isEdit = !!meeting;
+  const contactLocked = !!contactId || isEdit;
+  const { data: contacts } = useQuery(crmQueries.contacts({ page: 1, pageSize: 100, companyId }));
 
   const {
     register,
+    control,
     handleSubmit,
     reset,
     setError,
     formState: { errors, isSubmitting },
   } = useForm<MeetingFormValues>({
     resolver: zodResolver(buildMeetingSchema(t)),
-    values: defaultValues(meeting),
+    values: defaultValues(meeting, contactId),
   });
 
   const onSubmit = handleSubmit(async (values) => {
     const input: MeetingInput = {
-      contactId: meeting?.contactId ?? contactId ?? null,
+      contactId: meeting?.contactId ?? contactId ?? values.contactId,
       title: values.title.trim(),
       scheduledAt: new Date(values.scheduledAt).toISOString(),
       durationMinutes: values.durationMinutes,
@@ -79,7 +98,7 @@ export function MeetingFormDialog({ meeting, contactId, trigger }: MeetingFormDi
       } else {
         await createMutation.mutateAsync(input);
       }
-      reset(defaultValues(meeting));
+      reset(defaultValues(meeting, contactId));
       setOpen(false);
     } catch (err: unknown) {
       if (err && typeof err === "object" && "fieldErrors" in err && err.fieldErrors) {
@@ -101,6 +120,31 @@ export function MeetingFormDialog({ meeting, contactId, trigger }: MeetingFormDi
           </DialogHeader>
 
           <div className="space-y-3 py-4">
+            {!contactLocked && (
+              <div className="space-y-1.5">
+                <Label htmlFor="m-contact">{t("meetingForm.contact")}</Label>
+                <Controller
+                  control={control}
+                  name="contactId"
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger id="m-contact" aria-invalid={!!errors.contactId}>
+                        <SelectValue placeholder={t("meetingForm.contactPlaceholder")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(contacts?.items ?? []).map((contact) => (
+                          <SelectItem key={contact.id} value={contact.id}>
+                            {contactDisplayName(contact)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                {errors.contactId && <p className="text-xs text-destructive">{errors.contactId.message}</p>}
+              </div>
+            )}
+
             <div className="space-y-1.5">
               <Label htmlFor="m-title">{t("meetingForm.title")}</Label>
               <Input id="m-title" aria-invalid={!!errors.title} {...register("title")} />

@@ -6,6 +6,12 @@ public sealed record CompanyResponse(
     string Name,
     string? Domain,
     string? Industry,
+    string? IdentificationNumber,
+    string? TaxIdentificationNumber,
+    string? RegisteredAddress,
+    string? City,
+    string? PostalCode,
+    string? Country,
     string? Notes,
     DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt);

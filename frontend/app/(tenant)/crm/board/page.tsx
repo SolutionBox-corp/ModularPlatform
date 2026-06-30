@@ -10,10 +10,7 @@ export default async function CrmBoardsPage() {
   if (!isModuleEnabled(ent, "crm")) notFound();
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">{t("board.pageHeading")}</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">{t("board.pageDescription")}</p>
-      </div>
+      <p className="text-sm text-muted-foreground">{t("board.pageDescription")}</p>
       <BoardList />
     </div>
   );

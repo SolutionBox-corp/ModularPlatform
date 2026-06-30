@@ -24,8 +24,8 @@ internal sealed class UpdateContactHandler(CrmDbContext db, IBlindIndexHasher bl
 
         if (command.CompanyIdSet)
         {
-            if (command.CompanyId is { } companyId
-                && !await db.Companies.AnyAsync(c => c.Id == companyId && c.UserId == command.UserId, ct))
+            if (command.CompanyId is { } requestedCompanyId
+                && !await db.Companies.AnyAsync(c => c.Id == requestedCompanyId && c.UserId == command.UserId, ct))
             {
                 throw new NotFoundException("crm.company_not_found", "Company not found.");
             }
@@ -33,9 +33,14 @@ internal sealed class UpdateContactHandler(CrmDbContext db, IBlindIndexHasher bl
             contact.CompanyId = command.CompanyId;
         }
 
-        if (command.FullName is not null)
+        if (command.FirstName is not null)
         {
-            contact.FullName = command.FullName.Trim();
+            contact.FirstName = command.FirstName.Trim();
+        }
+
+        if (command.LastName is not null)
+        {
+            contact.LastName = command.LastName.Trim();
         }
 
         if (command.Email is not null)
@@ -48,11 +53,6 @@ internal sealed class UpdateContactHandler(CrmDbContext db, IBlindIndexHasher bl
         if (command.Phone is not null)
         {
             contact.Phone = string.IsNullOrWhiteSpace(command.Phone) ? null : command.Phone.Trim();
-        }
-
-        if (command.Company is not null)
-        {
-            contact.Company = string.IsNullOrWhiteSpace(command.Company) ? null : command.Company.Trim();
         }
 
         if (command.Position is not null)
@@ -77,8 +77,14 @@ internal sealed class UpdateContactHandler(CrmDbContext db, IBlindIndexHasher bl
 
         await db.SaveChangesAsync(ct);
 
+        var companyName = contact.CompanyId is { } companyId
+            ? await db.Companies.Where(c => c.Id == companyId && c.UserId == command.UserId)
+                .Select(c => c.Name)
+                .FirstOrDefaultAsync(ct)
+            : null;
+
         return new ContactResponse(
-            contact.Id, contact.CompanyId, contact.FullName, contact.Email, contact.Phone, contact.Company, contact.Position,
+            contact.Id, contact.CompanyId, companyName, contact.FirstName, contact.LastName, contact.Email, contact.Phone, contact.Position,
             contact.Notes, contact.Tags, contact.Status, contact.CreatedAt, contact.UpdatedAt);
     }
 }

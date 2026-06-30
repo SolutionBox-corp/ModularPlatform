@@ -7,10 +7,15 @@ type Translate = (key: string) => string;
 /** Mirrors CreateContactValidator / UpdateContactValidator (ModularPlatform.Crm). */
 export function buildContactSchema(t: Translate) {
   return z.object({
-    fullName: z
+    firstName: z
       .string()
-      .min(1, t("validation.fullNameRequired"))
-      .max(256, t("validation.fullNameMax")),
+      .min(1, t("validation.firstNameRequired"))
+      .max(128, t("validation.firstNameMax")),
+    lastName: z
+      .string()
+      .min(1, t("validation.lastNameRequired"))
+      .max(128, t("validation.lastNameMax")),
+    companyId: z.string().optional(),
     email: z
       .string()
       .max(256, t("validation.emailMax"))
@@ -18,7 +23,6 @@ export function buildContactSchema(t: Translate) {
       .or(z.literal(""))
       .optional(),
     phone: z.string().max(64, t("validation.phoneMax")).optional(),
-    company: z.string().max(256, t("validation.companyMax")).optional(),
     position: z.string().max(256, t("validation.positionMax")).optional(),
     notes: z.string().max(8192, t("validation.notesMax")).optional(),
     status: z.enum(CONTACT_STATUSES),
@@ -31,6 +35,7 @@ export type ContactFormValues = z.infer<ReturnType<typeof buildContactSchema>>;
 /** Mirrors CreateMeetingValidator / UpdateMeetingValidator. */
 export function buildMeetingSchema(t: Translate) {
   return z.object({
+    contactId: z.string().min(1, t("validation.meetingContactRequired")),
     title: z
       .string()
       .min(1, t("validation.titleRequired"))
@@ -89,6 +94,12 @@ export function buildCompanySchema(t: Translate) {
     name: z.string().min(1, t("validation.nameRequired")).max(256, t("validation.nameMax")),
     domain: z.string().max(256, t("validation.domainMax")).optional(),
     industry: z.string().max(128, t("validation.industryMax")).optional(),
+    identificationNumber: z.string().max(32, t("validation.identificationNumberMax")).optional(),
+    taxIdentificationNumber: z.string().max(32, t("validation.taxIdentificationNumberMax")).optional(),
+    registeredAddress: z.string().max(512, t("validation.registeredAddressMax")).optional(),
+    city: z.string().max(128, t("validation.cityMax")).optional(),
+    postalCode: z.string().max(32, t("validation.postalCodeMax")).optional(),
+    country: z.string().max(128, t("validation.countryMax")).optional(),
     notes: z.string().max(8192, t("validation.notesMax")).optional(),
   });
 }

@@ -24,10 +24,7 @@ export default async function CrmCompaniesPage() {
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">{t("companies.pageHeading")}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{t("companies.pageDescription")}</p>
-        </div>
+        <p className="text-sm text-muted-foreground">{t("companies.pageDescription")}</p>
         <CompaniesTable />
       </div>
     </HydrationBoundary>

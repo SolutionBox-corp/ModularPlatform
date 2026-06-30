@@ -30,6 +30,36 @@ internal sealed class UpdateCompanyHandler(CrmDbContext db)
             company.Industry = string.IsNullOrWhiteSpace(command.Industry) ? null : command.Industry.Trim();
         }
 
+        if (command.IdentificationNumber is not null)
+        {
+            company.IdentificationNumber = string.IsNullOrWhiteSpace(command.IdentificationNumber) ? null : command.IdentificationNumber.Trim();
+        }
+
+        if (command.TaxIdentificationNumber is not null)
+        {
+            company.TaxIdentificationNumber = string.IsNullOrWhiteSpace(command.TaxIdentificationNumber) ? null : command.TaxIdentificationNumber.Trim();
+        }
+
+        if (command.RegisteredAddress is not null)
+        {
+            company.RegisteredAddress = string.IsNullOrWhiteSpace(command.RegisteredAddress) ? null : command.RegisteredAddress.Trim();
+        }
+
+        if (command.City is not null)
+        {
+            company.City = string.IsNullOrWhiteSpace(command.City) ? null : command.City.Trim();
+        }
+
+        if (command.PostalCode is not null)
+        {
+            company.PostalCode = string.IsNullOrWhiteSpace(command.PostalCode) ? null : command.PostalCode.Trim();
+        }
+
+        if (command.Country is not null)
+        {
+            company.Country = string.IsNullOrWhiteSpace(command.Country) ? null : command.Country.Trim();
+        }
+
         if (command.Notes is not null)
         {
             company.Notes = string.IsNullOrWhiteSpace(command.Notes) ? null : command.Notes;
@@ -38,6 +68,8 @@ internal sealed class UpdateCompanyHandler(CrmDbContext db)
         await db.SaveChangesAsync(ct);
 
         return new CompanyResponse(
-            company.Id, company.Name, company.Domain, company.Industry, company.Notes, company.CreatedAt, company.UpdatedAt);
+            company.Id, company.Name, company.Domain, company.Industry, company.IdentificationNumber,
+            company.TaxIdentificationNumber, company.RegisteredAddress, company.City, company.PostalCode,
+            company.Country, company.Notes, company.CreatedAt, company.UpdatedAt);
     }
 }

@@ -9,10 +9,22 @@ public sealed record UpdateCompanyCommand(
     string? Name,
     string? Domain,
     string? Industry,
+    string? IdentificationNumber,
+    string? TaxIdentificationNumber,
+    string? RegisteredAddress,
+    string? City,
+    string? PostalCode,
+    string? Country,
     string? Notes) : ICommand<ModularPlatform.Crm.Features.Companies.CompanyResponse>;
 
 public sealed record UpdateCompanyRequest(
     string? Name,
     string? Domain,
     string? Industry,
+    string? IdentificationNumber,
+    string? TaxIdentificationNumber,
+    string? RegisteredAddress,
+    string? City,
+    string? PostalCode,
+    string? Country,
     string? Notes);

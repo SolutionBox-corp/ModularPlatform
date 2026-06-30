@@ -24,7 +24,7 @@ public sealed class CrmGdprTests(PlatformApiFactory fixture)
 
         // Seed CRM data the subject owns: a contact (+ an interaction logging free text) and a task.
         var createContact = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Post, "/v1/crm/contacts", token,
-            new { fullName = "Joe Subject", email = "joe.subject@x.com", notes = "private note" }));
+            new { firstName = "Joe", lastName = "Subject", email = "joe.subject@x.com", notes = "private note" }));
         createContact.StatusCode.ShouldBe(HttpStatusCode.Created, await createContact.Content.ReadAsStringAsync());
         var contactId = (await PlatformApiFactory.ReadData(createContact)).GetProperty("id").GetGuid();
 
@@ -56,7 +56,7 @@ public sealed class CrmGdprTests(PlatformApiFactory fixture)
 
         // The contact's name is anonymized to "[erased]" and its e-mail/blind-index/notes cleared.
         await fixture.WaitForCountAsync(
-            $"""SELECT count(*)::bigint FROM crm_contacts WHERE "UserId" = '{userId}' AND "FullName" = '[erased]'""", 1);
+            $"""SELECT count(*)::bigint FROM crm_contacts WHERE "UserId" = '{userId}' AND "FirstName" = '[erased]' AND "LastName" = '[erased]'""", 1);
         var leakedEmails = await fixture.ScalarAsync<long>(
             $"""SELECT count(*)::bigint FROM crm_contacts WHERE "UserId" = '{userId}' AND "EmailHash" IS NOT NULL""");
         leakedEmails.ShouldBe(0);

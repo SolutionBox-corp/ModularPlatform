@@ -6,6 +6,9 @@ internal sealed class CreateMeetingValidator : AbstractValidator<CreateMeetingCo
 {
     public CreateMeetingValidator()
     {
+        RuleFor(x => x.ContactId)
+            .NotNull().WithErrorCode("crm.meeting.contact.required");
+
         RuleFor(x => x.Title)
             .NotEmpty().WithErrorCode("crm.meeting.title.required")
             .MaximumLength(256).WithErrorCode("crm.meeting.title.too_long");

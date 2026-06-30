@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslations } from "next-intl";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CONTACT_STATUSES, type Contact, type ContactInput } from "@/features/crm/api";
+import { CONTACT_STATUSES, crmQueries, type Contact, type ContactInput } from "@/features/crm/api";
 import { useCreateContact, useUpdateContact } from "@/features/crm/hooks";
 import { buildContactSchema, type ContactFormValues } from "@/features/crm/schema";
 
@@ -36,10 +37,11 @@ interface ContactFormDialogProps {
 
 function toFormValues(contact?: Contact): ContactFormValues {
   return {
-    fullName: contact?.fullName ?? "",
+    firstName: contact?.firstName ?? "",
+    lastName: contact?.lastName ?? "",
+    companyId: contact?.companyId ?? "none",
     email: contact?.email ?? "",
     phone: contact?.phone ?? "",
-    company: contact?.company ?? "",
     position: contact?.position ?? "",
     notes: contact?.notes ?? "",
     status: (contact?.status as ContactFormValues["status"]) ?? "lead",
@@ -49,10 +51,11 @@ function toFormValues(contact?: Contact): ContactFormValues {
 
 function toInput(values: ContactFormValues): ContactInput {
   return {
-    fullName: values.fullName.trim(),
+    firstName: values.firstName.trim(),
+    lastName: values.lastName.trim(),
+    companyId: values.companyId === "none" ? null : values.companyId,
     email: values.email?.trim() || null,
     phone: values.phone?.trim() || null,
-    company: values.company?.trim() || null,
     position: values.position?.trim() || null,
     notes: values.notes?.trim() || null,
     status: values.status,
@@ -70,6 +73,7 @@ export function ContactFormDialog({ contact, trigger, onSaved }: ContactFormDial
   const createMutation = useCreateContact();
   const updateMutation = useUpdateContact(contact?.id ?? "");
   const isEdit = !!contact;
+  const { data: companies } = useQuery(crmQueries.companies({ page: 1, pageSize: 100 }));
 
   const {
     register,
@@ -113,9 +117,38 @@ export function ContactFormDialog({ contact, trigger, onSaved }: ContactFormDial
 
           <div className="grid grid-cols-2 gap-3 py-4">
             <div className="space-y-1.5 col-span-2">
-              <Label htmlFor="c-fullName">{t("contactForm.fullName")}</Label>
-              <Input id="c-fullName" aria-invalid={!!errors.fullName} {...register("fullName")} />
-              {errors.fullName && <p className="text-xs text-destructive">{errors.fullName.message}</p>}
+              <Label htmlFor="c-company">{t("contactForm.company")}</Label>
+              <Controller
+                control={control}
+                name="companyId"
+                render={({ field }) => (
+                  <Select value={field.value || "none"} onValueChange={field.onChange}>
+                    <SelectTrigger id="c-company">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">{t("contactForm.noCompany")}</SelectItem>
+                      {(companies?.items ?? []).map((company) => (
+                        <SelectItem key={company.id} value={company.id}>
+                          {company.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="c-firstName">{t("contactForm.firstName")}</Label>
+              <Input id="c-firstName" aria-invalid={!!errors.firstName} {...register("firstName")} />
+              {errors.firstName && <p className="text-xs text-destructive">{errors.firstName.message}</p>}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="c-lastName">{t("contactForm.lastName")}</Label>
+              <Input id="c-lastName" aria-invalid={!!errors.lastName} {...register("lastName")} />
+              {errors.lastName && <p className="text-xs text-destructive">{errors.lastName.message}</p>}
             </div>
 
             <div className="space-y-1.5">
@@ -127,11 +160,6 @@ export function ContactFormDialog({ contact, trigger, onSaved }: ContactFormDial
             <div className="space-y-1.5">
               <Label htmlFor="c-phone">{t("contactForm.phone")}</Label>
               <Input id="c-phone" {...register("phone")} />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="c-company">{t("contactForm.company")}</Label>
-              <Input id="c-company" {...register("company")} />
             </div>
 
             <div className="space-y-1.5">

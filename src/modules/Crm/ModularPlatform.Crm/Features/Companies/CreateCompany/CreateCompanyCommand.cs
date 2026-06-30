@@ -8,6 +8,12 @@ public sealed record CreateCompanyCommand(
     string Name,
     string? Domain,
     string? Industry,
+    string? IdentificationNumber,
+    string? TaxIdentificationNumber,
+    string? RegisteredAddress,
+    string? City,
+    string? PostalCode,
+    string? Country,
     string? Notes) : ICommand<CreateCompanyResponse>;
 
 public sealed record CreateCompanyResponse(Guid Id);
@@ -16,4 +22,10 @@ public sealed record CreateCompanyRequest(
     string Name,
     string? Domain,
     string? Industry,
+    string? IdentificationNumber,
+    string? TaxIdentificationNumber,
+    string? RegisteredAddress,
+    string? City,
+    string? PostalCode,
+    string? Country,
     string? Notes);

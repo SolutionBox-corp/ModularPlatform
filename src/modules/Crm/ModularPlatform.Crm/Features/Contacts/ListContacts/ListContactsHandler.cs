@@ -32,12 +32,6 @@ internal sealed class ListContactsHandler(
             filtered = filtered.Where(c => c.Status == status);
         }
 
-        if (!string.IsNullOrWhiteSpace(query.Company))
-        {
-            var company = query.Company.Trim();
-            filtered = filtered.Where(c => c.Company != null && EF.Functions.ILike(c.Company, $"%{company}%"));
-        }
-
         if (!string.IsNullOrWhiteSpace(query.Email))
         {
             var hash = blindIndex.Hash(query.Email.Trim().ToUpperInvariant());
@@ -50,7 +44,18 @@ internal sealed class ListContactsHandler(
             .OrderByDescending(c => c.CreatedAt)
             .Skip(paging.Skip)
             .Take(paging.PageSize)
-            .Select(c => new ContactListItem(c.Id, c.CompanyId, c.FullName, c.Email, c.Company, c.Status, c.CreatedAt))
+            .Select(c => new ContactListItem(
+                c.Id,
+                c.CompanyId,
+                db.Companies
+                    .Where(company => company.Id == c.CompanyId && company.UserId == query.UserId)
+                    .Select(company => company.Name)
+                    .FirstOrDefault(),
+                c.FirstName,
+                c.LastName,
+                c.Email,
+                c.Status,
+                c.CreatedAt))
             .ToListAsync(ct);
 
         return new PagedResponse<ContactListItem>(items, paging.Page, paging.PageSize, total);

@@ -16,7 +16,20 @@ internal sealed class GetCompanyHandler(IReadDbContextFactory<CrmDbContext> read
 
         return await db.Companies
             .Where(c => c.Id == query.CompanyId && c.UserId == query.UserId)
-            .Select(c => new CompanyResponse(c.Id, c.Name, c.Domain, c.Industry, c.Notes, c.CreatedAt, c.UpdatedAt))
+            .Select(c => new CompanyResponse(
+                c.Id,
+                c.Name,
+                c.Domain,
+                c.Industry,
+                c.IdentificationNumber,
+                c.TaxIdentificationNumber,
+                c.RegisteredAddress,
+                c.City,
+                c.PostalCode,
+                c.Country,
+                c.Notes,
+                c.CreatedAt,
+                c.UpdatedAt))
             .FirstOrDefaultAsync(ct)
             ?? throw new NotFoundException("crm.company_not_found", "Company not found.");
     }

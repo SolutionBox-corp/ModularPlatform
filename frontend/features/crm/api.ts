@@ -8,25 +8,33 @@ import { queryRoots } from "@/lib/api/query-keys";
 
 export interface ContactListItem {
   id: string;
-  fullName: string;
+  companyId: string | null;
+  companyName: string | null;
+  firstName: string;
+  lastName: string;
   email: string | null;
-  company: string | null;
   status: string;
   createdAt: string;
 }
 
 export interface Contact {
   id: string;
-  fullName: string;
+  companyId: string | null;
+  companyName: string | null;
+  firstName: string;
+  lastName: string;
   email: string | null;
   phone: string | null;
-  company: string | null;
   position: string | null;
   notes: string | null;
   tags: string[];
   status: string;
   createdAt: string;
   updatedAt: string | null;
+}
+
+export function contactDisplayName(contact: Pick<Contact, "firstName" | "lastName"> | Pick<ContactListItem, "firstName" | "lastName">): string {
+  return [contact.firstName, contact.lastName].filter(Boolean).join(" ");
 }
 
 export interface ContactsPage {
@@ -82,6 +90,12 @@ export interface Company {
   name: string;
   domain: string | null;
   industry: string | null;
+  identificationNumber: string | null;
+  taxIdentificationNumber: string | null;
+  registeredAddress: string | null;
+  city: string | null;
+  postalCode: string | null;
+  country: string | null;
   notes: string | null;
   createdAt: string;
   updatedAt: string | null;
@@ -160,7 +174,7 @@ export interface ContactsParams {
   page?: number;
   pageSize?: number;
   status?: string;
-  company?: string;
+  companyId?: string;
   email?: string;
 }
 
@@ -169,6 +183,7 @@ export interface MeetingsParams {
   pageSize?: number;
   status?: string;
   contactId?: string;
+  companyId?: string;
   from?: string;
   to?: string;
 }
@@ -199,7 +214,7 @@ export const crmQueries = {
         sp.set("page", String(params.page ?? 1));
         sp.set("pageSize", String(pageSize));
         if (params.status) sp.set("status", params.status);
-        if (params.company) sp.set("company", params.company);
+        if (params.companyId) sp.set("companyId", params.companyId);
         if (params.email) sp.set("email", params.email);
         return apiFetch<ContactsPage>(`crm/contacts?${sp.toString()}`);
       },
@@ -231,6 +246,7 @@ export const crmQueries = {
         sp.set("pageSize", String(pageSize));
         if (params.status) sp.set("status", params.status);
         if (params.contactId) sp.set("contactId", params.contactId);
+        if (params.companyId) sp.set("companyId", params.companyId);
         if (params.from) sp.set("from", params.from);
         if (params.to) sp.set("to", params.to);
         return apiFetch<MeetingsPage>(`crm/meetings?${sp.toString()}`);
@@ -323,10 +339,11 @@ export const crmQueries = {
  * -------------------------------------------------------------------------- */
 
 export interface ContactInput {
-  fullName: string;
+  firstName: string;
+  lastName: string;
+  companyId?: string | null;
   email?: string | null;
   phone?: string | null;
-  company?: string | null;
   position?: string | null;
   notes?: string | null;
   tags?: string[];
@@ -438,6 +455,12 @@ export interface CompanyInput {
   name: string;
   domain?: string | null;
   industry?: string | null;
+  identificationNumber?: string | null;
+  taxIdentificationNumber?: string | null;
+  registeredAddress?: string | null;
+  city?: string | null;
+  postalCode?: string | null;
+  country?: string | null;
   notes?: string | null;
 }
 

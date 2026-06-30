@@ -24,10 +24,7 @@ export default async function CrmTasksPage() {
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">{t("tasks.pageHeading")}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{t("tasks.pageDescription")}</p>
-        </div>
+        <p className="text-sm text-muted-foreground">{t("tasks.pageDescription")}</p>
 
         <TasksTable />
       </div>

@@ -29,11 +29,11 @@ internal sealed class CreateContactHandler(CrmDbContext db, IBlindIndexHasher bl
         {
             UserId = command.UserId,
             CompanyId = command.CompanyId,
-            FullName = command.FullName.Trim(),
+            FirstName = command.FirstName.Trim(),
+            LastName = command.LastName.Trim(),
             Email = email,
             EmailHash = email is null ? null : blindIndex.Hash(email.ToUpperInvariant()),
             Phone = string.IsNullOrWhiteSpace(command.Phone) ? null : command.Phone.Trim(),
-            Company = string.IsNullOrWhiteSpace(command.Company) ? null : command.Company.Trim(),
             Position = string.IsNullOrWhiteSpace(command.Position) ? null : command.Position.Trim(),
             Notes = string.IsNullOrWhiteSpace(command.Notes) ? null : command.Notes,
             Tags = command.Tags,

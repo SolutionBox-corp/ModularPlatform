@@ -358,10 +358,12 @@
     "contactForm": {
       "createTitle": "Nový kontakt",
       "editTitle": "Upravit kontakt",
-      "fullName": "Celé jméno",
+      "firstName": "Jméno",
+      "lastName": "Příjmení",
       "email": "E-mail",
       "phone": "Telefon",
       "company": "Firma",
+      "noCompany": "Bez firmy",
       "position": "Pozice",
       "status": "Stav",
       "tags": "Štítky",
@@ -393,6 +395,8 @@
     "meetingForm": {
       "createTitle": "Naplánovat schůzku",
       "editTitle": "Upravit schůzku",
+      "contact": "Kontakt",
+      "contactPlaceholder": "Vyberte kontakt",
       "title": "Název",
       "scheduledAt": "Kdy",
       "duration": "Délka (min)",
@@ -424,8 +428,11 @@
       "boardCreated": "Nástěnka vytvořena"
     },
     "validation": {
-      "fullNameRequired": "Jméno je povinné.",
-      "fullNameMax": "Jméno je příliš dlouhé.",
+      "firstNameRequired": "Jméno je povinné.",
+      "firstNameMax": "Jméno je příliš dlouhé.",
+      "lastNameRequired": "Příjmení je povinné.",
+      "lastNameMax": "Příjmení je příliš dlouhé.",
+      "meetingContactRequired": "Vyberte kontakt.",
       "emailMax": "E-mail je příliš dlouhý.",
       "emailInvalid": "E-mail není platný.",
       "phoneMax": "Telefon je příliš dlouhý.",
@@ -444,7 +451,13 @@
       "nameRequired": "Název je povinný",
       "nameMax": "Název je příliš dlouhý",
       "domainMax": "Doména příliš dlouhá",
-      "industryMax": "Obor příliš dlouhý"
+      "industryMax": "Obor příliš dlouhý",
+      "identificationNumberMax": "IČO je příliš dlouhé",
+      "taxIdentificationNumberMax": "DIČ je příliš dlouhé",
+      "registeredAddressMax": "Sídlo je příliš dlouhé",
+      "cityMax": "Město je příliš dlouhé",
+      "postalCodeMax": "PSČ je příliš dlouhé",
+      "countryMax": "Země je příliš dlouhá"
     },
     "deals": {
       "metaTitle": "Obchody",
@@ -504,18 +517,31 @@
     },
     "companies": {
       "metaTitle": "Firmy",
+      "detailMetaTitle": "Firma",
       "pageHeading": "Firmy",
       "pageDescription": "B2B účty — seskupení kontaktů a obchodů.",
       "new": "Nová firma",
+      "edit": "Upravit",
       "delete": "Smazat",
+      "notFound": "Firma nenalezena.",
+      "backToCompanies": "Zpět na firmy",
+      "contactsHeading": "Kontakty",
+      "meetingsHeading": "Schůzky",
       "emptyTitle": "Žádné firmy",
       "emptyDescription": "Vytvořte firmu pro seskupení kontaktů a obchodů."
     },
     "companyForm": {
       "createTitle": "Nová firma",
+      "editTitle": "Upravit firmu",
       "name": "Název",
       "domain": "Doména",
       "industry": "Obor",
+      "identificationNumber": "IČO",
+      "taxIdentificationNumber": "DIČ",
+      "registeredAddress": "Sídlo",
+      "city": "Město",
+      "postalCode": "PSČ",
+      "country": "Země",
       "notes": "Poznámky",
       "save": "Uložit",
       "saving": "Ukládám…"

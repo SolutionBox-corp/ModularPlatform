@@ -22,7 +22,19 @@ internal static class CreateCompanyEndpoint
                 var userId = tenant.UserId
                     ?? throw new UnauthorizedException("auth.required", "Authentication required.");
                 var result = await dispatcher.Send(
-                    new CreateCompanyCommand(userId, request.Name ?? string.Empty, request.Domain, request.Industry, request.Notes), ct);
+                    new CreateCompanyCommand(
+                        userId,
+                        request.Name ?? string.Empty,
+                        request.Domain,
+                        request.Industry,
+                        request.IdentificationNumber,
+                        request.TaxIdentificationNumber,
+                        request.RegisteredAddress,
+                        request.City,
+                        request.PostalCode,
+                        request.Country,
+                        request.Notes),
+                    ct);
                 var location = links.GetPathByName(http, "GetCompany", new { companyId = result.Id })
                     ?? $"/crm/companies/{result.Id}";
                 return Results.Created(location, ApiResponse<CreateCompanyResponse>.Ok(result));

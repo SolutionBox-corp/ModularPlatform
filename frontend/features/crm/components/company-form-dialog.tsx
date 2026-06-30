@@ -16,18 +16,36 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { type CompanyInput } from "@/features/crm/api";
-import { useCreateCompany } from "@/features/crm/hooks";
+import { type Company, type CompanyInput } from "@/features/crm/api";
+import { useCreateCompany, useUpdateCompany } from "@/features/crm/hooks";
 import { buildCompanySchema, type CompanyFormValues } from "@/features/crm/schema";
 
 interface CompanyFormDialogProps {
+  company?: Company;
   trigger: ReactNode;
 }
 
-export function CompanyFormDialog({ trigger }: CompanyFormDialogProps) {
+function toFormValues(company?: Company): CompanyFormValues {
+  return {
+    name: company?.name ?? "",
+    domain: company?.domain ?? "",
+    industry: company?.industry ?? "",
+    identificationNumber: company?.identificationNumber ?? "",
+    taxIdentificationNumber: company?.taxIdentificationNumber ?? "",
+    registeredAddress: company?.registeredAddress ?? "",
+    city: company?.city ?? "",
+    postalCode: company?.postalCode ?? "",
+    country: company?.country ?? "",
+    notes: company?.notes ?? "",
+  };
+}
+
+export function CompanyFormDialog({ company, trigger }: CompanyFormDialogProps) {
   const t = useTranslations("crm");
   const [open, setOpen] = useState(false);
   const createMutation = useCreateCompany();
+  const updateMutation = useUpdateCompany(company?.id ?? "");
+  const isEdit = !!company;
 
   const {
     register,
@@ -37,7 +55,7 @@ export function CompanyFormDialog({ trigger }: CompanyFormDialogProps) {
     formState: { errors, isSubmitting },
   } = useForm<CompanyFormValues>({
     resolver: zodResolver(buildCompanySchema(t)),
-    values: { name: "", domain: "", industry: "", notes: "" },
+    values: toFormValues(company),
   });
 
   const onSubmit = handleSubmit(async (values) => {
@@ -45,11 +63,21 @@ export function CompanyFormDialog({ trigger }: CompanyFormDialogProps) {
       name: values.name.trim(),
       domain: values.domain?.trim() || null,
       industry: values.industry?.trim() || null,
+      identificationNumber: values.identificationNumber?.trim() || null,
+      taxIdentificationNumber: values.taxIdentificationNumber?.trim() || null,
+      registeredAddress: values.registeredAddress?.trim() || null,
+      city: values.city?.trim() || null,
+      postalCode: values.postalCode?.trim() || null,
+      country: values.country?.trim() || null,
       notes: values.notes?.trim() || null,
     };
     try {
-      await createMutation.mutateAsync(input);
-      reset();
+      if (isEdit) {
+        await updateMutation.mutateAsync(input);
+      } else {
+        await createMutation.mutateAsync(input);
+      }
+      reset(toFormValues(company));
       setOpen(false);
     } catch (err: unknown) {
       if (err && typeof err === "object" && "fieldErrors" in err && err.fieldErrors) {
@@ -67,7 +95,7 @@ export function CompanyFormDialog({ trigger }: CompanyFormDialogProps) {
       <DialogContent>
         <form onSubmit={onSubmit} noValidate>
           <DialogHeader>
-            <DialogTitle>{t("companyForm.createTitle")}</DialogTitle>
+            <DialogTitle>{isEdit ? t("companyForm.editTitle") : t("companyForm.createTitle")}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-3 py-4">
@@ -84,6 +112,34 @@ export function CompanyFormDialog({ trigger }: CompanyFormDialogProps) {
               <div className="space-y-1.5">
                 <Label htmlFor="co-industry">{t("companyForm.industry")}</Label>
                 <Input id="co-industry" {...register("industry")} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="co-ico">{t("companyForm.identificationNumber")}</Label>
+                <Input id="co-ico" {...register("identificationNumber")} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="co-dic">{t("companyForm.taxIdentificationNumber")}</Label>
+                <Input id="co-dic" {...register("taxIdentificationNumber")} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="co-address">{t("companyForm.registeredAddress")}</Label>
+              <Input id="co-address" {...register("registeredAddress")} />
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="co-city">{t("companyForm.city")}</Label>
+                <Input id="co-city" {...register("city")} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="co-postalCode">{t("companyForm.postalCode")}</Label>
+                <Input id="co-postalCode" {...register("postalCode")} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="co-country">{t("companyForm.country")}</Label>
+                <Input id="co-country" {...register("country")} />
               </div>
             </div>
             <div className="space-y-1.5">

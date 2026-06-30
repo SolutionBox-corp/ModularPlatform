@@ -6,7 +6,7 @@ namespace ModularPlatform.Crm.Gdpr;
 
 /// <summary>
 /// GDPR erasure port for CRM: scrubs the PII the user holds about their contacts and blanks interaction notes,
-/// then soft-deletes the contacts. The encrypted FullName/Email/Phone ciphertext is overwritten with neutral
+/// then soft-deletes the contacts. The encrypted FirstName/LastName/Email/Phone ciphertext is overwritten with neutral
 /// tombstones (atomic <c>ExecuteUpdate</c> — deliberately bypasses the encryption interceptor: the tombstone
 /// constants are not PII and must stay readable). EF / LINQ only. Idempotent. Runs in the Worker's system context
 /// (so the tenant filter is off; <c>IgnoreQueryFilters</c> also catches already soft-deleted rows still holding
@@ -25,11 +25,11 @@ internal sealed class CrmPersonalDataEraser(CrmDbContext db, IClock clock) : IEr
             .Where(c => c.UserId == userId)
             .ExecuteUpdateAsync(
                 s => s
-                    .SetProperty(c => c.FullName, "[erased]")
+                    .SetProperty(c => c.FirstName, "[erased]")
+                    .SetProperty(c => c.LastName, "[erased]")
                     .SetProperty(c => c.Email, (string?)null)
                     .SetProperty(c => c.EmailHash, (string?)null)
                     .SetProperty(c => c.Phone, (string?)null)
-                    .SetProperty(c => c.Company, (string?)null)
                     .SetProperty(c => c.Position, (string?)null)
                     .SetProperty(c => c.Notes, (string?)null)
                     .SetProperty(c => c.DeletedAt, c => c.DeletedAt ?? now),
@@ -84,6 +84,12 @@ internal sealed class CrmPersonalDataEraser(CrmDbContext db, IClock clock) : IEr
                     .SetProperty(c => c.Name, "[erased]")
                     .SetProperty(c => c.Domain, (string?)null)
                     .SetProperty(c => c.Industry, (string?)null)
+                    .SetProperty(c => c.IdentificationNumber, (string?)null)
+                    .SetProperty(c => c.TaxIdentificationNumber, (string?)null)
+                    .SetProperty(c => c.RegisteredAddress, (string?)null)
+                    .SetProperty(c => c.City, (string?)null)
+                    .SetProperty(c => c.PostalCode, (string?)null)
+                    .SetProperty(c => c.Country, (string?)null)
                     .SetProperty(c => c.Notes, (string?)null)
                     .SetProperty(c => c.DeletedAt, c => c.DeletedAt ?? now),
                 ct);

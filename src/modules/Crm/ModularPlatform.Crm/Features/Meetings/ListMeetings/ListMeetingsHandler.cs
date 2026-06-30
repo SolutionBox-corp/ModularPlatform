@@ -32,6 +32,13 @@ internal sealed class ListMeetingsHandler(IReadDbContextFactory<CrmDbContext> re
             filtered = filtered.Where(m => m.ContactId == contactId);
         }
 
+        if (query.CompanyId is { } companyId)
+        {
+            filtered = filtered.Where(m =>
+                m.ContactId != null
+                && db.Contacts.Any(c => c.Id == m.ContactId && c.UserId == query.UserId && c.CompanyId == companyId));
+        }
+
         if (!string.IsNullOrWhiteSpace(query.Status))
         {
             var status = query.Status.Trim().ToLowerInvariant();

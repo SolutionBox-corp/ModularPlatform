@@ -17,7 +17,7 @@ public sealed class CrmMeetingsTests(PlatformApiFactory fixture)
     private async Task<Guid> CreateContactAsync(string token, string name)
     {
         var resp = await fixture.Client.SendAsync(fixture.Authed(
-            HttpMethod.Post, "/v1/crm/contacts", token, new { fullName = name, status = "active" }));
+            HttpMethod.Post, "/v1/crm/contacts", token, new { firstName = name, lastName = "Contact", status = "active" }));
         resp.StatusCode.ShouldBe(HttpStatusCode.Created, await resp.Content.ReadAsStringAsync());
         return (await PlatformApiFactory.ReadData(resp)).GetProperty("id").GetGuid();
     }
@@ -71,13 +71,14 @@ public sealed class CrmMeetingsTests(PlatformApiFactory fixture)
     public async Task List_is_ordered_soonest_first_and_filtered_by_status()
     {
         var (_, token) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
+        var contactId = await CreateContactAsync(token, "Meeting");
         var later = await CreateMeetingAsync(token, new
         {
-            title = "Later", scheduledAt = DateTimeOffset.UtcNow.AddDays(5), durationMinutes = 60,
+            contactId, title = "Later", scheduledAt = DateTimeOffset.UtcNow.AddDays(5), durationMinutes = 60,
         });
         var sooner = await CreateMeetingAsync(token, new
         {
-            title = "Sooner", scheduledAt = DateTimeOffset.UtcNow.AddDays(1), durationMinutes = 60,
+            contactId, title = "Sooner", scheduledAt = DateTimeOffset.UtcNow.AddDays(1), durationMinutes = 60,
         });
 
         var list = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Get, "/v1/crm/meetings", token));
@@ -97,9 +98,10 @@ public sealed class CrmMeetingsTests(PlatformApiFactory fixture)
     public async Task Update_reschedules_the_meeting()
     {
         var (_, token) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
+        var contactId = await CreateContactAsync(token, "Meeting");
         var id = await CreateMeetingAsync(token, new
         {
-            title = "Old", scheduledAt = DateTimeOffset.UtcNow.AddDays(1), durationMinutes = 30,
+            contactId, title = "Old", scheduledAt = DateTimeOffset.UtcNow.AddDays(1), durationMinutes = 30,
         });
 
         var update = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Patch, $"/v1/crm/meetings/{id}", token,
@@ -150,9 +152,10 @@ public sealed class CrmMeetingsTests(PlatformApiFactory fixture)
     public async Task Cancelling_a_completed_meeting_is_rejected()
     {
         var (_, token) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
+        var contactId = await CreateContactAsync(token, "Meeting");
         var id = await CreateMeetingAsync(token, new
         {
-            title = "Done", scheduledAt = DateTimeOffset.UtcNow.AddDays(1), durationMinutes = 30,
+            contactId, title = "Done", scheduledAt = DateTimeOffset.UtcNow.AddDays(1), durationMinutes = 30,
         });
         await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Post, $"/v1/crm/meetings/{id}/complete", token, new { outcome = (string?)null }));
 
@@ -164,9 +167,10 @@ public sealed class CrmMeetingsTests(PlatformApiFactory fixture)
     public async Task Foreign_meeting_is_not_found()
     {
         var (_, ownerToken) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
+        var contactId = await CreateContactAsync(ownerToken, "Meeting");
         var id = await CreateMeetingAsync(ownerToken, new
         {
-            title = "Private", scheduledAt = DateTimeOffset.UtcNow.AddDays(1), durationMinutes = 30,
+            contactId, title = "Private", scheduledAt = DateTimeOffset.UtcNow.AddDays(1), durationMinutes = 30,
         });
 
         var (_, intruderToken) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
@@ -178,8 +182,9 @@ public sealed class CrmMeetingsTests(PlatformApiFactory fixture)
     public async Task Invalid_duration_is_rejected()
     {
         var (_, token) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
+        var contactId = await CreateContactAsync(token, "Meeting");
         var resp = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Post, "/v1/crm/meetings", token,
-            new { title = "Bad", scheduledAt = DateTimeOffset.UtcNow.AddDays(1), durationMinutes = 0 }));
+            new { contactId, title = "Bad", scheduledAt = DateTimeOffset.UtcNow.AddDays(1), durationMinutes = 0 }));
         resp.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 }

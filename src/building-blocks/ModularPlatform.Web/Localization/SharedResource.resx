@@ -163,12 +163,13 @@
   <data name="billing.subscription.plan_key.required" xml:space="preserve"><value>A plan key is required.</value></data>
   <data name="billing.subscription.plan_key.too_long" xml:space="preserve"><value>The plan key is too long.</value></data>
   <data name="crm.contact_not_found" xml:space="preserve"><value>Contact not found.</value></data>
-  <data name="crm.contact.full_name.required" xml:space="preserve"><value>The contact name is required.</value></data>
-  <data name="crm.contact.full_name.too_long" xml:space="preserve"><value>The contact name is too long.</value></data>
+  <data name="crm.contact.first_name.required" xml:space="preserve"><value>The first name is required.</value></data>
+  <data name="crm.contact.first_name.too_long" xml:space="preserve"><value>The first name is too long.</value></data>
+  <data name="crm.contact.last_name.required" xml:space="preserve"><value>The last name is required.</value></data>
+  <data name="crm.contact.last_name.too_long" xml:space="preserve"><value>The last name is too long.</value></data>
   <data name="crm.contact.email.invalid" xml:space="preserve"><value>The contact email is not valid.</value></data>
   <data name="crm.contact.email.too_long" xml:space="preserve"><value>The contact email is too long.</value></data>
   <data name="crm.contact.phone.too_long" xml:space="preserve"><value>The contact phone is too long.</value></data>
-  <data name="crm.contact.company.too_long" xml:space="preserve"><value>The company name is too long.</value></data>
   <data name="crm.contact.position.too_long" xml:space="preserve"><value>The position is too long.</value></data>
   <data name="crm.contact.notes.too_long" xml:space="preserve"><value>The notes are too long.</value></data>
   <data name="crm.contact.status.invalid" xml:space="preserve"><value>The contact status is not valid.</value></data>
@@ -177,6 +178,7 @@
   <data name="crm.interaction.type.invalid" xml:space="preserve"><value>The interaction type is not valid.</value></data>
   <data name="crm.interaction.body.too_long" xml:space="preserve"><value>The interaction note is too long.</value></data>
   <data name="crm.meeting_not_found" xml:space="preserve"><value>Meeting not found.</value></data>
+  <data name="crm.meeting.contact.required" xml:space="preserve"><value>A meeting must be linked to a contact.</value></data>
   <data name="crm.meeting.title.required" xml:space="preserve"><value>The meeting title is required.</value></data>
   <data name="crm.meeting.title.too_long" xml:space="preserve"><value>The meeting title is too long.</value></data>
   <data name="crm.meeting.scheduled_at.required" xml:space="preserve"><value>The meeting time is required.</value></data>
@@ -203,6 +205,12 @@
   <data name="crm.company.name.too_long" xml:space="preserve"><value>The company name is too long.</value></data>
   <data name="crm.company.domain.too_long" xml:space="preserve"><value>The company domain is too long.</value></data>
   <data name="crm.company.industry.too_long" xml:space="preserve"><value>The company industry is too long.</value></data>
+  <data name="crm.company.identification_number.too_long" xml:space="preserve"><value>The company identification number is too long.</value></data>
+  <data name="crm.company.tax_identification_number.too_long" xml:space="preserve"><value>The company tax identification number is too long.</value></data>
+  <data name="crm.company.registered_address.too_long" xml:space="preserve"><value>The company registered address is too long.</value></data>
+  <data name="crm.company.city.too_long" xml:space="preserve"><value>The company city is too long.</value></data>
+  <data name="crm.company.postal_code.too_long" xml:space="preserve"><value>The company postal code is too long.</value></data>
+  <data name="crm.company.country.too_long" xml:space="preserve"><value>The company country is too long.</value></data>
   <data name="crm.company.notes.too_long" xml:space="preserve"><value>The company notes are too long.</value></data>
   <data name="crm.board_not_found" xml:space="preserve"><value>Board not found.</value></data>
   <data name="crm.board.name.required" xml:space="preserve"><value>The board name is required.</value></data>
