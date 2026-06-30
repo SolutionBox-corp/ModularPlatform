@@ -94,7 +94,7 @@ event-based flow with idempotency/concurrency/self-healing. Only free, battle-te
 | `SendNotification` → in-app row + channel deliveries via outbox (never inline) | ✅ | email/push handled in Worker |
 | Templates + in-app feed + `MarkNotificationRead` | ✅ | |
 | **`welcome` template seeded** | ✅ | `NotificationsSeeder` (welcome + purchase_completed, en+cs) |
-| Per-user email locale resolution | ◐ | resolves via command data; Worker-side assertion still open (NT-3) |
+| Per-user email locale resolution | ✅ | `WorkerEmailDeliveryTests` proves a real Worker delivers the requested locale template to SMTP |
 
 ## 7. GDPR & Security
 

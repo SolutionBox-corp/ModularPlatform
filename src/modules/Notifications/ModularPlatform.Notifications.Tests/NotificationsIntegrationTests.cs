@@ -659,6 +659,9 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
         var (bobId, _) = await fixture.RegisterAndLoginAsync(
             $"count-bob-{Guid.CreateVersion7():N}@example.com", Password);
 
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM notifications WHERE \"UserId\" = '{aliceId}' AND \"TemplateKey\" = 'welcome'",
+            1);
         await fixture.ExecuteSqlAsync($"UPDATE notifications SET \"ReadAt\" = now() WHERE \"UserId\" = '{aliceId}'");
 
         var aliceOne = $"count-alice-1-{Guid.CreateVersion7():N}";
