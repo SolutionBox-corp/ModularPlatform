@@ -13,6 +13,7 @@ using ModularPlatform.Identity.Features.Admin.AssignRole;
 using ModularPlatform.Identity.Features.Admin.GetUserDetail;
 using ModularPlatform.Identity.Features.Admin.IssueMachineToken;
 using ModularPlatform.Identity.Features.Admin.RevokeRole;
+using ModularPlatform.Identity.Features.Admin.UnlockUser;
 using ModularPlatform.Identity.Features.Audit.GetUserAuditTrail;
 using ModularPlatform.Identity.Features.PlatformAdmin.GetPlatformUserAudit;
 using ModularPlatform.Identity.Features.PlatformAdmin.ListPlatformUsers;
@@ -88,6 +89,7 @@ public sealed class IdentityModule : IModule
         endpoints.MapAssignRole();
         endpoints.MapRevokeRole();
         endpoints.MapGetUserDetail();
+        endpoints.MapUnlockUser();
         endpoints.MapIssueMachineToken();
         endpoints.MapGetUserAuditTrail();
         endpoints.MapListPlatformUsers();

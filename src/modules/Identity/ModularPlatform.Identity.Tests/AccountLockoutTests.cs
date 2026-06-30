@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using ModularPlatform.IntegrationTesting;
 using Shouldly;
 
@@ -115,5 +116,71 @@ public sealed class AccountLockoutTests(PlatformApiFactory fixture)
 
         (await fixture.ScalarAsync<int>(
             $"SELECT \"FailedAccessCount\" FROM users WHERE \"Id\" = '{userId}'")).ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Admin_can_unlock_a_locked_account_immediately()
+    {
+        var email = $"admin-unlock-{Guid.CreateVersion7():N}@example.com";
+        var register = await fixture.Client.PostAsJsonAsync("/v1/identity/users",
+            new { email, password = Password, displayName = "Unlock User" });
+        register.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var userId = (await PlatformApiFactory.ReadData(register)).GetProperty("userId").GetGuid();
+
+        for (var attempt = 0; attempt < Threshold; attempt++)
+        {
+            (await fixture.Client.PostAsJsonAsync("/v1/identity/auth/login",
+                new { email, password = "wrong-password" })).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        }
+
+        var lockedOut = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/login",
+            new { email, password = Password });
+        lockedOut.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        (await lockedOut.Content.ReadAsStringAsync()).ShouldContain("auth.locked_out");
+
+        var normalToken = await LoginAsync(await RegisterNormalEmailAsync(), Password);
+        var forbidden = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, $"/v1/identity/admin/users/{userId}/unlock", normalToken));
+        forbidden.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        var adminToken = await EnsureAdminTokenAsync();
+        var unlock = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, $"/v1/identity/admin/users/{userId}/unlock", adminToken));
+        unlock.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        (await fixture.ScalarAsync<int>(
+            $"SELECT \"FailedAccessCount\" FROM users WHERE \"Id\" = '{userId}'")).ShouldBe(0);
+        (await fixture.ScalarAsync<bool>(
+            $"SELECT \"LockoutEndUtc\" IS NULL FROM users WHERE \"Id\" = '{userId}'")).ShouldBeTrue();
+
+        var login = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/login",
+            new { email, password = Password });
+        login.EnsureSuccessStatusCode();
+    }
+
+    private async Task<string> RegisterNormalEmailAsync()
+    {
+        var email = $"non-admin-unlock-{Guid.CreateVersion7():N}@example.com";
+        var register = await fixture.Client.PostAsJsonAsync("/v1/identity/users",
+            new { email, password = Password, displayName = "Non Admin" });
+        register.StatusCode.ShouldBe(HttpStatusCode.Created);
+        return email;
+    }
+
+    private async Task<string> EnsureAdminTokenAsync()
+    {
+        var register = await fixture.Client.PostAsJsonAsync("/v1/identity/users",
+            new { email = PlatformApiFactory.AdminEmail, password = Password, displayName = "Platform Admin" });
+        register.StatusCode.ShouldBeOneOf(HttpStatusCode.Created, HttpStatusCode.Conflict);
+
+        return await LoginAsync(PlatformApiFactory.AdminEmail, Password);
+    }
+
+    private async Task<string> LoginAsync(string email, string password)
+    {
+        var login = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/login", new { email, password });
+        login.EnsureSuccessStatusCode();
+        using var json = JsonDocument.Parse(await login.Content.ReadAsStringAsync());
+        return json.RootElement.GetProperty("data").GetProperty("accessToken").GetString()!;
     }
 }
