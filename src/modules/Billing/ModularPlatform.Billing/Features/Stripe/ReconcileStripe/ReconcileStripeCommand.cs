@@ -12,4 +12,7 @@ public sealed record ReconcileStripeCommand : ICommand<ReconcileStripeResponse>;
 public sealed record ReconcileStripeResponse(
     int StuckEventsRequeued,
     int SubscriptionDriftsFixed,
-    int StuckPurchasesRegranted = 0);
+    int StuckPurchasesRegranted = 0,
+    bool StuckEventCapReached = false,
+    bool SubscriptionCapReached = false,
+    bool StuckPurchaseCapReached = false);

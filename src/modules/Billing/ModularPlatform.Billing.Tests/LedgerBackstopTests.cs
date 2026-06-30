@@ -1,7 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using ModularPlatform.Billing.Features.Credits.EnsureCreditAccount;
+using ModularPlatform.Billing.Persistence;
 using ModularPlatform.Cqrs;
 using ModularPlatform.IntegrationTesting;
 using Npgsql;
@@ -130,6 +132,37 @@ public sealed class LedgerBackstopTests(PlatformApiFactory fixture)
         newValues.ShouldContain("\"Released\"");
         // Only changed columns: the immutable hold Amount is NOT in the update payload.
         newValues.ShouldNotContain("\"Amount\"");
+    }
+
+    [Fact]
+    public async Task Credit_entries_are_append_only_even_through_the_billing_db_context()
+    {
+        var (userId, _) = await fixture.RegisterAndLoginAsync($"append-only-{Guid.CreateVersion7():N}@test.io", Password);
+        await TopUpAsync(userId, 100);
+
+        var entryId = await fixture.ScalarAsync<Guid>(
+            "SELECT e.\"Id\" FROM credit_entries e " +
+            "JOIN credit_accounts a ON a.\"Id\" = e.\"AccountId\" " +
+            $"WHERE a.\"UserId\" = '{userId}' LIMIT 1");
+
+        await using var updateScope = fixture.Services.CreateAsyncScope();
+        var updateDb = updateScope.ServiceProvider.GetRequiredService<BillingDbContext>();
+        var updateEntry = await updateDb.CreditEntries.SingleAsync(e => e.Id == entryId);
+        updateEntry.Amount = 101;
+
+        var update = await Should.ThrowAsync<InvalidOperationException>(() => updateDb.SaveChangesAsync());
+        update.Message.ShouldContain("credit_entries is append-only");
+
+        await using var deleteScope = fixture.Services.CreateAsyncScope();
+        var deleteDb = deleteScope.ServiceProvider.GetRequiredService<BillingDbContext>();
+        var deleteEntry = await deleteDb.CreditEntries.SingleAsync(e => e.Id == entryId);
+        deleteDb.CreditEntries.Remove(deleteEntry);
+
+        var delete = await Should.ThrowAsync<InvalidOperationException>(() => deleteDb.SaveChangesAsync());
+        delete.Message.ShouldContain("credit_entries is append-only");
+
+        (await fixture.ScalarAsync<long>(
+            $"SELECT \"Amount\" FROM credit_entries WHERE \"Id\" = '{entryId}'")).ShouldBe(100);
     }
 
     private Task TopUpAsync(Guid userId, long amount) => fixture.GrantCreditsAsync(userId, amount);

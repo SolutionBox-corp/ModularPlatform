@@ -8,7 +8,7 @@ namespace ModularPlatform.Billing.Features.Subscriptions.GetMySubscription;
 
 /// <summary>
 /// Read slice: the caller's most recent non-canceled subscription (one live subscription per user is
-/// enforced on checkout). 404 when none exists.
+/// enforced by the subscriptions UserId partial unique index). 404 when none exists.
 /// </summary>
 internal sealed class GetMySubscriptionHandler(IReadDbContextFactory<BillingDbContext> readFactory)
     : IQueryHandler<GetMySubscriptionQuery, SubscriptionResponse>

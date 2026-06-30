@@ -17,7 +17,7 @@ internal static class GrantConsentEndpoint
                 IDispatcher dispatcher,
                 CancellationToken ct) =>
             {
-                // Identity comes from the token, NOT request.UserId (which is ignored to prevent acting as another user).
+                // Identity comes from the token. The wire request deliberately has no UserId.
                 var userId = tenant.UserId ?? throw new UnauthorizedException("auth.required", "Authentication required.");
                 var result = await dispatcher.Send(new GrantConsentCommand(userId, request.ConsentType, request.PolicyVersion), ct);
                 return Results.Ok(ApiResponse<GrantConsentResponse>.Ok(result));

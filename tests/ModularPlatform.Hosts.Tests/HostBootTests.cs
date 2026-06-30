@@ -2,10 +2,15 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using ModularPlatform.Abstractions;
+using ModularPlatform.Cqrs;
+using ModularPlatform.Cqrs.Behaviors;
 using ModularPlatform.Identity;
 using ModularPlatform.Jobs;
 using ModularPlatform.MigrationService;
 using ModularPlatform.Persistence;
+using ModularPlatform.Persistence.Behaviors;
+using ModularPlatform.Telemetry;
 using ModularPlatform.Worker;
 using Npgsql;
 using Shouldly;
@@ -36,6 +41,7 @@ public sealed class HostBootTests
             "--environment=Development",
             "--ConnectionStrings:Write",
             WriteConnectionString,
+            "--RunMigrationsAtStartup=false",
             "--Modules:Identity:Enabled=true",
             "--Modules:Billing:Enabled=true",
             "--Modules:Notifications:Enabled=true",
@@ -47,6 +53,10 @@ public sealed class HostBootTests
             "--Modules:Tenancy:Enabled=true",
             // The fake Stripe gateway is exempt from the prod guard in Development and avoids needing a real API key.
             "--Billing:Stripe:UseFakeGateway=true",
+            "--Jwt:Issuer=test",
+            "--Jwt:Audience=test",
+            "--Jwt:SigningKey=host-boot-signing-key-at-least-32b",
+            "--Secrets:MasterKeys:1=aG9zdC1ib290LXNlY3JldHMta2V5LTAwMDAwMDAwMDA=",
             "--Storage:Provider=local",
         };
 
@@ -57,6 +67,15 @@ public sealed class HostBootTests
         }
 
         return [.. args];
+    }
+
+    [Fact]
+    public async Task Api_host_composes_and_its_dependency_graph_is_valid()
+    {
+        await using var app = await ApiHostBuilder.CreateAsync(BootArgs());
+
+        app.ShouldNotBeNull();
+        AssertPiiRetention(app);
     }
 
     [Fact]
@@ -76,6 +95,25 @@ public sealed class HostBootTests
 
         host.ShouldNotBeNull();
         AssertPiiRetention(host);
+    }
+
+    [Fact]
+    public void Worker_and_jobs_hosts_register_command_pipeline_behaviors_in_the_expected_order()
+    {
+        AssertCommandPipelineBehaviorOrder(WorkerHostBuilder.Create(BootArgs()).Services);
+        AssertCommandPipelineBehaviorOrder(JobsHostBuilder.Create(BootArgs()).Services);
+    }
+
+    [Fact]
+    public void Non_http_hosts_run_with_system_tenant_context()
+    {
+        using var worker = WorkerHostBuilder.Create(BootArgs()).Build();
+        using var jobs = JobsHostBuilder.Create(BootArgs()).Build();
+        using var migration = MigrationHostBuilder.Create(BootArgs(), out _).Build();
+
+        AssertSystemTenantContext(worker);
+        AssertSystemTenantContext(jobs);
+        AssertSystemTenantContext(migration);
     }
 
     [Fact]
@@ -116,5 +154,29 @@ public sealed class HostBootTests
         options.Durability.DeadLetterQueueExpirationEnabled.ShouldBeTrue();
         options.Durability.DeadLetterQueueExpiration.ShouldBe(TimeSpan.FromDays(7));
         options.Durability.KeepAfterMessageHandling.ShouldBe(TimeSpan.FromMinutes(5));
+    }
+
+    private static void AssertSystemTenantContext(IHost host)
+    {
+        var tenant = host.Services.GetRequiredService<ITenantContext>();
+        tenant.ShouldBeOfType<SystemTenantContext>();
+        tenant.IsSystem.ShouldBeTrue();
+        tenant.UserId.ShouldBeNull();
+        tenant.TenantId.ShouldBeNull();
+    }
+
+    private static void AssertCommandPipelineBehaviorOrder(IServiceCollection services)
+    {
+        var behaviors = services
+            .Where(d => d.ServiceType == typeof(IPipelineBehavior<,>))
+            .Select(d => d.ImplementationType)
+            .ToArray();
+
+        behaviors.ShouldBe([
+            typeof(TelemetryBehavior<,>),
+            typeof(LoggingBehavior<,>),
+            typeof(ValidationBehavior<,>),
+            typeof(ConcurrencyRetryBehavior<,>)
+        ]);
     }
 }

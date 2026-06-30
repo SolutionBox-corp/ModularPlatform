@@ -223,13 +223,13 @@ public sealed class GdprIntegrationTests(PlatformApiFactory fixture)
         // Grant.
         var grant = await fixture.Client.SendAsync(
             fixture.Authed(HttpMethod.Post, "/v1/gdpr/consents/grant", accessToken,
-                new { userId, consentType }));
+                new { consentType }));
         grant.StatusCode.ShouldBe(HttpStatusCode.OK);
 
         // Withdraw the SAME consent type — appends a second row rather than mutating the first.
         var withdraw = await fixture.Client.SendAsync(
             fixture.Authed(HttpMethod.Post, "/v1/gdpr/consents/withdraw", accessToken,
-                new { userId, consentType }));
+                new { consentType }));
         withdraw.StatusCode.ShouldBe(HttpStatusCode.OK);
 
         // GET reflects the latest state (Granted = false) for this consent type, newest-first.
@@ -294,6 +294,32 @@ public sealed class GdprIntegrationTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Consent_grant_ignores_a_body_user_id_and_uses_the_token_subject()
+    {
+        var (ownerUserId, accessToken) = await fixture.RegisterAndLoginAsync(
+            $"consent-owner-{Guid.CreateVersion7():N}@example.com", Password);
+        var (foreignUserId, _) = await fixture.RegisterAndLoginAsync(
+            $"consent-foreign-{Guid.CreateVersion7():N}@example.com", Password);
+        var consentType = $"idor-{Guid.CreateVersion7():N}";
+
+        var grant = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Post, "/v1/gdpr/consents/grant", accessToken,
+                new { userId = foreignUserId, consentType, policyVersion = "2026-06" }));
+
+        grant.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await fixture.ScalarAsync<long>(
+            $"""
+             SELECT count(*)::bigint FROM consent_records
+             WHERE "UserId" = '{ownerUserId}' AND "ConsentType" = '{consentType}'
+             """)).ShouldBe(1);
+        (await fixture.ScalarAsync<long>(
+            $"""
+             SELECT count(*)::bigint FROM consent_records
+             WHERE "UserId" = '{foreignUserId}' AND "ConsentType" = '{consentType}'
+             """)).ShouldBe(0);
+    }
+
+    [Fact]
     public async Task Consent_grant_trims_type_and_policy_version_before_persistence()
     {
         var email = $"consent-trim-{Guid.CreateVersion7():N}@example.com";
@@ -331,7 +357,7 @@ public sealed class GdprIntegrationTests(PlatformApiFactory fixture)
         var consentType = $"analytics-{Guid.CreateVersion7():N}";
 
         await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Post, "/v1/gdpr/consents/grant", accessToken,
-            new { userId, consentType }));
+            new { consentType }));
 
         // Export now carries the Gdpr consent section.
         var export = await fixture.Client.SendAsync(

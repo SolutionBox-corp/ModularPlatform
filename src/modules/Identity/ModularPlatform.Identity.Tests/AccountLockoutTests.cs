@@ -47,6 +47,31 @@ public sealed class AccountLockoutTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Parallel_wrong_password_attempts_still_lock_the_account_after_the_threshold()
+    {
+        var email = $"lockout-parallel-{Guid.CreateVersion7():N}@example.com";
+        var register = await fixture.Client.PostAsJsonAsync("/v1/identity/users",
+            new { email, password = Password, displayName = "Parallel Lockout User" });
+        register.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var userId = (await PlatformApiFactory.ReadData(register)).GetProperty("userId").GetGuid();
+
+        var attempts = await Task.WhenAll(Enumerable.Range(0, Threshold).Select(_ =>
+            fixture.Client.PostAsJsonAsync("/v1/identity/auth/login", new { email, password = "wrong-password" })));
+
+        attempts.ShouldAllBe(response => response.StatusCode == HttpStatusCode.Unauthorized);
+
+        var lockedOut = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/login",
+            new { email, password = Password });
+        lockedOut.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        (await lockedOut.Content.ReadAsStringAsync()).ShouldContain("auth.locked_out");
+
+        (await fixture.ScalarAsync<int>(
+            $"SELECT \"FailedAccessCount\" FROM users WHERE \"Id\" = '{userId}'")).ShouldBe(0);
+        (await fixture.ScalarAsync<bool>(
+            $"SELECT \"LockoutEndUtc\" > now() FROM users WHERE \"Id\" = '{userId}'")).ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task Lockout_expires_after_the_window_and_the_correct_password_works_again()
     {
         var email = $"lockexpire-{Guid.CreateVersion7():N}@example.com";

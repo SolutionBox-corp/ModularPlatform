@@ -1,5 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -17,6 +19,7 @@ using ModularPlatform.Notifications.Seeding;
 using Shouldly;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
+using Wolverine.Persistence.Durability;
 
 namespace ModularPlatform.Notifications.Tests;
 
@@ -134,6 +137,33 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
         send.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
+    // NT-5 — Validation rejects unknown channels before the handler can silently ignore them. This pins the
+    // public API contract: callers get RFC9457 validation.failed with the field-level notification.channel.invalid
+    // code, not a successful request that drops a misspelled channel.
+    [Fact]
+    public async Task SendNotification_with_unknown_channel_returns_validation_problem()
+    {
+        var (recipientId, adminToken) = await AdminTokenAsync();
+
+        var response = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/notifications/send", adminToken, new
+            {
+                userId = recipientId,
+                templateKey = "welcome",
+                channels = new[] { "fax" },
+                data = new Dictionary<string, string>(),
+            }));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        response.Content.Headers.ContentType!.MediaType.ShouldBe("application/problem+json");
+
+        var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+        body.GetProperty("errorCode").GetString().ShouldBe("validation.failed");
+        body.GetProperty("errors").EnumerateArray()
+            .ShouldContain(e => e.GetProperty("field").GetString()!.StartsWith("Channels", StringComparison.Ordinal)
+                                && e.GetProperty("errorCode").GetString() == "notification.channel.invalid");
+    }
+
     // NT-1 — SendNotification persists an in-app row inline AND hands per-channel delivery off via the outbox
     // (never inline). We seed a template, call the send endpoint as an admin (the only caller with
     // notifications.send), then assert: (a) HTTP 200 returned immediately, and (b) exactly one inapp row was
@@ -190,6 +220,68 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task SendNotification_persists_durable_delivery_messages_for_email_and_push_channels()
+    {
+        var (recipientId, adminToken) = await AdminTokenAsync();
+
+        var templateKey = $"nt-delivery-{Guid.CreateVersion7():N}";
+        await fixture.ExecuteSqlAsync(
+            $"INSERT INTO notification_templates (\"Id\", \"Key\", \"Locale\", \"Subject\", \"Body\") " +
+            $"VALUES ('{Guid.CreateVersion7()}', '{templateKey}', 'en', 'Delivery {{displayName}}', 'Body {{displayName}}')");
+
+        var send = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/notifications/send", adminToken, new
+            {
+                userId = recipientId,
+                templateKey,
+                channels = new[] { "email", "push", "inapp" },
+                data = new Dictionary<string, string> { ["displayName"] = "Ada" },
+            }));
+
+        send.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var notificationId = await fixture.ScalarAsync<Guid>(
+            $"SELECT \"Id\" FROM notifications WHERE \"UserId\" = '{recipientId}' AND \"TemplateKey\" = '{templateKey}'");
+
+        await WaitForIncomingEnvelopeAsync<EmailDeliveryRequested>(notificationId);
+        await WaitForIncomingEnvelopeAsync<PushDeliveryRequested>(notificationId);
+    }
+
+    [Fact]
+    public async Task SendNotification_email_delivery_message_uses_requested_locale_template()
+    {
+        var (recipientId, adminToken) = await AdminTokenAsync();
+
+        var templateKey = $"nt-email-locale-{Guid.CreateVersion7():N}";
+        await fixture.ExecuteSqlAsync(
+            $"INSERT INTO notification_templates (\"Id\", \"Key\", \"Locale\", \"Subject\", \"Body\") " +
+            $"VALUES ('{Guid.CreateVersion7()}', '{templateKey}', 'en', 'EN Hello {{displayName}}', 'EN Body {{displayName}}')");
+        await fixture.ExecuteSqlAsync(
+            $"INSERT INTO notification_templates (\"Id\", \"Key\", \"Locale\", \"Subject\", \"Body\") " +
+            $"VALUES ('{Guid.CreateVersion7()}', '{templateKey}', 'cs', 'CS Hello {{displayName}}', 'CS Body {{displayName}}')");
+
+        var send = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/notifications/send", adminToken, new
+            {
+                userId = recipientId,
+                templateKey,
+                channels = new[] { "email" },
+                data = new Dictionary<string, string> { ["displayName"] = "Ada", ["locale"] = "cs" },
+            }));
+
+        send.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var notificationId = await fixture.ScalarAsync<Guid>(
+            $"SELECT \"Id\" FROM notifications WHERE \"UserId\" = '{recipientId}' AND \"TemplateKey\" = '{templateKey}'");
+
+        var envelopeData = await WaitForIncomingEnvelopeDataAsync<EmailDeliveryRequested>(notificationId);
+        envelopeData.ShouldContain("CS Hello Ada");
+        envelopeData.ShouldContain("CS Body Ada");
+        envelopeData.ShouldNotContain("EN Hello Ada");
+        envelopeData.ShouldNotContain("EN Body Ada");
+    }
+
+    [Fact]
     public async Task SendNotification_deduplicates_channels_before_publishing_delivery_messages()
     {
         var recipientId = Guid.CreateVersion7();
@@ -221,6 +313,61 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
         db.Notifications.Count(n => n.UserId == recipientId && n.TemplateKey == templateKey).ShouldBe(1);
         outbox.Published.OfType<EmailDeliveryRequested>().Count().ShouldBe(1);
         outbox.Published.OfType<PushDeliveryRequested>().Count().ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task SendNotification_realtime_push_happens_only_after_successful_commit()
+    {
+        var recipientId = Guid.CreateVersion7();
+        var templateKey = $"nt-realtime-after-commit-{Guid.CreateVersion7():N}";
+        var tenant = new TestTenantContext(recipientId);
+        var realtime = new RecordingRealtimePublisher();
+
+        await using (var seedDb = NewNotificationsDbContext(tenant))
+        {
+            seedDb.NotificationTemplates.Add(new NotificationTemplate
+            {
+                Key = templateKey,
+                Locale = "en",
+                Subject = "Realtime {displayName}",
+                Body = "Body for {displayName}"
+            });
+            await seedDb.SaveChangesAsync();
+        }
+
+        await using (var failedDb = NewNotificationsDbContext(tenant))
+        {
+            var failingOutbox = new RecordingOutbox(failedDb, failBeforeSave: true);
+            var failingHandler = new SendNotificationHandler(failingOutbox, realtime, new FixedClock());
+
+            await Should.ThrowAsync<InvalidOperationException>(() => failingHandler.Handle(new SendNotificationCommand(
+                    recipientId,
+                    templateKey,
+                    ["inapp"],
+                    new Dictionary<string, string> { ["displayName"] = "Ada" }),
+                CancellationToken.None));
+        }
+
+        (await CountNotificationsAsync(recipientId, templateKey)).ShouldBe(0);
+        realtime.Published.Count.ShouldBe(0,
+            "a failed commit must not emit a phantom realtime notification");
+
+        await using (var successDb = NewNotificationsDbContext(tenant))
+        {
+            var successOutbox = new RecordingOutbox(successDb);
+            var successHandler = new SendNotificationHandler(successOutbox, realtime, new FixedClock());
+
+            await successHandler.Handle(new SendNotificationCommand(
+                    recipientId,
+                    templateKey,
+                    ["inapp"],
+                    new Dictionary<string, string> { ["displayName"] = "Ada" }),
+                CancellationToken.None);
+        }
+
+        (await CountNotificationsAsync(recipientId, templateKey)).ShouldBe(1);
+        realtime.Published.Count.ShouldBe(1);
+        realtime.Published.Single().ShouldBe((recipientId, "notification"));
     }
 
     [Fact]
@@ -302,19 +449,42 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
         var after = await BuiltInTemplateCountAsync();
         after.ShouldBe(before);
 
-        var duplicateGroups = await fixture.ScalarAsync<long>(
-            """
-            SELECT count(*)::bigint
-            FROM (
-                SELECT "Key", "Locale", count(*)::bigint AS c
-                FROM notification_templates
-                WHERE ("Key" = 'welcome' AND "Locale" IN ('en', 'cs'))
-                   OR ("Key" = 'purchase_completed' AND "Locale" IN ('en', 'cs'))
-                GROUP BY "Key", "Locale"
-                HAVING count(*) > 1
-            ) duplicates
-            """);
+        var duplicateGroups = await BuiltInTemplateDuplicateGroupCountAsync();
         duplicateGroups.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Notifications_seeder_concurrent_hosts_leave_one_complete_builtin_template_set()
+    {
+        await DeleteBuiltInTemplatesAsync();
+
+        var hosts = Enumerable.Range(0, 4)
+            .Select(_ => fixture.CreateHost(("RunMigrationsAtStartup", "false")))
+            .ToArray();
+        try
+        {
+            var clients = await Task.WhenAll(hosts.Select(host => Task.Run(host.CreateClient)));
+            foreach (var client in clients)
+            {
+                client.Dispose();
+            }
+
+            var builtIns = await BuiltInTemplateCountAsync();
+            builtIns.ShouldBe(4);
+
+            var duplicateGroups = await BuiltInTemplateDuplicateGroupCountAsync();
+            duplicateGroups.ShouldBe(0);
+        }
+        finally
+        {
+            foreach (var host in hosts)
+            {
+                host.Dispose();
+            }
+
+            await RestoreWelcomeTemplatesAsync();
+            await RestorePurchaseCompletedTemplatesAsync();
+        }
     }
 
     [Fact]
@@ -820,6 +990,40 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
                OR ("Key" = 'purchase_completed' AND "Locale" IN ('en', 'cs'))
             """);
 
+    private NotificationsDbContext NewNotificationsDbContext(ITenantContext tenant)
+    {
+        var options = new DbContextOptionsBuilder<NotificationsDbContext>()
+            .UseNpgsql(fixture.ConnectionString)
+            .Options;
+        return new NotificationsDbContext(options, tenant);
+    }
+
+    private Task<long> CountNotificationsAsync(Guid userId, string templateKey) =>
+        fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM notifications WHERE \"UserId\" = '{userId}' AND \"TemplateKey\" = '{templateKey}'");
+
+    private Task<long> BuiltInTemplateDuplicateGroupCountAsync() =>
+        fixture.ScalarAsync<long>(
+            """
+            SELECT count(*)::bigint
+            FROM (
+                SELECT "Key", "Locale", count(*)::bigint AS c
+                FROM notification_templates
+                WHERE ("Key" = 'welcome' AND "Locale" IN ('en', 'cs'))
+                   OR ("Key" = 'purchase_completed' AND "Locale" IN ('en', 'cs'))
+                GROUP BY "Key", "Locale"
+                HAVING count(*) > 1
+            ) duplicates
+            """);
+
+    private Task DeleteBuiltInTemplatesAsync() =>
+        fixture.ExecuteSqlAsync(
+            """
+            DELETE FROM notification_templates
+            WHERE ("Key" = 'welcome' AND "Locale" IN ('en', 'cs'))
+               OR ("Key" = 'purchase_completed' AND "Locale" IN ('en', 'cs'))
+            """);
+
     private async Task RestoreWelcomeTemplatesAsync()
     {
         await fixture.ExecuteSqlAsync(
@@ -858,6 +1062,55 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
             IdempotencyKey: $"direct:{templateKey}:{Guid.CreateVersion7():N}"));
     }
 
+    private async Task WaitForIncomingEnvelopeAsync<TMessage>(Guid notificationId)
+    {
+        _ = await WaitForIncomingEnvelopeDataAsync<TMessage>(notificationId);
+    }
+
+    private async Task<string> WaitForIncomingEnvelopeDataAsync<TMessage>(Guid notificationId)
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IMessageStore>();
+        var messageTypeName = typeof(TMessage).Name;
+        var notificationIdText = notificationId.ToString();
+        var compactNotificationIdText = notificationId.ToString("N");
+
+        for (var i = 0; i < 100; i++)
+        {
+            var envelopes = await store.Admin.AllIncomingAsync();
+            var match = envelopes.FirstOrDefault(envelope =>
+                {
+                    var data = EnvelopeDataText(envelope);
+                    return (envelope.MessageType ?? string.Empty).Contains(messageTypeName, StringComparison.Ordinal)
+                        && (data.Contains(notificationIdText, StringComparison.OrdinalIgnoreCase)
+                            || data.Contains(compactNotificationIdText, StringComparison.OrdinalIgnoreCase));
+                });
+            if (match is not null)
+            {
+                return EnvelopeDataText(match);
+            }
+
+            await Task.Delay(200);
+        }
+
+        throw new InvalidOperationException(
+            $"Timed out waiting for durable {messageTypeName} envelope carrying notification {notificationId}.");
+    }
+
+    private static string EnvelopeDataText(Envelope envelope)
+    {
+        object? data = envelope.Data;
+        return data switch
+        {
+            null => string.Empty,
+            byte[] bytes => Encoding.UTF8.GetString(bytes),
+            ReadOnlyMemory<byte> memory => Encoding.UTF8.GetString(memory.Span),
+            Memory<byte> memory => Encoding.UTF8.GetString(memory.Span),
+            string text => text,
+            _ => data.ToString() ?? string.Empty,
+        };
+    }
+
     private sealed class TestTenantContext(Guid userId) : ITenantContext
     {
         public Guid? UserId { get; } = userId;
@@ -880,14 +1133,32 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
             Task.CompletedTask;
     }
 
-    private sealed class RecordingOutbox(NotificationsDbContext db) : IDbContextOutbox<NotificationsDbContext>
+    private sealed class RecordingRealtimePublisher : IRealtimePublisher
+    {
+        public List<(Guid UserId, string EventType)> Published { get; } = [];
+
+        public Task PublishToUserAsync(Guid userId, string eventType, object payload, CancellationToken ct)
+        {
+            Published.Add((userId, eventType));
+            return Task.CompletedTask;
+        }
+
+        public Task PublishToTenantAsync(Guid tenantId, string eventType, object payload, CancellationToken ct) =>
+            Task.CompletedTask;
+    }
+
+    private sealed class RecordingOutbox(NotificationsDbContext db, bool failBeforeSave = false)
+        : IDbContextOutbox<NotificationsDbContext>
     {
         public List<object> Published { get; } = [];
         public NotificationsDbContext DbContext => db;
         public DbContext ActiveContext => db;
         public string? TenantId { get; set; }
 
-        public Task SaveChangesAndFlushMessagesAsync(CancellationToken token = default) => db.SaveChangesAsync(token);
+        public Task SaveChangesAndFlushMessagesAsync(CancellationToken token = default) =>
+            failBeforeSave
+                ? throw new InvalidOperationException("Injected save failure before commit.")
+                : db.SaveChangesAsync(token);
         public Task FlushOutgoingMessagesAsync() => Task.CompletedTask;
         public void Enroll(DbContext dbContext) { }
 

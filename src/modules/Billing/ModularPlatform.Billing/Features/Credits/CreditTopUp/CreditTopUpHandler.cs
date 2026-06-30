@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Billing.Contracts;
 using ModularPlatform.Billing.Entities;
+using ModularPlatform.Billing.Features.Credits.EnsureCreditAccount;
 using ModularPlatform.Billing.Persistence;
 using ModularPlatform.Cqrs;
 using Wolverine.EntityFrameworkCore;
@@ -18,6 +19,7 @@ namespace ModularPlatform.Billing.Features.Credits.CreditTopUp;
 /// </summary>
 internal sealed class CreditTopUpHandler(
     IDbContextOutbox<BillingDbContext> outbox,
+    IDispatcher dispatcher,
     IRealtimePublisher realtime,
     IClock clock)
     : ICommandHandler<CreditTopUpCommand, CreditTopUpResponse>
@@ -30,18 +32,8 @@ internal sealed class CreditTopUpHandler(
         var account = await db.CreditAccounts.FirstOrDefaultAsync(a => a.UserId == command.UserId, ct);
         if (account is null)
         {
-            account = new CreditAccount { UserId = command.UserId, Posted = 0, Pending = 0, Available = 0 };
-            db.CreditAccounts.Add(account);
-            try
-            {
-                await db.SaveChangesAsync(ct);
-            }
-            catch (DbUpdateException)
-            {
-                // Lost the UNIQUE(UserId) creation race — reload the account the other writer created.
-                db.Entry(account).State = EntityState.Detached;
-                account = await db.CreditAccounts.FirstAsync(a => a.UserId == command.UserId, ct);
-            }
+            await dispatcher.Send(new EnsureCreditAccountCommand(command.UserId), ct);
+            account = await db.CreditAccounts.FirstAsync(a => a.UserId == command.UserId, ct);
         }
 
         if (await db.CreditEntries.AnyAsync(

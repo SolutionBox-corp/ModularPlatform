@@ -8,7 +8,11 @@ using StackExchange.Redis;
 
 namespace ModularPlatform.Realtime;
 
-/// <summary>One server-&gt;client event. Carries an id so SSE Last-Event-ID reconnect can be honored.</summary>
+/// <summary>
+/// One server-&gt;client event. Carries an id so SSE <c>Last-Event-ID</c> reconnect can be honored.
+/// The id is also the client-side deduplication key: the SSE endpoint subscribes before replaying missed
+/// events, so an event can rarely be emitted once from replay and once live with the same id.
+/// </summary>
 public sealed record RealtimeMessage(string EventType, string Json, string Id);
 
 /// <summary>
@@ -29,9 +33,9 @@ public interface IRealtimeReplay
 /// <summary>
 /// Configuration for the realtime replay buffer. Replayed payloads (notification title/body) can be personal
 /// data, so the buffer is deliberately SHORT-LIVED and small — it is best-effort UX smoothing on reconnect, not a
-/// durable store. Both bounds cap how long that PII lingers in Redis (no crypto-shred there): a stream key is
-/// trimmed to <see cref="MaxEvents"/> and expires after <see cref="TtlMinutes"/>. The durable system-of-record
-/// (the Notifications DB rows) is where erasure actually applies.
+/// durable store. Redis uses approximate MAXLEN trimming, so <see cref="MaxEvents"/> is a soft event-count bound;
+/// <see cref="TtlMinutes"/> is the hard time bound. The durable system-of-record (the Notifications DB rows) is
+/// where erasure actually applies.
 /// </summary>
 public sealed class RealtimeReplayOptions
 {
@@ -40,7 +44,10 @@ public sealed class RealtimeReplayOptions
     /// <summary>Whether the replay buffer is enabled. Default <c>true</c>.</summary>
     public bool Enabled { get; set; } = true;
 
-    /// <summary>Maximum number of events retained per user (stream MAXLEN). Default 100. Also a PII-minimization bound.</summary>
+    /// <summary>
+    /// Maximum events retained per user. Local replay trims exactly; Redis Streams use approximate MAXLEN, so Redis
+    /// may retain slightly more entries. Default 100.
+    /// </summary>
     public int MaxEvents { get; set; } = 100;
 
     /// <summary>TTL (minutes) of the per-user stream key. Default 60. Bounds how long replayed PII lives in Redis.</summary>
@@ -208,7 +215,8 @@ internal sealed class RedisRealtimePublisher(IConnectionMultiplexer redis, IOpti
 
 /// <summary>
 /// Single-instance fallback when Redis is not configured: deliver straight to the local registry and
-/// maintain a bounded in-memory ring buffer per user for Last-Event-ID replay.
+/// maintain a bounded in-memory ring buffer per user for Last-Event-ID replay. Ids are process-local monotonic
+/// integers, so reconnect cursors are meaningful only within the current API process lifetime.
 /// </summary>
 internal sealed class LocalRealtimePublisher(RealtimeConnectionRegistry registry, IOptions<RealtimeReplayOptions> replayOpts)
     : IRealtimePublisher, IRealtimeReplay

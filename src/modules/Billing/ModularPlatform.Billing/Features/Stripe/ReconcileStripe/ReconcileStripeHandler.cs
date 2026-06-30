@@ -57,7 +57,8 @@ internal sealed class ReconcileStripeHandler(
             .Take(StuckEventCap)
             .ToListAsync(ct);
 
-        if (stuckEvents.Count == StuckEventCap)
+        var stuckEventCapReached = stuckEvents.Count == StuckEventCap;
+        if (stuckEventCapReached)
         {
             logger.LogWarning(
                 "Stripe reconcile: stuck-event cap ({Cap}) reached — there may be more unprocessed events",
@@ -81,7 +82,8 @@ internal sealed class ReconcileStripeHandler(
             .Take(SubscriptionCap)
             .ToListAsync(ct);
 
-        if (localSubscriptions.Count == SubscriptionCap)
+        var subscriptionCapReached = localSubscriptions.Count == SubscriptionCap;
+        if (subscriptionCapReached)
         {
             logger.LogWarning(
                 "Stripe reconcile: subscription cap ({Cap}) reached — some subscriptions may not have been checked",
@@ -140,7 +142,8 @@ internal sealed class ReconcileStripeHandler(
             .Take(StuckPurchaseCap)
             .ToListAsync(ct);
 
-        if (stuckPurchases.Count == StuckPurchaseCap)
+        var stuckPurchaseCapReached = stuckPurchases.Count == StuckPurchaseCap;
+        if (stuckPurchaseCapReached)
         {
             logger.LogWarning(
                 "Stripe reconcile: stuck-purchase cap ({Cap}) reached — there may be more unresolved purchases",
@@ -179,6 +182,12 @@ internal sealed class ReconcileStripeHandler(
             await outbox.SaveChangesAndFlushMessagesAsync();
         }
 
-        return new ReconcileStripeResponse(stuckEvents.Count, driftCount, regranted);
+        return new ReconcileStripeResponse(
+            stuckEvents.Count,
+            driftCount,
+            regranted,
+            stuckEventCapReached,
+            subscriptionCapReached,
+            stuckPurchaseCapReached);
     }
 }

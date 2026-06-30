@@ -92,6 +92,58 @@ public sealed class PiiColumnEncryptionTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Startup_backfill_seals_legacy_plaintext_user_rows_and_computes_email_hash()
+    {
+        var email = $"legacy-pii-{Guid.CreateVersion7():N}@example.com";
+        var register = await fixture.Client.PostAsJsonAsync(
+            "/v1/identity/users", new { email, password = Password, displayName = "Legacy Lina" });
+        register.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var userId = (await PlatformApiFactory.ReadData(register)).GetProperty("userId").GetGuid();
+
+        await fixture.ExecuteSqlAsync(
+            $$"""
+              UPDATE users
+              SET "Email" = '{{email}}',
+                  "DisplayName" = 'Legacy Lina',
+                  "EmailHash" = ''
+              WHERE "Id" = '{{userId}}'
+              """);
+
+        var legacyHash = await fixture.ScalarAsync<string>(
+            $"SELECT \"EmailHash\" FROM users WHERE \"Id\" = '{userId}'");
+        legacyHash.ShouldBe(string.Empty);
+        var legacyEmail = await fixture.ScalarAsync<string>(
+            $"SELECT \"Email\" FROM users WHERE \"Id\" = '{userId}'");
+        legacyEmail.ShouldBe(email);
+
+        using var host = fixture.CreateHost(("RunMigrationsAtStartup", "false"));
+        using var client = host.CreateClient();
+
+        var storedEmail = await fixture.ScalarAsync<string>(
+            $"SELECT \"Email\" FROM users WHERE \"Id\" = '{userId}'");
+        storedEmail.ShouldStartWith("penc:v2:");
+        storedEmail.ShouldNotContain(email);
+        var storedName = await fixture.ScalarAsync<string>(
+            $"SELECT \"DisplayName\" FROM users WHERE \"Id\" = '{userId}'");
+        storedName.ShouldStartWith("penc:v2:");
+        var storedHash = await fixture.ScalarAsync<string>(
+            $"SELECT \"EmailHash\" FROM users WHERE \"Id\" = '{userId}'");
+        storedHash.ShouldBe(PlatformApiFactory.EmailHashOf(email));
+
+        var login = await client.PostAsJsonAsync(
+            "/v1/identity/auth/login", new { email = $"  {email.ToUpperInvariant()}  ", password = Password });
+        login.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var token = (await PlatformApiFactory.ReadData(login)).GetProperty("accessToken").GetString()!;
+
+        var profile = await client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/identity/users/me", token));
+        profile.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var data = await PlatformApiFactory.ReadData(profile);
+        data.GetProperty("email").GetString().ShouldBe(email);
+        data.GetProperty("displayName").GetString().ShouldBe("Legacy Lina");
+    }
+
+    [Fact]
     public async Task Erasure_tombstones_the_row_blanks_the_password_and_kills_the_ciphertext()
     {
         var email = $"erase-pii-{Guid.CreateVersion7():N}@example.com";

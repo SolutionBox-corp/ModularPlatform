@@ -23,6 +23,8 @@ internal sealed class FilesPersonalDataEraser(FilesDbContext db, IFileStorage st
     {
         var keys = await db.Files
             .Where(f => f.UserId == userId)
+            .OrderBy(f => f.FileName)
+            .ThenBy(f => f.StorageKey)
             .Select(f => f.StorageKey)
             .ToListAsync(ct);
 

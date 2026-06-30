@@ -49,6 +49,25 @@ public sealed class JobsHostWiringTests
         trigger.TimeZone.ShouldBe(TimeZoneInfo.Utc);
     }
 
+    [Fact]
+    public void Operations_stale_reconcile_cron_uses_utc()
+    {
+        using var host = JobsHostBuilder.Create(
+        [
+            ..BootArgs(),
+            "--Modules:Operations:Jobs:ReconcileStaleOperationsCron=0 17 2 * * ?",
+        ]).Build();
+
+        var options = host.Services.GetRequiredService<IOptions<QuartzOptions>>().Value;
+
+        var trigger = options.Triggers
+            .OfType<ICronTrigger>()
+            .Single(x => x.JobKey.Name == "operations-reconcile-stale");
+
+        trigger.CronExpressionString.ShouldBe("0 17 2 * * ?");
+        trigger.TimeZone.ShouldBe(TimeZoneInfo.Utc);
+    }
+
     private static string[] BootArgs() =>
     [
         "--environment=Development",

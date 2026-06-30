@@ -33,4 +33,30 @@ public sealed class BillingDbContext(DbContextOptions<BillingDbContext> options,
 
     /// <summary>Wolverine saga state — doubles as the user-facing purchase record (never MarkCompleted).</summary>
     internal DbSet<CreditPurchaseSaga> CreditPurchaseSagas => Set<CreditPurchaseSaga>();
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        EnsureCreditEntriesAreAppendOnly();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(
+        bool acceptAllChangesOnSuccess,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureCreditEntriesAreAppendOnly();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private void EnsureCreditEntriesAreAppendOnly()
+    {
+        var mutatedLedgerEntry = ChangeTracker.Entries<CreditEntry>()
+            .FirstOrDefault(e => e.State is EntityState.Modified or EntityState.Deleted);
+
+        if (mutatedLedgerEntry is not null)
+        {
+            throw new InvalidOperationException(
+                "credit_entries is append-only. Add a compensating CreditEntry instead of updating or deleting a ledger row.");
+        }
+    }
 }

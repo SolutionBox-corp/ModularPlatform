@@ -3,9 +3,20 @@
 Datum: 2026-06-25
 
 Tento dokument je navod pro vyvojare, ktery prijde k ModularPlatform a ma postavit **libovolny produktovy modul**.
-Neni to CRM specifikace. CRM je jen jeden z prikladu, jak dosadit placeholdery.
+Neni to CRM specifikace, neni to navrh CRM modulu a v base dnes CRM modul neni.
 
-CRM je jen priklad domeny. Stejny postup plati pro Helpdesk, Marketing, Projects, Scheduling, Reporting nebo jiny modul.
+Ber to jako sablonu pro jakykoli domenovy modul:
+
+- Helpdesk chce resit tickety, prilohy, notifikace a SLA.
+- Marketing chce resit kampane, segmenty, AI generovani a exporty.
+- Projects chce resit projekty, ukoly, soubory a realtime zmeny.
+- CRM by chtelo resit kontakty, dealy, aktivity a enrichment.
+
+CRM je jen jeden priklad dosazeni placeholderu. Stejny postup plati pro Helpdesk, Marketing, Projects,
+Scheduling, Reporting nebo jiny produktovy modul. Kdyz stavis konkretni modul, vymenis nazvy a domenove entity,
+ale porad pouzivas stejne base capability: Identity, Tenancy, Billing, Notifications, Files, Operations, GDPR,
+Realtime, Worker, Outbox a audit.
+
 Kdyz v prikladech vidis:
 
 - `{ModuleName}` = PascalCase nazev modulu, napr. `Crm`, `Marketing`, `Helpdesk`;
@@ -25,7 +36,7 @@ flowchart TB
     classDef data fill:#ffffff,stroke:#1a1a1a,color:#1a1a1a
     classDef err fill:#ffc6c6,stroke:#d93636,color:#1a1a1a
 
-    START(["Stavis novy modul {ModuleName}<br/>CRM/Marketing/Helpdesk je jen dosazeny priklad"]):::term
+    START(["Stavis novy produktovy modul {ModuleName}<br/>Helpdesk, Marketing, Projects, CRM = jen priklady dosazeni"]):::term
     DECIDE{"Co ted modul potrebuje udelat?"}:::dec
 
     subgraph ACCESS["1 · Prihlaseny user, tenant a opravneni"]

@@ -20,18 +20,17 @@ namespace ModularPlatform.Billing.Tests;
 /// <item>A BAD signature is rejected with 400 and NOTHING is persisted.</item>
 /// </list>
 ///
-/// IMPORTANT — what these tests can and cannot prove through the shared harness:
+/// IMPORTANT — what these tests prove through the shared harness:
 /// The webhook signature is verified with <c>EventUtility.ConstructEvent(rawBody, sig, WebhookSecret)</c>
 /// (StripeWebhookEndpoint.cs:43-44). The integration host configures NO <c>Billing:Stripe:WebhookSecret</c>
 /// (PlatformApiFactory.cs sets none; appsettings.json has none), so the secret is the empty string and a valid
 /// signature is HMAC-SHA256 over <c>"{timestamp}.{json}"</c> with an EMPTY key — exactly what
 /// <c>EventUtility.ComputeSignature</c> does. So the SIGNED ingest path IS reachable in-test.
-/// The DOWNSTREAM ledger top-up is NOT reachable: the worker command handler refetches the event with a LIVE
-/// Stripe API call — <c>new EventService().GetAsync(...)</c> (ProcessStripeEventCommand.cs:29) — and no Stripe API
-/// key is configured in the test host, so that call throws and the <c>CreditTopUpCommand</c> never runs. Therefore
-/// these tests assert the ingest guarantees (200 / row / enqueued envelope / exactly-once) but deliberately do NOT
-/// assert a Topup <c>credit_entries</c> row, a <c>CreditsToppedUp</c> envelope, or <c>ProcessedAt</c> being stamped
-/// — all of which depend on that live external call. See scenariosSkipped notes in the run report.
+/// One focused test overrides the host with a non-empty <c>Billing:Stripe:WebhookSecret</c> to prove an event
+/// signed with the default empty key is rejected before persistence.
+/// These focused tests assert the ingest guarantees (200 / row / enqueue / exactly-once / 400 on bad signature).
+/// Full downstream processing is covered in <c>BillingCommerceTests</c>, where the worker refetches events through
+/// the <c>IStripeGateway</c> seam backed by <c>FakeStripeGateway</c> instead of the network.
 /// </summary>
 [Collection("Integration")]
 public sealed class StripeWebhookTests(PlatformApiFactory fixture)
@@ -136,14 +135,40 @@ public sealed class StripeWebhookTests(PlatformApiFactory fixture)
         rows.ShouldBe(0);
     }
 
+    [Fact]
+    public async Task Non_empty_webhook_secret_rejects_a_body_signed_with_the_default_empty_secret()
+    {
+        using var realSecretHost = fixture.CreateHost(
+            ("Billing:Stripe:UseFakeGateway", "false"),
+            ("Billing:Stripe:WebhookSecret", "whsec_live_test"));
+        using var client = realSecretHost.CreateClient();
+
+        var eventId = $"evt_{Guid.CreateVersion7():N}";
+        var json = BuildEventJson(eventId, type: "checkout.session.completed");
+
+        var response = await PostSignedAsync(client, json, SignNow(json));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM stripe_events WHERE \"StripeEventId\" = '{eventId}'")).ShouldBe(0);
+    }
+
     private async Task<HttpResponseMessage> PostSignedAsync(string json, string stripeSignature)
+    {
+        return await PostSignedAsync(fixture.Client, json, stripeSignature);
+    }
+
+    private static async Task<HttpResponseMessage> PostSignedAsync(
+        HttpClient client,
+        string json,
+        string stripeSignature)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, WebhookPath)
         {
             Content = new StringContent(json, Encoding.UTF8, "application/json"),
         };
         request.Headers.TryAddWithoutValidation("Stripe-Signature", stripeSignature);
-        return await fixture.Client.SendAsync(request);
+        return await client.SendAsync(request);
     }
 
     /// <summary>Builds a Stripe-Signature header for the body at the current time, signed with the empty secret.</summary>

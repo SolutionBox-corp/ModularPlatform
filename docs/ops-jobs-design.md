@@ -1,4 +1,4 @@
-# Operational jobs — design (Stripe reconciliation, messaging health alert, retention sweep)
+# Operational jobs — design (Stripe reconciliation, operations reconcile, messaging health alert, retention sweep)
 
 > Decision 2026-06-10: alert target = **structured log + OpenTelemetry metric** (infrastructure alerting —
 > Grafana/New Relic — owns thresholds/paging). No e-mail/in-app dependency from jobs.
@@ -22,7 +22,19 @@ actually export. Naming: `platform.{area}.{thing}` (`platform.messaging.dead_let
      log warn + `platform.billing.stripe_drift` counter (tag `kind=subscription`).
   Caps per run (e.g. 200 events / 500 subs) to bound Stripe API usage; log when capped.
 
-## 2. Messaging health / stuck-outbox / dead-letter alert (Jobs HOST — platform concern, not a module)
+## 2. Operations stale-operation reconciliation
+
+- `OperationsReconcileStaleOperationsJob` via `OperationsModule.RegisterJobs`, cron
+  `Modules:Operations:Jobs:ReconcileStaleOperationsCron`, default every 15 min (`0 0/15 * * * ?`).
+- `ReconcileStaleOperationsCommand` handler:
+  1. Finds `operations` rows in `Pending` or `Running` where `UpdatedAt ?? CreatedAt` is older than 120 min.
+  2. Marks them `Failed` with `operation.stale_reconciled` and a safe user-facing detail.
+  3. Caps each run at 100 rows and logs a warning when capped.
+- This is the user-facing recovery for durable work that was permanently dead-lettered before terminalizing the
+  operation. `MessagingHealthJob` still owns the platform DLQ signal; Operations owns the status row becoming
+  terminal.
+
+## 3. Messaging health / stuck-outbox / dead-letter alert (Jobs HOST — platform concern, not a module)
 
 - `MessagingHealthJob` registered by the Jobs host itself (Program.cs), cron `Messaging:HealthCheckCron`,
   default every 5 min.
@@ -32,7 +44,7 @@ actually export. Naming: `platform.{area}.{thing}` (`platform.messaging.dead_let
   `platform.messaging.outgoing_pending` gauges (ObservableGauge or per-run record) + a structured WARN log
   when dead-letter > 0 or pending exceeds `Messaging:StuckThreshold` (default 100).
 
-## 3. Retention / erasure sweep (Gdpr)
+## 4. Retention / erasure sweep (Gdpr)
 
 - `GdprRetentionSweepJob` via `GdprModule.RegisterJobs`, cron `Modules:Gdpr:Jobs:RetentionSweepCron`,
   default daily (`0 0 3 * * ?`).

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
@@ -20,10 +21,11 @@ internal static class StartDemoOperationEndpoint
                 IDispatcher dispatcher,
                 LinkGenerator links,
                 HttpContext http,
+                [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
                 CancellationToken ct) =>
             {
                 var userId = tenant.UserId ?? throw new UnauthorizedException("auth.required", "Authentication required.");
-                var result = await dispatcher.Send(new StartDemoOperationCommand(userId), ct);
+                var result = await dispatcher.Send(new StartDemoOperationCommand(userId, idempotencyKey), ct);
                 // Build the status Location from the named status route so it stays correct under any route-group
                 // prefix (e.g. the host's /v1 versioning group) instead of hardcoding the path.
                 var location = links.GetPathByName(http, "GetOperationStatus", new { operationId = result.OperationId })

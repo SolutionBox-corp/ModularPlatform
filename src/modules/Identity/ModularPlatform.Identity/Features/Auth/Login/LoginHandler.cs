@@ -141,6 +141,11 @@ internal sealed class LoginHandler(
     /// </summary>
     private async Task EnsureConfiguredAdminAsync(User user, CancellationToken ct)
     {
+        if (user.DeletedAt is not null)
+        {
+            return;
+        }
+
         // user.Email is decrypted in memory (the model-level converter), so the comparison stays plaintext.
         var userNormalizedEmail = user.Email.Trim().ToUpperInvariant();
         var adminEmails = authOptions.Value.AdminEmails;

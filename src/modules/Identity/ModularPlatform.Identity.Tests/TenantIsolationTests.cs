@@ -1,4 +1,10 @@
 using System.Net;
+using System.Security.Claims;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using Microsoft.IdentityModel.JsonWebTokens;
+using Microsoft.IdentityModel.Tokens;
 using ModularPlatform.IntegrationTesting;
 using Shouldly;
 
@@ -16,15 +22,19 @@ namespace ModularPlatform.Identity.Tests;
 /// <c>GET /v1/identity/users/me</c> — where the caller's identity comes from the token, never a body/route id.
 /// </para>
 /// <para>
-/// What is NOT reachable here without forging a token: an authenticated, NON-system principal that carries NO
-/// tenant claim. Registration always provisions a tenant and stamps the claim (proved by
-/// <c>TenancyTests.Registration_provisions_a_tenant_and_the_token_carries_it</c>), so the closest reachable
-/// guarantee is cross-tenant non-visibility — asserted below. See scenariosSkipped/concerns for the residual.
+/// Registration always provisions a tenant and stamps the claim (proved by
+/// <c>TenancyTests.Registration_provisions_a_tenant_and_the_token_carries_it</c>). This suite also forges a
+/// VALIDLY SIGNED access token for an existing user with the tenant claim omitted, proving the EF filter does
+/// not widen to global visibility when <c>CurrentTenantId</c> is null.
 /// </para>
 /// </summary>
 [Collection("Integration")]
 public sealed class TenantIsolationTests(PlatformApiFactory fixture)
 {
+    private const string JwtIssuer = "test";
+    private const string JwtAudience = "test";
+    private const string JwtSigningKey = "integration-test-signing-key-at-least-32b";
+
     /// <summary>
     /// Two users register into two distinct tenants (stamped on insert by the tenant-stamping interceptor); the
     /// admin connection — which bypasses both RLS and the EF filter — sees BOTH user rows, confirming they
@@ -87,6 +97,41 @@ public sealed class TenantIsolationTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Edited_tenant_claim_is_rejected_by_jwt_signature_validation()
+    {
+        var (_, accessToken) = await fixture.RegisterAndLoginAsync(
+            $"tiso-forged-tenant-{Guid.CreateVersion7():N}@example.com", "Sup3rSecret!");
+        var forgedToken = RewriteTenantClaimWithoutResigning(accessToken, Guid.CreateVersion7());
+
+        var response = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/identity/users/me", forgedToken));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized,
+            "changing tenant_id in the payload must invalidate the HMAC signature before HttpTenantContext can trust it");
+    }
+
+    [Fact]
+    public async Task Authenticated_user_with_no_tenant_claim_does_not_get_global_visibility()
+    {
+        var (userId, _) = await fixture.RegisterAndLoginAsync(
+            $"tiso-no-tenant-claim-{Guid.CreateVersion7():N}@example.com", "Sup3rSecret!");
+        var tenantId = await fixture.ScalarAsync<Guid>($"SELECT \"TenantId\" FROM users WHERE \"Id\" = '{userId}'");
+        tenantId.ShouldNotBe(Guid.Empty);
+
+        var tokenWithoutTenant = IssueAccessTokenWithoutTenantClaim(userId);
+
+        var response = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/identity/users/me", tokenWithoutTenant));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound,
+            "a valid non-system principal with no tenant_id claim must see no tenant rows, not every tenant row");
+
+        var rowStillExists = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM users WHERE \"Id\" = '{userId}'");
+        rowStillExists.ShouldBe(1);
+    }
+
+    [Fact]
     public async Task My_profile_is_not_returned_after_the_account_is_soft_deleted()
     {
         var (userId, accessToken) = await fixture.RegisterAndLoginAsync($"tiso-deleted-{Guid.CreateVersion7():N}@example.com", "Sup3rSecret!");
@@ -112,5 +157,56 @@ public sealed class TenantIsolationTests(PlatformApiFactory fixture)
         var response = await fixture.Client.GetAsync("/v1/identity/users/me");
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    private static string RewriteTenantClaimWithoutResigning(string jwt, Guid tenantId)
+    {
+        var parts = jwt.Split('.');
+        parts.Length.ShouldBe(3);
+
+        var payloadJson = Encoding.UTF8.GetString(Base64UrlDecode(parts[1]));
+        var payload = JsonNode.Parse(payloadJson)!.AsObject();
+        payload["tenant_id"] = tenantId.ToString();
+
+        parts[1] = Base64UrlEncode(Encoding.UTF8.GetBytes(payload.ToJsonString()));
+        return string.Join('.', parts);
+    }
+
+    private static byte[] Base64UrlDecode(string value)
+    {
+        var padded = value.PadRight(value.Length + (4 - value.Length % 4) % 4, '=')
+            .Replace('-', '+')
+            .Replace('_', '/');
+        return Convert.FromBase64String(padded);
+    }
+
+    private static string Base64UrlEncode(byte[] bytes) =>
+        Convert.ToBase64String(bytes)
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
+
+    private static string IssueAccessTokenWithoutTenantClaim(Guid userId)
+    {
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, userId.ToString()),
+            new(JwtRegisteredClaimNames.Sub, userId.ToString()),
+            new(JwtRegisteredClaimNames.Email, "missing-tenant-claim@example.com"),
+            new(JwtRegisteredClaimNames.Jti, Guid.CreateVersion7().ToString()),
+        };
+
+        var descriptor = new SecurityTokenDescriptor
+        {
+            Issuer = JwtIssuer,
+            Audience = JwtAudience,
+            Subject = new ClaimsIdentity(claims),
+            Expires = DateTime.UtcNow.AddMinutes(10),
+            SigningCredentials = new SigningCredentials(
+                new SymmetricSecurityKey(Encoding.UTF8.GetBytes(JwtSigningKey)),
+                SecurityAlgorithms.HmacSha256),
+        };
+
+        return new JsonWebTokenHandler().CreateToken(descriptor);
     }
 }

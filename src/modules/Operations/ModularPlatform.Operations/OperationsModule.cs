@@ -12,6 +12,7 @@ using ModularPlatform.Operations.Features.Status;
 using ModularPlatform.Operations.Persistence;
 using ModularPlatform.Persistence;
 using ModularPlatform.Persistence.Rls;
+using Quartz;
 using Wolverine;
 
 namespace ModularPlatform.Operations;
@@ -51,6 +52,15 @@ public sealed class OperationsModule : IModule
     {
         options.Discovery.IncludeType<Messaging.RunDemoOperationHandler>();
         options.Discovery.IncludeType<Messaging.DemoQuickCheckHandler>();
+    }
+
+    public void RegisterJobs(IServiceCollectionQuartzConfigurator quartz, IConfiguration configuration)
+    {
+        var cron = configuration["Modules:Operations:Jobs:ReconcileStaleOperationsCron"] ?? "0 0/15 * * * ?";
+        var jobKey = new JobKey("operations-reconcile-stale");
+        quartz.AddJob<Jobs.OperationsReconcileStaleOperationsJob>(jobKey);
+        quartz.AddTrigger(trigger => trigger.ForJob(jobKey)
+            .WithCronSchedule(cron, x => x.InTimeZone(TimeZoneInfo.Utc)));
     }
 
     public async Task ApplyMigrationsAsync(IServiceProvider services, CancellationToken ct)

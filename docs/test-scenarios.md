@@ -21,16 +21,16 @@ Status: **✓** implemented · **▢** gap (planned) · **◐** partially covere
 |---|---|---|---|
 | ID-1 | New email / register → `201` + userId; profile readable with the access token | I | ✓ `IdentityE2ETests` |
 | ID-2 | Duplicate email → `409 user.email_taken`; only one user row | I | ✓ `AuthRobustnessTests` |
-| ID-3 | Register validator: empty/invalid email, password < 8 → field `errorCode`s | U | ▢ |
-| ID-4 | Login wrong password → `401 auth.invalid_credentials`; no user enumeration (same error for unknown email) | I | ◐ (lockout test covers wrong pw) |
+| ID-3 | Register validator: empty/invalid email, password < 8 → field `errorCode`s | U/I | ✓ `RegisterUserValidatorTests` |
+| ID-4 | Login wrong password → `401 auth.invalid_credentials`; no user enumeration (same error for unknown email) | I | ✓ `Unknown_email_and_wrong_password_return_identical_401_invalid_credentials` |
 | ID-5 | Login → refresh rotation → new tokens; old refresh replay → `401 auth.refresh_token_reused` | I | ✓ `IdentityE2ETests` |
 | ID-6 | **Reuse revoke is audited**: after reuse, ALL family tokens `RevokedAt` set AND ≥1 `identity_audit_entries` row for the revoke | I | ✓ `AuthRobustnessTests` |
 | ID-7 | **Lockout**: 5 wrong passwords → account locked 15 min; correct password while locked → still rejected `auth.locked_out`; success resets counters | I | ✓ `AccountLockoutTests` |
 | ID-8 | Two parallel `/refresh` with the same valid token → exactly one `200`, family ends revoked, no unhandled 500 | C | ✓ `AuthRobustnessTests` |
-| ID-9 | Brute-force: >10 `/login` from one IP in a minute → `429`; per-account lockout independent of the IP budget | F | ▢ (A13 shipped) |
-| ID-10 | JWT issued validates under the configured key; a token signed with a wrong key is rejected | U | ▢ |
-| ID-11 | `JwtOptionsValidator`: empty/<32-byte key in non-Development → host fails to start; Development → allowed | U | ▢ |
-| ID-12 | Audit after profile update records ONLY changed columns (JSONB) | I | ◐ (e2e checks Create row) |
+| ID-9 | Brute-force: >10 `/login` from one IP in a minute → `429`; per-account lockout independent of the IP budget | F | ✓ `Login_endpoint_uses_the_auth_rate_limit_policy` + `AccountLockoutTests` |
+| ID-10 | JWT issued validates under the configured key; a token signed with a wrong key is rejected | U | ✓ `TokenIssuerTests.Access_token_validates_with_configured_key_and_rejects_wrong_key` |
+| ID-11 | `JwtOptionsValidator`: empty/<32-byte key in non-Development → host fails to start; Development → allowed | U | ✓ `JwtOptionsValidatorTests` |
+| ID-12 | Audit after profile update records ONLY changed columns (JSONB) | I | ✓ `Update_profile_audit_row_records_changed_columns_only` |
 
 ## 2. Billing — credit ledger (money-critical)
 
@@ -74,10 +74,10 @@ Status: **✓** implemented · **▢** gap (planned) · **◐** partially covere
 | # | Scenario | Type | Status |
 |---|---|---|---|
 | NT-1 | `SendNotification` persists an in-app row + enqueues channel deliveries via the outbox (never inline) | I | ✓ `NotificationsIntegrationTests` (caller sends to its OWN id — RLS WITH CHECK on `IUserOwned` blocks cross-user HTTP sends; cross-user happens via the Worker/system) |
-| NT-2 | In-app realtime push happens AFTER commit (force first save to fail once → exactly one delivery, one row) | C/F | ▢ |
-| NT-3 | Email delivery handler runs in the Worker; per-user locale resolved | I | ▢ |
+| NT-2 | In-app realtime push happens AFTER commit (force first save to fail once → exactly one delivery, one row) | C/F | ✓ `SendNotification_realtime_push_happens_only_after_successful_commit` |
+| NT-3 | Email delivery handler runs in the Worker; per-user locale resolved | I | ✓ `SendNotification_email_delivery_message_uses_requested_locale_template` + `ChannelDeliveryHandlersTests` |
 | NT-4 | `GetMyNotifications(unreadOnly)` + `MarkNotificationRead` round-trip | I | ✓ `NotificationsIntegrationTests` |
-| NT-5 | Channel validation: unknown channel → `notification.channel.invalid` | U | ▢ |
+| NT-5 | Channel validation: unknown channel → `notification.channel.invalid` | U | ✓ `SendNotification_with_unknown_channel_returns_validation_problem` |
 
 ## 6. GDPR
 
@@ -96,14 +96,14 @@ Status: **✓** implemented · **▢** gap (planned) · **◐** partially covere
 | PL-1 | Module boundaries: `*.Contracts` depend on no infra; a module Core depends on no other Core | A | ✓ `ArchitectureTests` |
 | PL-2 | Audit interceptor: update records ONLY changed columns; value-converted enum serialized as string, not int | I | ✓ `LedgerBackstopTests` (hold release: `"Released"` string present, immutable Amount absent) |
 | PL-3 | Error contract: a domain exception → RFC 9457 `application/problem+json`, stable `errorCode`, localized `detail` (Accept-Language en/cs) | I | ✓ `PlatformContractTests` |
-| PL-4 | `ApiResponse<T>` wraps success only; errors are always Problem Details | I | ◐ |
-| PL-5 | **Tenant isolation**: tenant A & B rows; an authenticated non-system user with tenant A → sees only A's rows; a missing claim → NOT everyone's | I | ◐ `TenantIsolationTests` (distinct tenants + self-only filtered read + anonymous 401 proven; the "authenticated principal with NO tenant claim" case needs a token-minting seam — the no-null-escape filter is a source invariant at `PlatformDbContext.cs:84`) |
-| PL-6 | xmin concurrency: two updates to one row → second conflicts → `ConcurrencyRetryBehavior` retries (tracker cleared) → succeeds, no 500 | C | ◐ (BL-2 exercises it) |
+| PL-4 | `ApiResponse<T>` wraps success only; errors are always Problem Details | I | ✓ `PlatformContractTests.PL4_success_is_api_response_and_errors_are_problem_details_not_wrapped` |
+| PL-5 | **Tenant isolation**: tenant A & B rows; an authenticated non-system user with tenant A → sees only A's rows; a missing claim → NOT everyone's | I | ✓ `TenantIsolationTests` (`Two_users_land_in_distinct_tenants_in_the_same_users_table`, self-only filtered read, signed token with no `tenant_id` claim returns no row, anonymous 401) |
+| PL-6 | xmin concurrency: two updates to one row → second conflicts → `ConcurrencyRetryBehavior` retries (tracker cleared) → succeeds, no 500 | C | ✓ `ConcurrencyRetryBehaviorTests.Retries_after_concurrency_conflict_and_clears_the_change_tracker_before_rerun` + `Gives_up_after_max_retries_and_surfaces_the_concurrency_exception` |
 | PL-7 | Health: `/health/live` always `200`; `/health/ready` `200` when Postgres up, `503` when down | I/F | ✓ live+ready up; ▢ down case NOT coverable in-harness (a host with a dead DB never finishes startup — Wolverine + seeders need it); ops-level test |
 | PL-8 | OpenAPI gating: in Production anonymous `/openapi/v1.json` is not `200`; Development `200` | I | ✓ `PlatformContractTests` (Production derived host vs the Development shared host) |
 | PL-9 | Rate limiter: low-limit host, one IP partition → `429` | F | ✓ `PlatformContractTests` (5-permit derived host) |
-| PL-10 | Migration race: two contexts → same fresh DB, parallel `ApplyMigrationsAsync` → exactly one applies, no throw | C | ▢ |
-| PL-11 | Worker/Jobs/Migration run under `SystemTenantContext` (tenant filter bypassed for system work) | I | ◐ (erasure relies on it) |
+| PL-10 | Migration race: two contexts → same fresh DB, parallel `ApplyMigrationsAsync` → exactly one applies, no throw | C | ✓ `MigrationRaceTests.Parallel_identity_migrations_on_one_fresh_database_are_idempotent` |
+| PL-11 | Worker/Jobs/Migration run under `SystemTenantContext` (tenant filter bypassed for system work) | I | ✓ `HostBootTests.Non_http_hosts_run_with_system_tenant_context` |
 | PL-12 | **Audit-PII crypto-shred**: a `[PersonalData]` value is stored in the audit trail ONLY as a `penc:v1:` envelope (never plaintext); an admin reveals it via `GET /v1/identity/admin/users/{id}/audit` (`audit.read`); after the subject erases themselves the DEK is shredded and the same value surfaces as `[erased]`, raw row still plaintext-free | I | ✓ `AuditPiiEncryptionTests` (Identity) + `Notification_pii_is_crypto_shredded_in_the_audit_trail` (Notifications) + `PersonalDataConventionTests` (Arch: `[PersonalData]` ⇒ `IDataSubject`) |
 
 ---
@@ -119,9 +119,3 @@ sweep, PII column encryption, dead-letter, replay buffer).
 1. **EV-4** kill-worker-mid-message durability + **PL-7 down-case** — both need infrastructure the harness
    can't fake (an out-of-process worker / killing the DB under a running host); Wolverine-/HealthChecks-native
    behaviour, low risk.
-2. **PL-10** migration race (two parallel `ApplyMigrationsAsync` on one fresh DB) — needs a second database on
-   the shared container; medium value.
-3. **NT-2** realtime-push-after-commit fault injection (force the first save to fail) — the after-commit
-   ordering is a source invariant (`SendNotificationHandler`); a fault-injection seam would be test-only code.
-4. **NT-3 / NT-5** e-mail Worker locale assertion + channel validation; **ID-3/4/9/10/11, PL-4/5/6/11** —
-   smaller ◐/▢ from wave 1 notes.

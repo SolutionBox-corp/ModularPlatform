@@ -41,11 +41,11 @@ v tabulkách níže jsou **snapshot PŘED** těmito fixy:
   `sub-invoice:{id}` chrání před double-grant, Stripe staging still validates which event set the deployment emits.
 - **CreateSubscriptionCheckout TOCTOU** (double subscription v okně před prvním webhookem) — inherentní „Stripe = source
   of truth, no pre-created rows" designu.
-- **Files orphan-blob při metadata fail** (PutAsync před SaveChanges, bez kompenzace) — vyžaduje saga/outbox-cleanup; gap.
-- **Operations bez stuck-reaper** — permanentně dead-lettered work → op zůstane non-terminal; potřebuje Ops reconcile job.
-- **ExpireCredits N+1** přes účty, **list ordering bez Guid-v7 tiebreaker/indexu** — perf/škálovatelnost, ne korektnost.
+- **Files orphan-blob při metadata fail** — uzavřeno: upload handler při selhání metadata `SaveChanges` best-effort smaže už zapsaný blob a test pinne cleanup.
+- **Operations stuck-reaper** — uzavřeno: Operations má vlastní reconcile job, který staré Pending/Running operace terminalizuje jako Failed.
+- **ExpireCredits N+1** přes účty — perf/škálovatelnost, ne korektnost.
 - **LocalRealtimePublisher.PublishToTenantAsync no-op** vs Redis publikuje — tenant broadcast asymetrie (lokální fallback).
-- **Dead config** `Gdpr:Retention:ShreddedKeyRetentionDays` (jen v komentářích), **AAD whole-envelope** (mimo threat model),
+- **AAD whole-envelope** (mimo threat model),
   **multi-instance distributed rate-limiting** (Redis seam připravený, neimplementovaný), **duplikovaná account-provisioning
   logika** (EnsureCreditAccount vs inline v CreditTopUp) — DRY.
 
@@ -176,10 +176,10 @@ _Canonical write slice; anonymous signup now shares the auth limiter with login/
 | Lockout threshold + window expiry | ✓ | 5 strikes -> 15min lockout, counter reset on lockout/success — LoginHandler.cs:29-30,71-88; tests Lockout_expires..., A_successful_login_resets_the_failed_attempt_counter |
 | Lockout counter persistence on failure | ✓ | SaveChangesAsync on the failure branch — LoginHandler.cs:78 (tracked entity -> xmin + audit) |
 | Brute-force throttling at the edge | ✓ | Endpoint has RequireRateLimiting("auth") per-IP — LoginEndpoint.cs:22; proven by PlatformContractTests.Login_endpoint_uses_the_auth_rate_limit_policy. |
-| Concurrent failed logins racing the counter | ◐ | Counter increment is a tracked SaveChanges (xmin + ConcurrencyRetryBehavior), but parallel failures could under-count strikes; no test exercises this race. Low severity (lockout still eventually trips). |
+| Concurrent failed logins racing the counter | ✓ | Counter increment is a tracked SaveChanges (xmin + ConcurrencyRetryBehavior), so racing wrong-password requests re-run against the fresh count. Proven by AccountLockoutTests.Parallel_wrong_password_attempts_still_lock_the_account_after_the_threshold. |
 
-**Testy:** AuthRobustnessTests.Unknown_email_and_wrong_password_return_identical_401_invalid_credentials; AccountLockoutTests.Locks_out_after_threshold_failures_and_rejects_correct_credentials; AccountLockoutTests.Lockout_expires_after_the_window_and_the_correct_password_works_again; AccountLockoutTests.A_successful_login_resets_the_failed_attempt_counter; PlatformContractTests.Login_endpoint_uses_the_auth_rate_limit_policy; IdentityE2ETests login leg; PiiColumnEncryptionTests erased-login-fails leg; PiiColumnEncryptionTests.Login_email_lookup_is_case_and_whitespace_insensitive_through_the_blind_index
-**Test gaps:** No concurrency test on the failed-attempt counter under parallel wrong-password logins
+**Testy:** AuthRobustnessTests.Unknown_email_and_wrong_password_return_identical_401_invalid_credentials; AccountLockoutTests.Locks_out_after_threshold_failures_and_rejects_correct_credentials; AccountLockoutTests.Parallel_wrong_password_attempts_still_lock_the_account_after_the_threshold; AccountLockoutTests.Lockout_expires_after_the_window_and_the_correct_password_works_again; AccountLockoutTests.A_successful_login_resets_the_failed_attempt_counter; PlatformContractTests.Login_endpoint_uses_the_auth_rate_limit_policy; IdentityE2ETests login leg; PiiColumnEncryptionTests erased-login-fails leg; PiiColumnEncryptionTests.Login_email_lookup_is_case_and_whitespace_insensitive_through_the_blind_index
+**Test gaps:** No remaining focused login lockout/concurrency gap in this slice.
 
 _Strong: dummy-hash timing equalization + hasRealHash gate is the right pattern; erased accounts can't authenticate by construction; known-wrong vs unknown-email response parity is pinned directly._
 
@@ -266,17 +266,17 @@ _Snapshot semantics are intentional: revoke affects the next login/refresh token
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
 | Host starts before migrations finish | ✓ | Broad catch + LogWarning, retried next boot (read-first would hit missing-table) — IdentitySeeder.cs:41-49 |
-| Concurrent multi-host seeding | ✓ | Unique constraints make duplicate inserts no-ops; idempotent — IdentitySeeder.cs:18-22 |
+| Concurrent multi-host seeding | ✓ | Unique constraints make duplicate inserts no-ops; idempotent — IdentitySeeder.cs:18-22. Proven by IdentitySeederTests.Concurrent_startup_seeders_leave_one_complete_authorization_model. |
 | Admin registers after startup | ✓ | EnsureConfiguredAdminAsync grants on login before token issue — LoginHandler.cs:90-140; test AuthzTests admin bootstrap on login |
 | Soft-deleted admin email re-granted on restart | ✓ | AssignAdminsAsync excludes DeletedAt!=null so a deactivated admin is not silently re-granted — IdentitySeeder.cs:107-111. Proven by IdentitySeederTests.Startup_seeder_does_not_regrant_admin_to_a_soft_deleted_configured_admin. |
 | Admin role not yet seeded at login time | ✓ | EnsureConfiguredAdminAsync returns early; next login catches it — LoginHandler.cs:129-133 |
 | New permission added later | ✓ | Upsert loop adds missing permissions + links to admin role on each boot — IdentitySeeder.cs:56-90. Proven by IdentitySeederTests.Startup_seeder_relinks_missing_platform_permissions_to_the_admin_role_on_reboot. |
-| Login-time admin grant does NOT exclude soft-deleted | ◐ | DRIFT: AssignAdminsAsync (startup) filters DeletedAt==null (IdentitySeeder.cs:109), but EnsureConfiguredAdminAsync (login) does not — a soft-deleted admin can never reach login (erased PasswordHash blanked -> auth fails earlier), so unreachable in practice, but the two admin-grant paths diverge on the soft-delete guard. |
+| Login-time admin grant must not re-grant a soft-deleted configured admin | ✓ | EnsureConfiguredAdminAsync has its own DeletedAt guard, matching startup seeding. Proven by IdentitySeederTests.Login_time_admin_bootstrap_does_not_grant_admin_to_a_soft_deleted_configured_admin. |
 
-**Testy:** AuthzTests admin-token bootstrap (login-time grant); IdentitySeederTests.Startup_seeder_does_not_regrant_admin_to_a_soft_deleted_configured_admin; IdentitySeederTests.Startup_seeder_relinks_missing_platform_permissions_to_the_admin_role_on_reboot; AuditPiiEncryptionTests admin reveal (exercises admin role seeding)
-**Test gaps:** No direct missing-table startup race test for the broad catch path; no explicit concurrent multi-host seeding race test.
+**Testy:** AuthzTests admin-token bootstrap (login-time grant); IdentitySeederTests.Startup_seeder_does_not_regrant_admin_to_a_soft_deleted_configured_admin; IdentitySeederTests.Login_time_admin_bootstrap_does_not_grant_admin_to_a_soft_deleted_configured_admin; IdentitySeederTests.Startup_seeder_relinks_missing_platform_permissions_to_the_admin_role_on_reboot; IdentitySeederTests.Concurrent_startup_seeders_leave_one_complete_authorization_model; AuditPiiEncryptionTests admin reveal (exercises admin role seeding)
+**Test gaps:** No direct missing-table startup race test for the broad catch path.
 
-_Two admin-grant paths (startup seeder + login) with a benign divergence on the soft-delete guard; startup path now has focused coverage for the deleted-admin guard and permission relinking._
+_Two admin-grant paths (startup seeder + login) now share the same soft-delete guard; startup path and login-time bootstrap both have focused deleted-admin coverage._
 
 ### Audit trail reveal (admin forensics) + [erased] after shred — ✅ correct
 *Admin reads a user's identity_audit_entries with PII decrypted, surfacing [erased] once the DEK is shredded.*
@@ -312,8 +312,8 @@ _Crypto-shred reveal is solid and end-to-end tested both pre- and post-erasure._
 | Distinct tenants per registration | ✓ | test Registration_provisions_a_tenant_and_the_token_carries_it |
 | Cross-user-within-same-tenant isolation | ◐ | Acknowledged residual: no admin 'list users in my tenant' query exists yet, so within-tenant multi-user isolation is not exercised — documented in TenancyTests.cs:11-12. Each registration gets its own tenant today, so cross-user==cross-tenant in practice. |
 
-**Testy:** TenancyTests.Registration_provisions_a_tenant_and_the_token_carries_it; TenancyTests.Registration_does_not_store_the_plaintext_email_in_the_tenant_name; TenancyTests.Registration_does_not_emit_a_dangling_location_header; TenantIsolationTests (all 3)
-**Test gaps:** No within-tenant multi-user isolation test (no listing query to exercise it — acknowledged); No test that a forged/edited tenant claim is rejected by JWT signature validation (covered at the Web/JWT layer, not here)
+**Testy:** TenancyTests.Registration_provisions_a_tenant_and_the_token_carries_it; TenancyTests.Registration_does_not_store_the_plaintext_email_in_the_tenant_name; TenancyTests.Registration_does_not_emit_a_dangling_location_header; TenantIsolationTests (cross-tenant isolation, client-supplied id ignored, soft-delete filter, forged tenant claim rejected)
+**Test gaps:** No within-tenant multi-user isolation test (no listing query to exercise it — acknowledged)
 
 _Isolation null-escape is provably closed; the only residual is the absence of a multi-user-per-tenant listing surface to test, which is documented._
 
@@ -349,9 +349,10 @@ _Erasure is the most thoroughly tested Identity concern; live export, post-erasu
 | Null DisplayName not force-touched | ✓ | Only marks DisplayName modified when non-null — PiiEncryptionBackfill.cs:42-44 |
 | Filtered unique index tolerates empty-hash legacy rows | ✓ | UNIQUE(EmailHash) WHERE EmailHash<>'' so pre-backfill rows don't collide — User.cs:57 |
 
-**Test gaps:** No test seeding a legacy '' EmailHash row and asserting the backfill seals it + computes the hash (hard to exercise without a legacy fixture; currently entirely untested)
+**Testy:** PiiColumnEncryptionTests.Startup_backfill_seals_legacy_plaintext_user_rows_and_computes_email_hash
+**Test gaps:** No remaining focused PII encryption backfill gap in this slice.
 
-_Logic mirrors the seeder's non-fatal retry pattern; untested because constructing a pre-encryption row requires bypassing the interceptors. Low runtime risk on fresh DBs (instant no-op)._
+_Logic mirrors the seeder's non-fatal retry pattern; the legacy-row path is now covered by raw SQL setup that bypasses the interceptors and then lets the hosted backfill seal the row on startup._
 
 ### Token issuance + password hashing (Security primitives) — ✅ correct
 *HMAC-signed JWT access tokens with role/permission/tenant claims; CSPRNG refresh tokens stored SHA-256 hashed; Argon2id passwords.*
@@ -392,14 +393,14 @@ _Primitives delegate to battle-tested libs; refresh tokens are hashed at rest, n
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
-| Concurrent provisioning race for the same user (duplicate accounts) | ✓ | UNIQUE index on CreditAccount.UserId (CreditAccount.cs:44) + AnyAsync pre-check then catch DbUpdateException non-concurrency (EnsureCreditAccountCommand.cs:16-26). Proven 8-way by LedgerBackstopTests.EV5. |
+| Concurrent provisioning race for the same user (duplicate accounts) | ✓ | UNIQUE index on CreditAccount.UserId (CreditAccount.cs:44) + AnyAsync pre-check then catch DbUpdateException non-concurrency and detach the losing Added entity (EnsureCreditAccountCommand.cs:16-29). Proven 8-way by LedgerBackstopTests.EV5 and by top-up's nested command race test. |
 | Event redelivery (same UserRegistered twice) | ✓ | Wolverine inbox dedup + EnsureCreditAccount is an idempotent no-op; ProvisionCreditAccountHandler.cs:15-16 is a thin public shell. |
 | DbUpdateConcurrencyException (xmin) on provisioning insert | – | An insert has no xmin conflict; the when-filter deliberately excludes DbUpdateConcurrencyException (EnsureCreditAccountCommand.cs:23) so only the unique-violation race is swallowed. |
 
 **Testy:** LedgerBackstopTests.EV5_concurrent_account_provisioning_yields_exactly_one_account; LedgerBackstopTests.EV5_existing_account_provisioning_is_a_noop; CrossModuleEventTests (EV-1, register -> account provisioned)
 **Test gaps:** No remaining focused account-provisioning idempotency gap in this slice.
 
-_Two independent provisioning paths exist (EnsureCreditAccountHandler and an inline create inside CreditTopUpHandler.cs:28-42); both are individually correct and converge on the same UNIQUE(UserId) guard, but the logic is duplicated rather than the top-up handler dispatching EnsureCreditAccount._
+_Credit account creation now has one canonical slice: both UserRegistered handling and late-arriving top-up grants dispatch EnsureCreditAccountCommand, which owns the UNIQUE(UserId) race recovery._
 
 ### Credit top-up (CreditTopUp) — ✅ correct
 *Idempotent, client-key-namespaced grant that mints a bucket + balanced ledger entry and bumps posted/available atomically via the outbox.*
@@ -411,7 +412,7 @@ _Two independent provisioning paths exist (EnsureCreditAccountHandler and an inl
 | Same idempotency key applied twice / raced | ✓ | Pre-check AnyAsync (CreditTopUpHandler.cs:44) + UNIQUE(AccountId,IdempotencyKey) as final guard; loser catches DbUpdateException, re-reads real posted, returns AlreadyApplied (CreditTopUpHandler.cs:95-109). Proven by BillingLedgerTests.Top_up_with_the_same_idempotency_key_credits_exactly_once. |
 | Idempotency key collision across accounts | ✓ | Idempotency scoped per-account via composite UNIQUE(AccountId,IdempotencyKey) (CreditEntry.cs:58). Proven by BillingLedgerTests.Idempotency_keys_are_scoped_per_account_not_globally. |
 | Client key collides with structured system keys (purchase:/sub-invoice:) | ✓ | Endpoint namespaces the client key as client:{key} (CreditTopUpEndpoint.cs:25-26) so it can never collide with system keys in the per-account UNIQUE space. |
-| Account does not yet exist when top-up arrives (event ordering) | ✓ | Inline create-on-miss with race recovery (CreditTopUpHandler.cs:28-42): on UNIQUE collision detaches and reloads the winner's account. Proven by BillingLedgerTests.Top_up_creates_credit_account_when_provisioning_event_has_not_run_yet and Top_up_recovers_when_another_writer_creates_the_missing_credit_account_first. |
+| Account does not yet exist when top-up arrives (event ordering) | ✓ | CreditTopUp dispatches EnsureCreditAccountCommand and reloads the account, so the single provisioning slice owns the UNIQUE(UserId) create/race recovery. Proven by BillingLedgerTests.Top_up_creates_credit_account_when_provisioning_event_has_not_run_yet and Top_up_recovers_when_another_writer_creates_the_missing_credit_account_first. |
 | Overflow of long posted/available | ✓ | Pre-check rejects with credit.amount.too_large (CreditTopUpHandler.cs:52-55); validator caps single amount at 1e9 (CreditTopUpValidator.cs:12,18); DB CHECK is backstop. Proven by LedgerBackstopTests.BL11 + CreditAmountBoundsTests. |
 | Non-admin user self-minting credits over HTTP | ✓ | Endpoint requires billing.manage permission (CreditTopUpEndpoint.cs:30-31). Proven by CreditTopUpAuthorizationTests.Public_topup_endpoint_rejects_a_non_admin_user. |
 | Negative / zero amount | ✓ | CreditTopUpValidator.cs:17 GreaterThan(0). Proven by CreditAmountBoundsTests. |
@@ -491,15 +492,15 @@ _Symmetric with confirm; both rely on the same xmin + UNIQUE-key idempotency pat
 | One account's persistence failure aborting the whole sweep | ✓ | Per-account try/catch DbUpdateException (non-concurrency) clears the change tracker and continues (ExpireCreditsHandler.cs:95-103); explicit fix over prior abort-all bug. Proven by LedgerLifecycleTests.Expiry_sweep_isolates_one_accounts_persistence_failure_and_continues_with_others. |
 | Concurrency conflict (xmin) during sweep | ✓ | Deliberately NOT caught (comment ExpireCreditsHandler.cs:99-101) -> bubbles to ConcurrencyRetryBehavior which retries the whole sweep; expire-*:{id} keys dedup already-applied accounts. |
 | Lapsed hold restored | ✓ | Active && ExpiresAt<=now -> Status Expired, Release-type credit entry expire-hold:{id}, available += / pending -= (ExpireCreditsHandler.cs:33-54). Proven by BL-9. |
-| Multiple accounts in one sweep | ✓ | The command collects all account ids up front and loops every account (ExpireCreditsHandler.cs:25-31); proven by LedgerLifecycleTests.Expiry_sweep_processes_multiple_accounts_in_one_run. |
-| Each account loaded individually inside the loop (N+1 over accounts) | ◐ | accountIds loaded then per-account FirstAsync + per-account queries (ExpireCreditsHandler.cs:25-31). Correct but O(accounts) round-trips; fine at current scale, a scalability concern at large account counts (no batching/paging). |
+| Multiple accounts in one sweep | ✓ | The command collects only candidate account ids from lapsed holds / expired buckets and loops those accounts (ExpireCreditsHandler.cs:25-36); proven by LedgerLifecycleTests.Expiry_sweep_processes_multiple_accounts_in_one_run. |
+| Accounts with no expired work | ✓ | Not scanned: candidate ids come from CreditHolds/CreditBuckets via EF Union, so unrelated accounts are skipped before the per-account loop. |
 | Expired bucket has remaining LESS than available but a different bucket is partly reserved | ✓ | The skip guard is per-bucket against account.Available, and account.Available is recomputed in memory after each hold restore within the same account iteration, so ordering is consistent within a sweep. |
 | Non-expiring bucket (ExpiresAt null) | ✓ | Expiry query requires ExpiresAt != null and ExpiresAt <= now (ExpireCreditsHandler.cs:57); proven by LedgerLifecycleTests.Non_expiring_topup_bucket_is_not_touched_by_expiry_sweep. |
 
 **Testy:** LedgerLifecycleTests.Expiry_sweep_restores_lapsed_holds_destroys_expired_buckets_and_is_idempotent; LedgerLifecycleTests.Expiring_a_bucket_that_backs_an_active_reservation_does_not_crash_or_go_negative; LedgerLifecycleTests.Non_expiring_topup_bucket_is_not_touched_by_expiry_sweep; LedgerLifecycleTests.Expiry_sweep_processes_multiple_accounts_in_one_run; LedgerLifecycleTests.Expiry_sweep_isolates_one_accounts_persistence_failure_and_continues_with_others
 **Test gaps:** No remaining focused expiry-sweep correctness gap in this slice.
 
-_Logic is careful and now covers the prior abort-all bug. N+1 over accounts is a future scalability note, not a correctness issue._
+_Logic is careful and covers the prior abort-all bug. The sweep now bounds per-account work to accounts that actually have lapsed holds or expired buckets._
 
 ### Get credit balance (read) — ✅ correct
 *Return the authoritative stored posted/available projection for the caller's account.*
@@ -529,19 +530,15 @@ _Pure query, no transaction; uses the read factory per the platform law._
 | posted == sum(bucket.Remaining) and available == posted - pending after mixed run | ✓ | Verified by LedgerLifecycleTests.Ledger_invariants_hold_after_a_mixed_run (BL-12); the test docstring corrects the naive double-entry expectation to posted == sum(bucket.Remaining). |
 | Audit Update rows record only changed columns + enum as string | ✓ | AuditInterceptor on tracked saves; LedgerBackstopTests.PL2 asserts Released string present, immutable Amount absent. |
 | ExecuteUpdate debit bypasses AuditInterceptor + xmin | ✓ | By design (CLAUDE.md): the credit_entries ARE the audit for the debit guard; the Reservation entry records the debit. Acceptable per documented caveat. |
-| Ledger entry never updated/deleted | ✓ | No UPDATE/DELETE on CreditEntry anywhere; entity documented immutable (CreditEntry.cs:24-27). Erasure anonymizes rather than deletes (per module IExportPersonalData, outside this slice). |
+| Ledger entry never updated/deleted | ✓ | No UPDATE/DELETE on CreditEntry anywhere; entity documented immutable (CreditEntry.cs:24-27). BillingDbContext rejects tracked Modified/Deleted CreditEntry rows before SaveChanges, so module code must append a compensating entry instead. Erasure anonymizes rather than deletes (per module IExportPersonalData, outside this slice). |
 | Owner reads ledger entries paged, scoped and newest-first | ✓ | GetCreditLedgerHandler.cs:29-38 owner-scopes by AccountId and orders by CreatedAt desc; covered by CreditLedgerReadTests.Ledger_entries_are_paged_and_scoped_to_the_token_owner. |
 
-**Testy:** LedgerLifecycleTests.Ledger_invariants_hold_after_a_mixed_run; LedgerBackstopTests.BL5 / PL2; CreditLedgerReadTests.Ledger_entries_are_paged_and_scoped_to_the_token_owner
-**Test gaps:** No test asserts the double-entry balance per TransactionId (that each TransactionId groups a balanced credit/debit set) — the invariant is documented (CreditEntry.cs:25) but not directly checked; No test that confirms credit_entries are never mutated (immutability is by convention, not enforced by a DB trigger or asserted in a test)
+**Testy:** LedgerLifecycleTests.Ledger_invariants_hold_after_a_mixed_run; LedgerLifecycleTests.Transaction_id_groups_the_expected_reservation_lifecycle_entries; LedgerBackstopTests.BL5 / PL2; LedgerBackstopTests.Credit_entries_are_append_only_even_through_the_billing_db_context; CreditLedgerReadTests.Ledger_entries_are_paged_and_scoped_to_the_token_owner
+**Test gaps:** No remaining focused append-only ledger immutability gap in this slice.
 
-_Strong defence-in-depth: app-level guard + DB CHECK + per-account UNIQUE idempotency. The projection-vs-ledger reconciliation is only ever asserted in tests, not by a runtime reconciliation job for credits (Stripe has one; the credit ledger relies on correct arithmetic + the expiry sweep)._
+_Strong defence-in-depth: app-level append-only guard + DB CHECK + per-account UNIQUE idempotency. The projection-vs-ledger reconciliation is only ever asserted in tests, not by a runtime reconciliation job for credits (Stripe has one; the credit ledger relies on correct arithmetic + the expiry sweep)._
 
-**Nekonzistence v oblasti (5):**
-- Duplicated account-provisioning logic: EnsureCreditAccountHandler (EnsureCreditAccountCommand.cs:14-30) and the inline create-on-miss inside CreditTopUpHandler.cs:28-42 both implement the same UNIQUE(UserId) create-and-recover dance instead of CreditTopUp dispatching EnsureCreditAccount — a DRY drift the platform's 'reuse-first / one handler dispatches the other' law would prefer to avoid.
-- ConfirmSpendHandler.cs:51-61 vs :80 — the FIFO loop can leave remaining > 0 when buckets are exhausted yet the handler still posts the full hold.Amount unconditionally; there is no guard or assertion that sum-drawn == hold.Amount, so the documented invariant posted == sum(bucket.Remaining) (CreditEntry/LedgerLifecycleTests BL-12) could silently break if a backing bucket ever disappears. Currently masked by the expire sweep's skip-active-hold rule (ExpireCreditsHandler.cs:69-72).
-- Comment-vs-code drift in CreditAccount.cs:10 — the XML doc says the debit path uses 'SELECT ... FOR NO KEY UPDATE' (pessimistic SELECT lock), but ReserveCreditsHandler.cs:37-41 actually uses a conditional ExecuteUpdate (no explicit SELECT FOR UPDATE). The behavior is correct (the UPDATE takes the row lock) but the doc names a mechanism the code does not use.
-- ExpireCreditsHandler.cs:25-31 loads all account ids then issues per-account queries inside the loop (N+1 over accounts) — correct but unbounded; no paging/batching, a scalability divergence from the otherwise set-based handlers (e.g. the atomic ExecuteUpdate debit).
+**Nekonzistence v oblasti (1):**
 - Reservation ledger entry uses Type=Reservation as a Debit that only moves available->pending without reducing Posted, while Spend is a separate Debit that reduces Posted (ReserveCreditsHandler.cs:59-69 + ConfirmSpendHandler.cs:63-81). This is intentional and documented in LedgerLifecycleTests BL-12, but it means the naive double-entry rule posted == sum(credits) - sum(debits) does NOT hold — a subtle convention captured only in a test comment, not in the CreditEntry entity docs.
 
 
@@ -604,27 +601,28 @@ _The strongest-covered feature: happy path, unpaid gate, async settlement, aband
 | Webhook rate-limited / burst on retry | ✓ | .DisableRateLimiting() so Stripe is never 429'd (cs:94) |
 | Row persisted but message not enqueued window | ✓ | SaveChangesAndFlushMessagesAsync commits row + envelope atomically (cs:72-76) |
 
-**Testy:** StripeWebhookTests.Valid_signed_event_is_accepted_and_enqueues_durable_ledger_work; StripeWebhookTests.Redelivering_the_same_signed_event_is_exactly_once; StripeWebhookTests.A_non_unique_persist_failure_is_not_acked_so_stripe_will_retry; StripeWebhookTests.Bad_signature_is_rejected_and_nothing_is_persisted
-**Test gaps:** No production-config test that a wrong/non-empty WebhookSecret rejects a body signed with the empty key (the test host uses an empty secret by design)
+**Testy:** StripeWebhookTests.Valid_signed_event_is_accepted_and_enqueues_durable_ledger_work; StripeWebhookTests.Redelivering_the_same_signed_event_is_exactly_once; StripeWebhookTests.A_non_unique_persist_failure_is_not_acked_so_stripe_will_retry; StripeWebhookTests.Bad_signature_is_rejected_and_nothing_is_persisted; StripeWebhookTests.Non_empty_webhook_secret_rejects_a_body_signed_with_the_default_empty_secret
+**Test gaps:** No remaining focused Stripe webhook ingest gap in this slice.
 
 _Ingest invariants (200/row/enqueue/exactly-once/500-on-non-unique/400-on-bad-sig) are all tested deterministically. The empty-secret test caveat is documented in the test class header._
 
 ### Stripe event router (ProcessStripeEvent) — 🟢 minor-gaps
 *Idempotently refetch each event from Stripe and route checkout/subscription/invoice/generic-metadata events to the right command.*
 
-**Use cases:** checkout.session.completed|async_payment_succeeded (purchase_type=package, paid) → CreditPurchaseConfirmed; customer.subscription.created|updated|deleted → UpsertSubscriptionFromStripe; invoice.paid → GrantSubscriptionCredits; any other event carrying user_id+credit_amount metadata → direct CreditTopUp (key = event id)
+**Use cases:** checkout.session.completed|async_payment_succeeded (purchase_type=package, paid) → CreditPurchaseConfirmed; customer.subscription.created|updated|deleted → UpsertSubscriptionFromStripe; invoice.paid|invoice.payment_succeeded → GrantSubscriptionCredits; invoice.payment_failed → subscription mirror refresh; any other event carrying user_id+credit_amount metadata → direct CreditTopUp (key = event id)
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
 | Already-processed or missing event row | ✓ | Early return if record null or ProcessedAt set (ProcessStripeEventCommand.cs:41-45) |
 | Webhook payload order / stale payload | ✓ | Always refetches via gateway.GetEventAsync (cs:47) — current object state, never the delivered payload |
-| Non-package or unpaid checkout event leaking metadata into the generic top-up | ✓ | A catch-all case for checkout.session.* breaks before the default top-up branch (cs:69-70). Proven by BillingCommerceTests.Non_package_checkout_session_with_stray_credit_metadata_does_not_top_up. |
-| invoice.paid without a subscription id | ✓ | when-guard requires Parent.SubscriptionDetails.SubscriptionId length>0 (cs:77-79); else falls to default (no metadata → no-op). Proven by BillingCommerceTests.Invoice_paid_without_subscription_id_is_processed_without_credit_grant. |
-| Generic event metadata: bad guid / amount<=0 | ✓ | TryExtractTopUp validates guid + long + amount>0 (cs:129-154) |
-| ProcessedAt stamp vs dispatched grant not in one transaction | ✓ | Subscription/invoice grants run their own SaveChanges on the same scoped context, then ProcessedAt commits separately; redelivery is safe because every downstream command is idempotent (sub-invoice:{id}, purchase:{id}, event-id). Package-confirm publish IS co-committed with ProcessedAt (cs:93-95) |
-| Stripe's invoice.payment_succeeded (legacy/alternate) instead of invoice.paid | ✓ | Router accepts invoice.paid OR invoice.payment_succeeded (ProcessStripeEventCommand.cs:85) and both converge on GrantSubscriptionCreditsCommand with the same sub-invoice:{invoiceId} idempotency key. Proven by BillingCommerceTests.Invoice_payment_succeeded_grants_subscription_credits_like_invoice_paid. |
+| Non-package or unpaid checkout event leaking metadata into the generic top-up | ✓ | A catch-all case for checkout.session.* breaks before the default top-up branch (cs:77-80). Proven by BillingCommerceTests.Non_package_checkout_session_with_stray_credit_metadata_does_not_top_up. |
+| invoice.paid without a subscription id | ✓ | when-guard requires Parent.SubscriptionDetails.SubscriptionId length>0 (cs:93-96); else falls to default (no metadata → no-op). Proven by BillingCommerceTests.Invoice_paid_without_subscription_id_is_processed_without_credit_grant. |
+| Generic event metadata: bad guid / amount<=0 | ✓ | TryExtractTopUp validates guid + long + amount>0 (cs:154-166) |
+| ProcessedAt stamp vs dispatched grant not in one transaction | ✓ | Subscription/invoice grants run their own SaveChanges on the same scoped context, then ProcessedAt commits separately; redelivery is safe because every downstream command is idempotent (sub-invoice:{id}, purchase:{id}, event-id). Package-confirm publish IS co-committed with ProcessedAt (cs:109-111) |
+| Stripe's invoice.payment_succeeded (legacy/alternate) instead of invoice.paid | ✓ | Router accepts invoice.paid OR invoice.payment_succeeded (ProcessStripeEventCommand.cs:93) and both converge on GrantSubscriptionCreditsCommand with the same sub-invoice:{invoiceId} idempotency key. Proven by BillingCommerceTests.Invoice_payment_succeeded_grants_subscription_credits_like_invoice_paid. |
+| Stripe's invoice.payment_failed for a renewal | ✓ | Router refreshes the subscription mirror through UpsertSubscriptionFromStripeCommand and does NOT grant invoice credits. Proven by BillingCommerceTests.Invoice_payment_failed_refreshes_subscription_to_past_due_without_granting_credits. |
 
-**Testy:** BillingCommerceTests.Signed_topup_event_applies_ledger_topup_exactly_once_and_stamps_processed (generic metadata path + redelivery exactly-once); BillingCommerceTests.Non_package_checkout_session_with_stray_credit_metadata_does_not_top_up; BillingCommerceTests.Invoice_paid_without_subscription_id_is_processed_without_credit_grant; BillingCommerceTests.Invoice_payment_succeeded_grants_subscription_credits_like_invoice_paid; BillingCommerceTests.Subscription_lifecycle_... (subscription + invoice.paid routing); StripeReconcileTests.Stuck_stripe_event_...end_to_end (default top-up via reconcile)
+**Testy:** BillingCommerceTests.Signed_topup_event_applies_ledger_topup_exactly_once_and_stamps_processed (generic metadata path + redelivery exactly-once); BillingCommerceTests.Non_package_checkout_session_with_stray_credit_metadata_does_not_top_up; BillingCommerceTests.Invoice_paid_without_subscription_id_is_processed_without_credit_grant; BillingCommerceTests.Invoice_payment_succeeded_grants_subscription_credits_like_invoice_paid; BillingCommerceTests.Invoice_payment_failed_refreshes_subscription_to_past_due_without_granting_credits; BillingCommerceTests.Subscription_lifecycle_... (subscription + invoice.paid routing); StripeReconcileTests.Stuck_stripe_event_...end_to_end (default top-up via reconcile)
 **Test gaps:** No remaining focused Stripe event router gap in this slice.
 
 _Routing is careful and idempotent. Both invoice success event names now share the same per-invoice idempotency key, so receiving both cannot double-grant._
@@ -642,17 +640,17 @@ _Routing is careful and idempotent. Both invoice success event names now share t
 | Creation race on the local mirror (UNIQUE StripeSubscriptionId) | ✓ | catch DbUpdateException (not concurrency) — both writers mirrored same Stripe state (UpsertSubscriptionFromStripeCommand.cs:72-80) |
 | Activated/Canceled integration events double-fire | ✓ | Published only on actual status transitions guarded by previousStatus (cs:60-70) |
 | Plan has no credit grant (access-only) | ✓ | GrantSubscriptionCredits returns no-op when plan null or CreditsPerPeriod<=0 (cs:42-45). Proven by BillingCommerceTests.Access_only_subscription_plan_does_not_grant_invoice_credits. |
-| User starts a second subscription while one is active | ◐ | CreateSubscriptionCheckoutHandler.cs:30-35 rejects with billing.subscription.already_active; proven by SubscriptionCheckoutTests.Subscription_checkout_rejects_user_with_existing_live_subscription. The AnyAsync check is still a TOCTOU race (no DB UNIQUE on user+active) — two concurrent checkouts could both pass. Stripe remains source of truth and reconcile converges, but two live mirror rows are momentarily possible; GetMySubscription/Cancel pick most-recent only. |
+| User starts a second subscription while one is active | ✓ | CreateSubscriptionCheckoutHandler.cs:30-35 rejects when a live mirror already exists; Billing DB also enforces one non-canceled local mirror per user via partial UNIQUE(UserId) WHERE Status<>'Canceled' (Subscription.cs:44-47, migration OneLiveSubscriptionPerUser). Two abandoned checkout sessions without a mirror are still allowed by design; two live mirrors are not. Proven by SubscriptionCheckoutTests.Subscription_checkout_rejects_user_with_existing_live_subscription and Concurrent_live_subscription_mirrors_leave_only_one_non_canceled_subscription_per_user. |
 | Cancel when no active subscription | ✓ | CancelSubscriptionHandler.cs:24-28 throws billing.subscription.not_found |
 | Cancel-at-period-end then period elapses | ✓ | Eager local CancelAtPeriodEnd=true; authoritative Canceled arrives via webhook→upsert (CancelSubscriptionHandler.cs:11-14,33-40) |
 | Immediate cancel config | ✓ | With Billing:Subscriptions:CancelAtPeriodEnd=false, CancelSubscriptionHandler sets Status=Canceled inline and /subscriptions/me stops returning it. Proven by CancelSubscriptionTests.Cancel_subscription_can_immediately_mark_the_local_mirror_canceled. |
-| past_due/unpaid subscription (failed renewal / dunning) | ✓ | MapStatus maps past_due/unpaid/paused→PastDue (UpsertSubscriptionFromStripeCommand.cs:101-105) and GetMySubscription still returns it as the live subscription (Status!=Canceled). Proven by MySubscriptionTests.My_subscription_reflects_past_due_and_cancel_at_period_end_from_reconciled_state. There is intentionally no dunning/revocation behavior yet; that is product scope, not a current handler bug. |
+| past_due/unpaid subscription (failed renewal / dunning) | ✓ | MapStatus maps past_due/unpaid/paused→PastDue (UpsertSubscriptionFromStripeCommand.cs:101-105) and GetMySubscription still returns it as the live subscription (Status!=Canceled). Failed invoice webhooks refresh the mirror without granting credits. Proven by MySubscriptionTests.My_subscription_reflects_past_due_and_cancel_at_period_end_from_reconciled_state and BillingCommerceTests.Invoice_payment_failed_refreshes_subscription_to_past_due_without_granting_credits. There is intentionally no dunning/revocation behavior yet; that is product scope, not a current handler bug. |
 | Subscription period end living on Stripe items not the subscription | ✓ | StripeGateway.ToState takes max item CurrentPeriodEnd (StripeGateway.cs:122-128) |
 
-**Testy:** BillingCommerceTests.Subscription_lifecycle_reconciles_object_state_out_of_order_and_grants_per_invoice (updated-before-created, invoice grant, cancel-at-period-end, deleted→Canceled, me→404); BillingCommerceTests.Duplicate_invoice_success_events_grant_subscription_credits_exactly_once; BillingCommerceTests.Access_only_subscription_plan_does_not_grant_invoice_credits; BillingCommerceTests.Subscription_plans_come_from_config_and_promo_codes_validate_through_stripe; SubscriptionCheckoutTests.Subscription_checkout_rejects_user_with_existing_live_subscription; CancelSubscriptionTests.Cancel_subscription_can_immediately_mark_the_local_mirror_canceled; MySubscriptionTests.My_subscription_reflects_past_due_and_cancel_at_period_end_from_reconciled_state
-**Test gaps:** No concurrency test for the already_active TOCTOU race.
+**Testy:** BillingCommerceTests.Subscription_lifecycle_reconciles_object_state_out_of_order_and_grants_per_invoice (updated-before-created, invoice grant, cancel-at-period-end, deleted→Canceled, me→404); BillingCommerceTests.Duplicate_invoice_success_events_grant_subscription_credits_exactly_once; BillingCommerceTests.Access_only_subscription_plan_does_not_grant_invoice_credits; BillingCommerceTests.Subscription_plans_come_from_config_and_promo_codes_validate_through_stripe; SubscriptionCheckoutTests.Subscription_checkout_rejects_user_with_existing_live_subscription; SubscriptionCheckoutTests.Concurrent_live_subscription_mirrors_leave_only_one_non_canceled_subscription_per_user; CancelSubscriptionTests.Cancel_subscription_can_immediately_mark_the_local_mirror_canceled; MySubscriptionTests.My_subscription_reflects_past_due_and_cancel_at_period_end_from_reconciled_state
+**Test gaps:** No remaining focused already-active subscription race gap in this slice.
 
-_Object-state mirroring is the right design and the happy/out-of-order/cancel paths are tested. Genuine gaps: the already-active TOCTOU (mitigated by reconcile but not DB-enforced) and the complete absence of dunning/PastDue handling (invoice.payment_failed unrouted) — fine for access-only products but should be an explicit documented decision._
+_Object-state mirroring is the right design and the happy/out-of-order/cancel/failed-renewal paths are tested. The live mirror race is DB-enforced; dunning/PastDue revocation or notification remains a product decision rather than a handler bug._
 
 ### Promo-code validation (coupons) — ✅ correct
 *Pre-checkout read so the UI can confirm a promotion code before redirecting to Stripe Checkout (Stripe enforces it authoritatively).*
@@ -693,19 +691,19 @@ _A simple config flag correctly threaded for subscription checkout. Real tax mat
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
-| Runaway volume | ✓ | Each pass capped + WARN log at cap (ReconcileStripeHandler.cs:60-65,84-89,143-148) |
+| Runaway volume | ✓ | Each pass capped + WARN log at cap + response cap flags (ReconcileStripeHandler.cs:60-65,84-89,143-148); cap branches covered for stuck events, subscriptions and stuck purchases. |
 | One subscription's Stripe call errors (429/500/timeout) | ✓ | Per-item try/catch logs and continues; next run retries (cs:96-129). Proven by StripeReconcileTests.Provider_errors_are_isolated_per_subscription. |
 | One stuck purchase's session lookup errors | ✓ | Per-item try/catch in Pass 3 (cs:154-174) |
 | Re-grant of an unpaid/abandoned purchase | ✓ | Only re-publishes when payment_status is paid/no_payment_required (cs:156-160); proven by Stuck_UNPAID_purchase_is_NOT_regranted |
 | Double-credit from a race between reconcile re-grant and a late real confirmation | ✓ | Both grant through CreditTopUp key purchase:{id} (cs:166-167; saga NotFound) — idempotent |
 | Subscription canceled locally but reactivated in Stripe | ◐ | Pass 2 filters s.Status != Canceled (cs:78-79), so a locally-Canceled row reactivated upstream is never re-checked. One-directional drift correction; acceptable given cancel is user-initiated and Stripe-first, but not symmetric. |
 | Subscription deleted in Stripe (404) | ✓ | GetSubscriptionAsync returns null → continue/skip (cs:98-102); upsert also no-ops on null |
-| Stripe drift surfaced for ops | ✓ | WARN log + platform.billing.stripe_drift counter (cs:42-45,113-119); response drift count is proven by StripeReconcileTests.Subscription_drift_is_corrected_from_live_stripe_state. |
+| Stripe drift surfaced for ops | ✓ | WARN log + platform.billing.stripe_drift counter (cs:42-45,113-119); response drift count is proven by StripeReconcileTests.Subscription_drift_is_corrected_from_live_stripe_state and the metric export is pinned by StripeReconcileTests.Subscription_drift_records_the_platform_metric. |
 
-**Testy:** StripeReconcileTests.Stuck_stripe_event_is_requeued_and_processed_end_to_end_by_the_reconcile_sweep (Pass 1); StripeReconcileTests.Subscription_drift_is_corrected_from_live_stripe_state (Pass 2 drift correction); StripeReconcileTests.Provider_errors_are_isolated_per_subscription (Pass 2 per-item isolation); StripeReconcileTests.Stuck_PAID_purchase_whose_confirmation_dead_lettered_is_regranted (Pass 3 positive); StripeReconcileTests.Stuck_UNPAID_purchase_is_NOT_regranted (Pass 3 negative); StripeReconcileTests.Stuck_purchase_reconcile_pass_is_capped_per_run (Pass 3 cap)
-**Test gaps:** No test of the cap WARN paths for stuck events/subscriptions; no direct metric-reader assertion for platform.billing.stripe_drift (response count covers the same branch, not the OTel export).
+**Testy:** StripeReconcileTests.Stuck_stripe_event_is_requeued_and_processed_end_to_end_by_the_reconcile_sweep (Pass 1); StripeReconcileTests.Stuck_event_reconcile_pass_reports_when_the_per_run_cap_is_reached (Pass 1 cap); StripeReconcileTests.Subscription_drift_is_corrected_from_live_stripe_state (Pass 2 drift correction); StripeReconcileTests.Subscription_drift_records_the_platform_metric (Pass 2 metric export); StripeReconcileTests.Provider_errors_are_isolated_per_subscription (Pass 2 per-item isolation); StripeReconcileTests.Subscription_reconcile_pass_reports_when_the_per_run_cap_is_reached (Pass 2 cap); StripeReconcileTests.Stuck_PAID_purchase_whose_confirmation_dead_lettered_is_regranted (Pass 3 positive); StripeReconcileTests.Stuck_UNPAID_purchase_is_NOT_regranted (Pass 3 negative); StripeReconcileTests.Stuck_purchase_reconcile_pass_is_capped_per_run (Pass 3 cap)
+**Test gaps:** No remaining focused Stripe reconcile observability/cap gap in this slice; the live StripeGateway network path remains intentionally external.
 
-_All three passes have focused behavioral coverage now. Remaining gaps are observability-level cap warnings/metric export, not core reconciliation correctness. The asymmetric (non-Canceled only) drift scope is a minor design limitation worth documenting._
+_All three passes have focused behavioral coverage including cap branches and the drift metric export. The asymmetric (non-Canceled only) drift scope is a minor design limitation worth documenting._
 
 ### IStripeGateway anti-corruption seam (real + fake) — ✅ correct
 *The single seam to Stripe; absorbs SDK quirks and enables offline end-to-end testing.*
@@ -725,12 +723,8 @@ _All three passes have focused behavioral coverage now. Remaining gaps are obser
 
 _Clean ACL with a hard production safety guard on the fake. The validator is a strong, often-forgotten safety control._
 
-**Nekonzistence v oblasti (5):**
-- Event-name assumption drift: ProcessStripeEventCommand.cs:77 and GrantSubscriptionCreditsCommand.cs:12 route ONLY invoice.paid for recurring grants; Stripe also emits invoice.payment_succeeded and (for failures) invoice.payment_failed which are not routed. No code-comment or doc records this as a deliberate narrowing, so a deployment on a Stripe API version/config that emits payment_succeeded could silently miss per-period grants.
-- Dunning/PastDue gap vs status mapping: UpsertSubscriptionFromStripeCommand.cs:88-90 maps past_due/unpaid/paused→PastDue, but no handler reacts to PastDue (no revocation, no notification) and GetMySubscriptionHandler.cs:14-16 still returns a PastDue subscription as the user's live subscription (filter is only !=Canceled). invoice.payment_failed is unrouted. This is plausibly an access-only-product decision but is undocumented in CLAUDE.md/§4 and not in NOT-YET.
-- CreateSubscriptionCheckout already-active check is a TOCTOU race (CreateSubscriptionCheckoutHandler.cs:30-35): AnyAsync(Status!=Canceled) with no DB UNIQUE on (UserId, active) means two concurrent checkouts can both pass and Stripe can create two subscriptions; GetMySubscription/Cancel only ever act on the most-recent row (OrderByDescending CreatedAt), so a second live mirror row would linger unmanaged. Mitigated by Stripe-as-truth + reconcile but not enforced.
+**Nekonzistence v oblasti (1):**
 - Reconcile drift scope is asymmetric (ReconcileStripeHandler.cs:78-79): Pass 2 only inspects local non-Canceled subscriptions, so a row Canceled locally but reactivated in Stripe is never reconciled back — the doc/comment claims 'subscription drift … Stripe wins' without noting this one-directional limit.
-- Documentation vs reality on the webhook downstream: StripeWebhookTests.cs header (lines 23-34) states the downstream top-up is NOT reachable in-test because the real EventService is called; that was true before the IStripeGateway seam, but BillingCommerceTests now DOES reach the full downstream via the fake. The two test classes describe contradictory reachability of the same path — the StripeWebhookTests note is now stale (the seam closed that gap).
 
 
 ---
@@ -765,7 +759,7 @@ _Logic is solid and now pinned at both levels: Identity proves real user rows ar
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
 | Encrypt for an already-shredded subject | ✓ | GetOrCreateDek returns null for WrappedDek null OR DeletedAt set -> Protect returns RedactedMarker, never re-mints or writes plaintext (PersonalDataProtector.cs:36-47,97-108) |
-| Concurrent first-use DEK insert race (UNIQUE UserId) | ✓ | catch DbUpdateException, reload winner; rethrow if no row (transient, not a unique race) (PersonalDataProtector.cs:112-129) |
+| Concurrent first-use DEK insert race (UNIQUE UserId) | ✓ | catch DbUpdateException, reload winner; rethrow if no row (transient, not a unique race) (PersonalDataProtector.cs:112-129). Proven by SubjectKeyShredTests.Concurrent_first_use_protect_calls_share_one_subject_key. |
 | Corrupted/format-drifted envelope on read | ✓ | catch FormatException/ArgumentException/OverflowException and Guid-length issues -> returns false, never crashes audit read (PersonalDataProtector.cs:67-77) |
 | AAD mismatch / wrong-key decrypt | ✓ | catch CryptographicException -> TryReveal false (PersonalDataProtector.cs:91-94) |
 | DEK retained in process memory | ✓ | DEK read LIVE from DB every call, AsNoTracking, never cached — cross-process shred honoured immediately (PersonalDataProtector.cs:99-107,132-137) |
@@ -774,10 +768,10 @@ _Logic is solid and now pinned at both levels: Identity proves real user rows ar
 | Envelope subject id swapped to another live subject | ✓ | v2 embeds subjectId and decrypts with subjectId AAD; tampering the subject id makes TryReveal false. Proven by SubjectKeyShredTests.V2_envelope_cannot_be_re_attached_to_another_subject. |
 | Protector context must be WRITE primary not read replica | ✓ | GdprModule forces RlsConnectionString.ForRuntime(write) so the INSERT/live-read guarantee isn't broken by replica lag (GdprModule.cs:50-72) |
 
-**Testy:** CryptoShredderTests.Encrypt_then_Decrypt_with_same_dek_round_trips; CryptoShredderTests.Decrypt_with_a_different_dek_fails_modeling_crypto_shredding; CryptoShredderTests.Decrypt_with_matching_aad_round_trips_and_wrong_aad_fails; SubjectKeyShredTests.Post_shred_protect_redacts_instead_of_re_minting_a_readable_dek; SubjectKeyShredTests.V2_envelope_cannot_be_re_attached_to_another_subject
-**Test gaps:** No test of the concurrent first-use DbUpdateException race path (reload-winner vs rethrow).
+**Testy:** CryptoShredderTests.Encrypt_then_Decrypt_with_same_dek_round_trips; CryptoShredderTests.Decrypt_with_a_different_dek_fails_modeling_crypto_shredding; CryptoShredderTests.Decrypt_with_matching_aad_round_trips_and_wrong_aad_fails; SubjectKeyShredTests.Post_shred_protect_redacts_instead_of_re_minting_a_readable_dek; SubjectKeyShredTests.Concurrent_first_use_protect_calls_share_one_subject_key; SubjectKeyShredTests.V2_envelope_cannot_be_re_attached_to_another_subject
+**Test gaps:** No remaining focused PersonalDataProtector first-use race gap in this slice.
 
-_Crypto seam is careful and well-reasoned. Protector-level redaction after shred and v2 subject binding are now pinned; only the hard-to-force first-use insert race remains as a focused gap._
+_Crypto seam is careful and well-reasoned. Protector-level redaction after shred, concurrent first-use, and v2 subject binding are now pinned._
 
 ### CryptoShredder (AES-256-GCM primitive) — ✅ correct
 *Generate DEK and AES-GCM encrypt/decrypt with optional AAD; deleting the DEK makes ciphertext unrecoverable.*
@@ -840,12 +834,12 @@ _End-to-end erasure is well tested and correct. Per-eraser isolation now matches
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
-| Identity from token not body | ✓ | Grant/Withdraw endpoints use tenant.UserId; request.UserId ignored (GrantConsentEndpoint.cs:20-22; WithdrawConsentEndpoint.cs:18-21) |
+| Identity from token not body | ✓ | Grant/Withdraw endpoints use tenant.UserId; the wire request has no UserId. Extra body userId is ignored by model binding and proven by GdprIntegrationTests.Consent_grant_ignores_a_body_user_id_and_uses_the_token_subject. |
 | Append-only (no in-place mutation) | ✓ | both handlers Add a new ConsentRecord (GrantConsentHandler.cs:17-25; WithdrawConsentHandler.cs:17-25) |
 | Erasure of consents bypasses audit/xmin via ExecuteDelete | ✓ | documented sanctioned GDPR-scrub path (ConsentPersonalDataEraser.cs:9-24) |
 | Consent rows excluded from AML/tax retention | ✓ | eraser deletes them, unlike the credit ledger (ConsentPersonalDataEraser.cs:9-12) |
 
-**Testy:** GdprIntegrationTests.Consent_grant_then_withdraw_is_append_only_and_get_reflects_the_latest_state; GdprIntegrationTests.Consent_grant_trims_type_and_policy_version_before_persistence; GdprIntegrationTests.Consent_history_is_exported_and_deleted_on_erasure; ConsentValidatorTests.Grant_consent_validator_uses_stable_error_codes; ConsentValidatorTests.Withdraw_consent_validator_uses_stable_error_codes; ConsentValidatorTests.Consent_validators_accept_valid_input
+**Testy:** GdprIntegrationTests.Consent_grant_then_withdraw_is_append_only_and_get_reflects_the_latest_state; GdprIntegrationTests.Consent_grant_ignores_a_body_user_id_and_uses_the_token_subject; GdprIntegrationTests.Consent_grant_trims_type_and_policy_version_before_persistence; GdprIntegrationTests.Consent_history_is_exported_and_deleted_on_erasure; ConsentValidatorTests.Grant_consent_validator_uses_stable_error_codes; ConsentValidatorTests.Withdraw_consent_validator_uses_stable_error_codes; ConsentValidatorTests.Consent_validators_accept_valid_input
 **Test gaps:** No remaining focused consent log/validator gap in this slice.
 
 _Clean append-only model, correct token-identity, stable validation error codes, and trimmed persisted consent values._
@@ -884,15 +878,6 @@ _Resilience pattern is solid and now tested both at handler level and through th
 
 _Behaviour is correct (retain-forever, purge-nothing), and the regression that previously reopened the crypto-shred is fixed and now directly covered through the protector._
 
-**Nekonzistence v oblasti (6):**
-- CODE-vs-DOC: CLAUDE.md §4 'Retention sweep' row still says GdprRetentionSweepJob 'purges shredded subject_keys tombstones past Gdpr:Retention:ShreddedKeyRetentionDays (default 30)' and §9b/§10 imply purging — but RetentionSweepHandler.cs:25-31 now retains tombstones PERMANENTLY and returns 0 (purges nothing). The CLAUDE.md description is stale relative to the hardened code.
-- CODE-vs-DOC: RetentionSweepTests.cs class summary (lines 9-14) still describes the OLD behaviour — 'tombstones ... are hard-deleted, while rows within the retention window ... are left untouched' — while the actual [Fact] (line 19) and assertions verify permanent retention. The doc-comment contradicts its own test.
-- DEAD CONFIG: Gdpr:Retention:ShreddedKeyRetentionDays is now referenced ONLY in comments (RetentionSweepCommand.cs:13) — no code reads it; RetentionSweepHandler takes no retention window. The setting is documented as 'remains configurable' but is inert.
-- DEAD/REDUNDANT VALIDATION: GrantConsentValidator.cs validates RuleFor(x => x.UserId).NotEmpty() but GrantConsentCommand.UserId is always populated from tenant.UserId in the endpoint (GrantConsentEndpoint.cs:21), so the rule can never fire under the authorized path; same shape for Withdraw. Harmless but dead.
-- UNUSED REQUEST FIELD: GrantConsentRequest/WithdrawConsentRequest carry a UserId field (GrantConsentCommand.cs:9) that the endpoints intentionally ignore (IDOR protection). Correct security posture but the wire field is misleading — a client may believe it is honoured.
-- CODE-vs-CODE ASYMMETRY: ExportUserDataHandler isolates each IExportPersonalData with per-exporter try/catch (ExportUserDataHandler.cs:23-43) but the sibling UserErasureRequestedHandler fan-out has NO per-eraser try/catch (UserErasureRequestedHandler.cs:38-43) — a throwing eraser aborts the loop and the crypto-shred. The two fan-outs (same author/area) handle partial failure differently; erasure relies on Wolverine retry+idempotency instead, which is defensible but undocumented as a deliberate divergence.
-
-
 ---
 
 ## Notifications & Realtime
@@ -913,8 +898,8 @@ _Behaviour is correct (retain-forever, purge-nothing), and the regression that p
 | In-app row always written even when only email/push requested | ✓ | By design a single inapp row is persisted per send regardless of channels (Notification.cs:8-12, handler line 39-48 always Adds); Channel is hard-coded 'inapp' (line 43) recording the feed origin. Intentional, documented. |
 | email/push delivered but commit later fails | ✓ | Both are outbox PublishAsync inside the same SaveChangesAndFlushMessagesAsync transaction (line 56-86) — delivered only if commit succeeds; that flush IS the commit (no separate tx.Commit). |
 
-**Testy:** NotificationsIntegrationTests.SendNotification_persists_an_inapp_row_and_enqueues_channel_delivery_via_the_outbox (NT-1); NotificationsIntegrationTests.SendNotification_deduplicates_channels_before_publishing_delivery_messages; NotificationsIntegrationTests.SendNotification_with_missing_template_key_returns_not_found; NotificationsIntegrationTests.SendNotification_falls_back_to_english_template_when_requested_locale_is_missing; TemplateRendererTests.SendNotificationCommand_carries_channels_and_data
-**Test gaps:** No test asserts an EmailDeliveryRequested/PushDeliveryRequested message actually landed in wolverine_outgoing_envelopes (NT-1 infers the outbox only from the 200 + persisted row; the handler-level fake outbox now pins one publish per distinct email/push channel)
+**Testy:** NotificationsIntegrationTests.SendNotification_persists_an_inapp_row_and_enqueues_channel_delivery_via_the_outbox (NT-1); NotificationsIntegrationTests.SendNotification_persists_durable_delivery_messages_for_email_and_push_channels; NotificationsIntegrationTests.SendNotification_deduplicates_channels_before_publishing_delivery_messages; NotificationsIntegrationTests.SendNotification_with_missing_template_key_returns_not_found; NotificationsIntegrationTests.SendNotification_falls_back_to_english_template_when_requested_locale_is_missing; TemplateRendererTests.Render_replaces_all_matching_placeholders
+**Test gaps:** No remaining focused SendNotification outbox handoff gap in this slice; durable EmailDeliveryRequested/PushDeliveryRequested messages are now pinned via Wolverine's public message store API.
 
 _Clean reuse-first slice. The 'one inapp row regardless of channels' is intentional but slightly surprising; well documented._
 
@@ -931,7 +916,7 @@ _Clean reuse-first slice. The 'one inapp row regardless of channels' is intentio
 | SMTP auth optional | ✓ | SmtpEmailSender.cs:27-30 only authenticates when User is non-empty; StartTlsWhenAvailable used. |
 
 **Testy:** ChannelDeliveryHandlersTests.Email_delivery_handler_sends_exact_rendered_payload_to_email_sender; ChannelDeliveryHandlersTests.Email_delivery_handler_skips_missing_address_without_calling_smtp; ChannelDeliveryHandlersTests.Email_delivery_handler_propagates_smtp_failures_for_wolverine_retry_and_dlq; ChannelDeliveryHandlersTests.Push_delivery_handler_sends_exact_rendered_payload_to_push_sender; ChannelDeliveryHandlersTests.Push_delivery_handler_propagates_provider_failures_for_wolverine_retry_and_dlq; ChannelDeliveryHandlersTests.Noop_push_sender_completes_without_external_provider
-**Test gaps:** SmtpEmailSender has no live relay test (acknowledged — needs a configured SMTP relay or MailKit test server); Worker end-to-end delivery to a fake sender is still inferred from outbox tests plus direct handler tests.
+**Test gaps:** SmtpEmailSender has no live relay test (acknowledged — needs a configured SMTP relay or MailKit test server); Worker end-to-end send to a fake sender is still inferred from durable message-store coverage plus direct handler tests.
 
 _Push being a no-op is by design and documented; worker-side channel handlers now have direct unit coverage, while real SMTP remains an environment-backed integration concern._
 
@@ -944,14 +929,14 @@ _Push being a no-op is by design and documented; worker-side channel handlers no
 |---|:--:|---|
 | Unmatched {placeholder} in template | ✓ | TemplateRenderer.cs:9-23 leaves unmatched placeholders intact (only replaces keys present in data). Proven by TemplateRendererTests.Render_leaves_unmatched_placeholders_intact. |
 | Empty template or empty data dict | ✓ | TemplateRenderer.cs:11-14 early-returns the template unchanged. Proven by TemplateRendererTests.Render_returns_empty_template_unchanged and Render_returns_template_unchanged_when_data_is_empty. |
-| Concurrent seed across multiple hosts | ✓ | NotificationsSeeder.cs:46-67 checks AnyAsync then relies on UNIQUE(Key,Locale) (NotificationTemplate.cs:30); a concurrent duplicate insert is caught as DbUpdateException and logged benign. Repeated same-host runs are proven by NotificationsIntegrationTests.Notifications_seeder_can_run_repeatedly_without_duplicate_builtin_templates. |
+| Concurrent seed across multiple hosts | ✓ | NotificationsSeeder.cs:46-67 checks AnyAsync then relies on UNIQUE(Key,Locale) (NotificationTemplate.cs:30); a concurrent duplicate insert is caught as DbUpdateException and logged benign. Repeated same-host runs are proven by NotificationsIntegrationTests.Notifications_seeder_can_run_repeatedly_without_duplicate_builtin_templates; parallel host startup is proven by Notifications_seeder_concurrent_hosts_leave_one_complete_builtin_template_set. |
 | Seeder runs as a non-tenant hosted service | ✓ | NotificationTemplate is NOT ITenantScoped (NotificationTemplate.cs:9-11) so the seeder's plain context inserts platform-shared rows without a tenant filter. |
 | Placeholder value containing braces could re-trigger substitution | ✓ | Render iterates data once with Ordinal Replace (TemplateRenderer.cs:17-21); a value that itself contains '{otherKey}' is only replaced if a LATER dict key matches — order-dependent but values are short controlled strings; no infinite loop. Proven by TemplateRendererTests.Render_does_not_loop_when_value_contains_placeholder_text. |
 
-**Testy:** TemplateRendererTests.Render_replaces_all_matching_placeholders; TemplateRendererTests.Render_leaves_unmatched_placeholders_intact; TemplateRendererTests.Render_returns_empty_template_unchanged; TemplateRendererTests.Render_returns_template_unchanged_when_data_is_empty; TemplateRendererTests.Render_does_not_loop_when_value_contains_placeholder_text; NotificationsIntegrationTests.SendNotification_uses_requested_locale_template_when_it_exists; NotificationsIntegrationTests.SendNotification_falls_back_to_english_template_when_requested_locale_is_missing; NotificationsIntegrationTests.Notifications_seeder_can_run_repeatedly_without_duplicate_builtin_templates
-**Test gaps:** No test for the true concurrent duplicate-insert catch branch across two hosts
+**Testy:** TemplateRendererTests.Render_replaces_all_matching_placeholders; TemplateRendererTests.Render_leaves_unmatched_placeholders_intact; TemplateRendererTests.Render_returns_empty_template_unchanged; TemplateRendererTests.Render_returns_template_unchanged_when_data_is_empty; TemplateRendererTests.Render_does_not_loop_when_value_contains_placeholder_text; NotificationsIntegrationTests.SendNotification_uses_requested_locale_template_when_it_exists; NotificationsIntegrationTests.SendNotification_falls_back_to_english_template_when_requested_locale_is_missing; NotificationsIntegrationTests.Notifications_seeder_can_run_repeatedly_without_duplicate_builtin_templates; NotificationsIntegrationTests.Notifications_seeder_concurrent_hosts_leave_one_complete_builtin_template_set
+**Test gaps:** No remaining focused template rendering/seeding gap in this slice.
 
-_Rendering logic is directly covered; seeding is covered for repeated same-host runs, with only the rare cross-host duplicate-race branch left unforced._
+_Rendering logic is directly covered; seeding is covered for repeated same-host runs and parallel host startup._
 
 ### In-app feed (get / mark-read) — ✅ correct
 *Per-user paged feed of in-app notifications with unread filter and an idempotent mark-as-read.*
@@ -1015,15 +1000,15 @@ _Owner-scoping + local fan-out are sound; unsupported tenant broadcast now fails
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
 | Unauthenticated request | ✓ | RequireAuthorization + tenant.UserId null -> UnauthorizedException (RealtimeStreamEndpoint.cs:32-33,41). Tested: Unauthenticated_stream_is_rejected. |
-| Slow/dead consumer back-pressure (unbounded memory growth) | ✓ | Channel.CreateBounded(256, DropOldest) (RealtimeStreamEndpoint.cs:57-62) — TryWrite never blocks/fails; oldest unread dropped under back-pressure. Best-effort by design, documented. |
+| Slow/dead consumer back-pressure (unbounded memory growth) | ✓ | Channel.CreateBounded(256, DropOldest) (RealtimeStreamEndpoint.cs:57-62) — TryWrite never blocks/fails; oldest unread dropped under back-pressure. Best-effort by design, documented and covered by RealtimeSseTests.Sse_live_buffer_drops_oldest_events_under_back_pressure. |
 | Live events arriving while replay is being emitted | ✓ | Subscribes BEFORE emitting replay (RealtimeStreamEndpoint.cs:63-77) so no live event is lost in the gap; replay then live. |
 | Client disconnect mid-stream | ✓ | CancellationToken cancels ReadAllAsync; `using` disposes the subscription, removing the registry entry. |
-| Replay vs live duplicate (an event both replayed and delivered live) | ◐ | Possible narrow window: an event published between the registry Subscribe (line 63) and the replay XRANGE (line 72) could be both replayed AND delivered live, yielding a duplicate SSE frame with the same EventId. Client is expected to dedup by id; not handled server-side and not documented as such. |
+| Replay vs live duplicate (an event both replayed and delivered live) | ◐ | Possible narrow window: an event published between the registry Subscribe and replay read can be both replayed AND delivered live, yielding a duplicate SSE frame with the same EventId. This is now an explicit at-least-once contract; clients deduplicate by SSE EventId (RealtimeMessage and RealtimeStreamEndpoint docs). |
 
-**Testy:** RealtimeSseTests.Unauthenticated_stream_is_rejected
-**Test gaps:** The authenticated streaming round-trip is explicitly NOT tested over TestServer (buffers infinite SSE) — acknowledged; only manual/real-server verified; No test for the bounded-channel DropOldest behavior under back-pressure; No test for the replay-then-live ordering or the replay/live duplicate window
+**Testy:** RealtimeSseTests.Unauthenticated_stream_is_rejected; RealtimeSseTests.Sse_live_buffer_drops_oldest_events_under_back_pressure
+**Test gaps:** The authenticated streaming round-trip is explicitly NOT tested over TestServer (buffers infinite SSE) — acknowledged; only manual/real-server verified; No test for the replay-then-live ordering or the replay/live duplicate window
 
-_The replay/live duplicate-by-id window is the only substantive correctness nuance; relies on client-side id dedup._
+_The replay/live duplicate-by-id window is the only substantive correctness nuance; it is now documented as the SSE contract._
 
 ### Replay buffer (Last-Event-ID, TTL) — ✅ correct
 *Per-user short-lived event buffer (Redis Streams or in-memory ring) replayed on SSE reconnect; PII-minimized via MAXLEN + TTL.*
@@ -1037,13 +1022,13 @@ _The replay/live duplicate-by-id window is the only substantive correctness nuan
 | Ring buffer over capacity | ✓ | LocalRealtimePublisher UserBuffer trims front when > MaxEvents (Realtime.cs:252-263); Redis uses approximate MAXLEN (Realtime.cs:119-123). Both tested (local) / asserted via the eviction test. |
 | Cursor at the last event | ✓ | Returns empty — Redis IncrementStreamId bumps the seq for an exclusive XRANGE lower bound (Realtime.cs:154-156,181-197); local compares numerically > cursor (Realtime.cs:271-283). Tested for local. |
 | Malformed Redis stream id in IncrementStreamId | ✓ | Falls back to the original id (Realtime.cs:191-196); XRANGE on an unknown id returns empty — safe. No-dash case appends '-1' (line 184-187). Proven by RealtimeReplayTests.Redis_stream_cursor_increment_handles_missing_malformed_and_overflow_sequence. |
-| Approximate MAXLEN means Redis may retain MORE than MaxEvents | ◐ | useApproximateMaxLength:true (Realtime.cs:123) trades exactness for performance — slightly more PII may linger than MaxEvents implies (TTL still bounds it). Acceptable + documented intent (best-effort), but the PII-minimization bound is soft, unlike the local ring's exact trim. |
-| Local ring id overflow / cross-restart cursor | ◐ | LocalRealtimePublisher ids are a process-local Interlocked counter (Realtime.cs:210,216); on Api restart the counter resets to 1, so an old client cursor (e.g. '5000') would replay nothing or mismatch. Acceptable for a single-instance dev fallback but undocumented; Redis (prod) uses durable stream ids so this is a fallback-only quirk. |
+| Approximate MAXLEN means Redis may retain MORE than MaxEvents | ◐ | useApproximateMaxLength:true trades exactness for performance — slightly more PII may linger than MaxEvents implies. The options contract now calls MaxEvents a soft event-count bound for Redis; TTL remains the hard time bound. |
+| Local ring id overflow / cross-restart cursor | ◐ | LocalRealtimePublisher ids are a process-local Interlocked counter; on Api restart the counter resets to 1, so an old client cursor (e.g. '5000') would replay nothing or mismatch. The class contract now documents that local cursors are meaningful only within the current API process lifetime. |
 
 **Testy:** RealtimeReplayTests.ReadSinceAsync_with_null_or_empty_lastEventId_returns_empty; RealtimeReplayTests.ReadSinceAsync_returns_only_events_newer_than_cursor; RealtimeReplayTests.ReadSinceAsync_at_last_event_returns_empty; RealtimeReplayTests.Ring_buffer_bounded_to_maxEvents_evicts_oldest_first; RealtimeReplayTests.ReadSinceAsync_for_unknown_userId_returns_empty; RealtimeReplayTests.Events_from_different_users_are_isolated; RealtimeReplayTests.Disabled_replay_buffer_returns_empty_from_ReadSince; RealtimeReplayTests.Redis_stream_cursor_increment_handles_missing_malformed_and_overflow_sequence
 **Test gaps:** Zero live Redis impl tests for XADD MAXLEN, TTL refresh, and exclusive XRANGE behaviour — only the cursor helper and local ring are covered; no test for TTL expiry behavior.
 
-_Local path is well covered; the Redis (production) replay path has solid code but no automated tests, and approximate-MAXLEN makes the PII bound soft._
+_Local path is well covered; the Redis production replay path has solid code but no automated live-Redis tests, and approximate-MAXLEN intentionally makes the event-count PII bound soft._
 
 ### GDPR export / erasure (Notifications) — 🟢 minor-gaps
 *Export the subject's in-app feed and anonymize PII in place on erasure, keeping structural rows.*
@@ -1063,15 +1048,6 @@ _Local path is well covered; the Redis (production) replay path has solid code b
 
 _Implementation is correct and matches platform conventions; exporter and eraser ports are now pinned through the same DI fan-out interfaces GDPR uses._
 
-**Nekonzistence v oblasti (6):**
-- Test-file-name vs content drift: src/modules/Notifications/.../TemplateRendererTests.cs is named for the TemplateRenderer but its only test (lines 12-22) asserts SendNotificationCommand record construction and never calls TemplateRenderer.Render. The class doc-comment (lines 6-9) even calls itself a 'Placeholder slice test'. TemplateRenderer.Render therefore has zero unit coverage despite the apparent test file.
-- Stale doc-comment in NotificationsIntegrationTests.cs:24-27: comment claims 'NO production code seeds a welcome template ... so EV-2 is in the missing-template case', but NotificationsSeeder.cs:23-26 DOES seed welcome (en/cs) and the EV-2 test (lines 39-58) now asserts the welcome row IS created. The header comment contradicts the actual seeder + the test it documents (code-vs-comment drift).
-- SSE replay/live duplicate window: RealtimeStreamEndpoint.cs:63-77 subscribes before replaying, so an event published in the gap between Subscribe (line 63) and the XRANGE replay (line 72) can be emitted twice (once via replay, once live) with the same EventId. The code relies on client-side dedup-by-id but neither the code comment nor the IRealtimeReplay contract states this guarantee.
-- LocalRealtimePublisher.PublishToTenantAsync (Realtime.cs:227-228) is a silent no-op while RedisRealtimePublisher.PublishToTenantAsync (Realtime.cs:133-135) actually publishes — tenant broadcasts behave differently single-instance vs multi-instance with no warning. No current notifications-area producer uses it, so latent only.
-- PII-minimization bound is soft on Redis but hard locally: RedisRealtimePublisher uses useApproximateMaxLength:true (Realtime.cs:123) so the stream may retain more than RealtimeReplayOptions.MaxEvents, whereas the local ring trims exactly (Realtime.cs:258-262). The RealtimeReplayOptions doc-comment (Realtime.cs:36-48) presents MaxEvents as a firm PII bound; on Redis it is approximate (TTL is the firm bound).
-- LocalRealtimePublisher replay ids are a process-local Interlocked counter (Realtime.cs:210,216) that resets to 1 on Api restart, so a reconnecting client's old Last-Event-ID cursor becomes meaningless after a restart — a fallback-only quirk that diverges from the durable Redis stream ids and is undocumented.
-
-
 ---
 
 ## Operations & Files
@@ -1085,14 +1061,16 @@ _Implementation is correct and matches platform conventions; exporter and eraser
 |---|:--:|---|
 | Owner must come from token, not body (IDOR) | ✓ | StartDemoOperationEndpoint.cs:25 takes userId from ITenantContext.UserId; StartDemoOperationCommand carries it; row stamped IUserOwned at StartDemoOperationHandler.cs:22 |
 | Operation row + work message committed atomically (no orphan operation, no phantom message) | ✓ | StartDemoOperationHandler.cs:26-29 adds the Operation to outbox.DbContext and PublishAsync, then SaveChangesAndFlushMessagesAsync — single outbox commit |
+| Duplicate client retry of the accept request | ✓ | `Idempotency-Key` header is stored on operations; UNIQUE(UserId, Type, IdempotencyKey) plus pre-check/catch race returns the original operation id and does not publish a second work item. Covered by OperationsTests.Demo_operation_accept_is_idempotent_for_the_same_user_type_and_key. |
+| Malformed accept idempotency key | ✓ | StartDemoOperationValidator rejects keys longer than the DB column before persistence with operations.idempotency_key.too_long. Covered by OperationsTests.Demo_operation_rejects_an_oversized_idempotency_key_before_creating_an_operation. |
 | Location stays correct under the /v1 group prefix | ✓ | StartDemoOperationEndpoint.cs:29 uses LinkGenerator.GetPathByName('GetOperationStatus') with a string fallback; proven by OperationsTests Location assertion |
 | Unauthenticated request | ✓ | RequireAuthorization() at StartDemoOperationEndpoint.cs:33 + explicit UnauthorizedException at line 25 |
 | Slow work accidentally done in the accept handler | ✓ | Handler only enqueues; the canonical comment + RunDemoOperationHandler does the work on the worker |
 
-**Testy:** OperationsTests.Demo_operation_is_accepted_runs_on_the_worker_and_is_owner_scoped (202 + Location + worker drives to Succeeded)
-**Test gaps:** No test that a malformed/duplicate accept does not create two operations (outbox atomicity is implied, not directly asserted)
+**Testy:** OperationsTests.Demo_operation_is_accepted_runs_on_the_worker_and_is_owner_scoped (202 + Location + worker drives to Succeeded); OperationsTests.Demo_operation_accept_is_idempotent_for_the_same_user_type_and_key; OperationsTests.Demo_operation_rejects_an_oversized_idempotency_key_before_creating_an_operation
+**Test gaps:** No remaining focused accept/idempotency gap in this slice.
 
-_Canonical 202 pattern; clean, token-sourced owner, atomic outbox._
+_Canonical 202 pattern; clean, token-sourced owner, atomic outbox, and retry-safe accept via Idempotency-Key._
 
 ### Operation state machine + terminal guard (OperationStore) — 🟢 minor-gaps
 *Advance an operation Pending→Running→Succeeded/Failed with terminal states final and idempotent.*
@@ -1101,16 +1079,17 @@ _Canonical 202 pattern; clean, token-sourced owner, atomic outbox._
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
-| Terminal state must not be flipped/resurrected by a duplicate transition | ✓ | OperationStore.cs:52-55 early-returns (idempotent no-op) when Status is Succeeded/Failed; covered by OperationsTests.A_terminal_operation_is_not_resurrected_by_a_duplicate_worker_transition and Redelivered_worker_message_does_not_resurrect_a_failed_terminal_operation |
-| Transition on a missing operation id | ✓ | OperationStore.cs:47-48 throws NotFoundException('operation.not_found') if the row is absent; proven by OperationsTests.Worker_transition_on_missing_operation_surfaces_not_found. |
+| Terminal state must not be flipped/resurrected by a duplicate transition | ✓ | OperationStore.TransitionAsync reloads the row and early-returns (idempotent no-op) when Status is Succeeded/Failed; covered by OperationsTests.A_terminal_operation_is_not_resurrected_by_a_duplicate_worker_transition and Redelivered_worker_message_does_not_resurrect_a_failed_terminal_operation |
+| Transition on a missing operation id | ✓ | OperationStore.TransitionAsync throws NotFoundException('operation.not_found') if the row is absent; proven by OperationsTests.Worker_transition_on_missing_operation_surfaces_not_found. |
 | Worker work throws → operation must reach a terminal state (not stuck Running/Pending) | ✓ | RunDemoOperationHandler.cs:32 FailAsync in catch; MarkRunning is INSIDE the try (line 19) so a failed Pending→Running also terminalizes; covered by OperationWorkerFailureTests |
-| Concurrent transitions racing (xmin conflict) — worker path is NOT in the dispatcher pipeline so ConcurrencyRetryBehavior does NOT apply | ◐ | OperationStore.TransitionAsync (OperationStore.cs:45-59) calls db.SaveChangesAsync directly; a concurrent xmin conflict throws DbUpdateConcurrencyException which is NOT retried in-process — it relies on Wolverine handler redelivery to re-run. Inbox dedup makes a true concurrent double-delivery unlikely, but there is no explicit retry/serialization in the store itself. Acceptable but undocumented. |
+| Work message is permanently dead-lettered before terminalizing | ✓ | ReconcileStaleOperationsHandler ages out old Pending/Running rows to Failed with `operation.stale_reconciled`; scheduled by OperationsReconcileStaleOperationsJob every 15 minutes UTC; covered by OperationsTests.Reconcile_stale_operations_marks_only_old_non_terminal_operations_failed and JobsHostWiringTests.Operations_stale_reconcile_cron_uses_utc |
+| Concurrent transitions racing (xmin conflict) outside the CQRS dispatcher pipeline | ✓ | OperationStore.TransitionAsync now has a local bounded DbUpdateConcurrencyException retry: clear tracker, reload, then either apply the transition or observe the terminal state as an idempotent no-op. Proven by OperationsTests.Concurrent_worker_transitions_retry_xmin_conflicts_and_leave_one_terminal_state. |
 | FailAsync itself cannot write (DB down) | ✓ | RunDemoOperationHandler.cs:27-33 comment: the exception propagates and Wolverine retries the whole handler |
 
-**Testy:** OperationsTests.A_terminal_operation_is_not_resurrected_by_a_duplicate_worker_transition; OperationsTests.Redelivered_worker_message_does_not_resurrect_a_failed_terminal_operation; OperationsTests.Worker_transition_on_missing_operation_surfaces_not_found; OperationWorkerFailureTests.Worker_marks_the_operation_failed_when_the_work_throws
-**Test gaps:** No stuck-Pending detection/reaper test — there is no job that finds operations stuck Pending/Running if a message was permanently dead-lettered before the worker can terminalize it (relies on the generic messaging dead-letter health signal, not an Operations-owned reconciliation job)
+**Testy:** OperationsTests.A_terminal_operation_is_not_resurrected_by_a_duplicate_worker_transition; OperationsTests.Redelivered_worker_message_does_not_resurrect_a_failed_terminal_operation; OperationsTests.Concurrent_worker_transitions_retry_xmin_conflicts_and_leave_one_terminal_state; OperationsTests.Worker_transition_on_missing_operation_surfaces_not_found; OperationsTests.Reconcile_stale_operations_marks_only_old_non_terminal_operations_failed; OperationWorkerFailureTests.Worker_marks_the_operation_failed_when_the_work_throws; JobsHostWiringTests.Operations_stale_reconcile_cron_uses_utc
+**Test gaps:** No remaining focused OperationStore state-machine/concurrency gap in this slice.
 
-_State machine is solid and idempotent. The only soft spot: no in-process concurrency retry on the worker transition path and no reaper for operations whose work message is dead-lettered before terminalizing._
+_State machine is solid and idempotent. Worker transitions now defend themselves locally against xmin races instead of relying only on Wolverine redelivery; dead-letter-before-terminalize is covered by an Operations-owned reconcile job._
 
 ### Operation status polling (owner-scoped read) — ✅ correct
 *Return an operation's status/result to the user who owns it; foreign id is a 404.*
@@ -1180,13 +1159,13 @@ _IDOR protection is dual-gated and well tested. Missing metadata and missing blo
 | Unbounded / negative / oversized page request | ✓ | PageRequest (Paging.cs:21-29) clamps page>=1 and pageSize 1..100 default 20 — a caller cannot request an unbounded page |
 | Stable ordering for paging | ✓ | ListFilesHandler.cs:30-31 orders by CreatedAt desc, then Id desc as a deterministic tie-breaker; PagedQueryExtensions requires an ordered query |
 | Only metadata returned, never bytes | ✓ | ListFilesHandler.cs:22 projects FileListItem (no StorageKey, no content) |
-| Index supports the per-user ordered scan | ◐ | Migration IX_file_objects_UserId is on UserId only (InitialFiles.cs:55-58); the query filters UserId then orders by CreatedAt — for large per-user file counts a composite (UserId, CreatedAt) index would avoid a sort. Acceptable at expected scale; a perf note, not a correctness bug. |
+| Index supports the per-user ordered scan | ✓ | FileObjectConfiguration defines IX_file_objects_UserId_CreatedAt_Id with CreatedAt/Id descending, matching ListFilesHandler's UserId filter + CreatedAt/Id order; AddFileObjectListIndex migration replaces the old UserId-only index. |
 | CreatedAt tie ordering is deterministic | ✓ | ThenByDescending(Id) prevents two same-timestamp files from swapping between pages; covered by FilesUploadTests.List_orders_created_at_ties_by_id_for_stable_paging. |
 
 **Testy:** FilesUploadTests.List_is_paged_and_owner_scoped (pageSize, totalCount, items length, owner scoping); FilesUploadTests.List_clamps_page_parameters_and_orders_newest_first_across_pages (query-string clamping + newest-first across pages); FilesUploadTests.List_orders_created_at_ties_by_id_for_stable_paging
-**Test gaps:** No remaining focused file-list paging/order gap; index note remains a perf nit, not a correctness bug.
+**Test gaps:** No remaining focused file-list paging/order/index gap.
 
-_Paging is clamped and owner-scoped. Index/tiebreaker notes are perf/stability nits, not bugs._
+_Paging is clamped and owner-scoped. Ordering is deterministic and the file_objects index now matches the per-user newest-first query._
 
 ### Blob storage providers (local + S3) & path-traversal guard — ✅ correct
 *Persist/retrieve/delete bytes behind IFileStorage; local disk for dev, S3-compatible (AWS/MinIO/R2) for prod; reject path-traversal keys.*
@@ -1218,6 +1197,7 @@ _Defence-in-depth path guard (validate + resolved-path re-check) is excellent; S
 | Erasure is idempotent / retryable (multi-transaction fan-out) | ✓ | FilesPersonalDataEraser.cs:24-34 re-run finds no rows and DeleteAsync is a no-op for already-removed blobs (documented at lines 13-16) |
 | Runs under system context (no tenant) — must still match the user's rows | ✓ | FilesPersonalDataEraser doc lines 14-15: tenant filter does not restrict; the WHERE UserId == userId matches; FilesUploadTests.Gdpr_erasure_deletes_the_users_files_and_metadata verifies rows reach 0 after shred |
 | Blob delete fails mid-loop (e.g. S3 transient) leaving metadata referencing a partially-deleted set | ✓ | FilesPersonalDataEraser.cs:29-34 deletes blobs in a loop THEN ExecuteDeleteAsync the rows; if a blob DeleteAsync throws partway, the exception propagates before metadata deletion, so a retry re-deletes already-gone blobs (no-op) and finishes. Proven by FilesUploadTests.Gdpr_erasure_keeps_metadata_when_blob_delete_fails_so_retry_can_finish. |
+| Blob delete order changes after index/query-plan changes | ✓ | FilesPersonalDataEraser orders by FileName then StorageKey before deleting blobs, so retry behaviour is deterministic and not dependent on whichever DB index the planner chooses. |
 | Export omits raw bytes (only metadata) | ✓ | FilesPersonalDataExporter.cs:8-12 doc + projection returns id/filename/contentType/size/createdAt only |
 | Ports registered so the DI-driven fan-out actually runs | ✓ | FilesModule.cs:46-47 registers both IExportPersonalData and IErasePersonalData (doc warns omission makes files immortal) |
 | ExecuteDeleteAsync bypasses audit/xmin | ✓ | FilesPersonalDataEraser.cs:34 uses ExecuteDeleteAsync — intentional for a GDPR scrub (consistent with the platform caveat that scrubs may bypass the interceptor); file_objects are not an append-only retained ledger |
@@ -1228,11 +1208,6 @@ _Defence-in-depth path guard (validate + resolved-path re-check) is excellent; S
 _Erasure correctly deletes (not anonymizes), is idempotent, and keeps metadata until every blob delete succeeds so fan-out retry can finish._
 
 **Nekonzistence v oblasti (6):**
-- Download orphaned-metadata path: DownloadFileEndpoint.cs:28 → LocalFileStorage.GetAsync throws FileNotFoundException (LocalFileStorage.cs:37) / S3 throws AmazonS3Exception, neither a ModularPlatformException, so GlobalExceptionMiddleware.cs:36-40 returns 500 'error.unexpected' instead of a 404 file.not_found — the metadata layer is dual-gated to 404 but the blob layer is not, an inconsistency in how 'not found' surfaces.
-- Upload has no compensation: UploadFileHandler.cs:22 writes the blob via PutAsync before db.SaveChangesAsync (line 35); a failed metadata write leaves an orphaned blob with no storage.DeleteAsync rollback. Storage is outside the outbox/transaction boundary, unlike the rest of the platform's atomic-commit discipline.
-- Operation worker transition path is NOT covered by ConcurrencyRetryBehavior: OperationStore.TransitionAsync (OperationStore.cs:45-59) is invoked from the Wolverine handler (RunDemoOperationHandler), not via IDispatcher, so the documented xmin+ConcurrencyRetryBehavior protection (which is command-pipeline-only) does not apply here; the store relies on Wolverine redelivery instead — not wrong, but the operation entity inherits AuditableEntity/xmin implying retry that isn't wired on this path.
-- List index/order: ListFilesHandler.cs:21 orders by CreatedAt DESC but the migration only indexes UserId (InitialFiles.cs:55-58) and uses no Guid-v7 tiebreaker — a code-vs-schema perf/stability drift (sort + non-deterministic same-instant ordering).
-- No stuck-Pending/Running reaper for operations: the design comment (RunDemoOperationHandler.cs:30-31) guarantees terminalization only while the handler runs; if its work message is permanently dead-lettered before any transition, the operation stays Pending forever with no job to detect/age it out — there is a MessagingHealthJob for dead-letters at the platform level but nothing maps a dead-lettered RunDemoOperation back to its stuck operation row.
 - Operations.Tests contains RealtimeReplayTests.cs and RealtimeSseTests.cs which test the Realtime building block, not the Operations module — cross-cutting tests are co-located in the Operations test project (organizational drift, not a bug).
 
 
@@ -1269,10 +1244,10 @@ _Clean ~150 LOC mediator replacement. Runtime tests now pin both execution order
 | No validators registered | ✓ | Short-circuits to next() (ValidationBehavior.cs:16-19) |
 | Validator with blank ErrorCode | ✓ | Falls back to 'validation.invalid' (ValidationBehavior.cs:29); covered by ValidationBehaviorTests.Multiple_validators_are_aggregated_and_blank_error_code_falls_back |
 | Multiple validators / parallel run | ✓ | Task.WhenAll over all validators, each with its own ValidationContext so FluentValidation state cannot be shared across validators (ValidationBehavior.cs:22-23); covered by ValidationBehaviorTests.Multiple_validators_are_aggregated_and_blank_error_code_falls_back |
-| Runs for queries too (read-safe) | ✓ | Does NOT implement ICommandOnlyBehavior, so it runs for both commands and queries (intended per docstring lines 8-9) |
+| Runs for queries too (read-safe) | ✓ | Does NOT implement ICommandOnlyBehavior, so it runs for both commands and queries (intended per docstring lines 8-9); pinned at runtime by DispatcherPipelineTests.Query_pipeline_runs_validation_behavior_before_the_handler |
 
-**Testy:** ValidationBehaviorTests.No_validators_calls_next; ValidationBehaviorTests.Multiple_validators_are_aggregated_and_blank_error_code_falls_back; ErrorCodeLocalizationTests (asserts error codes resolve to resx) — indirect; Module slice validators tested in module integration tests
-**Test gaps:** No direct runtime query-pipeline test here; validation behavior itself now has direct coverage for no-validator short-circuit, multi-validator aggregation, and blank ErrorCode fallback.
+**Testy:** ValidationBehaviorTests.No_validators_calls_next; ValidationBehaviorTests.Multiple_validators_are_aggregated_and_blank_error_code_falls_back; DispatcherPipelineTests.Query_pipeline_runs_validation_behavior_before_the_handler; ErrorCodeLocalizationTests (asserts error codes resolve to resx) — indirect; Module slice validators tested in module integration tests
+**Test gaps:** No remaining focused validation-behavior gap in this slice.
 
 _Thin and correct; the important invariant is one ValidationContext per validator, otherwise FluentValidation state can leak between parallel validators._
 
@@ -1299,11 +1274,12 @@ _errorCode==resx-key and status-code mapping are now both covered by focused tes
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
 | PII in request body | ✓ | Logs only typeof(TRequest).Name, never the body (LoggingBehavior.cs:8,15) |
-| Expected business error vs unexpected exception | ✓ | ModularPlatformException -> LogWarning with ErrorCode (LoggingBehavior.cs:24-29); other -> LogError with stack (31-36) |
+| Expected business error vs unexpected exception | ✓ | ModularPlatformException -> LogWarning with ErrorCode (LoggingBehavior.cs:24-29); other -> LogError with stack (31-36); pinned by LoggingBehaviorTests. |
 
-**Test gaps:** No direct test; low risk (pure logging)
+**Testy:** LoggingBehaviorTests.Successful_request_logs_type_and_elapsed_time_without_request_body; LoggingBehaviorTests.Business_exception_is_logged_as_warning_with_error_code; LoggingBehaviorTests.Unexpected_exception_is_logged_as_error_with_exception
+**Test gaps:** No remaining focused logging-behavior gap in this slice.
 
-_N/A test gap is acceptable for a logging shim._
+_The PII-safe logging contract is now covered directly: request values stay out of logs, business errors are warnings, unexpected failures are errors with exception details._
 
 ### xmin optimistic concurrency + ConcurrencyRetryBehavior — 🟢 minor-gaps
 *Detect concurrent writes via Postgres xmin token and retry the whole command up to 5x with backoff.*
@@ -1312,8 +1288,8 @@ _N/A test gap is acceptable for a logging shim._
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
-| Stale sibling entities after partial reload | ✓ | ChangeTracker.Clear() before each retry so the whole handler re-queries fresh (ConcurrencyRetryBehavior.cs:37-38; docstring 8-12); pinned by ConcurrencyRetryBehaviorTests.Retries_after_concurrency_conflict_and_clears_the_change_tracker_before_rerun |
-| Retry exhaustion (>5 conflicts) | ✓ | when(attempt<MaxRetries) guard (line 30) lets the 6th DbUpdateConcurrencyException propagate as a 5xx — intentional give-up; pinned by ConcurrencyRetryBehaviorTests.Gives_up_after_max_retries_and_surfaces_the_concurrency_exception |
+| Stale sibling entities after partial reload | ✓ | ChangeTracker.Clear() before each retry so the whole handler re-queries fresh (`Behaviors/ConcurrencyRetryBehavior.cs:37-38`; docstring 8-12); pinned by ConcurrencyRetryBehaviorTests.Retries_after_concurrency_conflict_and_clears_the_change_tracker_before_rerun |
+| Retry exhaustion (>5 conflicts) | ✓ | when(attempt<MaxRetries) guard (`Behaviors/ConcurrencyRetryBehavior.cs:30`) lets the 6th DbUpdateConcurrencyException propagate as a 5xx — intentional give-up; pinned by ConcurrencyRetryBehaviorTests.Gives_up_after_max_retries_and_surfaces_the_concurrency_exception |
 | Queries hitting the retry loop | ✓ | ICommandOnlyBehavior excludes it from the query pipeline (line 16) |
 | Cooldown on conflict storm / backoff | ✓ | Exponential delay 50ms*2^(n-1) (line 40) |
 | Idempotency (DbUpdateException, not concurrency) leaking into retry | ✓ | Only catches DbUpdateConcurrencyException; idempotency handled in handlers via catch DbUpdateException (per CLAUDE.md money rules) |
@@ -1395,8 +1371,8 @@ _The closed null-escape is the load-bearing security fix and is well covered; th
 | RLS disabled deployment (managed DB, no role creation) | ✓ | Enabled=false uses admin conn for data, no policies (RlsOptions.cs:15-16; RlsConnectionString.cs:18-21; RlsBootstrapper.cs:29-33) |
 | System principal must bypass user-owned policy without admin role | ✓ | Policy checks app.is_system='on' (RlsBootstrapper.cs:131-133); proven through runtime role by RlsTests.System_principal_bypasses_user_owned_rls_without_using_the_admin_role |
 
-**Testy:** RlsTests.A_user_cannot_see_another_users_credit_account_even_with_a_raw_query (owner sees own, other sees zero, admin sees both); RlsTests.System_principal_bypasses_user_owned_rls_without_using_the_admin_role; RlsTests.Principal_guc_is_restamped_when_a_runtime_connection_is_reused_for_another_user
-**Test gaps:** No test that an RLS-disabled config path still functions (data via admin conn)
+**Testy:** RlsTests.A_user_cannot_see_another_users_credit_account_even_with_a_raw_query (owner sees own, other sees zero, admin sees both); RlsTests.System_principal_bypasses_user_owned_rls_without_using_the_admin_role; RlsTests.Principal_guc_is_restamped_when_a_runtime_connection_is_reused_for_another_user; RlsTests.Rls_disabled_host_can_read_user_owned_data_through_the_admin_connection
+**Test gaps:** No remaining focused RLS bootstrap/runtime-role gap in this slice.
 
 _Comprehensive, hardened implementation; cross-principal read denial, system bypass and same-connection principal restamping are proven end-to-end._
 
@@ -1473,13 +1449,6 @@ _Clamp/math and the EF extension wrapper are now covered by focused building-blo
 
 _Conventions are solid; the `IUserOwned` -> `Guid UserId` contract is now enforced by an architecture test before RLS bootstrap._
 
-**Nekonzistence v oblasti (4):**
-- Doc-vs-code drift: AddPlatformPersistence XML summary says it registers the pipeline 'once per host' (Persistence/DependencyInjection.cs:17-20,33), but it is actually invoked once PER MODULE (via AddModuleDbContext, Messaging/DependencyInjection.cs:28) and relies on TryAdd*/TryAddEnumerable dedup. The comment understates the per-module invocation that the dedup exists to neutralize.
-- Convention enforced at build: IUserOwned requires a 'Guid UserId' column (Entity.cs:25-31, used by RlsBootstrapper.cs:130 OwnerColumn='UserId') and `RlsConventionTests` asserts it before a mismarked entity can fail later during RLS bootstrap.
-- Mechanism-vs-test mismatch: BillingConcurrencyTests is the only concurrency test and it exercises the atomic ExecuteUpdate debit guard (the money path), NOT the xmin + ConcurrencyRetryBehavior retry loop (ConcurrencyRetryBehavior.cs). The retry-and-succeed and retry-exhaustion behaviors of the command-only retry behavior are asserted nowhere directly.
-- PageRequest/PagedResponse clamping (Paging.cs:16-30, 7-10) is now directly covered by `PagingClampingTests`; `PagedQueryExtensions.ToPagedResponseAsync` remains covered through module list queries rather than a focused EF extension test.
-
-
 ---
 
 ## Messaging, hosts, jobs & Web
@@ -1512,7 +1481,7 @@ _Well-reasoned and regression-guarded for retention, service-location, retry-to-
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
-| Pipeline behavior order must be Telemetry→Logging→Validation→ConcurrencyRetry across all hosts | ✓ | Api: AddPlatformTelemetry before AddPlatformWeb (Api Program.cs:29-30); Worker/Jobs add Logging+Validation after Telemetry, before module ConcurrencyRetry (WorkerHostBuilder.cs:31-36, JobsHostBuilder.cs:32-36) |
+| Command-dispatch host pipeline order must be Telemetry→Logging→Validation→ConcurrencyRetry | ✓ | Api: AddPlatformTelemetry before AddPlatformWeb (Api Program.cs:29-30) and pinned by TelemetryBehaviorTests.Platform_registration_keeps_telemetry_behavior_outer_most; Worker/Jobs add Logging+Validation after Telemetry, before module ConcurrencyRetry (WorkerHostBuilder.cs:31-36, JobsHostBuilder.cs:32-36), pinned by HostBootTests.Worker_and_jobs_hosts_register_command_pipeline_behaviors_in_the_expected_order. MigrationService only composes modules for migrations/RLS and exits, so it is covered as a DI graph host, not as a command-dispatch host. |
 | Non-HTTP host's module graph needs IRealtimePublisher (Notifications) or graph is unfulfillable | ✓ | AddPlatformRealtime in Worker(:37), Jobs(:40), Migration(:30); comments explain ValidateOnBuild is off outside Dev so this is latent |
 | Missing ConnectionStrings:Write | ✓ | throw InvalidOperationException in every host (Api:34-35, Worker:52-53, Jobs:57-58, Migration:45-46) |
 | Module set drift between hosts | ✓ | All four hosts enumerate the identical 6-module Discover call incl. Files even though Files has no jobs (JobsHostBuilder.cs:49-51 comment) |
@@ -1520,10 +1489,10 @@ _Well-reasoned and regression-guarded for retention, service-location, retry-to-
 | One-host-per-process PII protector invariant | ✓ | HostBootTests deliberately Build but never Start (HostBootTests.cs:16-18); separate test assembly |
 | Migrations applied at Api startup AND a deploy that turns RunMigrationsAtStartup off | ✓ | RLS bootstrapped in BOTH Api startup (Program.cs:62) and dedicated MigrationService (Program.cs:20) — comment MigrationService Program.cs:12-14 |
 
-**Testy:** HostBootTests.Worker_host_composes_and_its_dependency_graph_is_valid; HostBootTests.Jobs_host_composes_and_its_dependency_graph_is_valid; HostBootTests.MigrationService_host_composes_and_its_dependency_graph_is_valid
-**Test gaps:** No boot test for the Api host's DI graph (only covered transitively by the integration harness which starts it); No test asserts the actual registered behavior ORDER (Telemetry outer-most) — only convention + comments enforce it
+**Testy:** TelemetryBehaviorTests.Platform_registration_keeps_telemetry_behavior_outer_most; HostBootTests.Api_host_composes_and_its_dependency_graph_is_valid; HostBootTests.Worker_host_composes_and_its_dependency_graph_is_valid; HostBootTests.Jobs_host_composes_and_its_dependency_graph_is_valid; HostBootTests.Worker_and_jobs_hosts_register_command_pipeline_behaviors_in_the_expected_order; HostBootTests.MigrationService_host_composes_and_its_dependency_graph_is_valid
+**Test gaps:** No remaining focused host-composition / command-pipeline-order gap in this slice.
 
-_Strong: the boot tests are an explicit regression guard for the A4 DI-graph concern. Order-of-behaviors relies on registration order with no assertion._
+_Strong: the boot tests are an explicit regression guard for the A4 DI-graph concern, and command-dispatch pipeline ordering is now pinned directly for Api/Worker/Jobs._
 
 ### Jobs host: Quartz cron (UTC), idempotency, single-instance posture — ✅ correct
 *Cron-only host scheduling module jobs + platform messaging-health, with UTC cron and a documented single-instance/idempotent deployment model.*
@@ -1659,14 +1628,14 @@ _Correct and minimal; the baseline header contract is covered by an integration 
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
-| Slow/dead consumer growing the buffer unbounded (memory leak) | ✓ | Channel.CreateBounded(256, DropOldest) in RealtimeStreamEndpoint.cs:57-62; TryWrite never blocks/fails |
+| Slow/dead consumer growing the buffer unbounded (memory leak) | ✓ | Channel.CreateBounded(256, DropOldest) in RealtimeStreamEndpoint.cs:57-62; TryWrite never blocks/fails; covered by RealtimeSseTests.Sse_live_buffer_drops_oldest_events_under_back_pressure |
 | Client disconnect must dispose subscription | ✓ | Enumerator cancellation (CancellationToken) ends ReadAllAsync; using subscription disposes (RealtimeStreamEndpoint.cs:63-83) |
 | Unauthenticated access to the stream | ✓ | .RequireAuthorization() + tenant.UserId ?? throw UnauthorizedException('auth.required') (RealtimeStreamEndpoint.cs:32-41) |
 | Event ordering / duplicates across replay→live boundary | ◐ | Subscribe-before-replay means an event can be BOTH replayed and live-buffered (duplicate id), or buffered ones emitted after replayed ones; documented as acceptable best-effort UX (RealtimeStreamEndpoint.cs:54-56). Durable facts live in modules |
 | Removed duplicate SseStream<T> abstraction stays removed | ✓ | No SseStream.cs exists under src; the active endpoint owns the one bounded channel implementation. |
 
 **Testy:** Realtime replay covered in Realtime building-block/integration tests (outside this area's test set)
-**Test gaps:** No authenticated HTTP streaming round-trip over TestServer (buffers infinite SSE); no direct test for the endpoint's private DropOldest channel under back-pressure.
+**Test gaps:** No authenticated HTTP streaming round-trip over TestServer (buffers infinite SSE).
 
 _Endpoint is sound (bounded, owner-scoped, auth-gated). The old duplicate SseStream<T> abstraction has already been removed; remaining gaps are streaming-harness limitations._
 

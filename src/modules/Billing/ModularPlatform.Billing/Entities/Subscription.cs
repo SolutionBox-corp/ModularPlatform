@@ -41,6 +41,8 @@ internal sealed class SubscriptionConfiguration : IEntityTypeConfiguration<Subsc
         builder.Property(s => s.StripeCustomerId).HasMaxLength(256);
         builder.Property(s => s.Status).HasConversion<string>().HasMaxLength(16).IsRequired();
         builder.HasIndex(s => s.StripeSubscriptionId).IsUnique();
-        builder.HasIndex(s => s.UserId);
+        builder.HasIndex(s => s.UserId)
+            .IsUnique()
+            .HasFilter("\"Status\" <> 'Canceled'");
     }
 }

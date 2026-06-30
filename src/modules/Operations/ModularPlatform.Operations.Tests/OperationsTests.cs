@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
+using ModularPlatform.Operations.Features.ReconcileStaleOperations;
 using ModularPlatform.Operations.Features.Status;
 using ModularPlatform.Operations.Messaging;
 using ModularPlatform.IntegrationTesting;
@@ -49,6 +50,46 @@ public sealed class OperationsTests(PlatformApiFactory fixture)
         var (_, otherToken) = await fixture.RegisterAndLoginAsync($"other-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
         var foreign = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Get, $"/v1/operations/{operationId}", otherToken));
         foreign.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Demo_operation_accept_is_idempotent_for_the_same_user_type_and_key()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync($"op-idem-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+        var key = $"demo-{Guid.CreateVersion7():N}";
+
+        var firstRequest = fixture.Authed(HttpMethod.Post, "/v1/operations/demo", token);
+        firstRequest.Headers.Add("Idempotency-Key", key);
+        var first = await fixture.Client.SendAsync(firstRequest);
+
+        var retryRequest = fixture.Authed(HttpMethod.Post, "/v1/operations/demo", token);
+        retryRequest.Headers.Add("Idempotency-Key", key);
+        var retry = await fixture.Client.SendAsync(retryRequest);
+
+        first.StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        retry.StatusCode.ShouldBe(HttpStatusCode.Accepted);
+
+        var firstId = (await PlatformApiFactory.ReadData(first)).GetProperty("operationId").GetGuid();
+        var retryId = (await PlatformApiFactory.ReadData(retry)).GetProperty("operationId").GetGuid();
+        retryId.ShouldBe(firstId);
+
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM operations WHERE \"IdempotencyKey\" = '{key}'")).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Demo_operation_rejects_an_oversized_idempotency_key_before_creating_an_operation()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync($"op-idem-long-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+        var key = new string('x', 257);
+
+        var request = fixture.Authed(HttpMethod.Post, "/v1/operations/demo", token);
+        request.Headers.Add("Idempotency-Key", key);
+        var response = await fixture.Client.SendAsync(request);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM operations WHERE \"IdempotencyKey\" = '{key}'")).ShouldBe(0);
     }
 
     [Fact]
@@ -209,6 +250,68 @@ public sealed class OperationsTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Concurrent_worker_transitions_retry_xmin_conflicts_and_leave_one_terminal_state()
+    {
+        var userId = Guid.CreateVersion7();
+        await using var setupScope = fixture.Services.CreateAsyncScope();
+        var setupStore = setupScope.ServiceProvider.GetRequiredService<IOperationStore>();
+        var dispatcher = setupScope.ServiceProvider.GetRequiredService<IDispatcher>();
+
+        var operationId = await setupStore.CreateAsync("generic-module-race", userId, CancellationToken.None);
+        await setupStore.MarkRunningAsync(operationId, CancellationToken.None);
+
+        var suffix = Guid.CreateVersion7().ToString("N");
+        var functionName = $"delay_operation_transition_{suffix}";
+        var triggerName = $"delay_operation_transition_{suffix}";
+
+        try
+        {
+            await fixture.ExecuteSqlAsync($"""
+                CREATE OR REPLACE FUNCTION {functionName}()
+                RETURNS trigger AS $$
+                BEGIN
+                    IF NEW."Id" = '{operationId}'::uuid THEN
+                        PERFORM pg_sleep(0.2);
+                    END IF;
+                    RETURN NEW;
+                END;
+                $$ LANGUAGE plpgsql;
+
+                CREATE TRIGGER {triggerName}
+                BEFORE UPDATE ON operations
+                FOR EACH ROW
+                EXECUTE FUNCTION {functionName}();
+                """);
+
+            async Task CompleteFromWorkerScopeAsync()
+            {
+                await using var scope = fixture.Services.CreateAsyncScope();
+                var store = scope.ServiceProvider.GetRequiredService<IOperationStore>();
+                await store.CompleteAsync(operationId, new { ok = true }, CancellationToken.None);
+            }
+
+            async Task FailFromWorkerScopeAsync()
+            {
+                await using var scope = fixture.Services.CreateAsyncScope();
+                var store = scope.ServiceProvider.GetRequiredService<IOperationStore>();
+                await store.FailAsync(operationId, "module.concurrent_failure", "Concurrent failure.", CancellationToken.None);
+            }
+
+            await Task.WhenAll(CompleteFromWorkerScopeAsync(), FailFromWorkerScopeAsync());
+        }
+        finally
+        {
+            await fixture.ExecuteSqlAsync($"""
+                DROP TRIGGER IF EXISTS {triggerName} ON operations;
+                DROP FUNCTION IF EXISTS {functionName}();
+                """);
+        }
+
+        var status = await dispatcher.Query(new GetOperationStatusQuery(operationId, userId));
+        new[] { "Succeeded", "Failed" }.ShouldContain(status.Status);
+    }
+
+    [Fact]
     public async Task Worker_transition_on_missing_operation_surfaces_not_found()
     {
         await using var scope = fixture.Services.CreateAsyncScope();
@@ -218,6 +321,57 @@ public sealed class OperationsTests(PlatformApiFactory fixture)
             () => store.MarkRunningAsync(Guid.CreateVersion7(), CancellationToken.None));
 
         ex.ErrorCode.ShouldBe("operation.not_found");
+    }
+
+    [Fact]
+    public async Task Reconcile_stale_operations_marks_only_old_non_terminal_operations_failed()
+    {
+        var userId = Guid.CreateVersion7();
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IOperationStore>();
+        var dispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
+
+        var stalePending = await store.CreateAsync("generic-module-import", userId, CancellationToken.None);
+        var staleRunning = await store.CreateAsync("generic-module-export", userId, CancellationToken.None);
+        await store.MarkRunningAsync(staleRunning, CancellationToken.None);
+        var recentPending = await store.CreateAsync("generic-module-recent", userId, CancellationToken.None);
+        var terminalFailed = await store.CreateAsync("generic-module-terminal", userId, CancellationToken.None);
+        await store.FailAsync(terminalFailed, "module.original_failure", "Original failure.", CancellationToken.None);
+
+        await fixture.ExecuteSqlAsync($"""
+            UPDATE operations
+            SET "CreatedAt" = now() - interval '3 hours', "UpdatedAt" = NULL
+            WHERE "Id" = '{stalePending}';
+
+            UPDATE operations
+            SET "UpdatedAt" = now() - interval '3 hours'
+            WHERE "Id" = '{staleRunning}';
+
+            UPDATE operations
+            SET "CreatedAt" = now() - interval '3 hours', "UpdatedAt" = now() - interval '3 hours'
+            WHERE "Id" = '{terminalFailed}';
+            """);
+
+        var result = await dispatcher.Send(new ReconcileStaleOperationsCommand(StaleAfterMinutes: 60));
+
+        result.FailedCount.ShouldBe(2);
+        result.CapReached.ShouldBeFalse();
+
+        var pendingStatus = await dispatcher.Query(new GetOperationStatusQuery(stalePending, userId));
+        pendingStatus.Status.ShouldBe("Failed");
+        pendingStatus.ErrorCode.ShouldBe("operation.stale_reconciled");
+
+        var runningStatus = await dispatcher.Query(new GetOperationStatusQuery(staleRunning, userId));
+        runningStatus.Status.ShouldBe("Failed");
+        runningStatus.ErrorCode.ShouldBe("operation.stale_reconciled");
+
+        var recentStatus = await dispatcher.Query(new GetOperationStatusQuery(recentPending, userId));
+        recentStatus.Status.ShouldBe("Pending");
+
+        var terminalStatus = await dispatcher.Query(new GetOperationStatusQuery(terminalFailed, userId));
+        terminalStatus.Status.ShouldBe("Failed");
+        terminalStatus.ErrorCode.ShouldBe("module.original_failure");
+        terminalStatus.ErrorDetail.ShouldBe("Original failure.");
     }
 
     private async Task<Guid> StartDemoAsync(string token)

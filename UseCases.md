@@ -2643,7 +2643,7 @@ public sealed record ExampleModuleRunStatusResponse(
     DateTimeOffset? CompletedAt);
 ```
 
-**Co si pohlidas:** status endpoint nespousti praci znovu. Je to read-only query. Pokud worker spadne, status muze zustat `Running`; to resi UC67/UC68 monitoring/reconcile, ne frontend.
+**Co si pohlidas:** status endpoint nespousti praci znovu. Je to read-only query. Pokud worker spadne nebo work message skonci v DLQ pred terminalnim zapisem, status muze zustat `Pending/Running` jen do doby, nez Operations reconcile job oznaci stary zaznam jako `Failed`. Frontend to neopravuje sam; jen polluje/refetchuje.
 
 **Nepouzijes:** global operation lookup bez `UserId`, frontend-only status state, ani polling bez stop podminky.
 
@@ -2651,7 +2651,7 @@ public sealed record ExampleModuleRunStatusResponse(
 
 - EC316 foreign operation -> 404 → handler filtruje `OperationId && UserId`, cizi id je `operation.not_found`.
 - EC317 operation not found → stejny 404/error code, zadne info leak.
-- EC318 stuck processing → status muze zustat `Running`; monitoring/reconcile musi najit stuck run, UI ukaze pending/timeout stav.
+- EC318 stuck processing → Operations reconcile job najde stare `Pending/Running` operace a oznaci je `Failed`; UI ukaze pending/timeout stav do dalsiho pollu/refetch.
 - EC319 terminal state guard → `IOperationStore` neprepisuje `Succeeded/Failed` zpet na `Running`.
 - EC320 frontend polling backoff → pouzij interval/backoff a zastav polling na terminal state.
 
@@ -2737,7 +2737,7 @@ public sealed class RunExampleModuleImportHandler
 - EC327 duplicate message → `IOperationStore` ignoruje prechod terminal state zpet na Running.
 - EC328 worker crash between external call and save → navrhni externi call idempotentne a pridej reconcile; jinak retry muze zopakovat side effect.
 - EC329 terminal state no-op → `Succeeded/Failed` jsou finalni, test hlida duplicate transition.
-- EC330 DLQ needs support/reconcile story → DLQ sleduje `MessagingHealthJob`; domenove stuck runy resi ExampleModule reconcile job.
+- EC330 DLQ needs support/reconcile story → DLQ sleduje `MessagingHealthJob`; obecne `operations` stuck rows resi Operations reconcile job, domenove run tabulky resi ExampleModule reconcile job.
 
 ### UC67 Cron job
 
@@ -2793,7 +2793,7 @@ internal sealed class ExampleModuleReconcileJob(IDispatcher dispatcher) : IJob
 
 **Co se stane:** Jobs host pravidelne spousti `MessagingHealthJob`. Job se pta Wolverine pres `IMessageStore.Admin.FetchCountsAsync()`, ne pres SQL nad internimi tabulkami. Aktualizuje OTel gauges `platform.messaging.dead_letters`, `platform.messaging.incoming_pending`, `platform.messaging.outgoing_pending` a zaloguje warning, kdyz existuje DLQ nebo pending count prekroci `Messaging:StuckThreshold`.
 
-**Napises v novem modulu (napr. ExampleModule):** vlastni domenu reconcile, pokud stuck run potrebuje opravu. Messaging health rekne "neco je v DLQ / outbox se zasekl", ale modul musi umet rict "ktery import/run je v nekonzistentnim stavu a jak ho opravit".
+**Napises v novem modulu (napr. ExampleModule):** vlastni domenu reconcile, pokud stuck run potrebuje opravu nad tvoji domenovou tabulkou. Pokud pouzivas jen obecny `operations` status, base Operations reconcile job umi stare `Pending/Running` operace terminalizovat jako `Failed`. Messaging health rekne "neco je v DLQ / outbox se zasekl", ale modul musi umet rict "ktery import/run je v nekonzistentnim stavu a jak ho opravit".
 
 **Vzor ExampleModule reakce:**
 

@@ -1,8 +1,10 @@
+using Microsoft.EntityFrameworkCore;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Operations.Entities;
 using ModularPlatform.Operations.Messaging;
 using ModularPlatform.Operations.Persistence;
+using Npgsql;
 using Wolverine.EntityFrameworkCore;
 
 namespace ModularPlatform.Operations.Features.Demo;
@@ -17,17 +19,52 @@ internal sealed class StartDemoOperationHandler(IDbContextOutbox<OperationsDbCon
 {
     public async Task<StartDemoOperationResponse> Handle(StartDemoOperationCommand command, CancellationToken ct)
     {
+        var idempotencyKey = NormalizeIdempotencyKey(command.IdempotencyKey);
+        if (idempotencyKey is not null)
+        {
+            var existing = await FindExistingAsync(command.UserId, idempotencyKey, ct);
+            if (existing.HasValue)
+            {
+                return new StartDemoOperationResponse(existing.Value);
+            }
+        }
+
         var operation = new Operation
         {
             UserId = command.UserId,
             Type = "demo",
+            IdempotencyKey = idempotencyKey,
             Status = OperationStatus.Pending,
         };
         outbox.DbContext.Operations.Add(operation);
 
         await outbox.PublishAsync(new RunDemoOperation(operation.Id));
-        await outbox.SaveChangesAndFlushMessagesAsync();
+        try
+        {
+            await outbox.SaveChangesAndFlushMessagesAsync();
+        }
+        catch (DbUpdateException ex) when (idempotencyKey is not null
+            && ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            outbox.DbContext.ChangeTracker.Clear();
+            var existing = await FindExistingAsync(command.UserId, idempotencyKey, ct)
+                ?? throw new InvalidOperationException("The operation idempotency key collided but the existing operation could not be reloaded.");
+            return new StartDemoOperationResponse(existing);
+        }
 
         return new StartDemoOperationResponse(operation.Id);
+    }
+
+    private Task<Guid?> FindExistingAsync(Guid userId, string idempotencyKey, CancellationToken ct) =>
+        outbox.DbContext.Operations
+            .AsNoTracking()
+            .Where(o => o.UserId == userId && o.Type == "demo" && o.IdempotencyKey == idempotencyKey)
+            .Select(o => (Guid?)o.Id)
+            .FirstOrDefaultAsync(ct);
+
+    private static string? NormalizeIdempotencyKey(string? idempotencyKey)
+    {
+        var normalized = idempotencyKey?.Trim();
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
     }
 }

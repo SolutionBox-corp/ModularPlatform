@@ -32,6 +32,7 @@ internal sealed class FileObjectConfiguration : IEntityTypeConfiguration<FileObj
         builder.Property(f => f.FileName).HasMaxLength(512).IsRequired();
         builder.Property(f => f.ContentType).HasMaxLength(128).IsRequired();
         builder.Property(f => f.Size).IsRequired();
-        builder.HasIndex(f => f.UserId);
+        builder.HasIndex(f => new { f.UserId, f.CreatedAt, f.Id })
+            .IsDescending(false, true, true);
     }
 }

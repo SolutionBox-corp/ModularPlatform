@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using ModularPlatform.IntegrationTesting;
 using Shouldly;
 
@@ -90,5 +91,43 @@ public sealed class ProfileUpdateTests(PlatformApiFactory fixture)
         var otherUpdated = await fixture.ScalarAsync<long>(
             $"SELECT count(*)::bigint FROM users WHERE \"Id\" = '{userB}' AND \"DisplayName\" IS NOT NULL");
         otherUpdated.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Update_profile_audit_row_records_changed_columns_only()
+    {
+        var (userId, accessToken) = await fixture.RegisterAndLoginAsync(
+            $"profile-audit-{Guid.CreateVersion7():N}@example.com", Password);
+
+        var response = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Patch, "/v1/identity/users/me",
+            accessToken,
+            new { displayName = "Audit Display Name", locale = "en" }));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var changedColumnsJson = await fixture.ScalarAsync<string>(
+            "SELECT \"ChangedColumns\"::text FROM identity_audit_entries " +
+            "WHERE \"Action\" = 'Update' AND \"EntityType\" = 'User' " +
+            $"AND \"EntityId\" = '{userId}' ORDER BY \"Timestamp\" DESC LIMIT 1");
+        var changedColumns = JsonSerializer.Deserialize<string[]>(changedColumnsJson)!;
+
+        changedColumns.ShouldContain("DisplayName");
+        changedColumns.ShouldNotContain("Email");
+        changedColumns.ShouldNotContain("Locale");
+        changedColumns.ShouldNotContain("PasswordHash");
+
+        var newValuesJson = await fixture.ScalarAsync<string>(
+            "SELECT \"NewValues\"::text FROM identity_audit_entries " +
+            "WHERE \"Action\" = 'Update' AND \"EntityType\" = 'User' " +
+            $"AND \"EntityId\" = '{userId}' ORDER BY \"Timestamp\" DESC LIMIT 1");
+        using var values = JsonDocument.Parse(newValuesJson);
+
+        values.RootElement.TryGetProperty("DisplayName", out var displayName).ShouldBeTrue();
+        displayName.GetString().ShouldStartWith("penc:v2:");
+        newValuesJson.ShouldNotContain("Audit Display Name");
+        values.RootElement.TryGetProperty("Email", out _).ShouldBeFalse();
+        values.RootElement.TryGetProperty("Locale", out _).ShouldBeFalse();
+        values.RootElement.TryGetProperty("PasswordHash", out _).ShouldBeFalse();
     }
 }

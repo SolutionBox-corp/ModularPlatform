@@ -81,4 +81,23 @@ public sealed class RealtimeSseTests(PlatformApiFactory fixture)
 
         ex.Message.ShouldContain("tenant broadcast is not yet wired");
     }
+
+    [Fact]
+    public async Task Sse_live_buffer_drops_oldest_events_under_back_pressure()
+    {
+        var channel = RealtimeStreamEndpoint.CreateLiveBuffer(capacity: 2);
+
+        channel.Writer.TryWrite(new RealtimeMessage("one", "{}", "1")).ShouldBeTrue();
+        channel.Writer.TryWrite(new RealtimeMessage("two", "{}", "2")).ShouldBeTrue();
+        channel.Writer.TryWrite(new RealtimeMessage("three", "{}", "3")).ShouldBeTrue();
+        channel.Writer.Complete();
+
+        var retained = new List<RealtimeMessage>();
+        await foreach (var message in channel.Reader.ReadAllAsync())
+        {
+            retained.Add(message);
+        }
+
+        retained.Select(x => x.Id).ShouldBe(["2", "3"]);
+    }
 }

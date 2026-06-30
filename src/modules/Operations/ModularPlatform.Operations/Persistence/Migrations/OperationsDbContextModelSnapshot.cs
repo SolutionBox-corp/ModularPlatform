@@ -44,6 +44,10 @@ namespace ModularPlatform.Operations.Persistence.Migrations
                     b.Property<string>("ErrorDetail")
                         .HasColumnType("text");
 
+                    b.Property<string>("IdempotencyKey")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
                     b.Property<string>("ResultJson")
                         .HasColumnType("text");
 
@@ -75,6 +79,10 @@ namespace ModularPlatform.Operations.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("UserId");
+
+                    b.HasIndex("UserId", "Type", "IdempotencyKey")
+                        .IsUnique()
+                        .HasFilter("\"IdempotencyKey\" IS NOT NULL");
 
                     b.ToTable("operations", (string)null);
                 });

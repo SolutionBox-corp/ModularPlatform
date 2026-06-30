@@ -15,14 +15,15 @@ internal sealed class EnsureCreditAccountHandler(BillingDbContext db)
     {
         if (!await db.CreditAccounts.AnyAsync(a => a.UserId == command.UserId, ct))
         {
-            db.CreditAccounts.Add(new CreditAccount
+            var account = new CreditAccount
             {
                 UserId = command.UserId,
                 TenantId = command.TenantId, // explicit: SYSTEM Worker context does not auto-stamp
                 Posted = 0,
                 Pending = 0,
                 Available = 0,
-            });
+            };
+            db.CreditAccounts.Add(account);
             try
             {
                 await db.SaveChangesAsync(ct);
@@ -30,6 +31,7 @@ internal sealed class EnsureCreditAccountHandler(BillingDbContext db)
             catch (DbUpdateException ex) when (ex is not DbUpdateConcurrencyException)
             {
                 // Lost the UNIQUE(UserId) creation race (EV-5) — exactly one account stands; idempotent no-op.
+                db.Entry(account).State = EntityState.Detached;
             }
         }
 
