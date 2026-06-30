@@ -102,6 +102,37 @@ public sealed class RealtimeSseTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Sse_stream_yields_live_events_after_subscribing_before_replay()
+    {
+        var registry = new RealtimeConnectionRegistry();
+        var userId = Guid.CreateVersion7();
+        var replay = new SignalingEmptyReplay();
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var stream = RealtimeStreamEndpoint
+            .StreamForUser(userId, registry, replay, lastEventId: "0", cts.Token)
+            .GetAsyncEnumerator(cts.Token);
+
+        try
+        {
+            var next = stream.MoveNextAsync().AsTask();
+            await replay.ReadStarted.Task.WaitAsync(cts.Token);
+
+            await registry.DeliverLocal(userId, new RealtimeMessage("notification", "{\"ok\":true}", "1"));
+
+            (await next.WaitAsync(cts.Token)).ShouldBeTrue();
+            stream.Current.EventId.ShouldBe("1");
+            stream.Current.EventType.ShouldBe("notification");
+            stream.Current.Data.ShouldBe("{\"ok\":true}");
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await stream.DisposeAsync();
+        }
+    }
+
+    [Fact]
     public async Task Sse_stream_suppresses_replay_live_duplicate_event_ids()
     {
         var registry = new RealtimeConnectionRegistry();
@@ -125,6 +156,22 @@ public sealed class RealtimeSseTests(PlatformApiFactory fixture)
         }
 
         emitted.ShouldBe(["2", "3"]);
+    }
+
+    private sealed class SignalingEmptyReplay : IRealtimeReplay
+    {
+        public TaskCompletionSource ReadStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<IReadOnlyList<RealtimeMessage>> ReadSinceAsync(
+            Guid replayUserId,
+            string? lastEventId,
+            CancellationToken ct = default)
+        {
+            lastEventId.ShouldBe("0");
+            ReadStarted.TrySetResult();
+            return Task.FromResult<IReadOnlyList<RealtimeMessage>>([]);
+        }
     }
 
     private sealed class ReplayThatAlsoDeliversLive(

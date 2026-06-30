@@ -1007,10 +1007,10 @@ _Owner-scoping + local fan-out are sound; Redis fan-out now has a live container
 | Client disconnect mid-stream | ✓ | CancellationToken cancels ReadAllAsync; `using` disposes the subscription, removing the registry entry. |
 | Replay vs live duplicate (an event both replayed and delivered live) | ✓ | The endpoint keeps per-session emitted EventIds and suppresses the live copy when the same event was already yielded from replay. Pinned by RealtimeSseTests.Sse_stream_suppresses_replay_live_duplicate_event_ids. |
 
-**Testy:** RealtimeSseTests.Unauthenticated_stream_is_rejected; RealtimeSseTests.Sse_live_buffer_drops_oldest_events_under_back_pressure; RealtimeSseTests.Sse_stream_suppresses_replay_live_duplicate_event_ids
-**Test gaps:** The authenticated streaming round-trip is explicitly NOT tested over TestServer (buffers infinite SSE) — acknowledged; only manual/real-server verified.
+**Testy:** RealtimeSseTests.Unauthenticated_stream_is_rejected; RealtimeSseTests.Sse_live_buffer_drops_oldest_events_under_back_pressure; RealtimeSseTests.Sse_stream_yields_live_events_after_subscribing_before_replay; RealtimeSseTests.Sse_stream_suppresses_replay_live_duplicate_event_ids
+**Test gaps:** The full authenticated HTTP streaming round-trip is explicitly NOT tested over TestServer (buffers infinite SSE); the endpoint's owner-resolved stream enumerator, live delivery, replay/live duplicate suppression and auth gate are covered in-process.
 
-_The replay/live duplicate-by-id window is now handled in-process by per-session EventId dedupe; the remaining HTTP streaming gap is a TestServer harness limitation._
+_The replay/live duplicate-by-id window is handled in-process by per-session EventId dedupe, and the live enumerator path is pinned. The remaining gap is specifically the HTTP transport harness, not the endpoint stream behavior._
 
 ### Replay buffer (Last-Event-ID, TTL) — ✅ correct
 *Per-user short-lived event buffer (Redis Streams or in-memory ring) replayed on SSE reconnect; PII-minimized via MAXLEN + TTL.*
@@ -1637,8 +1637,8 @@ _Correct and minimal; the baseline header contract is covered by an integration 
 | Event ordering / duplicates across replay→live boundary | ✓ | Subscribe-before-replay still preserves no-loss behavior; per-session EventId dedupe suppresses the duplicate replay/live frame. Durable facts still live in modules. |
 | Removed duplicate SseStream<T> abstraction stays removed | ✓ | No SseStream.cs exists under src; the active endpoint owns the one bounded channel implementation. |
 
-**Testy:** Realtime replay covered in Realtime building-block/integration tests (outside this area's test set); RealtimeSseTests.Sse_stream_suppresses_replay_live_duplicate_event_ids pins the replay/live duplicate boundary.
-**Test gaps:** No authenticated HTTP streaming round-trip over TestServer (buffers infinite SSE).
+**Testy:** Realtime replay covered in Realtime building-block/integration tests (outside this area's test set); RealtimeSseTests.Sse_stream_yields_live_events_after_subscribing_before_replay pins the live enumerator path; RealtimeSseTests.Sse_stream_suppresses_replay_live_duplicate_event_ids pins the replay/live duplicate boundary.
+**Test gaps:** No full authenticated HTTP streaming round-trip over TestServer (buffers infinite SSE); endpoint stream behavior is covered through the internal enumerator.
 
 _Endpoint is sound (bounded, owner-scoped, auth-gated). The old duplicate SseStream<T> abstraction has already been removed; remaining gaps are streaming-harness limitations._
 
