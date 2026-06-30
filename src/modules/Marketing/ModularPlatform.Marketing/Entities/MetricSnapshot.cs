@@ -41,6 +41,9 @@ internal sealed class MetricSnapshotConfiguration : IEntityTypeConfiguration<Met
         builder.Property(m => m.MetricName).HasMaxLength(128).IsRequired();
         builder.Property(m => m.Dimension).HasMaxLength(512);
         builder.Property(m => m.DetailJson).HasColumnType("jsonb");
-        builder.HasIndex(m => new { m.UserId, m.Source, m.RecordedAt });
+        builder.HasIndex(m => new { m.UserId, m.Source, m.RecordedAt, m.Id })
+            .IsDescending(false, false, true, true);
+        builder.HasIndex(m => new { m.UserId, m.RecordedAt, m.Id })
+            .IsDescending(false, true, true);
     }
 }

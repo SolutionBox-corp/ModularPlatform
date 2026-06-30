@@ -95,6 +95,59 @@ public sealed class PullPipelineTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Marketing_read_lists_order_same_timestamp_rows_by_id_for_stable_paging()
+    {
+        var (userId, token) = await fixture.RegisterAndLoginAsync(
+            $"mkt-stable-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+        var pullIds = new[] { Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7() };
+        var snapshotIds = new[] { Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7() };
+        var analysisIds = new[] { Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7() };
+        const string sameInstant = "2030-01-01 00:00:00+00";
+
+        foreach (var id in pullIds)
+        {
+            await fixture.ExecuteSqlAsync(
+                "INSERT INTO data_pulls (\"Id\", \"UserId\", \"Source\", \"Status\", \"CreatedAt\") " +
+                $"VALUES ('{id}', '{userId}', 'Ga4', 'Completed', timestamp with time zone '{sameInstant}')");
+        }
+
+        foreach (var id in snapshotIds)
+        {
+            await fixture.ExecuteSqlAsync(
+                "INSERT INTO metric_snapshots (\"Id\", \"UserId\", \"DataPullId\", \"Source\", \"MetricName\", \"Value\", \"RecordedAt\") " +
+                $"VALUES ('{id}', '{userId}', '{pullIds[0]}', 'Ga4', 'ga4:sessions', 42, timestamp with time zone '{sameInstant}')");
+        }
+
+        foreach (var id in analysisIds)
+        {
+            await fixture.ExecuteSqlAsync(
+                "INSERT INTO marketing_analyses (\"Id\", \"UserId\", \"Source\", \"Summary\", \"AnalyzedAt\", \"CreatedAt\") " +
+                $"VALUES ('{id}', '{userId}', 'Ga4', 'Stable analysis', timestamp with time zone '{sameInstant}', timestamp with time zone '{sameInstant}')");
+        }
+
+        var pulls = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/marketing/pulls?page=1&pageSize=3", token));
+        pulls.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PlatformApiFactory.ReadData(pulls)).GetProperty("items").EnumerateArray()
+            .Select(item => item.GetProperty("id").GetGuid())
+            .ShouldBe(pullIds.OrderByDescending(id => id).ToArray());
+
+        var snapshots = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/marketing/snapshots?source=ga4&page=1&pageSize=3", token));
+        snapshots.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PlatformApiFactory.ReadData(snapshots)).GetProperty("items").EnumerateArray()
+            .Select(item => item.GetProperty("id").GetGuid())
+            .ShouldBe(snapshotIds.OrderByDescending(id => id).ToArray());
+
+        var analyses = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/marketing/analyses?page=1&pageSize=3", token));
+        analyses.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PlatformApiFactory.ReadData(analyses)).GetProperty("items").EnumerateArray()
+            .Select(item => item.GetProperty("id").GetGuid())
+            .ShouldBe(analysisIds.OrderByDescending(id => id).ToArray());
+    }
+
+    [Fact]
     public async Task Unknown_source_is_rejected_by_validation()
     {
         var (_, token) = await fixture.RegisterAndLoginAsync($"mkt-bad-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");

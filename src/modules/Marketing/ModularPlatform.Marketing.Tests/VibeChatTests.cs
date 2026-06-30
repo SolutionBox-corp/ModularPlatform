@@ -215,6 +215,28 @@ public sealed class VibeChatTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Conversation_list_orders_same_activity_timestamp_rows_by_id_for_stable_paging()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync($"mkt-vibe-stable-{Guid.CreateVersion7():N}@x.com", Password);
+        var first = await StartConversationAsync(token);
+        var second = await StartConversationAsync(token);
+        var third = await StartConversationAsync(token);
+
+        await fixture.ExecuteSqlAsync(
+            "UPDATE vibe_conversations " +
+            "SET \"CreatedAt\" = timestamp with time zone '2030-01-01 00:00:00+00', \"LastMessageAt\" = NULL " +
+            $"WHERE \"Id\" IN ('{first}', '{second}', '{third}')");
+
+        var list = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/marketing/vibe/conversations?page=1&pageSize=3", token));
+
+        list.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PlatformApiFactory.ReadData(list)).GetProperty("items").EnumerateArray()
+            .Select(item => item.GetProperty("id").GetGuid())
+            .ShouldBe(new[] { first, second, third }.OrderByDescending(id => id).ToArray());
+    }
+
+    [Fact]
     public async Task Sending_a_message_moves_the_conversation_to_the_top_of_the_list()
     {
         var (_, token) = await fixture.RegisterAndLoginAsync($"mkt-vibe-active-{Guid.CreateVersion7():N}@x.com", Password);

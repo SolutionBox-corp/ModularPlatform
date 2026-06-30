@@ -34,6 +34,7 @@ internal sealed class MarketingAnalysisConfiguration : IEntityTypeConfiguration<
         builder.Property(a => a.Source).HasConversion<string>().HasMaxLength(16).IsRequired();
         builder.Property(a => a.Summary).HasMaxLength(2048).IsRequired();
         builder.Property(a => a.InsightsJson).HasColumnType("jsonb");
-        builder.HasIndex(a => new { a.UserId, a.AnalyzedAt });
+        builder.HasIndex(a => new { a.UserId, a.AnalyzedAt, a.Id })
+            .IsDescending(false, true, true);
     }
 }

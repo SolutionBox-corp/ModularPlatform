@@ -25,6 +25,7 @@ internal sealed class VibeConversationConfiguration : IEntityTypeConfiguration<V
         builder.HasKey(c => c.Id);
         builder.Property(c => c.UserId).IsRequired();
         builder.Property(c => c.Title).HasMaxLength(256).IsRequired();
-        builder.HasIndex(c => new { c.UserId, c.LastMessageAt, c.CreatedAt });
+        builder.HasIndex(c => new { c.UserId, c.LastMessageAt, c.CreatedAt, c.Id })
+            .IsDescending(false, true, true, true);
     }
 }

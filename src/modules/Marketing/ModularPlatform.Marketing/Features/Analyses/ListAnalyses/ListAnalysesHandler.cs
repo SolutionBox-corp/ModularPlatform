@@ -15,6 +15,7 @@ internal sealed class ListAnalysesHandler(IReadDbContextFactory<MarketingDbConte
         return await db.MarketingAnalyses
             .Where(a => a.UserId == query.UserId)
             .OrderByDescending(a => a.AnalyzedAt)
+            .ThenByDescending(a => a.Id)
             .Select(a => new AnalysisListItem(a.Id, a.Source.ToString(), a.Summary, a.AnalyzedAt))
             .ToPagedResponseAsync(query.Page, ct);
     }

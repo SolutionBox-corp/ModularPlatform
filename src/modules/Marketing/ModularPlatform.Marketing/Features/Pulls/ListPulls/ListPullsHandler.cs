@@ -16,6 +16,7 @@ internal sealed class ListPullsHandler(IReadDbContextFactory<MarketingDbContext>
         return await db.DataPulls
             .Where(p => p.UserId == query.UserId)
             .OrderByDescending(p => p.CreatedAt)
+            .ThenByDescending(p => p.Id)
             .Select(p => new PullStatusResponse(
                 p.Id, p.Source.ToString(), p.Status.ToString(), p.ErrorCode, p.CompletedAt))
             .ToPagedResponseAsync(query.Page, ct);

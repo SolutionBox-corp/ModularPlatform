@@ -42,5 +42,7 @@ internal sealed class DataPullConfiguration : IEntityTypeConfiguration<DataPull>
         builder.Property(p => p.ParamsJson).HasColumnType("jsonb");
         builder.Property(p => p.ErrorCode).HasMaxLength(128);
         builder.HasIndex(p => new { p.UserId, p.Source });
+        builder.HasIndex(p => new { p.UserId, p.CreatedAt, p.Id })
+            .IsDescending(false, true, true);
     }
 }

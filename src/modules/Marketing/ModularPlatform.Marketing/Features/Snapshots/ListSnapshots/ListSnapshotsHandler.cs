@@ -31,6 +31,7 @@ internal sealed class ListSnapshotsHandler(IReadDbContextFactory<MarketingDbCont
 
         return await snapshots
             .OrderByDescending(s => s.RecordedAt)
+            .ThenByDescending(s => s.Id)
             .Select(s => new SnapshotListItem(
                 s.Id, s.Source.ToString(), s.MetricName, s.Dimension, s.Value, s.DetailJson, s.RecordedAt))
             .ToPagedResponseAsync(query.Page, ct);
