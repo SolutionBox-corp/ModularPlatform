@@ -225,6 +225,7 @@
   <data name="crm.column.color.too_long" xml:space="preserve"><value>The column color is too long.</value></data>
   <data name="crm.column.group.invalid" xml:space="preserve"><value>The column group is not valid.</value></data>
   <data name="crm.column.wip_limit.invalid" xml:space="preserve"><value>The WIP limit is not valid.</value></data>
+  <data name="crm.column.wip_limit_reached" xml:space="preserve"><value>The target column has reached its WIP limit.</value></data>
   <data name="crm.card_not_found" xml:space="preserve"><value>Card not found.</value></data>
   <data name="crm.card.title.required" xml:space="preserve"><value>The card title is required.</value></data>
   <data name="crm.card.title.too_long" xml:space="preserve"><value>The card title is too long.</value></data>

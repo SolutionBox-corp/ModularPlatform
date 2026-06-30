@@ -605,6 +605,9 @@
       "addCard": "Přidat kartu",
       "boardFocus": "Zaměření boardu",
       "showingCards": "Zobrazeno {shown} z {total} karet",
+      "wipLimitReached": "WIP limit dosažen ({limit})",
+      "collapseColumn": "Sbalit sloupec",
+      "expandColumn": "Rozbalit sloupec",
       "searchPlaceholder": "Hledat karty, štítky nebo úkoly",
       "allPriorities": "Všechny priority",
       "descriptionPlaceholder": "Krátký popis",
@@ -626,6 +629,13 @@
       "assigned": "Přiřazeno",
       "unassigned": "Nepřiřazeno",
       "unknownAssignee": "Neznámý uživatel",
+      "display": {
+        "description": "Popis",
+        "links": "Vazby",
+        "assignee": "Přiřazení",
+        "labels": "Štítky",
+        "due": "Termín"
+      },
       "group": {
         "backlog": "Backlog",
         "unstarted": "Nezačato",

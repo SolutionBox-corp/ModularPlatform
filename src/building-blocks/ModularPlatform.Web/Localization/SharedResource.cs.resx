@@ -225,6 +225,7 @@
   <data name="crm.column.color.too_long" xml:space="preserve"><value>Barva sloupce je příliš dlouhá.</value></data>
   <data name="crm.column.group.invalid" xml:space="preserve"><value>Skupina sloupce není platná.</value></data>
   <data name="crm.column.wip_limit.invalid" xml:space="preserve"><value>WIP limit není platný.</value></data>
+  <data name="crm.column.wip_limit_reached" xml:space="preserve"><value>Cílový sloupec dosáhl WIP limitu.</value></data>
   <data name="crm.card_not_found" xml:space="preserve"><value>Karta nenalezena.</value></data>
   <data name="crm.card.title.required" xml:space="preserve"><value>Název karty je povinný.</value></data>
   <data name="crm.card.title.too_long" xml:space="preserve"><value>Název karty je příliš dlouhý.</value></data>

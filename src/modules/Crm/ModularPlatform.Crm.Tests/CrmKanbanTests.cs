@@ -131,6 +131,33 @@ public sealed class CrmKanbanTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Move_card_into_full_wip_column_is_rejected()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
+        var boardId = await CreateBoardAsync(token, "WIP guarded");
+        var board = await GetBoardAsync(token, boardId);
+        var sourceId = board.GetProperty("columns").EnumerateArray().First(c => c.GetProperty("isDefault").GetBoolean()).GetProperty("id").GetGuid();
+
+        var createColumn = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, $"/v1/crm/boards/{boardId}/columns", token,
+            new { name = "Review", group = "started", color = "#F97316", wipLimit = 1 }));
+        createColumn.StatusCode.ShouldBe(HttpStatusCode.Created, await createColumn.Content.ReadAsStringAsync());
+        var targetId = (await PlatformApiFactory.ReadData(createColumn)).GetProperty("id").GetGuid();
+
+        await AddCardAsync(token, boardId, targetId, "Existing review");
+        var sourceCardId = await AddCardAsync(token, boardId, sourceId, "Cannot enter review");
+
+        var move = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, $"/v1/crm/cards/{sourceCardId}/move", token,
+            new { columnId = targetId, position = 1 }));
+        move.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+
+        var after = await GetBoardAsync(token, boardId);
+        var targetCount = after.GetProperty("cards").EnumerateArray().Count(c => c.GetProperty("columnId").GetGuid() == targetId);
+        targetCount.ShouldBe(1);
+    }
+
+    [Fact]
     public async Task Create_card_with_foreign_contact_is_not_found()
     {
         var (_, tokenA) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");

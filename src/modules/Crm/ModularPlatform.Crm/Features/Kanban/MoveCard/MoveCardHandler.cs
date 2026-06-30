@@ -26,6 +26,17 @@ internal sealed class MoveCardHandler(CrmDbContext db, IClock clock)
 
         var sourceColumnId = card.ColumnId;
 
+        if (sourceColumnId != target.Id && target.WipLimit is { } wipLimit)
+        {
+            var targetCount = await db.KanbanCards
+                .CountAsync(c => c.ColumnId == target.Id && c.UserId == command.UserId, ct);
+            if (targetCount >= wipLimit)
+            {
+                throw new BusinessRuleException(
+                    "crm.column.wip_limit_reached", "The target column has reached its WIP limit.");
+            }
+        }
+
         // Renumber against the IN-MEMORY card lists, not a post-mutation DB query: the moved card's ColumnId change
         // is not yet persisted, so a `Where(ColumnId == …)` would still see the old column. Load both columns, move the
         // tracked card between the in-memory lists, then assign dense 0..n positions. xmin + ConcurrencyRetryBehavior

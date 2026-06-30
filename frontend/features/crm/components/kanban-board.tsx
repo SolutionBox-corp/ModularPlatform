@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   DndContext,
   PointerSensor,
@@ -19,6 +20,8 @@ import {
   ContactIcon,
   FilterIcon,
   GripVerticalIcon,
+  Maximize2Icon,
+  Minimize2Icon,
   PencilIcon,
   PlusIcon,
   SearchIcon,
@@ -54,6 +57,16 @@ const TODAY_START = new Date();
 TODAY_START.setHours(0, 0, 0, 0);
 const ALL = "all";
 const UNASSIGNED = "unassigned";
+const DISPLAY_KEYS = ["description", "links", "assignee", "labels", "due"] as const;
+type DisplayKey = (typeof DISPLAY_KEYS)[number];
+type DisplayPrefs = Record<DisplayKey, boolean>;
+const DEFAULT_DISPLAY_PREFS: DisplayPrefs = {
+  description: true,
+  links: true,
+  assignee: true,
+  labels: true,
+  due: true,
+};
 
 const PRIORITY_VARIANT: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
   low: "outline",
@@ -231,7 +244,17 @@ function EditCardDialog({ card, taskOptions, users }: { card: KanbanCard; taskOp
   );
 }
 
-function Card({ card, taskOptions, users }: { card: KanbanCard; taskOptions: CrmTask[]; users: TenantUserListItem[] }) {
+function Card({
+  card,
+  taskOptions,
+  users,
+  display,
+}: {
+  card: KanbanCard;
+  taskOptions: CrmTask[];
+  users: TenantUserListItem[];
+  display: DisplayPrefs;
+}) {
   const t = useTranslations("crm");
   const del = useDeleteCard();
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: card.id });
@@ -250,7 +273,7 @@ function Card({ card, taskOptions, users }: { card: KanbanCard; taskOptions: Crm
           <GripVerticalIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           <div className="min-w-0 space-y-1">
             <div className="font-medium leading-snug">{card.title}</div>
-            {card.description && (
+            {display.description && card.description && (
               <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">{card.description}</p>
             )}
           </div>
@@ -266,28 +289,28 @@ function Card({ card, taskOptions, users }: { card: KanbanCard; taskOptions: Crm
         <Badge variant={PRIORITY_VARIANT[card.priority] ?? "secondary"} className="text-[11px]">
           {t(`taskPriority.${card.priority}`)}
         </Badge>
-        {due && (
+        {display.due && due && (
           <Badge variant={overdue ? "destructive" : "secondary"} className="gap-1 text-[11px]">
             <CalendarIcon className="h-3 w-3" />
             {due.toLocaleDateString()}
           </Badge>
         )}
-        {card.contactId && (
+        {display.links && card.contactId && (
           <Badge variant="outline" className="gap-1 text-[11px]">
             <ContactIcon className="h-3 w-3" />
             {t("board.linkedContact")}
           </Badge>
         )}
-        {card.dealId && (
+        {display.links && card.dealId && (
           <Badge variant="outline" className="gap-1 text-[11px]">
             <BriefcaseIcon className="h-3 w-3" />
             {t("board.linkedDeal")}
           </Badge>
         )}
-        {card.taskId && <Badge variant="outline" className="text-[11px]">{taskLabel(taskOptions, card.taskId) ?? t("board.linkedTask")}</Badge>}
-        {card.meetingId && <Badge variant="outline" className="text-[11px]">{t("board.linkedMeeting")}</Badge>}
-        {card.assigneeUserId && <Badge variant="secondary" className="text-[11px]">{userLabel(users, card.assigneeUserId) ?? t("board.assigned")}</Badge>}
-        {card.labels.slice(0, 3).map((label) => (
+        {display.links && card.taskId && <Badge variant="outline" className="text-[11px]">{taskLabel(taskOptions, card.taskId) ?? t("board.linkedTask")}</Badge>}
+        {display.links && card.meetingId && <Badge variant="outline" className="text-[11px]">{t("board.linkedMeeting")}</Badge>}
+        {display.assignee && card.assigneeUserId && <Badge variant="secondary" className="text-[11px]">{userLabel(users, card.assigneeUserId) ?? t("board.assigned")}</Badge>}
+        {display.labels && card.labels.slice(0, 3).map((label) => (
           <Badge key={label} variant="outline" className="text-[11px]">
             {label}
           </Badge>
@@ -303,12 +326,20 @@ function Column({
   boardId,
   taskOptions,
   users,
+  allCards,
+  collapsed,
+  onToggleCollapse,
+  display,
 }: {
   column: KanbanColumn;
   cards: KanbanCard[];
   boardId: string;
   taskOptions: CrmTask[];
   users: TenantUserListItem[];
+  allCards: KanbanCard[];
+  collapsed: boolean;
+  onToggleCollapse: () => void;
+  display: DisplayPrefs;
 }) {
   const t = useTranslations("crm");
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
@@ -320,8 +351,10 @@ function Column({
   const [dueAt, setDueAt] = useState("");
   const [taskId, setTaskId] = useState("none");
   const [assigneeUserId, setAssigneeUserId] = useState("none");
-  const overWip = column.wipLimit !== null && cards.length > column.wipLimit;
-  const wipProgress = column.wipLimit ? Math.min(100, Math.round((cards.length / column.wipLimit) * 100)) : null;
+  const allColumnCardsCount = allCards.filter((card) => card.columnId === column.id).length;
+  const overWip = column.wipLimit !== null && allColumnCardsCount > column.wipLimit;
+  const atWipLimit = column.wipLimit !== null && allColumnCardsCount >= column.wipLimit;
+  const wipProgress = column.wipLimit ? Math.min(100, Math.round((allColumnCardsCount / column.wipLimit) * 100)) : null;
 
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -346,6 +379,20 @@ function Column({
   };
 
   return (
+    collapsed ? (
+      <button
+        ref={setNodeRef}
+        type="button"
+        onClick={onToggleCollapse}
+        className="flex h-[34rem] w-12 shrink-0 flex-col items-center gap-3 rounded-xl border bg-muted/30 p-2 text-sm shadow-sm hover:bg-accent"
+        aria-label={t("board.expandColumn")}
+      >
+        <div className="h-1 w-8 rounded-full" style={{ backgroundColor: column.color }} />
+        <Maximize2Icon className="h-3.5 w-3.5 text-muted-foreground" />
+        <div className="mt-2 [writing-mode:vertical-rl] text-xs font-medium">{column.name}</div>
+        <Badge variant={overWip || atWipLimit ? "destructive" : "secondary"}>{allColumnCardsCount}</Badge>
+      </button>
+    ) : (
     <div ref={setNodeRef} className={`flex w-80 shrink-0 flex-col gap-3 rounded-xl border p-3 shadow-sm transition-colors ${isOver ? "bg-accent" : "bg-muted/30"}`}>
       <div className="h-1 rounded-full" style={{ backgroundColor: column.color }} />
       <div className="flex items-center justify-between gap-2">
@@ -353,10 +400,20 @@ function Column({
           <div className="text-sm font-semibold">{column.name}</div>
           <div className="text-xs text-muted-foreground">{t(`board.group.${column.group}`)}</div>
         </div>
-        <Badge variant={overWip ? "destructive" : "secondary"}>
-          {column.wipLimit ? `${cards.length}/${column.wipLimit}` : cards.length}
-        </Badge>
+        <div className="flex items-center gap-1">
+          <Badge variant={overWip || atWipLimit ? "destructive" : "secondary"}>
+            {column.wipLimit ? `${allColumnCardsCount}/${column.wipLimit}` : allColumnCardsCount}
+          </Badge>
+          <button className="text-muted-foreground hover:text-foreground" onClick={onToggleCollapse} aria-label={t("board.collapseColumn")}>
+            <Minimize2Icon className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
+      {atWipLimit && column.wipLimit && (
+        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1 text-xs text-destructive">
+          {t("board.wipLimitReached", { limit: column.wipLimit })}
+        </div>
+      )}
       {wipProgress !== null && <Progress value={wipProgress} className="h-1.5" />}
       <div className="flex min-h-24 flex-col gap-2">
         {cards.length === 0 ? (
@@ -364,7 +421,7 @@ function Column({
             {t("board.emptyColumn")}
           </div>
         ) : (
-          cards.map((c) => <Card key={c.id} card={c} taskOptions={taskOptions} users={users} />)
+          cards.map((c) => <Card key={c.id} card={c} taskOptions={taskOptions} users={users} display={display} />)
         )}
       </div>
       <form
@@ -424,6 +481,7 @@ function Column({
         </Select>
       </form>
     </div>
+    )
   );
 }
 
@@ -435,6 +493,8 @@ export function KanbanBoardView({ boardId }: { boardId: string }) {
   const [search, setSearch] = useState("");
   const [priorityFilter, setPriorityFilter] = useState(ALL);
   const [assigneeFilter, setAssigneeFilter] = useState(ALL);
+  const [collapsedColumns, setCollapsedColumns] = useState<Set<string>>(() => new Set());
+  const [display, setDisplay] = useState<DisplayPrefs>(DEFAULT_DISPLAY_PREFS);
   const move = useMoveCard();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
@@ -447,10 +507,33 @@ export function KanbanBoardView({ boardId }: { boardId: string }) {
   const overdueCount = data.cards.filter(isOverdue).length;
   const assignedCount = data.cards.filter((card) => !!card.assigneeUserId).length;
 
+  const toggleCollapsed = (columnId: string) => {
+    setCollapsedColumns((current) => {
+      const next = new Set(current);
+      if (next.has(columnId)) next.delete(columnId);
+      else next.add(columnId);
+      return next;
+    });
+  };
+
+  const toggleDisplay = (key: DisplayKey) => {
+    setDisplay((current) => ({ ...current, [key]: !current[key] }));
+  };
+
   const onDragEnd = (e: DragEndEvent) => {
     const cardId = String(e.active.id);
     const columnId = e.over ? String(e.over.id) : null;
     if (!columnId) return;
+    const card = data.cards.find((candidate) => candidate.id === cardId);
+    const targetColumn = data.columns.find((column) => column.id === columnId);
+    if (!card || !targetColumn) return;
+    if (card.columnId !== columnId && targetColumn.wipLimit !== null) {
+      const targetCount = data.cards.filter((candidate) => candidate.columnId === columnId).length;
+      if (targetCount >= targetColumn.wipLimit) {
+        toast.warning(t("board.wipLimitReached", { limit: targetColumn.wipLimit }));
+        return;
+      }
+    }
     const target = data.cards.filter((c) => c.columnId === columnId);
     move.mutate({ cardId, columnId, position: target.length });
   };
@@ -515,6 +598,18 @@ export function KanbanBoardView({ boardId }: { boardId: string }) {
               </SelectContent>
             </Select>
           </div>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {DISPLAY_KEYS.map((key) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => toggleDisplay(key)}
+                className={`rounded-full border px-2.5 py-1 text-xs ${display[key] ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
+              >
+                {t(`board.display.${key}`)}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="flex gap-3 overflow-x-auto pb-4">
@@ -522,6 +617,10 @@ export function KanbanBoardView({ boardId }: { boardId: string }) {
             <Column key={col.id} column={col} boardId={boardId}
               taskOptions={taskOptions}
               users={userOptions}
+              allCards={data.cards}
+              collapsed={collapsedColumns.has(col.id)}
+              onToggleCollapse={() => toggleCollapsed(col.id)}
+              display={display}
               cards={filteredCards.filter((c) => c.columnId === col.id).sort((a, b) => a.position - b.position)} />
           ))}
         </div>

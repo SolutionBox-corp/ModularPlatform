@@ -605,6 +605,9 @@
       "addCard": "Add card",
       "boardFocus": "Board focus",
       "showingCards": "Showing {shown} of {total} cards",
+      "wipLimitReached": "WIP limit reached ({limit})",
+      "collapseColumn": "Collapse column",
+      "expandColumn": "Expand column",
       "searchPlaceholder": "Search cards, labels or linked tasks",
       "allPriorities": "All priorities",
       "descriptionPlaceholder": "Short description",
@@ -626,6 +629,13 @@
       "assigned": "Assigned",
       "unassigned": "Unassigned",
       "unknownAssignee": "Unknown assignee",
+      "display": {
+        "description": "Description",
+        "links": "Links",
+        "assignee": "Assignee",
+        "labels": "Labels",
+        "due": "Due"
+      },
       "group": {
         "backlog": "Backlog",
         "unstarted": "Unstarted",
