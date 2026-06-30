@@ -55,4 +55,34 @@ public sealed class CreditLedgerReadTests(PlatformApiFactory fixture)
         bobData.GetProperty("totalCount").GetInt64().ShouldBe(1);
         bobData.GetProperty("items").EnumerateArray().Single().GetProperty("amount").GetInt64().ShouldBe(999);
     }
+
+    [Fact]
+    public async Task Ledger_entries_with_the_same_timestamp_are_ordered_by_id_for_stable_paging()
+    {
+        var (userId, token) = await fixture.RegisterAndLoginAsync($"ledger-stable-{Guid.CreateVersion7():N}@test.io", Password);
+        var firstKey = $"ledger-stable-first-{Guid.CreateVersion7():N}";
+        var secondKey = $"ledger-stable-second-{Guid.CreateVersion7():N}";
+        var thirdKey = $"ledger-stable-third-{Guid.CreateVersion7():N}";
+
+        await fixture.GrantCreditsAsync(userId, 100, idempotencyKey: firstKey);
+        await fixture.GrantCreditsAsync(userId, 200, idempotencyKey: secondKey);
+        await fixture.GrantCreditsAsync(userId, 300, idempotencyKey: thirdKey);
+
+        await fixture.ExecuteSqlAsync(
+            "UPDATE credit_entries " +
+            "SET \"CreatedAt\" = timestamp with time zone '2026-01-01 00:00:00+00' " +
+            $"WHERE \"IdempotencyKey\" IN ('{firstKey}', '{secondKey}', '{thirdKey}')");
+
+        var response = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, "/v1/billing/credits/entries?page=1&pageSize=3", token));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var data = await PlatformApiFactory.ReadData(response);
+        var items = data.GetProperty("items").EnumerateArray().ToArray();
+
+        items.Select(item => item.GetProperty("id").GetGuid())
+            .ShouldBe(items.Select(item => item.GetProperty("id").GetGuid()).OrderByDescending(id => id));
+        items.Select(item => item.GetProperty("amount").GetInt64())
+            .ShouldBe(new[] { 300L, 200L, 100L });
+    }
 }

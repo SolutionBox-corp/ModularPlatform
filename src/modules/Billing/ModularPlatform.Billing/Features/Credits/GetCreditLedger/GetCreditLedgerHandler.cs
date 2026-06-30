@@ -30,6 +30,7 @@ internal sealed class GetCreditLedgerHandler(IReadDbContextFactory<BillingDbCont
         return await db.CreditEntries
             .Where(e => e.AccountId == accountId)
             .OrderByDescending(e => e.CreatedAt)
+            .ThenByDescending(e => e.Id)
             .Select(e => new CreditLedgerEntry(
                 e.Id,
                 e.Direction.ToString(),
