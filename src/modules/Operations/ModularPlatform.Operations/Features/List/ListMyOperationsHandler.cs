@@ -19,7 +19,8 @@ internal sealed class ListMyOperationsHandler(IReadDbContextFactory<OperationsDb
 
         var ordered = db.Operations
             .Where(o => o.UserId == query.UserId)
-            .OrderByDescending(o => o.CreatedAt);
+            .OrderByDescending(o => o.CreatedAt)
+            .ThenByDescending(o => o.Id);
 
         var totalCount = await ordered.LongCountAsync(ct);
 

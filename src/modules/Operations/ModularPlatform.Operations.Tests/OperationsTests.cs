@@ -205,6 +205,37 @@ public sealed class OperationsTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Operations_list_orders_created_at_ties_by_id_for_stable_paging()
+    {
+        var (userId, token) = await fixture.RegisterAndLoginAsync($"op-list-tie-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IOperationStore>();
+        var first = await store.CreateAsync("generic-module-import", userId, CancellationToken.None);
+        var second = await store.CreateAsync("generic-module-export", userId, CancellationToken.None);
+        var third = await store.CreateAsync("generic-module-sync", userId, CancellationToken.None);
+
+        var tiedCreatedAt = DateTimeOffset.UtcNow.AddMinutes(-5);
+        await fixture.ExecuteSqlAsync($"""
+            UPDATE operations
+            SET "CreatedAt" = '{tiedCreatedAt:O}', "UpdatedAt" = NULL
+            WHERE "Id" IN ('{first}', '{second}', '{third}');
+            """);
+
+        var list = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/operations?page=1&pageSize=3", token));
+
+        list.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var items = (await PlatformApiFactory.ReadData(list))
+            .GetProperty("items")
+            .EnumerateArray()
+            .Select(item => item.GetProperty("id").GetGuid())
+            .ToArray();
+
+        items.ShouldBe([third, second, first]);
+    }
+
+    [Fact]
     public async Task A_terminal_operation_is_not_resurrected_by_a_duplicate_worker_transition()
     {
         var userId = Guid.CreateVersion7();
