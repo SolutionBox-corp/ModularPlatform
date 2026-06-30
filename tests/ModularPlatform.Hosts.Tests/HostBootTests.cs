@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Cqrs.Behaviors;
 using ModularPlatform.Identity;
@@ -103,6 +104,18 @@ public sealed class HostBootTests
     }
 
     [Fact]
+    public void Non_http_hosts_run_with_system_tenant_context()
+    {
+        using var worker = WorkerHostBuilder.Create(BootArgs()).Build();
+        using var jobs = JobsHostBuilder.Create(BootArgs()).Build();
+        using var migration = MigrationHostBuilder.Create(BootArgs(), out _).Build();
+
+        AssertSystemTenantContext(worker);
+        AssertSystemTenantContext(jobs);
+        AssertSystemTenantContext(migration);
+    }
+
+    [Fact]
     public void MigrationService_host_composes_and_its_dependency_graph_is_valid()
     {
         using var host = MigrationHostBuilder.Create(BootArgs(), out var modules).Build();
@@ -140,6 +153,15 @@ public sealed class HostBootTests
         options.Durability.DeadLetterQueueExpirationEnabled.ShouldBeTrue();
         options.Durability.DeadLetterQueueExpiration.ShouldBe(TimeSpan.FromDays(7));
         options.Durability.KeepAfterMessageHandling.ShouldBe(TimeSpan.FromMinutes(5));
+    }
+
+    private static void AssertSystemTenantContext(IHost host)
+    {
+        var tenant = host.Services.GetRequiredService<ITenantContext>();
+        tenant.ShouldBeOfType<SystemTenantContext>();
+        tenant.IsSystem.ShouldBeTrue();
+        tenant.UserId.ShouldBeNull();
+        tenant.TenantId.ShouldBeNull();
     }
 
     private static void AssertCommandPipelineBehaviorOrder(IServiceCollection services)
