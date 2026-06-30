@@ -374,6 +374,34 @@ public sealed class FilesUploadTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task File_link_list_orders_created_at_ties_by_link_id_for_stable_paging()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync(
+            $"link-stable-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+        var ownerId = Guid.CreateVersion7();
+
+        var firstId = await UploadAndLinkAsync(token, "first.txt", ownerId);
+        var secondId = await UploadAndLinkAsync(token, "second.txt", ownerId);
+        var thirdId = await UploadAndLinkAsync(token, "third.txt", ownerId);
+
+        await fixture.ExecuteSqlAsync(
+            "UPDATE file_links " +
+            "SET \"CreatedAt\" = timestamp with time zone '2030-01-01 00:00:00+00' " +
+            $"WHERE \"Id\" IN ('{firstId}', '{secondId}', '{thirdId}')");
+
+        var list = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get,
+            $"/v1/files/links?ownerType=example.record&ownerId={ownerId}&page=1&pageSize=3",
+            token));
+
+        list.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var data = await PlatformApiFactory.ReadData(list);
+        data.GetProperty("items").EnumerateArray()
+            .Select(item => item.GetProperty("id").GetGuid())
+            .ShouldBe(new[] { firstId, secondId, thirdId }.OrderByDescending(id => id).ToArray());
+    }
+
+    [Fact]
     public async Task File_links_are_owner_scoped_and_validate_owner_type()
     {
         var (_, ownerToken) = await fixture.RegisterAndLoginAsync(
@@ -687,6 +715,21 @@ public sealed class FilesUploadTests(PlatformApiFactory fixture)
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return await fixture.Client.SendAsync(request);
+    }
+
+    private async Task<Guid> UploadAndLinkAsync(string token, string fileName, Guid ownerId)
+    {
+        var upload = await UploadAsync(token, fileName, "text/plain", Encoding.UTF8.GetBytes(fileName));
+        upload.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var fileId = (await PlatformApiFactory.ReadData(upload)).GetProperty("id").GetGuid();
+
+        var link = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post,
+            $"/v1/files/{fileId}/links",
+            token,
+            new { ownerType = "example.record", ownerId }));
+        link.StatusCode.ShouldBe(HttpStatusCode.Created);
+        return (await PlatformApiFactory.ReadData(link)).GetProperty("id").GetGuid();
     }
 
     private async Task<HttpResponseMessage> UploadWithoutContentTypeAsync(string token, string fileName, byte[] bytes)

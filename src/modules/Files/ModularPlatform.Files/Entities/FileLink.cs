@@ -28,7 +28,8 @@ internal sealed class FileLinkConfiguration : IEntityTypeConfiguration<FileLink>
         builder.Property(l => l.OwnerType).HasMaxLength(128).IsRequired();
         builder.Property(l => l.OwnerId).IsRequired();
         builder.HasIndex(l => l.UserId);
-        builder.HasIndex(l => new { l.UserId, l.OwnerType, l.OwnerId });
+        builder.HasIndex(l => new { l.UserId, l.OwnerType, l.OwnerId, l.CreatedAt, l.Id })
+            .IsDescending(false, false, false, true, true);
         builder.HasIndex(l => new { l.UserId, l.OwnerType, l.OwnerId, l.FileObjectId }).IsUnique();
     }
 }
