@@ -68,6 +68,31 @@ public sealed class JobsHostWiringTests
         trigger.TimeZone.ShouldBe(TimeZoneInfo.Utc);
     }
 
+    [Fact]
+    public void Jobs_host_rejects_multi_replica_configuration_while_using_quartz_in_memory_store()
+    {
+        var exception = Should.Throw<InvalidOperationException>(() => JobsHostBuilder.Create(
+        [
+            ..BootArgs(),
+            "--Jobs:ReplicaCount=2",
+        ]));
+
+        exception.Message.ShouldContain("Quartz in-memory store");
+        exception.Message.ShouldContain("Jobs:ReplicaCount=1");
+    }
+
+    [Fact]
+    public void Jobs_host_rejects_invalid_replica_count()
+    {
+        var exception = Should.Throw<InvalidOperationException>(() => JobsHostBuilder.Create(
+        [
+            ..BootArgs(),
+            "--Jobs:ReplicaCount=0",
+        ]));
+
+        exception.Message.ShouldContain("Jobs:ReplicaCount must be at least 1");
+    }
+
     private static string[] BootArgs() =>
     [
         "--environment=Development",

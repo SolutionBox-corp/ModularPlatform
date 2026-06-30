@@ -29,6 +29,7 @@ public static class JobsHostBuilder
     public static HostApplicationBuilder Create(string[] args)
     {
         var builder = Host.CreateApplicationBuilder(args);
+        ValidateSingleInstancePosture(builder.Configuration);
 
         // System context (no HTTP). Modules register their services so jobs can dispatch commands through IDispatcher.
         builder.Services.AddPlatformCore();
@@ -96,5 +97,21 @@ public static class JobsHostBuilder
         builder.Services.AddQuartzHostedService(options => options.WaitForJobsToComplete = true);
 
         return builder;
+    }
+
+    private static void ValidateSingleInstancePosture(IConfiguration config)
+    {
+        var replicaCount = config.GetValue<int?>("Jobs:ReplicaCount") ?? 1;
+        if (replicaCount < 1)
+        {
+            throw new InvalidOperationException("Jobs:ReplicaCount must be at least 1.");
+        }
+
+        if (replicaCount > 1)
+        {
+            throw new InvalidOperationException(
+                "Jobs host uses Quartz in-memory store and must run with Jobs:ReplicaCount=1. "
+                + "Use a clustered Quartz persistent store before scaling Jobs beyond one replica.");
+        }
     }
 }

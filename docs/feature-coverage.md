@@ -1505,15 +1505,15 @@ _Strong: the boot tests are an explicit regression guard for the A4 DI-graph con
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
 | Quartz defaults cron to host local timezone (violates Law #7 UTC) | ✓ | Health trigger uses InTimeZone(TimeZoneInfo.Utc) at JobsHostBuilder.cs:88; pinned by JobsHostWiringTests.Platform_messaging_health_cron_uses_utc |
-| In-memory job store does not coordinate across instances | ◐ | Documented: run replica=1; every job idempotent so duplicate run is safe-but-wasteful (JobsHostBuilder.cs:69-74). NOT enforced — a misconfigured replica=2 silently double-runs; relies on operator discipline + per-job idempotency |
+| In-memory job store does not coordinate across instances | ✓ | JobsHostBuilder validates Jobs:ReplicaCount and fail-fasts when it is >1 while the host still uses Quartz's in-memory store; pinned by JobsHostWiringTests.Jobs_host_rejects_multi_replica_configuration_while_using_quartz_in_memory_store. |
 | A throwing job is silent until next cron fire | ✓ | JobFailureListener registered for AnyGroup (Jobs Program.cs:9-11) → ERROR log + platform.jobs.failures counter (JobFailureListener.cs:38-43); direct listener path proven by JobFailureMetricsTests.JobWasExecuted_with_exception_logs_and_records_the_failed_job |
 | Graceful shutdown mid-job | ✓ | AddQuartzHostedService WaitForJobsToComplete=true (JobsHostBuilder.cs:90); pinned by JobsHostWiringTests.Jobs_host_waits_for_running_jobs_on_shutdown |
 | Concurrent execution of the health job within one scheduler | ✓ | [DisallowConcurrentExecution] on MessagingHealthJob (line 20); pinned by JobsHostWiringTests.Platform_messaging_health_job_disallows_concurrent_execution |
 
-**Testy:** JobFailureMetricsTests.Recording_a_failure_increments_the_platform_jobs_failures_counter; JobFailureMetricsTests.JobWasExecuted_with_exception_logs_and_records_the_failed_job; JobsHostWiringTests.Platform_messaging_health_job_disallows_concurrent_execution; JobsHostWiringTests.Platform_messaging_health_cron_uses_utc; JobsHostWiringTests.Jobs_host_waits_for_running_jobs_on_shutdown; Jobs_host_composes (HostBootTests)
+**Testy:** JobFailureMetricsTests.Recording_a_failure_increments_the_platform_jobs_failures_counter; JobFailureMetricsTests.JobWasExecuted_with_exception_logs_and_records_the_failed_job; JobsHostWiringTests.Platform_messaging_health_job_disallows_concurrent_execution; JobsHostWiringTests.Platform_messaging_health_cron_uses_utc; JobsHostWiringTests.Jobs_host_waits_for_running_jobs_on_shutdown; JobsHostWiringTests.Jobs_host_rejects_multi_replica_configuration_while_using_quartz_in_memory_store; JobsHostWiringTests.Jobs_host_rejects_invalid_replica_count; Jobs_host_composes (HostBootTests)
 **Test gaps:** No remaining focused Jobs host wiring gap in this slice.
 
-_Single-instance cross-instance coordination is a documented operational constraint, not a code-enforced one — acceptable given universal idempotency but worth noting._
+_Single-instance cross-instance coordination is now a code-enforced deployment contract when Jobs:ReplicaCount is declared; HA requires a future clustered Quartz store._
 
 ### Messaging-health job + evaluation — ✅ correct
 *Probes Wolverine's durable store via IMessageStore.Admin, exports OTel gauges, warns on dead-letters / stuck outbox.*
