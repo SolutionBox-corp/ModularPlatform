@@ -33,7 +33,7 @@ public static class JobsHostBuilder
 
         // System context (no HTTP). Modules register their services so jobs can dispatch commands through IDispatcher.
         builder.Services.AddPlatformCore();
-        builder.Services.AddPlatformTelemetry("ModularPlatform.Jobs");
+        builder.Services.AddPlatformTelemetry("ModularPlatform.Jobs", builder.Configuration, builder.Environment);
         // Command-pipeline parity with the Api host: jobs dispatch commands, so they get Logging + Validation too —
         // after Telemetry and before the modules' ConcurrencyRetry (order: Telemetry → Logging → Validation → Retry).
         builder.Services.AddPipelineBehavior(typeof(LoggingBehavior<,>));

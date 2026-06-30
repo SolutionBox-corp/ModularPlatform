@@ -31,7 +31,7 @@ public static class WorkerHostBuilder
 
         // System context (no HTTP). Modules register their handlers + DbContext (Wolverine EF outbox).
         builder.Services.AddPlatformCore();
-        builder.Services.AddPlatformTelemetry("ModularPlatform.Worker");
+        builder.Services.AddPlatformTelemetry("ModularPlatform.Worker", builder.Configuration, builder.Environment);
         // Command pipeline parity with the Api host: the Worker dispatches commands too (from integration-event
         // handlers), so it needs Logging + Validation just like the HTTP host — registered AFTER Telemetry and
         // BEFORE the modules' ConcurrencyRetry so the order stays Telemetry → Logging → Validation → ConcurrencyRetry.

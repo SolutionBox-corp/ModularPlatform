@@ -49,7 +49,7 @@ public sealed class TelemetryBehaviorTests
         var services = new ServiceCollection();
         services.AddSingleton<IHostEnvironment>(new TestHostEnvironment(Environments.Development));
 
-        services.AddPlatformTelemetry("Tests");
+        services.AddPlatformTelemetry("Tests", configuration, new TestHostEnvironment(Environments.Development));
         services.AddPlatformWeb(configuration);
         services.AddPlatformPersistence();
 
@@ -64,6 +64,38 @@ public sealed class TelemetryBehaviorTests
             typeof(ValidationBehavior<,>),
             typeof(ConcurrencyRetryBehavior<,>)
         ]);
+    }
+
+    [Fact]
+    public void Platform_telemetry_requires_an_explicit_otlp_endpoint_outside_development()
+    {
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder().Build();
+        var environment = new TestHostEnvironment(Environments.Production);
+
+        var exception = Should.Throw<InvalidOperationException>(
+            () => services.AddPlatformTelemetry("Tests", configuration, environment));
+
+        exception.Message.ShouldContain("OpenTelemetry OTLP endpoint must be configured");
+        exception.Message.ShouldContain("OpenTelemetry:Otlp:Endpoint");
+    }
+
+    [Fact]
+    public void Platform_telemetry_accepts_a_configured_otlp_endpoint_outside_development()
+    {
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["OpenTelemetry:Otlp:Endpoint"] = "http://collector:4317",
+            })
+            .Build();
+        var environment = new TestHostEnvironment(Environments.Production);
+
+        services.AddPlatformTelemetry("Tests", configuration, environment);
+
+        services.ShouldContain(d => d.ServiceType == typeof(IPipelineBehavior<,>)
+            && d.ImplementationType == typeof(TelemetryBehavior<,>));
     }
 
     private sealed record TestCommand;

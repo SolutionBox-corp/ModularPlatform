@@ -45,7 +45,7 @@ public static class ApiHostBuilder
             typeof(TenancyModule).Assembly);
 
         // Platform cross-cutting concerns. Telemetry FIRST so its behavior is outer-most in the CQRS pipeline.
-        builder.Services.AddPlatformTelemetry("ModularPlatform.Api");
+        builder.Services.AddPlatformTelemetry("ModularPlatform.Api", builder.Configuration, builder.Environment);
         builder.Services.AddPlatformWeb(builder.Configuration);
         // The Api is the only host that serves the SSE stream, so it's the only one that LISTENS on Redis (the others publish).
         builder.Services.AddPlatformRealtime(builder.Configuration, withStreamListener: true);
