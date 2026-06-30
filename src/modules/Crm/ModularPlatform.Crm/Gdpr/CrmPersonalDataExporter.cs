@@ -50,6 +50,7 @@ internal sealed class CrmPersonalDataExporter(IReadDbContextFactory<CrmDbContext
             {
                 m.Id,
                 m.ContactId,
+                m.DealId,
                 m.Title,
                 m.ScheduledAt,
                 m.DurationMinutes,

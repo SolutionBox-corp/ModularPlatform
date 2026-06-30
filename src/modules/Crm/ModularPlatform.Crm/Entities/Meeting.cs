@@ -15,6 +15,7 @@ internal sealed class Meeting : AuditableEntity, ITenantScoped, IUserOwned, ISof
 {
     public Guid UserId { get; set; }
     public Guid? ContactId { get; set; }
+    public Guid? DealId { get; set; }
 
     public string Title { get; set; } = string.Empty;
     public DateTimeOffset ScheduledAt { get; set; }
@@ -66,5 +67,6 @@ internal sealed class MeetingConfiguration : IEntityTypeConfiguration<Meeting>
 
         builder.HasIndex(m => new { m.UserId, m.ScheduledAt });
         builder.HasIndex(m => m.ContactId);
+        builder.HasIndex(m => m.DealId);
     }
 }

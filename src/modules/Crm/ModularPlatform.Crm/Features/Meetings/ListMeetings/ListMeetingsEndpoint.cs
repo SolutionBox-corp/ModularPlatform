@@ -17,6 +17,7 @@ internal static class ListMeetingsEndpoint
                 DateTimeOffset? to,
                 Guid? contactId,
                 Guid? companyId,
+                Guid? dealId,
                 string? status,
                 int? page,
                 int? pageSize,
@@ -27,7 +28,7 @@ internal static class ListMeetingsEndpoint
                 var userId = tenant.UserId
                     ?? throw new UnauthorizedException("auth.required", "Authentication required.");
                 var result = await dispatcher.Query(
-                    new ListMeetingsQuery(userId, from, to, contactId, companyId, status, page, pageSize), ct);
+                    new ListMeetingsQuery(userId, from, to, contactId, companyId, dealId, status, page, pageSize), ct);
                 return Results.Ok(ApiResponse<PagedResponse<MeetingResponse>>.Ok(result));
             })
             .RequireAuthorization()

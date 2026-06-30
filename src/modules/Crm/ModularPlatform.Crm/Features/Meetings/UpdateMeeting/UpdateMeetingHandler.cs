@@ -38,7 +38,7 @@ internal sealed class UpdateMeetingHandler(CrmDbContext db)
             : null;
 
         return new MeetingResponse(
-            meeting.Id, meeting.ContactId, FormatContactName(contact?.FirstName, contact?.LastName), meeting.Title, meeting.ScheduledAt, meeting.DurationMinutes,
+            meeting.Id, meeting.ContactId, FormatContactName(contact?.FirstName, contact?.LastName), meeting.DealId, meeting.Title, meeting.ScheduledAt, meeting.DurationMinutes,
             meeting.Location, meeting.Notes, meeting.Status, meeting.Outcome, meeting.CreatedAt, meeting.UpdatedAt);
     }
 

@@ -39,6 +39,11 @@ internal sealed class ListMeetingsHandler(IReadDbContextFactory<CrmDbContext> re
                 && db.Contacts.Any(c => c.Id == m.ContactId && c.UserId == query.UserId && c.CompanyId == companyId));
         }
 
+        if (query.DealId is { } dealId)
+        {
+            filtered = filtered.Where(m => m.DealId == dealId);
+        }
+
         if (!string.IsNullOrWhiteSpace(query.Status))
         {
             var status = query.Status.Trim().ToLowerInvariant();
@@ -63,6 +68,7 @@ internal sealed class ListMeetingsHandler(IReadDbContextFactory<CrmDbContext> re
                     .Where(c => c.Id == m.ContactId && c.UserId == query.UserId)
                     .Select(c => c.LastName)
                     .FirstOrDefault(),
+                m.DealId,
                 m.Title,
                 m.ScheduledAt,
                 m.DurationMinutes,
@@ -79,6 +85,7 @@ internal sealed class ListMeetingsHandler(IReadDbContextFactory<CrmDbContext> re
                 m.Id,
                 m.ContactId,
                 FormatContactName(m.ContactFirstName, m.ContactLastName),
+                m.DealId,
                 m.Title,
                 m.ScheduledAt,
                 m.DurationMinutes,

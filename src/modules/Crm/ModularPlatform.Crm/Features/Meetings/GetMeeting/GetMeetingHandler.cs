@@ -27,6 +27,7 @@ internal sealed class GetMeetingHandler(IReadDbContextFactory<CrmDbContext> read
                     .Where(c => c.Id == m.ContactId && c.UserId == query.UserId)
                     .Select(c => c.LastName)
                     .FirstOrDefault(),
+                m.DealId,
                 m.Title,
                 m.ScheduledAt,
                 m.DurationMinutes,
@@ -45,6 +46,7 @@ internal sealed class GetMeetingHandler(IReadDbContextFactory<CrmDbContext> read
                 row.Id,
                 row.ContactId,
                 FormatContactName(row.ContactFirstName, row.ContactLastName),
+                row.DealId,
                 row.Title,
                 row.ScheduledAt,
                 row.DurationMinutes,

@@ -23,10 +23,17 @@ internal sealed class CreateMeetingHandler(CrmDbContext db)
             }
         }
 
+        if (command.DealId is { } dealId
+            && !await db.Deals.AnyAsync(d => d.Id == dealId && d.UserId == command.UserId, ct))
+        {
+            throw new NotFoundException("crm.deal_not_found", "Deal not found.");
+        }
+
         var meeting = new Meeting
         {
             UserId = command.UserId,
             ContactId = command.ContactId,
+            DealId = command.DealId,
             Title = command.Title.Trim(),
             ScheduledAt = command.ScheduledAt.ToUniversalTime(),
             DurationMinutes = command.DurationMinutes,

@@ -25,6 +25,7 @@ internal static class CreateMeetingEndpoint
                     new CreateMeetingCommand(
                         userId,
                         request.ContactId,
+                        request.DealId,
                         request.Title ?? string.Empty,
                         request.ScheduledAt,
                         request.DurationMinutes,

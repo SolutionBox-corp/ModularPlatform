@@ -6,6 +6,7 @@ namespace ModularPlatform.Crm.Features.Meetings.CreateMeeting;
 public sealed record CreateMeetingCommand(
     Guid UserId,
     Guid? ContactId,
+    Guid? DealId,
     string Title,
     DateTimeOffset ScheduledAt,
     int DurationMinutes,
@@ -16,6 +17,7 @@ public sealed record CreateMeetingResponse(Guid Id);
 
 public sealed record CreateMeetingRequest(
     Guid? ContactId,
+    Guid? DealId,
     string Title,
     DateTimeOffset ScheduledAt,
     int DurationMinutes,

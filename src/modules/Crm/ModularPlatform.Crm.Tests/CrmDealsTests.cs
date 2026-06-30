@@ -20,6 +20,14 @@ public sealed class CrmDealsTests(PlatformApiFactory fixture)
         return (await PlatformApiFactory.ReadData(resp)).GetProperty("id").GetGuid();
     }
 
+    private async Task<Guid> CreateContactAsync(string token, string firstName = "Deal", string lastName = "Contact")
+    {
+        var resp = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/crm/contacts", token, new { firstName, lastName, status = "active" }));
+        resp.StatusCode.ShouldBe(HttpStatusCode.Created, await resp.Content.ReadAsStringAsync());
+        return (await PlatformApiFactory.ReadData(resp)).GetProperty("id").GetGuid();
+    }
+
     [Fact]
     public async Task Create_then_get_round_trips()
     {
@@ -137,5 +145,37 @@ public sealed class CrmDealsTests(PlatformApiFactory fixture)
         advance.StatusCode.ShouldBe(HttpStatusCode.OK);
         var afterData = await PlatformApiFactory.ReadData(advance);
         afterData.GetProperty("stage").GetString().ShouldBe("qualified");
+    }
+
+    [Fact]
+    public async Task Meetings_can_be_linked_and_listed_by_deal()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
+        var contactId = await CreateContactAsync(token, "Jane", "Deal");
+        var dealId = await CreateDealAsync(token, new
+        {
+            contactId, title = "Deal Hub", amountCents = 1000L, stage = "lead",
+        });
+
+        var meeting = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Post, "/v1/crm/meetings", token,
+            new
+            {
+                contactId,
+                dealId,
+                title = "Negotiation call",
+                scheduledAt = DateTimeOffset.UtcNow.AddDays(1),
+                durationMinutes = 30,
+            }));
+        meeting.StatusCode.ShouldBe(HttpStatusCode.Created, await meeting.Content.ReadAsStringAsync());
+        var meetingId = (await PlatformApiFactory.ReadData(meeting)).GetProperty("id").GetGuid();
+
+        var byDeal = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, $"/v1/crm/meetings?dealId={dealId}", token));
+        byDeal.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var data = await PlatformApiFactory.ReadData(byDeal);
+        data.GetProperty("totalCount").GetInt32().ShouldBe(1);
+        data.GetProperty("items")[0].GetProperty("id").GetGuid().ShouldBe(meetingId);
+        data.GetProperty("items")[0].GetProperty("dealId").GetGuid().ShouldBe(dealId);
+        data.GetProperty("items")[0].GetProperty("contactName").GetString().ShouldBe("Jane Deal");
     }
 }

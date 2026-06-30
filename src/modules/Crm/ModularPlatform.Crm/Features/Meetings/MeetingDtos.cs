@@ -5,6 +5,7 @@ public sealed record MeetingResponse(
     Guid Id,
     Guid? ContactId,
     string? ContactName,
+    Guid? DealId,
     string Title,
     DateTimeOffset ScheduledAt,
     int DurationMinutes,

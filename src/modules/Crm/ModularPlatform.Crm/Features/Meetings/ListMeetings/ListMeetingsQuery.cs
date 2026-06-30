@@ -9,6 +9,7 @@ public sealed record ListMeetingsQuery(
     DateTimeOffset? To,
     Guid? ContactId,
     Guid? CompanyId,
+    Guid? DealId,
     string? Status,
     int? Page,
     int? PageSize) : IQuery<PagedResponse<ModularPlatform.Crm.Features.Meetings.MeetingResponse>>;
