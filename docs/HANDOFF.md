@@ -93,14 +93,10 @@ From `CLAUDE.md` §10:
 - **Messaging resilience completeness** — base retry/DLQ policy is wired; still missing a stuck-outbox /
   reconciliation job. Decision: reconciliation cadence + alerting.
 
-Robustness backlog (`docs/test-scenarios.md` "Priority gaps to fill next") — code shipped, **integration tests
-remaining** (these are the A-items already implemented; tests assert them):
-- **GD-3** erasure pipeline e2e (whole GDPR spine + ledger retention).
-- **ST-1/ST-2** Stripe atomic + redelivery exactly-once.
-- **PL-5** tenant isolation — assert the null-escape is closed.
-- **ID-6** refresh-reuse-is-audited (A4 shipped — assert the audit row).
-- **BL-6/BL-7/BL-9/BL-12** ledger lifecycle + `available = posted − pending` invariant.
-- **EV-2/EV-3/EV-4** event resilience (welcome non-fatal, dead-letter, crash-recovery).
+Robustness backlog (`docs/test-scenarios.md` "Priority gaps to fill next") — the in-process/test-harness
+coverage is now pinned for the old wave items (GD-3, ST-1/ST-2, PL-5, ID-6, BL-6/7/9/12, EV-2/EV-3,
+NT-2/3/5, PL-7/10/11). Remaining: **EV-4** kill-worker-mid-message durability, which needs an out-of-process
+worker harness that can terminate and restart a separate worker process.
 
 ---
 
