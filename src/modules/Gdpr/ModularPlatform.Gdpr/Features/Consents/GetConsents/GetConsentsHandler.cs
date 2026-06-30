@@ -21,6 +21,7 @@ internal sealed class GetConsentsHandler(IReadDbContextFactory<GdprDbContext> re
         return await db.ConsentRecords
             .Where(c => c.UserId == query.UserId)
             .OrderByDescending(c => c.RecordedAt)
+            .ThenByDescending(c => c.Id)
             .Take(500)
             .Select(c => new ConsentResponse(c.Id, c.ConsentType, c.Granted, c.RecordedAt, c.PolicyVersion))
             .ToListAsync(ct);

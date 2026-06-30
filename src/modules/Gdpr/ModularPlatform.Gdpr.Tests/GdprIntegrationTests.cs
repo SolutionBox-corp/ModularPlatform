@@ -346,6 +346,70 @@ public sealed class GdprIntegrationTests(PlatformApiFactory fixture)
         latest.GetProperty("policyVersion").GetString().ShouldBe("2026-06");
     }
 
+    [Fact]
+    public async Task Consent_history_and_export_use_id_tie_breakers_when_recorded_at_matches()
+    {
+        var email = $"consent-stable-{Guid.CreateVersion7():N}@example.com";
+        var (userId, accessToken) = await fixture.RegisterAndLoginAsync(email, Password);
+        var firstType = $"stable-a-{Guid.CreateVersion7():N}";
+        var secondType = $"stable-b-{Guid.CreateVersion7():N}";
+        var thirdType = $"stable-c-{Guid.CreateVersion7():N}";
+
+        foreach (var consentType in new[] { firstType, secondType, thirdType })
+        {
+            var grant = await fixture.Client.SendAsync(
+                fixture.Authed(HttpMethod.Post, "/v1/gdpr/consents/grant", accessToken,
+                    new { consentType }));
+            grant.StatusCode.ShouldBe(HttpStatusCode.OK);
+        }
+
+        const string tiedRecordedAt = "2026-06-30 12:00:00+00";
+        await fixture.ExecuteSqlAsync(
+            $"""
+             UPDATE consent_records
+             SET "RecordedAt" = '{tiedRecordedAt}'
+             WHERE "UserId" = '{userId}'
+             """);
+
+        var expectedNewestFirst = await fixture.ScalarAsync<string>(
+            $"""
+             SELECT string_agg("ConsentType", ',')
+             FROM (
+                 SELECT "ConsentType"
+                 FROM consent_records
+                 WHERE "UserId" = '{userId}'
+                 ORDER BY "RecordedAt" DESC, "Id" DESC
+             ) ordered
+             """);
+        var expectedExportOrder = await fixture.ScalarAsync<string>(
+            $"""
+             SELECT string_agg("ConsentType", ',')
+             FROM (
+                 SELECT "ConsentType"
+                 FROM consent_records
+                 WHERE "UserId" = '{userId}'
+                 ORDER BY "RecordedAt", "Id"
+             ) ordered
+             """);
+
+        var get = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/gdpr/me/consents", accessToken));
+        get.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var historyTypes = string.Join(',', (await PlatformApiFactory.ReadData(get)).EnumerateArray()
+            .Select(c => c.GetProperty("consentType").GetString()));
+        historyTypes.ShouldBe(expectedNewestFirst);
+
+        var export = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/gdpr/me/export", accessToken));
+        export.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var exportedTypes = string.Join(',', (await PlatformApiFactory.ReadData(export))
+            .GetProperty("Gdpr.Consents")
+            .GetProperty("consents")
+            .EnumerateArray()
+            .Select(c => c.GetProperty("consentType").GetString()));
+        exportedTypes.ShouldBe(expectedExportOrder);
+    }
+
     // GD-6 — the consent log participates in its OWN export + erasure (was a gap: consent history survived erasure
     // with the real UserId and was absent from the Art. 15 export). Export now includes a "Gdpr.Consents" section;
     // erasure DELETES the subject's consent rows (no AML/tax retention obligation, unlike the credit ledger).
