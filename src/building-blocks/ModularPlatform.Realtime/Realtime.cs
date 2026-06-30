@@ -11,8 +11,8 @@ namespace ModularPlatform.Realtime;
 
 /// <summary>
 /// One server-&gt;client event. Carries an id so SSE <c>Last-Event-ID</c> reconnect can be honored.
-/// The id is also the client-side deduplication key: the SSE endpoint subscribes before replaying missed
-/// events, so an event can rarely be emitted once from replay and once live with the same id.
+/// The id is also the SSE endpoint's deduplication key: the endpoint subscribes before replaying missed events,
+/// so an event can rarely appear once from replay and once live with the same id.
 /// </summary>
 public sealed record RealtimeMessage(string EventType, string Json, string Id);
 

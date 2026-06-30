@@ -100,4 +100,51 @@ public sealed class RealtimeSseTests(PlatformApiFactory fixture)
 
         retained.Select(x => x.Id).ShouldBe(["2", "3"]);
     }
+
+    [Fact]
+    public async Task Sse_stream_suppresses_replay_live_duplicate_event_ids()
+    {
+        var registry = new RealtimeConnectionRegistry();
+        var userId = Guid.CreateVersion7();
+        var duplicate = new RealtimeMessage("notification", "{\"id\":2}", "2");
+        var next = new RealtimeMessage("notification", "{\"id\":3}", "3");
+        var replay = new ReplayThatAlsoDeliversLive(registry, userId, duplicate, next);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var emitted = new List<string?>();
+
+        await foreach (var item in RealtimeStreamEndpoint
+            .StreamForUser(userId, registry, replay, lastEventId: "1", cts.Token)
+            .WithCancellation(cts.Token))
+        {
+            emitted.Add(item.EventId);
+            if (emitted.Count == 2)
+            {
+                break;
+            }
+        }
+
+        emitted.ShouldBe(["2", "3"]);
+    }
+
+    private sealed class ReplayThatAlsoDeliversLive(
+        RealtimeConnectionRegistry registry,
+        Guid userId,
+        RealtimeMessage duplicate,
+        RealtimeMessage next) : IRealtimeReplay
+    {
+        public async Task<IReadOnlyList<RealtimeMessage>> ReadSinceAsync(
+            Guid replayUserId,
+            string? lastEventId,
+            CancellationToken ct = default)
+        {
+            replayUserId.ShouldBe(userId);
+            lastEventId.ShouldBe("1");
+
+            await registry.DeliverLocal(userId, duplicate);
+            await registry.DeliverLocal(userId, next);
+
+            return [duplicate];
+        }
+    }
 }

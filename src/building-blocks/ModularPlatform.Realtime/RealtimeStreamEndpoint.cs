@@ -16,8 +16,9 @@ namespace ModularPlatform.Realtime;
 /// disposed when the client disconnects (the enumerator is cancelled). Owner-scoped — a user only receives their
 /// own events. Multi-instance fan-out is transparent: the Redis subscriber delivers into the same registry.
 /// On reconnect the client sends <c>Last-Event-ID</c>; replay events are emitted first (preserving their
-/// original ids) before switching to the live stream. The stream is at-least-once around the replay/live
-/// boundary: a client must deduplicate by SSE <c>EventId</c>.
+/// original ids) before switching to the live stream. The endpoint subscribes before replaying so no live event
+/// is lost in the gap, and it suppresses duplicate SSE frames by <c>EventId</c> when an event is both replayed
+/// and delivered live.
 /// </summary>
 public static class RealtimeStreamEndpoint
 {
@@ -46,7 +47,7 @@ public static class RealtimeStreamEndpoint
             .WithName("RealtimeStream");
     }
 
-    private static async IAsyncEnumerable<SseItem<string>> StreamForUser(
+    internal static async IAsyncEnumerable<SseItem<string>> StreamForUser(
         Guid userId,
         RealtimeConnectionRegistry registry,
         IRealtimeReplay replay,
@@ -63,23 +64,30 @@ public static class RealtimeStreamEndpoint
             channel.Writer.TryWrite(message);
             return Task.CompletedTask;
         });
+        var emittedEventIds = new HashSet<string>(StringComparer.Ordinal);
 
         // Replay buffered events (with their original ids) before serving the live stream. Because we subscribe
         // first, an event published during this replay window can appear twice with the same EventId: once from
-        // replay and once from the live buffer. Clients must deduplicate by EventId.
+        // replay and once from the live buffer. Suppress that duplicate inside this session.
         if (!string.IsNullOrWhiteSpace(lastEventId))
         {
             var missed = await replay.ReadSinceAsync(userId, lastEventId, ct);
             foreach (var msg in missed)
             {
-                yield return new SseItem<string>(msg.Json, msg.EventType) { EventId = msg.Id };
+                if (emittedEventIds.Add(msg.Id))
+                {
+                    yield return new SseItem<string>(msg.Json, msg.EventType) { EventId = msg.Id };
+                }
             }
         }
 
         // Live stream.
         await foreach (var message in channel.Reader.ReadAllAsync(ct))
         {
-            yield return new SseItem<string>(message.Json, message.EventType) { EventId = message.Id };
+            if (emittedEventIds.Add(message.Id))
+            {
+                yield return new SseItem<string>(message.Json, message.EventType) { EventId = message.Id };
+            }
         }
     }
 

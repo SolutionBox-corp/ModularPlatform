@@ -1003,14 +1003,14 @@ _Owner-scoping + local fan-out are sound; Redis fan-out now has a live container
 |---|:--:|---|
 | Unauthenticated request | ✓ | RequireAuthorization + tenant.UserId null -> UnauthorizedException (RealtimeStreamEndpoint.cs:32-33,41). Tested: Unauthenticated_stream_is_rejected. |
 | Slow/dead consumer back-pressure (unbounded memory growth) | ✓ | Channel.CreateBounded(256, DropOldest) (RealtimeStreamEndpoint.cs:57-62) — TryWrite never blocks/fails; oldest unread dropped under back-pressure. Best-effort by design, documented and covered by RealtimeSseTests.Sse_live_buffer_drops_oldest_events_under_back_pressure. |
-| Live events arriving while replay is being emitted | ✓ | Subscribes BEFORE emitting replay (RealtimeStreamEndpoint.cs:63-77) so no live event is lost in the gap; replay then live. |
+| Live events arriving while replay is being emitted | ✓ | Subscribes BEFORE emitting replay (RealtimeStreamEndpoint.cs:63-84) so no live event is lost in the gap; replay then live. |
 | Client disconnect mid-stream | ✓ | CancellationToken cancels ReadAllAsync; `using` disposes the subscription, removing the registry entry. |
-| Replay vs live duplicate (an event both replayed and delivered live) | ◐ | Possible narrow window: an event published between the registry Subscribe and replay read can be both replayed AND delivered live, yielding a duplicate SSE frame with the same EventId. This is now an explicit at-least-once contract; clients deduplicate by SSE EventId (RealtimeMessage and RealtimeStreamEndpoint docs). |
+| Replay vs live duplicate (an event both replayed and delivered live) | ✓ | The endpoint keeps per-session emitted EventIds and suppresses the live copy when the same event was already yielded from replay. Pinned by RealtimeSseTests.Sse_stream_suppresses_replay_live_duplicate_event_ids. |
 
-**Testy:** RealtimeSseTests.Unauthenticated_stream_is_rejected; RealtimeSseTests.Sse_live_buffer_drops_oldest_events_under_back_pressure
-**Test gaps:** The authenticated streaming round-trip is explicitly NOT tested over TestServer (buffers infinite SSE) — acknowledged; only manual/real-server verified; No test for the replay-then-live ordering or the replay/live duplicate window
+**Testy:** RealtimeSseTests.Unauthenticated_stream_is_rejected; RealtimeSseTests.Sse_live_buffer_drops_oldest_events_under_back_pressure; RealtimeSseTests.Sse_stream_suppresses_replay_live_duplicate_event_ids
+**Test gaps:** The authenticated streaming round-trip is explicitly NOT tested over TestServer (buffers infinite SSE) — acknowledged; only manual/real-server verified.
 
-_The replay/live duplicate-by-id window is the only substantive correctness nuance; it is now documented as the SSE contract._
+_The replay/live duplicate-by-id window is now handled in-process by per-session EventId dedupe; the remaining HTTP streaming gap is a TestServer harness limitation._
 
 ### Replay buffer (Last-Event-ID, TTL) — ✅ correct
 *Per-user short-lived event buffer (Redis Streams or in-memory ring) replayed on SSE reconnect; PII-minimized via MAXLEN + TTL.*
@@ -1632,12 +1632,12 @@ _Correct and minimal; the baseline header contract is covered by an integration 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
 | Slow/dead consumer growing the buffer unbounded (memory leak) | ✓ | Channel.CreateBounded(256, DropOldest) in RealtimeStreamEndpoint.cs:57-62; TryWrite never blocks/fails; covered by RealtimeSseTests.Sse_live_buffer_drops_oldest_events_under_back_pressure |
-| Client disconnect must dispose subscription | ✓ | Enumerator cancellation (CancellationToken) ends ReadAllAsync; using subscription disposes (RealtimeStreamEndpoint.cs:63-83) |
+| Client disconnect must dispose subscription | ✓ | Enumerator cancellation (CancellationToken) ends ReadAllAsync; using subscription disposes (RealtimeStreamEndpoint.cs:63-91) |
 | Unauthenticated access to the stream | ✓ | .RequireAuthorization() + tenant.UserId ?? throw UnauthorizedException('auth.required') (RealtimeStreamEndpoint.cs:32-41) |
-| Event ordering / duplicates across replay→live boundary | ◐ | Subscribe-before-replay means an event can be BOTH replayed and live-buffered (duplicate id), or buffered ones emitted after replayed ones; documented as acceptable best-effort UX (RealtimeStreamEndpoint.cs:54-56). Durable facts live in modules |
+| Event ordering / duplicates across replay→live boundary | ✓ | Subscribe-before-replay still preserves no-loss behavior; per-session EventId dedupe suppresses the duplicate replay/live frame. Durable facts still live in modules. |
 | Removed duplicate SseStream<T> abstraction stays removed | ✓ | No SseStream.cs exists under src; the active endpoint owns the one bounded channel implementation. |
 
-**Testy:** Realtime replay covered in Realtime building-block/integration tests (outside this area's test set)
+**Testy:** Realtime replay covered in Realtime building-block/integration tests (outside this area's test set); RealtimeSseTests.Sse_stream_suppresses_replay_live_duplicate_event_ids pins the replay/live duplicate boundary.
 **Test gaps:** No authenticated HTTP streaming round-trip over TestServer (buffers infinite SSE).
 
 _Endpoint is sound (bounded, owner-scoped, auth-gated). The old duplicate SseStream<T> abstraction has already been removed; remaining gaps are streaming-harness limitations._
