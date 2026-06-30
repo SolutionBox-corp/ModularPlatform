@@ -91,6 +91,9 @@ public sealed class PlatformApiFactory : IAsyncLifetime
             // A real 32-byte secrets master key so the tenant-secret protector validates even on a non-Development
             // derived host (the validator fail-fasts on a missing or dev-only key outside Development, like JWT/RLS).
             builder.UseSetting("Secrets:MasterKeys:1", "aW50ZWdyYXRpb24tdGVzdC1zZWNyZXRzLWtleS0wMzI=");
+            // Production-derived hosts must declare where telemetry is exported. The endpoint is not contacted during
+            // host boot; it only satisfies the same fail-fast config contract production deployments must satisfy.
+            builder.UseSetting("OpenTelemetry:Otlp:Endpoint", "http://localhost:4317");
             builder.UseSetting("Jwt:Issuer", "test");
             builder.UseSetting("Jwt:Audience", "test");
             // Functional tests share one loopback IP partition; raise the rate limits so they aren't throttled.

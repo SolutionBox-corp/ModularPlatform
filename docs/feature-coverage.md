@@ -310,12 +310,12 @@ _Crypto-shred reveal is solid and end-to-end tested both pre- and post-erasure._
 | Anonymous caller | ✓ | 401, never global visibility — TenantIsolationTests.Anonymous_caller...rejected |
 | Tenant name PII leak | ✓ | Neutral tenant-{id:N} name — RegisterUserHandler.cs:42-43 |
 | Distinct tenants per registration | ✓ | test Registration_provisions_a_tenant_and_the_token_carries_it |
-| Cross-user-within-same-tenant isolation | ◐ | Acknowledged residual: no admin 'list users in my tenant' query exists yet, so within-tenant multi-user isolation is not exercised — documented in TenancyTests.cs:11-12. Each registration gets its own tenant today, so cross-user==cross-tenant in practice. |
+| Cross-user-within-same-tenant isolation | ✓ | Tenant join flow creates two users in the same tenant via invites; a tenant admin can read another same-tenant user's detail, while cross-tenant users still 404. Proven by AuthzTests.Get_user_detail_allows_a_tenant_admin_to_read_another_user_in_the_same_tenant and Get_user_detail_is_tenant_scoped_and_hides_soft_deleted_users. |
 
-**Testy:** TenancyTests.Registration_provisions_a_tenant_and_the_token_carries_it; TenancyTests.Registration_does_not_store_the_plaintext_email_in_the_tenant_name; TenancyTests.Registration_does_not_emit_a_dangling_location_header; TenantIsolationTests (cross-tenant isolation, client-supplied id ignored, soft-delete filter, forged tenant claim rejected)
-**Test gaps:** No within-tenant multi-user isolation test (no listing query to exercise it — acknowledged)
+**Testy:** TenancyTests.Registration_provisions_a_tenant_and_the_token_carries_it; TenancyTests.Registration_does_not_store_the_plaintext_email_in_the_tenant_name; TenancyTests.Registration_does_not_emit_a_dangling_location_header; TenantIsolationTests (cross-tenant isolation, client-supplied id ignored, soft-delete filter, forged tenant claim rejected); AuthzTests.Get_user_detail_allows_a_tenant_admin_to_read_another_user_in_the_same_tenant; AuthzTests.Get_user_detail_is_tenant_scoped_and_hides_soft_deleted_users
+**Test gaps:** No remaining focused tenant isolation gap in this slice.
 
-_Isolation null-escape is provably closed; the only residual is the absence of a multi-user-per-tenant listing surface to test, which is documented._
+_Tenant null-escape, cross-tenant denial and same-tenant admin read are all now pinned by integration tests._
 
 ### GDPR export + erasure (Identity ports) — ✅ correct
 *Export account PII for portability; anonymize+soft-delete the user and revoke sessions on erasure (DEK shred kills ciphertext).*

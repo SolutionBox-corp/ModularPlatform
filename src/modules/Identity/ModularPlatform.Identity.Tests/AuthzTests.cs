@@ -240,6 +240,40 @@ public sealed class AuthzTests(PlatformApiFactory fixture)
         deleted.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
+    [Fact]
+    public async Task Get_user_detail_allows_a_tenant_admin_to_read_another_user_in_the_same_tenant()
+    {
+        var platformAdminToken = await EnsureAdminTokenAsync();
+        var (tenantId, subdomain) = await ProvisionTenantAsync(platformAdminToken);
+        var tenantAdminEmail = $"same-tenant-admin-{Guid.CreateVersion7():N}@x.com";
+        var memberEmail = $"same-tenant-member-{Guid.CreateVersion7():N}@x.com";
+
+        var tenantAdminId = await RegisterOnTenantHostAsync(
+            tenantAdminEmail, $"{subdomain}.lvh.me", await CreateInviteAsync(platformAdminToken, tenantId));
+        var memberId = await RegisterOnTenantHostAsync(
+            memberEmail, $"{subdomain}.lvh.me", await CreateInviteAsync(platformAdminToken, tenantId));
+
+        var tenantAdminTenantId = await fixture.ScalarAsync<Guid>(
+            $"SELECT \"TenantId\" FROM users WHERE \"Id\" = '{tenantAdminId}'");
+        var memberTenantId = await fixture.ScalarAsync<Guid>(
+            $"SELECT \"TenantId\" FROM users WHERE \"Id\" = '{memberId}'");
+        tenantAdminTenantId.ShouldBe(tenantId);
+        memberTenantId.ShouldBe(tenantId);
+
+        var grant = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, $"/v1/identity/admin/users/{tenantAdminId}/roles", platformAdminToken, new { role = "admin" }));
+        grant.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var tenantAdminToken = await LoginAsync(tenantAdminEmail, Password);
+        var sameTenantDetail = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, $"/v1/identity/admin/users/{memberId}", tenantAdminToken));
+        sameTenantDetail.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var data = await PlatformApiFactory.ReadData(sameTenantDetail);
+        data.GetProperty("id").GetGuid().ShouldBe(memberId);
+        data.GetProperty("email").GetString().ShouldBe(memberEmail);
+    }
+
     private async Task<string> LoginAsync(string email, string password)
     {
         var (accessToken, _) = await LoginWithTokensAsync(email, password);
@@ -277,6 +311,45 @@ public sealed class AuthzTests(PlatformApiFactory fixture)
         return (
             data.GetProperty("accessToken").GetString()!,
             data.GetProperty("accessTokenExpiresAt").GetDateTimeOffset());
+    }
+
+    private async Task<(Guid TenantId, string Subdomain)> ProvisionTenantAsync(string platformAdminToken)
+    {
+        var subdomain = $"id{Guid.CreateVersion7():N}".Substring(0, 20);
+        var provision = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post,
+            "/v1/tenant/admin/tenants",
+            platformAdminToken,
+            new { name = "Identity tenant", subdomain }));
+        provision.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var data = await PlatformApiFactory.ReadData(provision);
+        return (data.GetProperty("tenantId").GetGuid(), subdomain);
+    }
+
+    private async Task<string> CreateInviteAsync(string platformAdminToken, Guid tenantId)
+    {
+        var invite = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post,
+            $"/v1/tenant/admin/tenants/{tenantId}/invites",
+            platformAdminToken,
+            new { expiresInDays = 7 }));
+        invite.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        return (await PlatformApiFactory.ReadData(invite)).GetProperty("inviteToken").GetString()!;
+    }
+
+    private async Task<Guid> RegisterOnTenantHostAsync(string email, string host, string inviteToken)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/v1/identity/users")
+        {
+            Content = JsonContent.Create(new { email, password = Password, inviteToken }),
+        };
+        request.Headers.Host = host;
+
+        var response = await fixture.Client.SendAsync(request);
+        response.StatusCode.ShouldBe(HttpStatusCode.Created);
+        return (await PlatformApiFactory.ReadData(response)).GetProperty("userId").GetGuid();
     }
 
     /// <summary>
