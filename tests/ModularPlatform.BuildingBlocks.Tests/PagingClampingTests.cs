@@ -103,9 +103,52 @@ public sealed class PagingClampingTests
         page.TotalPages.ShouldBe(2);
     }
 
+    [Fact]
+    public async Task ToPagedResponseAsync_rejects_unordered_queries()
+    {
+        await using var db = new PagingTestDbContext(new DbContextOptionsBuilder<PagingTestDbContext>()
+            .UseInMemoryDatabase($"paging-unordered-{Guid.CreateVersion7():N}")
+            .Options);
+        db.Items.AddRange(
+            new PagingTestItem { Name = "Charlie", SortOrder = 3 },
+            new PagingTestItem { Name = "Ada", SortOrder = 1 });
+        await db.SaveChangesAsync();
+
+        var exception = await Should.ThrowAsync<InvalidOperationException>(() => db.Items
+            .Select(item => item.Name)
+            .ToPagedResponseAsync(new PageRequest(page: 1, pageSize: 20), CancellationToken.None));
+
+        exception.Message.ShouldContain("OrderBy");
+    }
+
+    [Fact]
+    public async Task ToPagedResponseAsync_rejects_ordering_that_was_applied_before_a_shape_changing_join()
+    {
+        await using var db = new PagingTestDbContext(new DbContextOptionsBuilder<PagingTestDbContext>()
+            .UseInMemoryDatabase($"paging-join-{Guid.CreateVersion7():N}")
+            .Options);
+        var item = new PagingTestItem { Name = "Ada", SortOrder = 1 };
+        db.Items.Add(item);
+        await db.SaveChangesAsync();
+        db.Tags.Add(new PagingTestTag { ItemId = item.Id, Value = "first" });
+        await db.SaveChangesAsync();
+
+        var exception = await Should.ThrowAsync<InvalidOperationException>(() => db.Items
+            .OrderBy(i => i.SortOrder)
+            .Join(
+                db.Tags,
+                item => item.Id,
+                tag => tag.ItemId,
+                (item, tag) => new { item.Name, tag.Value })
+            .ToPagedResponseAsync(new PageRequest(page: 1, pageSize: 20), CancellationToken.None));
+
+        exception.Message.ShouldContain("OrderBy");
+    }
+
     private sealed class PagingTestDbContext(DbContextOptions<PagingTestDbContext> options) : DbContext(options)
     {
         public DbSet<PagingTestItem> Items => Set<PagingTestItem>();
+        public DbSet<PagingTestTag> Tags => Set<PagingTestTag>();
     }
 
     private sealed class PagingTestItem
@@ -113,5 +156,12 @@ public sealed class PagingClampingTests
         public int Id { get; set; }
         public required string Name { get; set; }
         public int SortOrder { get; set; }
+    }
+
+    private sealed class PagingTestTag
+    {
+        public int Id { get; set; }
+        public int ItemId { get; set; }
+        public required string Value { get; set; }
     }
 }

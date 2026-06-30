@@ -1427,11 +1427,11 @@ _Intricate but disciplined; restore-on-failure and refuse-without-protector are 
 | Negative/zero page or page size | ✓ | Page defaults to 1 if not >0; PageSize Math.Clamp(1..100) (Paging.cs:23-24) |
 | Oversized page size (DoS) | ✓ | Clamped to MaxPageSize=100 (Paging.cs:19,24) |
 | TotalPages with zero/negative page size | ✓ | Returns 0 when PageSize<=0 (Paging.cs:9) |
-| Unordered query => unstable paging | ◐ | Documented requirement to OrderBy first (PagedQueryExtensions.cs:10-11) but not enforced in code |
+| Unordered query => unstable paging | ✓ | PagedQueryExtensions.cs rejects queries whose expression tree has no Queryable OrderBy/OrderByDescending/ThenBy before Skip/Take; proven by PagingClampingTests.ToPagedResponseAsync_rejects_unordered_queries |
 | Count + page in two round-trips (consistency) | ✓ | LongCountAsync then Skip/Take (PagedQueryExtensions.cs:16-17); acceptable for paging and directly covered by PagingClampingTests.ToPagedResponseAsync_counts_total_and_preserves_ordered_page |
 
-**Testy:** PagingClampingTests directly covers PageRequest clamping (negative/null page, null/below-one/oversized pageSize, Skip), PagedResponse.TotalPages math, and PagedQueryExtensions.ToPagedResponseAsync preserving ordered EF page items + total count; NotificationsIntegrationTests exercises the feed PagedResponse envelope (items/page/pageSize/totalCount) end-to-end
-**Test gaps:** No remaining focused paging test gap; unordered IQueryable stability remains a documented caller contract, not enforced by code.
+**Testy:** PagingClampingTests directly covers PageRequest clamping (negative/null page, null/below-one/oversized pageSize, Skip), PagedResponse.TotalPages math, PagedQueryExtensions.ToPagedResponseAsync preserving ordered EF page items + total count, and rejection of unordered IQueryable inputs; NotificationsIntegrationTests exercises the feed PagedResponse envelope (items/page/pageSize/totalCount) end-to-end
+**Test gaps:** No remaining focused paging test gap; unordered IQueryable inputs are now blocked by the shared helper.
 
 _Clamp/math and the EF extension wrapper are now covered by focused building-block tests._
 

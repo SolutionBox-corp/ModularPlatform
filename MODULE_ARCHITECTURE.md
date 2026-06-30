@@ -3,7 +3,8 @@
 Datum: 2026-06-25
 
 Tento dokument je navod pro vyvojare, ktery prijde k ModularPlatform a ma postavit **libovolny produktovy modul**.
-Neni to CRM specifikace, neni to navrh CRM modulu a v base dnes CRM modul neni.
+Neni to CRM specifikace a neni to navrh jen pro CRM. CRM muze byt konkretni modul/priklad v repu, ale pravidla
+v tomhle dokumentu plati stejne pro libovolny produktovy modul.
 
 Ber to jako sablonu pro jakykoli domenovy modul:
 

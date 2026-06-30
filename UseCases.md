@@ -3,9 +3,9 @@
 Datum: 2026-06-25
 
 Tento dokument je katalog pro noveho vyvojare, ktery stavi libovolny produktovy modul nad ModularPlatform.
-Neni to specifikace CRM ani jine konkretni domeny. CRM modul v base dnes neexistuje; kdyz se v dokumentu objevi
-CRM, Helpdesk, Projects nebo Marketing, jsou to jen priklady domen, ktere by mohly na platforme vzniknout stejnym
-zpusobem.
+Neni to specifikace CRM ani jine konkretni domeny. Kdyz se v dokumentu objevi CRM, Helpdesk, Projects nebo
+Marketing, jsou to priklady domen, ktere pouzivaji stejne platformni capability. I kdyz v repu existuje konkretni
+CRM modul, tenhle dokument popisuje obecny postup pro novy produktovy modul, ne jen CRM.
 
 Format je zamerne prakticky:
 
