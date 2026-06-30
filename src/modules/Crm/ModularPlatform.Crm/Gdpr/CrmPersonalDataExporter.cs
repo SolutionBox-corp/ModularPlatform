@@ -40,7 +40,7 @@ internal sealed class CrmPersonalDataExporter(IReadDbContextFactory<CrmDbContext
         var interactions = await db.ContactInteractions
             .IgnoreQueryFilters()
             .Where(i => i.UserId == userId)
-            .Select(i => new { i.Id, i.ContactId, i.Type, i.OccurredAt, i.Body })
+            .Select(i => new { i.Id, i.ContactId, i.DealId, i.Type, i.OccurredAt, i.Body })
             .ToListAsync(ct);
 
         var meetings = await db.Meetings

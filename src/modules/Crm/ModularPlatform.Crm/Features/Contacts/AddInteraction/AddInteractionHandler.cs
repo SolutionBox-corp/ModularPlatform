@@ -22,10 +22,17 @@ internal sealed class AddInteractionHandler(CrmDbContext db, IClock clock)
             throw new NotFoundException("crm.contact_not_found", "Contact not found.");
         }
 
+        if (command.DealId is { } dealId
+            && !await db.Deals.AnyAsync(d => d.Id == dealId && d.UserId == command.UserId, ct))
+        {
+            throw new NotFoundException("crm.deal_not_found", "Deal not found.");
+        }
+
         var interaction = new ContactInteraction
         {
             UserId = command.UserId,
             ContactId = command.ContactId,
+            DealId = command.DealId,
             Type = command.Type,
             OccurredAt = command.OccurredAt ?? clock.UtcNow,
             Body = string.IsNullOrWhiteSpace(command.Body) ? null : command.Body,

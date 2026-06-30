@@ -16,8 +16,17 @@ internal sealed class ListInteractionsHandler(IReadDbContextFactory<CrmDbContext
 
         var paging = new PageRequest(query.Page, query.PageSize);
 
-        var filtered = db.ContactInteractions
-            .Where(i => i.ContactId == query.ContactId && i.UserId == query.UserId);
+        var filtered = db.ContactInteractions.Where(i => i.UserId == query.UserId);
+
+        if (query.ContactId is { } contactId)
+        {
+            filtered = filtered.Where(i => i.ContactId == contactId);
+        }
+
+        if (query.DealId is { } dealId)
+        {
+            filtered = filtered.Where(i => i.DealId == dealId);
+        }
 
         var total = await filtered.CountAsync(ct);
 
@@ -25,7 +34,7 @@ internal sealed class ListInteractionsHandler(IReadDbContextFactory<CrmDbContext
             .OrderByDescending(i => i.OccurredAt)
             .Skip(paging.Skip)
             .Take(paging.PageSize)
-            .Select(i => new InteractionResponse(i.Id, i.ContactId, i.Type, i.OccurredAt, i.Body))
+            .Select(i => new InteractionResponse(i.Id, i.ContactId, i.DealId, i.Type, i.OccurredAt, i.Body))
             .ToListAsync(ct);
 
         return new PagedResponse<InteractionResponse>(items, paging.Page, paging.PageSize, total);

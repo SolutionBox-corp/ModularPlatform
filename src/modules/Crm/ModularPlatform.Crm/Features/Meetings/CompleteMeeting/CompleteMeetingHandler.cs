@@ -41,6 +41,7 @@ internal sealed class CompleteMeetingHandler(CrmDbContext db)
             {
                 UserId = command.UserId,
                 ContactId = contactId,
+                DealId = meeting.DealId,
                 Type = InteractionTypes.Meeting,
                 OccurredAt = meeting.ScheduledAt,
                 Body = outcome ?? meeting.Title,

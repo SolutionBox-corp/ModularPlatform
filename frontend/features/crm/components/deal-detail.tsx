@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarIcon, CircleDollarSignIcon } from "lucide-react";
+import { CalendarIcon, CircleDollarSignIcon, MailIcon, PhoneIcon, StickyNoteIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -12,7 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { crmQueries, type Deal } from "@/features/crm/api";
+import { crmQueries, type Deal, type Interaction } from "@/features/crm/api";
 import { TasksTable } from "@/features/crm/components/tasks-table";
 import { MeetingsTable } from "@/features/crm/components/meetings-table";
 
@@ -25,8 +25,45 @@ const STAGE_VARIANT: Record<string, "default" | "secondary" | "outline" | "destr
   lost: "destructive",
 };
 
+const TYPE_ICON: Record<string, typeof PhoneIcon> = {
+  call: PhoneIcon,
+  email: MailIcon,
+  note: StickyNoteIcon,
+  meeting: CalendarIcon,
+};
+
 function formatAmount(deal: Deal) {
   return new Intl.NumberFormat(undefined, { style: "currency", currency: deal.currency }).format(deal.amountCents / 100);
+}
+
+function DealTimeline({ dealId }: { dealId: string }) {
+  const t = useTranslations("crm");
+  const { data, isLoading } = useQuery(crmQueries.dealInteractions(dealId));
+
+  if (isLoading) return <Skeleton className="h-20 w-full" />;
+  if (!data || data.items.length === 0) return <p className="text-sm text-muted-foreground">{t("timeline.empty")}</p>;
+
+  return (
+    <ul className="space-y-3">
+      {data.items.map((interaction: Interaction) => {
+        const Icon = TYPE_ICON[interaction.type] ?? StickyNoteIcon;
+        return (
+          <li key={interaction.id} className="flex gap-3 rounded-lg border bg-muted/20 p-3">
+            <div className="mt-0.5 text-muted-foreground">
+              <Icon className="h-4 w-4" aria-hidden="true" />
+            </div>
+            <div className="flex-1 space-y-1">
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-xs">{t(`interactionType.${interaction.type}`)}</Badge>
+                <span className="text-xs text-muted-foreground">{new Date(interaction.occurredAt).toLocaleString()}</span>
+              </div>
+              {interaction.body && <p className="text-sm">{interaction.body}</p>}
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
 }
 
 export function DealDetail({ dealId }: { dealId: string }) {
@@ -100,6 +137,11 @@ export function DealDetail({ dealId }: { dealId: string }) {
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-muted-foreground">{t("meetings.heading")}</h2>
         <MeetingsTable contactId={deal.contactId ?? undefined} companyId={deal.companyId ?? undefined} dealId={deal.id} />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium text-muted-foreground">{t("timeline.heading")}</h2>
+        <DealTimeline dealId={deal.id} />
       </section>
     </div>
   );

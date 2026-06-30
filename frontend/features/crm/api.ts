@@ -47,6 +47,7 @@ export interface ContactsPage {
 export interface Interaction {
   id: string;
   contactId: string;
+  dealId: string | null;
   type: string;
   occurredAt: string;
   body: string | null;
@@ -260,6 +261,13 @@ export const crmQueries = {
       enabled: contactId.length > 0,
     }),
 
+  dealInteractions: (dealId: string) =>
+    queryOptions({
+      queryKey: [...queryRoots.crm, "deal-interactions", dealId],
+      queryFn: () => apiFetch<InteractionsPage>(`crm/deals/${dealId}/interactions`),
+      enabled: dealId.length > 0,
+    }),
+
   meetings: (params: MeetingsParams = {}) => {
     const pageSize = params.pageSize ?? 20;
     return queryOptions({
@@ -392,6 +400,7 @@ export function deleteContact(id: string): Promise<void> {
 }
 
 export interface InteractionInput {
+  dealId?: string | null;
   type: string;
   occurredAt?: string | null;
   body?: string | null;

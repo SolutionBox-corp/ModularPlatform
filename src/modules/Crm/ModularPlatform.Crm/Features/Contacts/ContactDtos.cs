@@ -29,6 +29,7 @@ public sealed record ContactListItem(
 public sealed record InteractionResponse(
     Guid Id,
     Guid ContactId,
+    Guid? DealId,
     string Type,
     DateTimeOffset OccurredAt,
     string? Body);

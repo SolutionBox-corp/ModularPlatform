@@ -225,4 +225,28 @@ public sealed class CrmDealsTests(PlatformApiFactory fixture)
         data.GetProperty("items")[0].GetProperty("dealId").GetGuid().ShouldBe(dealId);
         data.GetProperty("items")[0].GetProperty("contactName").GetString().ShouldBe("Jane Deal");
     }
+
+    [Fact]
+    public async Task Deal_interactions_are_listed_on_the_deal_timeline()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
+        var contactId = await CreateContactAsync(token, "Timeline", "Contact");
+        var dealId = await CreateDealAsync(token, new
+        {
+            contactId, title = "Timeline Deal", amountCents = 1000L, stage = "lead",
+        });
+
+        var add = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, $"/v1/crm/contacts/{contactId}/interactions", token,
+            new { dealId, type = "call", body = "Discussed buying signals" }));
+        add.StatusCode.ShouldBe(HttpStatusCode.Created, await add.Content.ReadAsStringAsync());
+
+        var timeline = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, $"/v1/crm/deals/{dealId}/interactions", token));
+        timeline.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var items = (await PlatformApiFactory.ReadData(timeline)).GetProperty("items").EnumerateArray().ToList();
+        items.Count.ShouldBe(1);
+        items[0].GetProperty("dealId").GetGuid().ShouldBe(dealId);
+        items[0].GetProperty("body").GetString().ShouldBe("Discussed buying signals");
+    }
 }

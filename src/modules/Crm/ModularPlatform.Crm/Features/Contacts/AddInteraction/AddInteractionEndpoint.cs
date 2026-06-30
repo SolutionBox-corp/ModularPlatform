@@ -24,6 +24,7 @@ internal static class AddInteractionEndpoint
                     new AddInteractionCommand(
                         userId,
                         contactId,
+                        request.DealId,
                         (request.Type ?? string.Empty).Trim().ToLowerInvariant(),
                         request.OccurredAt,
                         request.Body),

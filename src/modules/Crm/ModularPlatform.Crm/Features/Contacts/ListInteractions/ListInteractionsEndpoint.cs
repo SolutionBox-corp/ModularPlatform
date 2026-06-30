@@ -22,12 +22,30 @@ internal static class ListInteractionsEndpoint
             {
                 var userId = tenant.UserId
                     ?? throw new UnauthorizedException("auth.required", "Authentication required.");
-                var result = await dispatcher.Query(new ListInteractionsQuery(userId, contactId, page, pageSize), ct);
+                var result = await dispatcher.Query(new ListInteractionsQuery(userId, contactId, null, page, pageSize), ct);
                 return Results.Ok(ApiResponse<PagedResponse<InteractionResponse>>.Ok(result));
             })
             .RequireAuthorization()
             .RequireModule("crm")
             .WithTags("Crm")
             .WithName("ListInteractions");
+
+        app.MapGet("/crm/deals/{dealId:guid}/interactions", async (
+                Guid dealId,
+                int? page,
+                int? pageSize,
+                ITenantContext tenant,
+                IDispatcher dispatcher,
+                CancellationToken ct) =>
+            {
+                var userId = tenant.UserId
+                    ?? throw new UnauthorizedException("auth.required", "Authentication required.");
+                var result = await dispatcher.Query(new ListInteractionsQuery(userId, null, dealId, page, pageSize), ct);
+                return Results.Ok(ApiResponse<PagedResponse<InteractionResponse>>.Ok(result));
+            })
+            .RequireAuthorization()
+            .RequireModule("crm")
+            .WithTags("Crm")
+            .WithName("ListDealInteractions");
     }
 }

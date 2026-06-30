@@ -16,6 +16,7 @@ internal sealed class ContactInteraction : AuditableEntity, ITenantScoped, IUser
 {
     public Guid UserId { get; set; }
     public Guid ContactId { get; set; }
+    public Guid? DealId { get; set; }
 
     /// <summary>call | email | note | meeting. Validated at the edge; stored as text.</summary>
     public string Type { get; set; } = InteractionTypes.Note;
@@ -52,6 +53,7 @@ internal sealed class ContactInteractionConfiguration : IEntityTypeConfiguration
         // rather than varchar(8192). The plaintext length is bounded by the validator (8192).
         builder.Property(i => i.Body);
         builder.HasIndex(i => new { i.ContactId, i.OccurredAt });
+        builder.HasIndex(i => new { i.DealId, i.OccurredAt });
         builder.HasIndex(i => i.UserId);
     }
 }
