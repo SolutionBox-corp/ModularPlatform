@@ -30,7 +30,7 @@ Status: **✓** implemented · **▢** gap (planned) · **◐** partially covere
 | ID-9 | Brute-force: >10 `/login` from one IP in a minute → `429`; per-account lockout independent of the IP budget | F | ✓ `Login_endpoint_uses_the_auth_rate_limit_policy` + `AccountLockoutTests` |
 | ID-10 | JWT issued validates under the configured key; a token signed with a wrong key is rejected | U | ✓ `TokenIssuerTests.Access_token_validates_with_configured_key_and_rejects_wrong_key` |
 | ID-11 | `JwtOptionsValidator`: empty/<32-byte key in non-Development → host fails to start; Development → allowed | U | ✓ `JwtOptionsValidatorTests` |
-| ID-12 | Audit after profile update records ONLY changed columns (JSONB) | I | ◐ (e2e checks Create row) |
+| ID-12 | Audit after profile update records ONLY changed columns (JSONB) | I | ✓ `Update_profile_audit_row_records_changed_columns_only` |
 
 ## 2. Billing — credit ledger (money-critical)
 
