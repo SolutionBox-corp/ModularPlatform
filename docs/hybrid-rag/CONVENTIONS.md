@@ -188,3 +188,16 @@ RLS (keyed `app.principal_id == UserId`) **NELZE** — skryl by sdílené `Scope
   `/models`, `/models/compare`, `/reviews`, `/reviews/{id}/decision`, `/query/{id}/feedback`. (Drift `/v1/rag/...` → čti jako `/v1/hybridrag/...`.)
 - **UI ↔ backend.** Frontend (26–29) = tenký konzument přes BFF (Model A, token jen server-side) + TanStack Query (jeden data source) +
   jeden SSE provider. Validace/izolace/identita je VŽDY backend; UI prvky se jen skrývají/disablují dle permission (autorita = backend → 403/404).
+
+---
+
+## 15. Durable orchestrace = Wolverine, NE Temporal (frozen)
+
+**Nepřidáváme Temporal .NET SDK ani jiný job-engine.** Core už durable orchestraci MÁ přes **Wolverine**
+(`ModularPlatform.Messaging`; `WolverineFx`+`.Postgresql`+`.EntityFrameworkCore` pinned v `Directory.Packages.props`).
+Wolverine saga + outbox/inbox = ~70 % Temporalu na Postgresu, bez nové infry; CLAUDE.md §6 zakazuje nový queue/outbox/job-engine.
+- **Ingest pipeline** (oblast 04) = Wolverine saga v module DbContextu, kopie `CreditPurchaseSaga.cs:30`.
+- **HITL blocking approval gate** (oblast 32) = Wolverine saga čekající na human-decision message → deterministický resume
+  po hodinách/restartu (durable wait, co jiní řeší Temporalem). Status pro caller/UI = `IOperationStore` 202.
+
+→ Durable orchestrace zůstává v **core (Wolverine)**; RAG modul ji jen POUŽÍVÁ (saga v module DbContextu, jako Billing).
