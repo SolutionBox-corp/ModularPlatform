@@ -167,8 +167,12 @@ export interface Deal {
   amountCents: number;
   currency: string;
   stage: string;
+  lastStage: string | null;
+  probabilityPercent: number;
+  leadSource: string | null;
   expectedCloseAt: string | null;
   closedAt: string | null;
+  nextStep: string | null;
   notes: string | null;
   createdAt: string;
   updatedAt: string | null;
@@ -426,7 +430,10 @@ export interface DealInput {
   amountCents: number;
   currency?: string | null;
   stage?: string | null;
+  probabilityPercent?: number | null;
+  leadSource?: string | null;
   expectedCloseAt?: string | null;
+  nextStep?: string | null;
   notes?: string | null;
 }
 

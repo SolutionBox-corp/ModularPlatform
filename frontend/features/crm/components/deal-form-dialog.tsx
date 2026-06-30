@@ -54,7 +54,17 @@ export function DealFormDialog({ contactId, trigger }: DealFormDialogProps) {
     formState: { errors, isSubmitting },
   } = useForm<DealFormValues>({
     resolver: zodResolver(buildDealSchema(t)),
-    values: { title: "", amount: 0, currency: "USD", stage, expectedCloseAt: "", notes: "" },
+    values: {
+      title: "",
+      amount: 0,
+      currency: "USD",
+      stage,
+      probabilityPercent: 10,
+      leadSource: "",
+      expectedCloseAt: "",
+      nextStep: "",
+      notes: "",
+    },
   });
 
   const onSubmit = handleSubmit(async (values) => {
@@ -65,7 +75,10 @@ export function DealFormDialog({ contactId, trigger }: DealFormDialogProps) {
       amountCents: Math.round(values.amount * 100),
       currency: values.currency.trim().toUpperCase(),
       stage,
+      probabilityPercent: values.probabilityPercent,
+      leadSource: values.leadSource?.trim().toLowerCase() || null,
       expectedCloseAt: values.expectedCloseAt ? new Date(values.expectedCloseAt).toISOString() : null,
+      nextStep: values.nextStep?.trim() || null,
       notes: values.notes?.trim() || null,
     };
     try {
@@ -140,6 +153,27 @@ export function DealFormDialog({ contactId, trigger }: DealFormDialogProps) {
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="d-probability">{t("dealForm.probability")}</Label>
+                <Input
+                  id="d-probability"
+                  type="number"
+                  min={0}
+                  max={100}
+                  aria-invalid={!!errors.probabilityPercent}
+                  {...register("probabilityPercent", { valueAsNumber: true })}
+                />
+                {errors.probabilityPercent && (
+                  <p className="text-xs text-destructive">{errors.probabilityPercent.message}</p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="d-source">{t("dealForm.leadSource")}</Label>
+                <Input id="d-source" {...register("leadSource")} />
+              </div>
+            </div>
+
             <div className="space-y-1.5">
               <Label htmlFor="d-company">{t("dealForm.company")}</Label>
               <Select value={companyId} onValueChange={(value) => setCompanyId(value ?? "none")}>
@@ -159,6 +193,11 @@ export function DealFormDialog({ contactId, trigger }: DealFormDialogProps) {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="d-next-step">{t("dealForm.nextStep")}</Label>
+              <Input id="d-next-step" {...register("nextStep")} />
             </div>
 
             <div className="space-y-1.5">

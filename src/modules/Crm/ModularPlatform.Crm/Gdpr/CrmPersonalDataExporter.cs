@@ -73,8 +73,12 @@ internal sealed class CrmPersonalDataExporter(IReadDbContextFactory<CrmDbContext
                 d.AmountCents,
                 d.Currency,
                 d.Stage,
+                d.LastStage,
+                d.ProbabilityPercent,
+                d.LeadSource,
                 d.ExpectedCloseAt,
                 d.ClosedAt,
+                d.NextStep,
                 d.Notes,
                 d.CreatedAt,
             })

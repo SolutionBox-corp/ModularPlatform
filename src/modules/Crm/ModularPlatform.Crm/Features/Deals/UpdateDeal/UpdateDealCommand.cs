@@ -9,12 +9,18 @@ public sealed record UpdateDealCommand(
     string? Title,
     long? AmountCents,
     string? Currency,
+    int? ProbabilityPercent,
+    string? LeadSource,
     DateTimeOffset? ExpectedCloseAt,
+    string? NextStep,
     string? Notes) : ICommand<ModularPlatform.Crm.Features.Deals.DealResponse>;
 
 public sealed record UpdateDealRequest(
     string? Title,
     long? AmountCents,
     string? Currency,
+    int? ProbabilityPercent,
+    string? LeadSource,
     DateTimeOffset? ExpectedCloseAt,
+    string? NextStep,
     string? Notes);

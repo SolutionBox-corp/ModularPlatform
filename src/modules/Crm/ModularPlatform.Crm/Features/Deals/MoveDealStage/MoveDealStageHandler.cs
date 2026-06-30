@@ -31,7 +31,9 @@ internal sealed class MoveDealStageHandler(CrmDbContext db, IClock clock)
             throw new BusinessRuleException("crm.deal.invalid_transition", "A closed deal cannot change stage.");
         }
 
+        deal.LastStage = deal.Stage;
         deal.Stage = command.Stage;
+        deal.ProbabilityPercent = DealStages.DefaultProbability(command.Stage);
         deal.ClosedAt = DealStages.IsTerminal(command.Stage) ? clock.UtcNow : null;
 
         await db.SaveChangesAsync(ct);
@@ -40,6 +42,7 @@ internal sealed class MoveDealStageHandler(CrmDbContext db, IClock clock)
     }
 
     private static DealResponse ToResponse(Deal deal) => new(
-        deal.Id, deal.ContactId, deal.CompanyId, deal.Title, deal.AmountCents, deal.Currency, deal.Stage, deal.ExpectedCloseAt,
-        deal.ClosedAt, deal.Notes, deal.CreatedAt, deal.UpdatedAt);
+        deal.Id, deal.ContactId, deal.CompanyId, deal.Title, deal.AmountCents, deal.Currency, deal.Stage, deal.LastStage,
+        deal.ProbabilityPercent, deal.LeadSource, deal.ExpectedCloseAt, deal.ClosedAt, deal.NextStep, deal.Notes,
+        deal.CreatedAt, deal.UpdatedAt);
 }

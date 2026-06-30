@@ -9,8 +9,12 @@ public sealed record DealResponse(
     long AmountCents,
     string Currency,
     string Stage,
+    string? LastStage,
+    int ProbabilityPercent,
+    string? LeadSource,
     DateTimeOffset? ExpectedCloseAt,
     DateTimeOffset? ClosedAt,
+    string? NextStep,
     string? Notes,
     DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt);
@@ -23,5 +27,8 @@ public sealed record DealListItem(
     long AmountCents,
     string Currency,
     string Stage,
+    int ProbabilityPercent,
+    string? LeadSource,
+    string? NextStep,
     DateTimeOffset? ExpectedCloseAt,
     DateTimeOffset CreatedAt);

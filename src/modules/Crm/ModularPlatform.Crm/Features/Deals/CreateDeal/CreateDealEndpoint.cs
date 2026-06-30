@@ -31,7 +31,10 @@ internal static class CreateDealEndpoint
                         request.AmountCents,
                         string.IsNullOrWhiteSpace(request.Currency) ? "USD" : request.Currency.Trim().ToUpperInvariant(),
                         string.IsNullOrWhiteSpace(request.Stage) ? DealStages.Lead : request.Stage.Trim().ToLowerInvariant(),
+                        request.ProbabilityPercent,
+                        request.LeadSource is null ? null : request.LeadSource.Trim().ToLowerInvariant(),
                         request.ExpectedCloseAt,
+                        request.NextStep,
                         request.Notes),
                     ct);
                 var location = links.GetPathByName(http, "GetDeal", new { dealId = result.Id })

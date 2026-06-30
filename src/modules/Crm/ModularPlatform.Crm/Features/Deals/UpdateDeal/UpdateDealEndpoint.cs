@@ -24,7 +24,11 @@ internal static class UpdateDealEndpoint
                 var result = await dispatcher.Send(
                     new UpdateDealCommand(
                         userId, dealId, request.Title, request.AmountCents, request.Currency,
-                        request.ExpectedCloseAt, request.Notes),
+                        request.ProbabilityPercent,
+                        request.LeadSource is null ? null : request.LeadSource.Trim().ToLowerInvariant(),
+                        request.ExpectedCloseAt,
+                        request.NextStep,
+                        request.Notes),
                     ct);
                 return Results.Ok(ApiResponse<DealResponse>.Ok(result));
             })

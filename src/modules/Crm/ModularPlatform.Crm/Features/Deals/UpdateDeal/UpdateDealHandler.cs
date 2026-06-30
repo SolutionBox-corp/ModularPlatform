@@ -30,9 +30,24 @@ internal sealed class UpdateDealHandler(CrmDbContext db)
             deal.Currency = command.Currency.Trim().ToUpperInvariant();
         }
 
+        if (command.ProbabilityPercent is { } probability)
+        {
+            deal.ProbabilityPercent = probability;
+        }
+
+        if (command.LeadSource is not null)
+        {
+            deal.LeadSource = string.IsNullOrWhiteSpace(command.LeadSource) ? null : command.LeadSource;
+        }
+
         if (command.ExpectedCloseAt is not null)
         {
             deal.ExpectedCloseAt = command.ExpectedCloseAt;
+        }
+
+        if (command.NextStep is not null)
+        {
+            deal.NextStep = string.IsNullOrWhiteSpace(command.NextStep) ? null : command.NextStep;
         }
 
         if (command.Notes is not null)
@@ -43,7 +58,8 @@ internal sealed class UpdateDealHandler(CrmDbContext db)
         await db.SaveChangesAsync(ct);
 
         return new DealResponse(
-            deal.Id, deal.ContactId, deal.CompanyId, deal.Title, deal.AmountCents, deal.Currency, deal.Stage, deal.ExpectedCloseAt,
-            deal.ClosedAt, deal.Notes, deal.CreatedAt, deal.UpdatedAt);
+            deal.Id, deal.ContactId, deal.CompanyId, deal.Title, deal.AmountCents, deal.Currency, deal.Stage, deal.LastStage,
+            deal.ProbabilityPercent, deal.LeadSource, deal.ExpectedCloseAt, deal.ClosedAt, deal.NextStep, deal.Notes,
+            deal.CreatedAt, deal.UpdatedAt);
     }
 }

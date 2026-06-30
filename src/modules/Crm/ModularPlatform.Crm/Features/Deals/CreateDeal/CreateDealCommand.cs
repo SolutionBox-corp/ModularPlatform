@@ -11,7 +11,10 @@ public sealed record CreateDealCommand(
     long AmountCents,
     string Currency,
     string Stage,
+    int? ProbabilityPercent,
+    string? LeadSource,
     DateTimeOffset? ExpectedCloseAt,
+    string? NextStep,
     string? Notes) : ICommand<CreateDealResponse>;
 
 public sealed record CreateDealResponse(Guid Id);
@@ -23,5 +26,8 @@ public sealed record CreateDealRequest(
     long AmountCents,
     string? Currency,
     string? Stage,
+    int? ProbabilityPercent,
+    string? LeadSource,
     DateTimeOffset? ExpectedCloseAt,
+    string? NextStep,
     string? Notes);

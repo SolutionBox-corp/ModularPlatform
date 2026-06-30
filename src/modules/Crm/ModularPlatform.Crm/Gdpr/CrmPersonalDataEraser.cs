@@ -60,6 +60,7 @@ internal sealed class CrmPersonalDataEraser(CrmDbContext db, IClock clock) : IEr
             .ExecuteUpdateAsync(
                 s => s
                     .SetProperty(d => d.Title, "[erased]")
+                    .SetProperty(d => d.NextStep, (string?)null)
                     .SetProperty(d => d.Notes, (string?)null)
                     .SetProperty(d => d.DeletedAt, d => d.DeletedAt ?? now),
                 ct);

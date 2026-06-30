@@ -41,7 +41,8 @@ internal sealed class ListDealsHandler(IReadDbContextFactory<CrmDbContext> readF
             .Skip(paging.Skip)
             .Take(paging.PageSize)
             .Select(d => new DealListItem(
-                d.Id, d.ContactId, d.CompanyId, d.Title, d.AmountCents, d.Currency, d.Stage, d.ExpectedCloseAt, d.CreatedAt))
+                d.Id, d.ContactId, d.CompanyId, d.Title, d.AmountCents, d.Currency, d.Stage, d.ProbabilityPercent,
+                d.LeadSource, d.NextStep, d.ExpectedCloseAt, d.CreatedAt))
             .ToListAsync(ct);
 
         return new PagedResponse<DealListItem>(items, paging.Page, paging.PageSize, total);

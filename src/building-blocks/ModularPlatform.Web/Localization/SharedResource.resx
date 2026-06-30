@@ -194,6 +194,9 @@
   <data name="crm.deal.currency.invalid" xml:space="preserve"><value>The deal currency is not valid.</value></data>
   <data name="crm.deal.stage.invalid" xml:space="preserve"><value>The deal stage is not valid.</value></data>
   <data name="crm.deal.invalid_transition" xml:space="preserve"><value>The deal cannot change to that stage.</value></data>
+  <data name="crm.deal.probability.invalid" xml:space="preserve"><value>The deal probability is not valid.</value></data>
+  <data name="crm.deal.lead_source.too_long" xml:space="preserve"><value>The deal lead source is too long.</value></data>
+  <data name="crm.deal.next_step.too_long" xml:space="preserve"><value>The deal next step is too long.</value></data>
   <data name="crm.deal.notes.too_long" xml:space="preserve"><value>The deal notes are too long.</value></data>
   <data name="crm.task_not_found" xml:space="preserve"><value>Task not found.</value></data>
   <data name="crm.task.title.required" xml:space="preserve"><value>The task title is required.</value></data>

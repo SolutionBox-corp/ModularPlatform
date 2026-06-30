@@ -71,10 +71,22 @@ export function DealDetail({ dealId }: { dealId: string }) {
             </div>
           </div>
           <div className="rounded-lg border bg-muted/30 p-3">
+            <div className="text-xs text-muted-foreground">{t("dealForm.probability")}</div>
+            <div className="mt-1 font-medium">{deal.probabilityPercent}%</div>
+          </div>
+          <div className="rounded-lg border bg-muted/30 p-3">
             <div className="text-xs text-muted-foreground">{t("deals.links")}</div>
             <div className="mt-1 text-xs text-muted-foreground">
               {deal.contactId ? t("deals.hasContact") : t("deals.noContact")} · {deal.companyId ? t("deals.hasCompany") : t("deals.noCompany")}
             </div>
+          </div>
+          <div className="rounded-lg border bg-muted/30 p-3 md:col-span-2">
+            <div className="text-xs text-muted-foreground">{t("dealForm.nextStep")}</div>
+            <div className="mt-1 font-medium">{deal.nextStep ?? "—"}</div>
+          </div>
+          <div className="rounded-lg border bg-muted/30 p-3">
+            <div className="text-xs text-muted-foreground">{t("dealForm.leadSource")}</div>
+            <div className="mt-1 font-medium">{deal.leadSource ?? "—"}</div>
           </div>
           {deal.notes && <p className="md:col-span-3 text-muted-foreground">{deal.notes}</p>}
         </CardContent>

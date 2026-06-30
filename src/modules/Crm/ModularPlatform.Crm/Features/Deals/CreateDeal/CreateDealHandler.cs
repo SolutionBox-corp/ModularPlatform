@@ -48,8 +48,11 @@ internal sealed class CreateDealHandler(CrmDbContext db, IClock clock)
             AmountCents = command.AmountCents,
             Currency = command.Currency,
             Stage = command.Stage,
+            ProbabilityPercent = command.ProbabilityPercent ?? DealStages.DefaultProbability(command.Stage),
+            LeadSource = string.IsNullOrWhiteSpace(command.LeadSource) ? null : command.LeadSource,
             ExpectedCloseAt = command.ExpectedCloseAt,
             ClosedAt = DealStages.IsTerminal(command.Stage) ? clock.UtcNow : null,
+            NextStep = string.IsNullOrWhiteSpace(command.NextStep) ? null : command.NextStep,
             Notes = string.IsNullOrWhiteSpace(command.Notes) ? null : command.Notes,
         };
 

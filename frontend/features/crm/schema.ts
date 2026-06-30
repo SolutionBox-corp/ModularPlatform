@@ -69,7 +69,10 @@ export function buildDealSchema(t: Translate) {
     amount: z.number({ error: t("validation.amountInvalid") }).min(0, t("validation.amountInvalid")),
     currency: z.string().length(3, t("validation.currencyInvalid")),
     stage: z.enum(DEAL_STAGES),
+    probabilityPercent: z.number({ error: t("validation.probabilityInvalid") }).int(t("validation.probabilityInvalid")).min(0, t("validation.probabilityInvalid")).max(100, t("validation.probabilityInvalid")),
+    leadSource: z.string().max(64, t("validation.leadSourceMax")).optional(),
     expectedCloseAt: z.string().optional(),
+    nextStep: z.string().max(512, t("validation.nextStepMax")).optional(),
     notes: z.string().max(8192, t("validation.notesMax")).optional(),
   });
 }

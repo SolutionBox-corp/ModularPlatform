@@ -88,6 +88,16 @@ export function DealsTable({ contactId }: DealsTableProps) {
         ),
     },
     {
+      key: "probability",
+      header: t("table.probability"),
+      cell: (row) => <span className="text-muted-foreground tabular-nums">{row.probabilityPercent}%</span>,
+    },
+    {
+      key: "nextStep",
+      header: t("table.nextStep"),
+      cell: (row) => <span className="text-muted-foreground">{row.nextStep ?? "—"}</span>,
+    },
+    {
       key: "actions",
       header: "",
       className: "text-right",

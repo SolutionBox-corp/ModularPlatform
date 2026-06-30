@@ -19,6 +19,10 @@ internal sealed class CreateDealValidator : AbstractValidator<CreateDealCommand>
         RuleFor(x => x.Stage)
             .Must(DealStages.IsValid).WithErrorCode("crm.deal.stage.invalid");
 
+        When(x => x.ProbabilityPercent is not null, () =>
+            RuleFor(x => x.ProbabilityPercent!.Value).InclusiveBetween(0, 100).WithErrorCode("crm.deal.probability.invalid"));
+        RuleFor(x => x.LeadSource).MaximumLength(64).WithErrorCode("crm.deal.lead_source.too_long");
+        RuleFor(x => x.NextStep).MaximumLength(512).WithErrorCode("crm.deal.next_step.too_long");
         RuleFor(x => x.Notes).MaximumLength(8192).WithErrorCode("crm.deal.notes.too_long");
     }
 }

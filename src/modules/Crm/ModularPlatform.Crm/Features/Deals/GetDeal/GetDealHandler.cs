@@ -17,8 +17,9 @@ internal sealed class GetDealHandler(IReadDbContextFactory<CrmDbContext> readFac
         return await db.Deals
             .Where(d => d.Id == query.DealId && d.UserId == query.UserId)
             .Select(d => new DealResponse(
-                d.Id, d.ContactId, d.CompanyId, d.Title, d.AmountCents, d.Currency, d.Stage, d.ExpectedCloseAt, d.ClosedAt,
-                d.Notes, d.CreatedAt, d.UpdatedAt))
+                d.Id, d.ContactId, d.CompanyId, d.Title, d.AmountCents, d.Currency, d.Stage, d.LastStage,
+                d.ProbabilityPercent, d.LeadSource, d.ExpectedCloseAt, d.ClosedAt, d.NextStep, d.Notes,
+                d.CreatedAt, d.UpdatedAt))
             .FirstOrDefaultAsync(ct)
             ?? throw new NotFoundException("crm.deal_not_found", "Deal not found.");
     }

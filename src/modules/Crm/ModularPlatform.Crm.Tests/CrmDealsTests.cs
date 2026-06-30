@@ -41,7 +41,14 @@ public sealed class CrmDealsTests(PlatformApiFactory fixture)
         var (_, token) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
         var id = await CreateDealAsync(token, new
         {
-            title = "Big Deal", amountCents = 250000L, currency = "usd", stage = "qualified", notes = "warm",
+            title = "Big Deal",
+            amountCents = 250000L,
+            currency = "usd",
+            stage = "qualified",
+            probabilityPercent = 40,
+            leadSource = "referral",
+            nextStep = "Send proposal",
+            notes = "warm",
         });
 
         var get = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Get, $"/v1/crm/deals/{id}", token));
@@ -51,6 +58,9 @@ public sealed class CrmDealsTests(PlatformApiFactory fixture)
         data.GetProperty("amountCents").GetInt64().ShouldBe(250000);
         data.GetProperty("currency").GetString().ShouldBe("USD");
         data.GetProperty("stage").GetString().ShouldBe("qualified");
+        data.GetProperty("probabilityPercent").GetInt32().ShouldBe(40);
+        data.GetProperty("leadSource").GetString().ShouldBe("referral");
+        data.GetProperty("nextStep").GetString().ShouldBe("Send proposal");
     }
 
     [Fact]
@@ -100,6 +110,8 @@ public sealed class CrmDealsTests(PlatformApiFactory fixture)
         move.StatusCode.ShouldBe(HttpStatusCode.OK);
         var data = await PlatformApiFactory.ReadData(move);
         data.GetProperty("stage").GetString().ShouldBe("won");
+        data.GetProperty("lastStage").GetString().ShouldBe("lead");
+        data.GetProperty("probabilityPercent").GetInt32().ShouldBe(100);
         data.GetProperty("closedAt").ValueKind.ShouldNotBe(System.Text.Json.JsonValueKind.Null);
 
         // A closed deal cannot move again.
@@ -115,10 +127,14 @@ public sealed class CrmDealsTests(PlatformApiFactory fixture)
         var id = await CreateDealAsync(token, new { title = "Keep", amountCents = 100L, stage = "proposal" });
 
         var patch = await fixture.Client.SendAsync(fixture.Authed(
-            HttpMethod.Patch, $"/v1/crm/deals/{id}", token, new { amountCents = 999L }));
+            HttpMethod.Patch, $"/v1/crm/deals/{id}", token,
+            new { amountCents = 999L, probabilityPercent = 60, leadSource = "web", nextStep = "Book demo" }));
         patch.StatusCode.ShouldBe(HttpStatusCode.OK);
         var data = await PlatformApiFactory.ReadData(patch);
         data.GetProperty("amountCents").GetInt64().ShouldBe(999);
+        data.GetProperty("probabilityPercent").GetInt32().ShouldBe(60);
+        data.GetProperty("leadSource").GetString().ShouldBe("web");
+        data.GetProperty("nextStep").GetString().ShouldBe("Book demo");
         data.GetProperty("stage").GetString().ShouldBe("proposal");
         data.GetProperty("title").GetString().ShouldBe("Keep");
     }
