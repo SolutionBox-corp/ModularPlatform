@@ -9,6 +9,11 @@
     <!-- ProblemDetails, localization, rate limiting, SSE, routing -->
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="StackExchange.Redis" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="ModularPlatform.BuildingBlocks.Tests" />
   </ItemGroup>
 
   <ItemGroup>

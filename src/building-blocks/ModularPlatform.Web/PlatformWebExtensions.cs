@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -17,6 +18,8 @@ using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Cqrs.Behaviors;
 using ModularPlatform.Web.Errors;
+using ModularPlatform.Web.RateLimiting;
+using StackExchange.Redis;
 
 namespace ModularPlatform.Web;
 
@@ -184,6 +187,23 @@ public static class PlatformWebExtensions
         // partition — a dedicated low-limit host is what the brute-force/rate-limit tests use to assert 429.
         var globalPermits = configuration.GetValue<int?>("RateLimiting:GlobalPermitsPerMinute") ?? 100;
         var authPermits = configuration.GetValue<int?>("RateLimiting:AuthPermitsPerMinute") ?? 10;
+        var redisConnectionString = configuration.GetValue<string>("Redis:ConnectionString");
+        var useRedis = configuration.GetValue<bool?>("RateLimiting:Redis:Enabled")
+            ?? !string.IsNullOrWhiteSpace(redisConnectionString);
+        IConnectionMultiplexer? redis = null;
+        if (useRedis)
+        {
+            if (string.IsNullOrWhiteSpace(redisConnectionString))
+            {
+                throw new InvalidOperationException(
+                    "RateLimiting:Redis:Enabled requires Redis:ConnectionString.");
+            }
+
+            var redisOptions = ConfigurationOptions.Parse(redisConnectionString);
+            redisOptions.AbortOnConnectFail = false;
+            redis = ConnectionMultiplexer.Connect(redisOptions);
+            services.TryAddSingleton(redis);
+        }
 
         services.AddRateLimiter(options =>
         {
@@ -228,6 +248,17 @@ public static class PlatformWebExtensions
                     ? context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "user"
                     : context.Connection.RemoteIpAddress?.ToString() ?? "anon";
 
+                if (redis is not null)
+                {
+                    return RateLimitPartition.Get(
+                        key,
+                        partitionKey => new RedisFixedWindowRateLimiter(
+                            redis.GetDatabase(),
+                            $"rl:global:{partitionKey}",
+                            globalPermits,
+                            TimeSpan.FromMinutes(1)));
+                }
+
                 return RateLimitPartition.GetTokenBucketLimiter(key, _ => new TokenBucketRateLimiterOptions
                 {
                     TokenLimit = globalPermits,
@@ -243,6 +274,17 @@ public static class PlatformWebExtensions
             options.AddPolicy("auth", context =>
             {
                 var key = context.Connection.RemoteIpAddress?.ToString() ?? "anon";
+                if (redis is not null)
+                {
+                    return RateLimitPartition.Get(
+                        key,
+                        partitionKey => new RedisFixedWindowRateLimiter(
+                            redis.GetDatabase(),
+                            $"rl:auth:{partitionKey}",
+                            authPermits,
+                            TimeSpan.FromMinutes(1)));
+                }
+
                 return RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions
                 {
                     PermitLimit = authPermits,

@@ -45,9 +45,8 @@ v tabulkách níže jsou **snapshot PŘED** těmito fixy:
 - **Operations stuck-reaper** — uzavřeno: Operations má vlastní reconcile job, který staré Pending/Running operace terminalizuje jako Failed.
 - **ExpireCredits N+1** přes účty — perf/škálovatelnost, ne korektnost.
 - **LocalRealtimePublisher.PublishToTenantAsync no-op** vs Redis publikuje — tenant broadcast asymetrie (lokální fallback).
-- **AAD whole-envelope** (mimo threat model),
-  **multi-instance distributed rate-limiting** (Redis seam připravený, neimplementovaný), **duplikovaná account-provisioning
-  logika** (EnsureCreditAccount vs inline v CreditTopUp) — DRY.
+- **Push delivery** zůstává provider stub; **messaging health alert routing** je infra follow-up; **duplikovaná
+  account-provisioning logika** (EnsureCreditAccount vs inline v CreditTopUp) — DRY.
 
 ## Přehled — verdikt per feature
 
@@ -1563,13 +1562,13 @@ _Solid contract with build-time i18n parity guard. Validation errors, production
 | Authenticated users must each get their OWN bucket (per-user partition) | ✓ | PlatformWebExtensions keys authenticated requests by `ClaimTypes.NameIdentifier`, which TokenIssuer emits; PL11 proves user A exhausting a tiny bucket does not throttle user B's first request. |
 | Reject status code | ✓ | RejectionStatusCode=429 (PlatformWebExtensions.cs:169) |
 | Stripe webhook bursts from many IPs must never 429 | ✓ | StripeWebhookEndpoint.cs:94 .DisableRateLimiting(); asserted by PL9_ST5 test |
-| Multi-instance distributed limiting | ◐ | In-memory PartitionedRateLimiter only; comment notes Redis-backed swap is the seam (PlatformWebExtensions.cs:171-172) but not implemented — limits are per-instance |
+| Multi-instance distributed limiting | ✓ | When `Redis:ConnectionString` is configured, global and auth policies use `RedisFixedWindowRateLimiter` over shared Redis counters (`rl:global:*`, `rl:auth:*`); `RateLimiting:Redis:Enabled=false` is the explicit single-instance fallback. RedisRateLimiterTests.Redis_fixed_window_limiter_shares_the_same_bucket_across_instances proves two limiter instances share one bucket. |
 | Retry-After header on 429 | ✓ | `OnRejected` copies limiter lease `RetryAfter` metadata to the `Retry-After` header and returns an RFC9457-shaped 429 body; PL12 asserts the header exists. |
 
-**Testy:** PlatformContractTests.PL9_ST5_low_limit_host_throttles_normal_traffic_but_never_the_stripe_webhook; PlatformContractTests.Register_endpoint_uses_the_auth_rate_limit_policy; PlatformContractTests.Login_endpoint_uses_the_auth_rate_limit_policy; PlatformContractTests.Password_reset_endpoints_use_the_auth_rate_limit_policy; PlatformContractTests.PL11_rate_limit_bucket_is_per_user_not_shared; PlatformContractTests.PL12_throttled_response_carries_retry_after
+**Testy:** PlatformContractTests.PL9_ST5_low_limit_host_throttles_normal_traffic_but_never_the_stripe_webhook; PlatformContractTests.Register_endpoint_uses_the_auth_rate_limit_policy; PlatformContractTests.Login_endpoint_uses_the_auth_rate_limit_policy; PlatformContractTests.Password_reset_endpoints_use_the_auth_rate_limit_policy; PlatformContractTests.PL11_rate_limit_bucket_is_per_user_not_shared; PlatformContractTests.PL12_throttled_response_carries_retry_after; RedisRateLimiterTests.Redis_fixed_window_limiter_shares_the_same_bucket_across_instances; RedisRateLimiterTests.Redis_fixed_window_limiter_expires_the_shared_bucket
 **Test gaps:** No remaining focused rate-limit policy gap in this slice.
 
-_The previously documented per-user partition, Retry-After and login auth-policy gaps are covered. Multi-instance distributed limiting remains a deployment-scale seam, not an in-process correctness bug._
+_The previously documented per-user partition, Retry-After, login auth-policy and multi-instance Redis-backed limiting gaps are covered. Single-instance dev/test can still opt out with the in-memory fallback._
 
 ### Forwarded headers (proxy trust) + audit IP — ✅ correct
 *Resolves real client IP behind a proxy for audit + rate-limiting, with a fail-fast trust-list validator in Production.*

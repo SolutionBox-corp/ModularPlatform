@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using ModularPlatform.Abstractions;
 using StackExchange.Redis;
@@ -35,7 +36,7 @@ public static class RealtimeServiceCollectionExtensions
             // ordering), the host starts and the multiplexer reconnects in the background instead of crash-looping.
             var options = ConfigurationOptions.Parse(redisConn);
             options.AbortOnConnectFail = false;
-            services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(options));
+            services.TryAddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(options));
             // RedisRealtimePublisher implements BOTH IRealtimePublisher and IRealtimeReplay.
             services.AddSingleton<RedisRealtimePublisher>();
             services.AddSingleton<IRealtimePublisher>(sp => sp.GetRequiredService<RedisRealtimePublisher>());
