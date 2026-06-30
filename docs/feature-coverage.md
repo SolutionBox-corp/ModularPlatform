@@ -764,14 +764,14 @@ _Logic is solid and now pinned at both levels: Identity proves real user rows ar
 | AAD mismatch / wrong-key decrypt | ✓ | catch CryptographicException -> TryReveal false (PersonalDataProtector.cs:91-94) |
 | DEK retained in process memory | ✓ | DEK read LIVE from DB every call, AsNoTracking, never cached — cross-process shred honoured immediately (PersonalDataProtector.cs:99-107,132-137) |
 | v1 (no AAD) legacy envelope vs v2 (AAD=subjectId) | ✓ | prefix-discriminated; v1 decrypts without AAD, writes are always v2 (PersonalDataProtector.cs:28-29,57-58,88) |
-| Whole-envelope copied verbatim into another subject's row | ◐ | documented as out-of-scope DB-tampering, not a confidentiality break (read takes subjectId from envelope so its own AAD authenticates) — CryptoShredder.cs:35-38; acceptable given the stated threat model |
+| Whole-envelope copied verbatim into another subject's row | ✓ | Audit reads now call TryRevealForSubject(expectedUserId,...), so a whole v2 envelope copied from another subject is treated as unrevealable and surfaces as `[erased]`. Proven by SubjectKeyShredTests.Whole_v2_envelope_copied_to_another_subject_is_rejected_by_subject_bound_reveal and AuditPiiEncryptionTests.Audit_trail_rejects_a_whole_pii_envelope_copied_from_another_subject. |
 | Envelope subject id swapped to another live subject | ✓ | v2 embeds subjectId and decrypts with subjectId AAD; tampering the subject id makes TryReveal false. Proven by SubjectKeyShredTests.V2_envelope_cannot_be_re_attached_to_another_subject. |
 | Protector context must be WRITE primary not read replica | ✓ | GdprModule forces RlsConnectionString.ForRuntime(write) so the INSERT/live-read guarantee isn't broken by replica lag (GdprModule.cs:50-72) |
 
-**Testy:** CryptoShredderTests.Encrypt_then_Decrypt_with_same_dek_round_trips; CryptoShredderTests.Decrypt_with_a_different_dek_fails_modeling_crypto_shredding; CryptoShredderTests.Decrypt_with_matching_aad_round_trips_and_wrong_aad_fails; SubjectKeyShredTests.Post_shred_protect_redacts_instead_of_re_minting_a_readable_dek; SubjectKeyShredTests.Concurrent_first_use_protect_calls_share_one_subject_key; SubjectKeyShredTests.V2_envelope_cannot_be_re_attached_to_another_subject
+**Testy:** CryptoShredderTests.Encrypt_then_Decrypt_with_same_dek_round_trips; CryptoShredderTests.Decrypt_with_a_different_dek_fails_modeling_crypto_shredding; CryptoShredderTests.Decrypt_with_matching_aad_round_trips_and_wrong_aad_fails; SubjectKeyShredTests.Post_shred_protect_redacts_instead_of_re_minting_a_readable_dek; SubjectKeyShredTests.Concurrent_first_use_protect_calls_share_one_subject_key; SubjectKeyShredTests.V2_envelope_cannot_be_re_attached_to_another_subject; SubjectKeyShredTests.Whole_v2_envelope_copied_to_another_subject_is_rejected_by_subject_bound_reveal; AuditPiiEncryptionTests.Audit_trail_rejects_a_whole_pii_envelope_copied_from_another_subject
 **Test gaps:** No remaining focused PersonalDataProtector first-use race gap in this slice.
 
-_Crypto seam is careful and well-reasoned. Protector-level redaction after shred, concurrent first-use, and v2 subject binding are now pinned._
+_Crypto seam is careful and well-reasoned. Protector-level redaction after shred, concurrent first-use, v2 subject binding, and whole-envelope cross-subject rejection are now pinned._
 
 ### CryptoShredder (AES-256-GCM primitive) — ✅ correct
 *Generate DEK and AES-GCM encrypt/decrypt with optional AAD; deleting the DEK makes ciphertext unrecoverable.*

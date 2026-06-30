@@ -112,6 +112,24 @@ public sealed class SubjectKeyShredTests(PlatformApiFactory fixture)
         protector.TryReveal(tampered, out _).ShouldBeFalse();
     }
 
+    [Fact]
+    public async Task Whole_v2_envelope_copied_to_another_subject_is_rejected_by_subject_bound_reveal()
+    {
+        var (subjectA, _) = await fixture.RegisterAndLoginAsync($"shred-whole-a-{Guid.CreateVersion7():N}@x.com", Password);
+        var (subjectB, _) = await fixture.RegisterAndLoginAsync($"shred-whole-b-{Guid.CreateVersion7():N}@x.com", Password);
+        var protector = fixture.Services.GetRequiredService<IPersonalDataProtector>();
+
+        var envelope = protector.Protect(subjectA, "subject-a-secret");
+        protector.Protect(subjectB, "subject-b-key-mint");
+
+        protector.TryReveal(envelope, out var plaintext).ShouldBeTrue();
+        plaintext.ShouldBe("subject-a-secret");
+
+        protector.TryRevealForSubject(subjectA, envelope, out plaintext).ShouldBeTrue();
+        plaintext.ShouldBe("subject-a-secret");
+        protector.TryRevealForSubject(subjectB, envelope, out _).ShouldBeFalse();
+    }
+
     private async Task DispatchShredAsync(Guid userId)
     {
         await using var scope = fixture.Services.CreateAsyncScope();

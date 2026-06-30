@@ -66,6 +66,14 @@ public interface IPersonalDataProtector
     /// </summary>
     bool TryReveal(string value, out string plaintext);
 
+    /// <summary>
+    /// Like <see cref="TryReveal(string, out string)"/>, but additionally requires the envelope to belong to
+    /// <paramref name="expectedSubjectId"/>. Use this when reading PII from a row whose subject is known so a whole
+    /// envelope copied from another subject's row is treated as unrevealable.
+    /// </summary>
+    bool TryRevealForSubject(Guid expectedSubjectId, string value, out string plaintext) =>
+        TryReveal(value, out plaintext);
+
     /// <summary>True if <paramref name="value"/> is a protected envelope (regardless of whether it can still be revealed).</summary>
     bool IsProtected(string value);
 }

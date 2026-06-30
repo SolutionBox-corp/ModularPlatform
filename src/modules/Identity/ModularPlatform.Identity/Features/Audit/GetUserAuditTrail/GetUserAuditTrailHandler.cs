@@ -43,13 +43,13 @@ internal sealed class GetUserAuditTrailHandler(
             .ToListAsync(ct);
 
         var entries = rows
-            .Select(r => new AuditTrailEntryResponse(r.Id, r.Action, r.Timestamp, Reveal(r.NewValues)))
+            .Select(r => new AuditTrailEntryResponse(r.Id, r.Action, r.Timestamp, Reveal(query.UserId, r.NewValues)))
             .ToList();
 
         return new UserAuditTrailResponse(entries);
     }
 
-    private IReadOnlyDictionary<string, string?> Reveal(string newValuesJson)
+    private IReadOnlyDictionary<string, string?> Reveal(Guid expectedSubjectId, string newValuesJson)
     {
         var result = new Dictionary<string, string?>();
         using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(newValuesJson) ? "{}" : newValuesJson);
@@ -60,13 +60,13 @@ internal sealed class GetUserAuditTrailHandler(
 
         foreach (var prop in doc.RootElement.EnumerateObject())
         {
-            result[prop.Name] = RevealValue(prop.Value);
+            result[prop.Name] = RevealValue(expectedSubjectId, prop.Value);
         }
 
         return result;
     }
 
-    private string? RevealValue(JsonElement value)
+    private string? RevealValue(Guid expectedSubjectId, JsonElement value)
     {
         if (value.ValueKind != JsonValueKind.String)
         {
@@ -74,7 +74,7 @@ internal sealed class GetUserAuditTrailHandler(
         }
 
         var raw = value.GetString()!;
-        if (protector.TryReveal(raw, out var plaintext))
+        if (protector.TryRevealForSubject(expectedSubjectId, raw, out var plaintext))
         {
             return plaintext;
         }

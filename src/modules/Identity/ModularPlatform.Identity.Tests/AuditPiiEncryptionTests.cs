@@ -117,6 +117,41 @@ public sealed class AuditPiiEncryptionTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Audit_trail_rejects_a_whole_pii_envelope_copied_from_another_subject()
+    {
+        var sourceEmail = $"audit-source-{Guid.CreateVersion7():N}@example.com";
+        var targetEmail = $"audit-target-{Guid.CreateVersion7():N}@example.com";
+        var (sourceUserId, _) = await fixture.RegisterAndLoginAsync(sourceEmail, Password);
+        var (targetUserId, _) = await fixture.RegisterAndLoginAsync(targetEmail, Password);
+
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM identity_audit_entries WHERE \"EntityType\" = 'User' " +
+            $"AND \"EntityId\" = '{sourceUserId}' AND \"Action\" = 'Create'", 1);
+        var sourceNewValues = await fixture.ScalarAsync<string>(
+            $"SELECT \"NewValues\"::text FROM identity_audit_entries WHERE \"EntityType\" = 'User' " +
+            $"AND \"EntityId\" = '{sourceUserId}' AND \"Action\" = 'Create' LIMIT 1");
+        var sourceEmailEnvelope = JsonDocument.Parse(sourceNewValues).RootElement.GetProperty("Email").GetString()!;
+        sourceEmailEnvelope.ShouldStartWith("penc:v2:");
+
+        const string action = "CopiedEnvelope";
+        await fixture.ExecuteSqlAsync(
+            "INSERT INTO identity_audit_entries " +
+            "(\"Id\", \"EntityType\", \"EntityId\", \"Action\", \"ChangedColumns\", \"NewValues\", \"UserId\", \"Timestamp\") " +
+            $"VALUES ('{Guid.CreateVersion7()}', 'User', '{targetUserId}', '{action}', '[\"Email\"]'::jsonb, " +
+            $"jsonb_build_object('Email', '{sourceEmailEnvelope}'), '{targetUserId}', now())");
+
+        var platformToken = await AdminTokenAsync();
+        var response = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, $"/v1/identity/platform/users/{targetUserId}/audit", platformToken));
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var entry = (await PlatformApiFactory.ReadData(response)).GetProperty("entries").EnumerateArray()
+            .Single(e => e.GetProperty("action").GetString() == action);
+        entry.GetProperty("values").GetProperty("Email").GetString().ShouldBe("[erased]");
+        entry.GetProperty("values").GetProperty("Email").GetString().ShouldNotBe(sourceEmail);
+    }
+
+    [Fact]
     public async Task Platform_audit_requires_platform_permission_and_keeps_erased_pii_unreadable()
     {
         var email = $"platform-audit-{Guid.CreateVersion7():N}@example.com";

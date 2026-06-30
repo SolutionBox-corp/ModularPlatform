@@ -54,12 +54,44 @@ internal sealed class PersonalDataProtector(
     public bool TryReveal(string value, out string plaintext)
     {
         plaintext = string.Empty;
-        if (!IsProtected(value))
+        if (!TryParseEnvelope(value, out var parsed))
+        {
+            return false;
+        }
+
+        return TryRevealParsed(parsed, out plaintext);
+    }
+
+    public bool TryRevealForSubject(Guid expectedSubjectId, string value, out string plaintext)
+    {
+        plaintext = string.Empty;
+        if (!TryParseEnvelope(value, out var parsed))
+        {
+            return false;
+        }
+
+        if (parsed.SubjectId != expectedSubjectId)
+        {
+            return false;
+        }
+
+        return TryRevealParsed(parsed, out plaintext);
+    }
+
+    private static bool TryParseEnvelope(string value, out ParsedEnvelope parsed)
+    {
+        parsed = default;
+        if (value is null)
         {
             return false;
         }
 
         var v2 = value.StartsWith(PrefixV2, StringComparison.Ordinal);
+        if (!v2 && !value.StartsWith(PrefixV1, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
         var body = value[(v2 ? PrefixV2 : PrefixV1).Length..];
         var sep = body.IndexOf(':');
         if (sep <= 0)
@@ -67,21 +99,26 @@ internal sealed class PersonalDataProtector(
             return false;
         }
 
-        Guid subjectId;
-        byte[] blob;
         try
         {
             // new Guid(byte[]) throws ArgumentException (not FormatException) on a non-16-byte array, so a
             // corrupted/format-drifted envelope must degrade to "not revealable", never crash the audit read.
-            subjectId = new Guid(Convert.FromBase64String(body[..sep]));
-            blob = Convert.FromBase64String(body[(sep + 1)..]);
+            parsed = new ParsedEnvelope(
+                new Guid(Convert.FromBase64String(body[..sep])),
+                Convert.FromBase64String(body[(sep + 1)..]),
+                v2);
+            return true;
         }
         catch (Exception ex) when (ex is FormatException or ArgumentException or OverflowException)
         {
             return false;
         }
+    }
 
-        var dek = LoadLiveDek(subjectId); // DB read; null when shredded/missing
+    private bool TryRevealParsed(ParsedEnvelope parsed, out string plaintext)
+    {
+        plaintext = string.Empty;
+        var dek = LoadLiveDek(parsed.SubjectId); // DB read; null when shredded/missing
         if (dek is null)
         {
             return false;
@@ -90,7 +127,7 @@ internal sealed class PersonalDataProtector(
         try
         {
             plaintext = Encoding.UTF8.GetString(
-                CryptoShredder.Decrypt(blob, dek, aad: v2 ? subjectId.ToByteArray() : null));
+                CryptoShredder.Decrypt(parsed.Blob, dek, aad: parsed.V2 ? parsed.SubjectId.ToByteArray() : null));
             return true;
         }
         catch (CryptographicException)
@@ -98,6 +135,8 @@ internal sealed class PersonalDataProtector(
             return false;
         }
     }
+
+    private readonly record struct ParsedEnvelope(Guid SubjectId, byte[] Blob, bool V2);
 
     private byte[]? GetOrCreateDek(Guid subjectId)
     {
