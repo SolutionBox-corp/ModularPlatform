@@ -65,6 +65,66 @@ public sealed class EmailVerificationTests(PlatformApiFactory fixture)
         consumed.ShouldBeGreaterThanOrEqualTo(1);
     }
 
+    [Fact]
+    public async Task Verify_email_consumes_all_other_outstanding_tokens_for_the_user()
+    {
+        var email = $"verify-all-tokens-{Guid.CreateVersion7():N}@example.com";
+        var (userId, _) = await fixture.RegisterAndLoginAsync(email, Password);
+        var firstRawToken = $"verify-first-{Guid.CreateVersion7():N}";
+        var secondRawToken = $"verify-second-{Guid.CreateVersion7():N}";
+        await InsertVerificationTokenAsync(userId, firstRawToken, expiresMinutesFromNow: 30);
+        await InsertVerificationTokenAsync(userId, secondRawToken, expiresMinutesFromNow: 30);
+
+        var response = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/verify-email", new { token = firstRawToken });
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM email_verification_tokens WHERE \"UserId\" = '{userId}' AND \"ConsumedAt\" IS NOT NULL"))
+            .ShouldBeGreaterThanOrEqualTo(2);
+
+        var secondLink = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/verify-email", new { token = secondRawToken });
+        secondLink.StatusCode.ShouldBe(HttpStatusCode.UnprocessableContent);
+        (await secondLink.Content.ReadAsStringAsync()).ShouldContain("auth.email_verification_invalid");
+    }
+
+    [Fact]
+    public async Task Verify_email_for_deleted_user_is_invalid_and_does_not_confirm_the_user()
+    {
+        var email = $"verify-deleted-{Guid.CreateVersion7():N}@example.com";
+        var (userId, _) = await fixture.RegisterAndLoginAsync(email, Password);
+        var rawToken = $"verify-deleted-{Guid.CreateVersion7():N}";
+        await InsertVerificationTokenAsync(userId, rawToken, expiresMinutesFromNow: 30);
+        await fixture.ExecuteSqlAsync($"UPDATE users SET \"DeletedAt\" = NOW() WHERE \"Id\" = '{userId}'");
+
+        var response = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/verify-email", new { token = rawToken });
+
+        response.StatusCode.ShouldBe(HttpStatusCode.UnprocessableContent);
+        (await response.Content.ReadAsStringAsync()).ShouldContain("auth.email_verification_invalid");
+        (await fixture.ScalarAsync<bool>(
+            $"SELECT \"EmailConfirmed\" FROM users WHERE \"Id\" = '{userId}'")).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Reusing_a_verification_link_after_success_does_not_restamp_email_confirmed_at()
+    {
+        var email = $"verify-restamp-{Guid.CreateVersion7():N}@example.com";
+        var (userId, _) = await fixture.RegisterAndLoginAsync(email, Password);
+        var rawToken = $"verify-restamp-{Guid.CreateVersion7():N}";
+        await InsertVerificationTokenAsync(userId, rawToken, expiresMinutesFromNow: 30);
+
+        var first = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/verify-email", new { token = rawToken });
+        first.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        var confirmedAt = await fixture.ScalarAsync<string>(
+            $"SELECT \"EmailConfirmedAt\"::text FROM users WHERE \"Id\" = '{userId}'");
+
+        var second = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/verify-email", new { token = rawToken });
+
+        second.StatusCode.ShouldBe(HttpStatusCode.UnprocessableContent);
+        (await second.Content.ReadAsStringAsync()).ShouldContain("auth.email_verification_invalid");
+        (await fixture.ScalarAsync<string>(
+            $"SELECT \"EmailConfirmedAt\"::text FROM users WHERE \"Id\" = '{userId}'")).ShouldBe(confirmedAt);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

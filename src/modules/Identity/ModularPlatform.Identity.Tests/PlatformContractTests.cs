@@ -204,6 +204,35 @@ public sealed class PlatformContractTests(PlatformApiFactory fixture)
             i => new { token = $"invalid-{i}-{Guid.CreateVersion7():N}", newPassword = "Sup3r-Secret-Pw!" });
     }
 
+    [Fact]
+    public async Task Email_verification_endpoints_use_the_auth_rate_limit_policy()
+    {
+        await AuthEndpointShouldThrottleAsync(
+            "/v1/identity/auth/verify-email",
+            i => new { token = $"invalid-{i}-{Guid.CreateVersion7():N}" });
+
+        var (_, accessToken) = await fixture.RegisterAndLoginAsync(
+            $"rl-verify-{Guid.CreateVersion7():N}@t.io",
+            "Sup3r-Secret-Pw!");
+        using var lowLimit = fixture.CreateHost(
+            ("RateLimiting:GlobalPermitsPerMinute", "100"),
+            ("RateLimiting:AuthPermitsPerMinute", "2"));
+        using var client = lowLimit.CreateClient();
+
+        var statuses = new List<HttpStatusCode>();
+        for (var i = 0; i < 8; i++)
+        {
+            var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                "/v1/identity/users/me/email-verification");
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+            var response = await client.SendAsync(request);
+            statuses.Add(response.StatusCode);
+        }
+
+        statuses.ShouldContain(HttpStatusCode.TooManyRequests);
+    }
+
     private async Task AuthEndpointShouldThrottleAsync(string path, Func<int, object> bodyFactory)
     {
         using var lowLimit = fixture.CreateHost(
