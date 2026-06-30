@@ -21,7 +21,7 @@ namespace ModularPlatform.Billing.Features.Stripe.ReconcileStripe;
 /// so Wolverine's retry/DLQ machinery picks them back up. The router is idempotent. Cap: 200 per run.
 /// </item>
 /// <item>
-/// <b>Subscription drift</b> — local non-Canceled <c>stripe_subscriptions</c> rows. Compares each against
+/// <b>Subscription drift</b> — local <c>stripe_subscriptions</c> rows. Compares each against
 /// the live Stripe API (<see cref="IStripeGateway"/>); on drift dispatches
 /// <see cref="UpsertSubscriptionFromStripeCommand"/> and increments the <c>platform.billing.stripe_drift</c>
 /// counter. Cap: 500 per run.
@@ -77,7 +77,6 @@ internal sealed class ReconcileStripeHandler(
 
         // --- Pass 2: Subscription drift ---
         var localSubscriptions = await db.Subscriptions
-            .Where(s => s.Status != Entities.SubscriptionStatus.Canceled)
             .OrderBy(s => s.UpdatedAt)
             .Take(SubscriptionCap)
             .ToListAsync(ct);

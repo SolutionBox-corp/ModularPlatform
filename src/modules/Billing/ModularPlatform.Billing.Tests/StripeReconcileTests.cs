@@ -126,6 +126,29 @@ public sealed class StripeReconcileTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Reconcile_reactivates_a_locally_canceled_subscription_when_stripe_is_active_again()
+    {
+        var (userId, _) = await fixture.RegisterAndLoginAsync($"reactivated-{Guid.CreateVersion7():N}@test.io", Password);
+        var subscriptionId = await MirrorSubscriptionAsync(userId, "canceled", cancelAtPeriodEnd: false);
+        var livePeriodEnd = DateTimeOffset.UtcNow.AddDays(21);
+
+        Fake.SeedSubscription(new StripeSubscriptionState(
+            subscriptionId,
+            Status: "active",
+            CustomerId: "cus_reactivated",
+            CurrentPeriodEnd: livePeriodEnd,
+            CancelAtPeriodEnd: false,
+            Metadata: new Dictionary<string, string> { ["user_id"] = userId.ToString(), ["plan_key"] = "pro" }));
+
+        var result = await DispatchReconcileAsync();
+
+        result.SubscriptionDriftsFixed.ShouldBeGreaterThanOrEqualTo(1);
+        await fixture.WaitForCountAsync(
+            $"SELECT count(*)::bigint FROM subscriptions WHERE \"StripeSubscriptionId\" = '{subscriptionId}' AND \"Status\" = 'Active' AND \"CurrentPeriodEnd\" = '{livePeriodEnd:O}'",
+            1);
+    }
+
+    [Fact]
     public async Task Subscription_drift_records_the_platform_metric()
     {
         var recordedDrifts = new List<long>();
