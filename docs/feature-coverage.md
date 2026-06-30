@@ -28,6 +28,8 @@ v tabulkách níže jsou **snapshot PŘED** těmito fixy:
 - **Retry-After header** — docstring tvrdil „429 + Retry-After", kód neemitoval. Fix: `OnRejected` + Retry-After z lease metadata.
 - **`SseStream<T>` dead code** (0 referencí, duplikoval inline bounded channel endpointu) → smazáno.
 - **JwtOptionsValidator bez testů** (sibling ForwardedHeaders měl 7) → 5 unit testů doplněno.
+- **ExpireCredits N+1 přes účty** — sweep teď batch-loaduje kandidátní účty/holdy/buckety a ponechává per-account
+  `SaveChanges` + fallback po chybě, takže škáluje bez ztráty izolace.
 - **Doc-drifty opraveny:** CreditAccount „FOR NO KEY UPDATE" (reálně atomic ExecuteUpdate), AddPlatformPersistence
   „once per host" (reálně per-module/idempotent), RetentionSweep summary + CLAUDE.md §4 (tombstones permanentní, ne purge).
 
@@ -43,9 +45,6 @@ v tabulkách níže jsou **snapshot PŘED** těmito fixy:
   of truth, no pre-created rows" designu.
 - **Files orphan-blob při metadata fail** — uzavřeno: upload handler při selhání metadata `SaveChanges` best-effort smaže už zapsaný blob a test pinne cleanup.
 - **Operations stuck-reaper** — uzavřeno: Operations má vlastní reconcile job, který staré Pending/Running operace terminalizuje jako Failed.
-- **ExpireCredits N+1** přes účty — perf/škálovatelnost, ne korektnost.
-- **LocalRealtimePublisher.PublishToTenantAsync no-op** vs Redis publikuje — tenant broadcast asymetrie (lokální fallback).
-- **Duplikovaná account-provisioning logika** (EnsureCreditAccount vs inline v CreditTopUp) — DRY.
 
 ## Přehled — verdikt per feature
 
@@ -68,7 +67,7 @@ v tabulkách níže jsou **snapshot PŘED** těmito fixy:
 | billing-credits | Reserve credits (atomic debit guard) | ✅ correct |
 | billing-credits | Confirm spend (FIFO bucket draw) | 🟢 minor-gaps |
 | billing-credits | Release hold | ✅ correct |
-| billing-credits | Expire credits sweep | 🟢 minor-gaps |
+| billing-credits | Expire credits sweep | ✅ correct |
 | billing-credits | Get credit balance (read) | ✅ correct |
 | billing-credits | Append-only double-entry ledger + projection invariant | ✅ correct |
 | billing-commerce | Package catalogue (CRUD) + purchasable listing | 🟢 minor-gaps |
@@ -478,7 +477,7 @@ _The previous undershoot soft spot is now defended in code and covered by a dire
 
 _Symmetric with confirm; both rely on the same xmin + UNIQUE-key idempotency pattern._
 
-### Expire credits sweep — 🟢 minor-gaps
+### Expire credits sweep — ✅ correct
 *Cron-dispatched sweep that materializes lapsed holds (restore availability) and expired buckets (destroy free credits) into the ledger, idempotently and per-account isolated.*
 
 **Use cases:** Jobs host runs BillingExpireCreditsJob on a cron to reconcile lapsed holds/buckets into the ledger; Keeps the stored projection eventually consistent with the live availability query
@@ -487,18 +486,18 @@ _Symmetric with confirm; both rely on the same xmin + UNIQUE-key idempotency pat
 |---|:--:|---|
 | Expired bucket whose Remaining backs an active hold (would drive available negative) | ✓ | Skip the bucket fully when bucket.Remaining > account.Available (ExpireCreditsHandler.cs:69-72); expired on a later sweep once the hold resolves. Proven by LedgerLifecycleTests.Expiring_a_bucket_that_backs_an_active_reservation_does_not_crash_or_go_negative. |
 | Sweep run twice (idempotency) | ✓ | UNIQUE expire-hold:{id} / expire-bucket:{id} keys + the hold is no longer Active and bucket Remaining==0 on re-scan (ExpireCreditsHandler.cs:48,83). Proven by LedgerLifecycleTests BL-9 second sweep. |
-| One account's persistence failure aborting the whole sweep | ✓ | Per-account try/catch DbUpdateException (non-concurrency) clears the change tracker and continues (ExpireCreditsHandler.cs:95-103); explicit fix over prior abort-all bug. Proven by LedgerLifecycleTests.Expiry_sweep_isolates_one_accounts_persistence_failure_and_continues_with_others. |
+| One account's persistence failure aborting the whole sweep | ✓ | Per-account try/catch DbUpdateException (non-concurrency) clears the change tracker, falls back to isolated per-account reads for the rest of the batch, and continues; explicit fix over prior abort-all bug. Proven by LedgerLifecycleTests.Expiry_sweep_isolates_one_accounts_persistence_failure_and_continues_with_others. |
 | Concurrency conflict (xmin) during sweep | ✓ | Deliberately NOT caught (comment ExpireCreditsHandler.cs:99-101) -> bubbles to ConcurrencyRetryBehavior which retries the whole sweep; expire-*:{id} keys dedup already-applied accounts. |
 | Lapsed hold restored | ✓ | Active && ExpiresAt<=now -> Status Expired, Release-type credit entry expire-hold:{id}, available += / pending -= (ExpireCreditsHandler.cs:33-54). Proven by BL-9. |
-| Multiple accounts in one sweep | ✓ | The command collects only candidate account ids from lapsed holds / expired buckets and loops those accounts (ExpireCreditsHandler.cs:25-36); proven by LedgerLifecycleTests.Expiry_sweep_processes_multiple_accounts_in_one_run. |
-| Accounts with no expired work | ✓ | Not scanned: candidate ids come from CreditHolds/CreditBuckets via EF Union, so unrelated accounts are skipped before the per-account loop. |
+| Multiple accounts in one sweep | ✓ | The command collects only candidate account ids from lapsed holds / expired buckets, then batch-loads accounts + lapsed holds + expired buckets before per-account saves; proven by LedgerLifecycleTests.Expiry_sweep_processes_multiple_accounts_in_one_run. |
+| Accounts with no expired work | ✓ | Not scanned: candidate ids come from CreditHolds/CreditBuckets via EF Union, so unrelated accounts are skipped before the batch. |
 | Expired bucket has remaining LESS than available but a different bucket is partly reserved | ✓ | The skip guard is per-bucket against account.Available, and account.Available is recomputed in memory after each hold restore within the same account iteration, so ordering is consistent within a sweep. |
 | Non-expiring bucket (ExpiresAt null) | ✓ | Expiry query requires ExpiresAt != null and ExpiresAt <= now (ExpireCreditsHandler.cs:57); proven by LedgerLifecycleTests.Non_expiring_topup_bucket_is_not_touched_by_expiry_sweep. |
 
 **Testy:** LedgerLifecycleTests.Expiry_sweep_restores_lapsed_holds_destroys_expired_buckets_and_is_idempotent; LedgerLifecycleTests.Expiring_a_bucket_that_backs_an_active_reservation_does_not_crash_or_go_negative; LedgerLifecycleTests.Non_expiring_topup_bucket_is_not_touched_by_expiry_sweep; LedgerLifecycleTests.Expiry_sweep_processes_multiple_accounts_in_one_run; LedgerLifecycleTests.Expiry_sweep_isolates_one_accounts_persistence_failure_and_continues_with_others
 **Test gaps:** No remaining focused expiry-sweep correctness gap in this slice.
 
-_Logic is careful and covers the prior abort-all bug. The sweep now bounds per-account work to accounts that actually have lapsed holds or expired buckets._
+_Logic is careful and covers the prior abort-all bug. The sweep now batch-loads only accounts that actually have lapsed holds or expired buckets, while preserving per-account persistence isolation._
 
 ### Get credit balance (read) — ✅ correct
 *Return the authoritative stored posted/available projection for the caller's account.*

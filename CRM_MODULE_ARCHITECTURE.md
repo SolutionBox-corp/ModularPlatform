@@ -2,13 +2,13 @@
 
 Tento soubor zustava jen jako kompatibilni odkaz pro starsi poznamky a otevrene Markchart/Miro exporty.
 
-Aktualni navod neni CRM-specific. I kdyz v repu existuje konkretni CRM modul, dokumentace je genericka pro libovolny
-produktovy modul nad ModularPlatform:
+Aktualni navod neni CRM-specific. Tenhle soubor zustava jen kvuli starym odkazum z doby, kdy se jako priklad
+resilo CRM. Skutecna dokumentace je genericka pro libovolny produktovy modul nad ModularPlatform:
 
 - `MODULE_ARCHITECTURE.md` = architektonicka mapa, diagramy a "kam sahnout" navod;
 - `UseCases.md` = rozsahly katalog use cases + edge cases pro base platform capability.
 
-CRM je jen priklad dosazeni placeholderu:
+CRM je jen priklad dosazeni placeholderu, stejne jako by mohl byt Helpdesk, Marketing nebo Projects:
 
 - `{ModuleName}` -> `Crm`
 - `{module}` -> `crm`
