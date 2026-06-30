@@ -38,6 +38,8 @@ interface MeetingFormDialogProps {
   contactId?: string | null;
   /** When set, contact choices are limited to that company's contacts. */
   companyId?: string;
+  /** When set, new meetings are linked to this deal hub. */
+  dealId?: string;
   trigger: ReactNode;
 }
 
@@ -61,7 +63,7 @@ function defaultValues(meeting?: Meeting, contactId?: string | null): MeetingFor
   };
 }
 
-export function MeetingFormDialog({ meeting, contactId, companyId, trigger }: MeetingFormDialogProps) {
+export function MeetingFormDialog({ meeting, contactId, companyId, dealId, trigger }: MeetingFormDialogProps) {
   const t = useTranslations("crm");
   const [open, setOpen] = useState(false);
   const createMutation = useCreateMeeting();
@@ -92,6 +94,7 @@ export function MeetingFormDialog({ meeting, contactId, companyId, trigger }: Me
   const onSubmit = handleSubmit(async (values) => {
     const input: MeetingInput = {
       contactId: meeting?.contactId ?? contactId ?? values.contactId,
+      dealId: meeting?.dealId ?? dealId ?? null,
       title: values.title.trim(),
       scheduledAt: new Date(values.scheduledAt).toISOString(),
       durationMinutes: values.durationMinutes,

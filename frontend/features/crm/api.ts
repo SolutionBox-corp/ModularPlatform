@@ -56,6 +56,7 @@ export interface Meeting {
   id: string;
   contactId: string | null;
   contactName: string | null;
+  dealId: string | null;
   title: string;
   scheduledAt: string;
   durationMinutes: number;
@@ -149,6 +150,7 @@ export interface TasksPage {
 export interface Deal {
   id: string;
   contactId: string | null;
+  companyId: string | null;
   title: string;
   amountCents: number;
   currency: string;
@@ -185,6 +187,7 @@ export interface MeetingsParams {
   status?: string;
   contactId?: string;
   companyId?: string;
+  dealId?: string;
   from?: string;
   to?: string;
 }
@@ -248,6 +251,7 @@ export const crmQueries = {
         if (params.status) sp.set("status", params.status);
         if (params.contactId) sp.set("contactId", params.contactId);
         if (params.companyId) sp.set("companyId", params.companyId);
+        if (params.dealId) sp.set("dealId", params.dealId);
         if (params.from) sp.set("from", params.from);
         if (params.to) sp.set("to", params.to);
         return apiFetch<MeetingsPage>(`crm/meetings?${sp.toString()}`);
@@ -378,6 +382,7 @@ export function addInteraction(contactId: string, input: InteractionInput): Prom
 
 export interface MeetingInput {
   contactId?: string | null;
+  dealId?: string | null;
   title: string;
   scheduledAt: string;
   durationMinutes: number;

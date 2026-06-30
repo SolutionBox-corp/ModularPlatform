@@ -463,10 +463,19 @@
     },
     "deals": {
       "metaTitle": "Obchody",
+      "detailMetaTitle": "Obchod",
       "pageHeading": "Obchody",
       "pageDescription": "Sledujte obchodní příležitosti napříč pipeline.",
+      "detailDescription": "Deal hub — práce, schůzky a follow-upy pro tuto příležitost.",
       "new": "Nový obchod",
       "delete": "Smazat",
+      "notFound": "Obchod nenalezen.",
+      "backToDeals": "Zpět na obchody",
+      "links": "Vazby",
+      "hasContact": "kontakt připojen",
+      "noContact": "bez kontaktu",
+      "hasCompany": "firma připojena",
+      "noCompany": "bez firmy",
       "emptyTitle": "Zatím žádné obchody",
       "emptyDescription": "Vytvořte první obchod a začněte sledovat tržby."
     },
@@ -491,6 +500,7 @@
     },
     "tasks": {
       "metaTitle": "Úkoly",
+      "heading": "Úkoly",
       "pageHeading": "Úkoly",
       "pageDescription": "Follow-upy a připomínky — co dnes řešit.",
       "new": "Nový úkol",

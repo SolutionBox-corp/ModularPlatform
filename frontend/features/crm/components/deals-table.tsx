@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { PlusIcon, Trash2Icon } from "lucide-react";
@@ -51,7 +52,15 @@ export function DealsTable({ contactId }: DealsTableProps) {
   const isTerminal = (s: string) => s === "won" || s === "lost";
 
   const columns: ColumnDef<Deal>[] = [
-    { key: "title", header: t("table.dealTitle"), cell: (row) => <span className="font-medium">{row.title}</span> },
+    {
+      key: "title",
+      header: t("table.dealTitle"),
+      cell: (row) => (
+        <Link href={`/crm/deals/${row.id}`} className="font-medium hover:underline">
+          {row.title}
+        </Link>
+      ),
+    },
     {
       key: "amount",
       header: t("table.amount"),

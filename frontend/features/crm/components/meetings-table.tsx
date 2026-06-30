@@ -34,9 +34,11 @@ interface MeetingsTableProps {
   contactId?: string;
   /** When set, meetings are rolled up from contacts belonging to this company. */
   companyId?: string;
+  /** When set, meetings are scoped to this deal. */
+  dealId?: string;
 }
 
-export function MeetingsTable({ contactId, companyId }: MeetingsTableProps) {
+export function MeetingsTable({ contactId, companyId, dealId }: MeetingsTableProps) {
   const t = useTranslations("crm");
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<string>(ALL);
@@ -49,6 +51,7 @@ export function MeetingsTable({ contactId, companyId }: MeetingsTableProps) {
       pageSize: PAGE_SIZE,
       contactId,
       companyId,
+      dealId,
       status: status === ALL ? undefined : status,
     }),
   );
@@ -146,6 +149,7 @@ export function MeetingsTable({ contactId, companyId }: MeetingsTableProps) {
         <MeetingFormDialog
           contactId={contactId}
           companyId={companyId}
+          dealId={dealId}
           trigger={
             <Button size="sm">
               <CalendarPlusIcon className="h-3.5 w-3.5 mr-1.5" />

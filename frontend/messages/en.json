@@ -463,10 +463,19 @@
     },
     "deals": {
       "metaTitle": "Deals",
+      "detailMetaTitle": "Deal",
       "pageHeading": "Deals",
       "pageDescription": "Track revenue opportunities through your pipeline.",
+      "detailDescription": "Deal hub — work, meetings and follow-ups for this opportunity.",
       "new": "New deal",
       "delete": "Delete",
+      "notFound": "Deal not found.",
+      "backToDeals": "Back to deals",
+      "links": "Links",
+      "hasContact": "contact linked",
+      "noContact": "no contact",
+      "hasCompany": "company linked",
+      "noCompany": "no company",
       "emptyTitle": "No deals yet",
       "emptyDescription": "Create your first deal to start tracking revenue."
     },
@@ -491,6 +500,7 @@
     },
     "tasks": {
       "metaTitle": "Tasks",
+      "heading": "Tasks",
       "pageHeading": "Tasks",
       "pageDescription": "Follow-ups and reminders — what to do today.",
       "new": "New task",
