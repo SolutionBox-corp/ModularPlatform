@@ -588,6 +588,8 @@
       "linkedContact": "Contact",
       "linkedDeal": "Deal",
       "linkedTask": "Task",
+      "noTask": "No linked task",
+      "unknownTask": "Unknown task",
       "linkedMeeting": "Meeting",
       "assigned": "Assigned",
       "group": {

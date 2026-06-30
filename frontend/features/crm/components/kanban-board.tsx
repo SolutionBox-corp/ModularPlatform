@@ -33,7 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { crmQueries, TASK_PRIORITIES, type KanbanCard, type KanbanColumn } from "@/features/crm/api";
+import { crmQueries, TASK_PRIORITIES, type CrmTask, type KanbanCard, type KanbanColumn } from "@/features/crm/api";
 import { useCreateCard, useDeleteCard, useMoveCard, useUpdateCard } from "@/features/crm/hooks";
 
 const TODAY_START = new Date();
@@ -49,7 +49,11 @@ function toDateInput(iso: string | null): string {
   return iso ? new Date(iso).toISOString().slice(0, 10) : "";
 }
 
-function EditCardDialog({ card }: { card: KanbanCard }) {
+function taskLabel(taskOptions: CrmTask[], taskId: string | null): string | null {
+  return taskId ? taskOptions.find((task) => task.id === taskId)?.title ?? null : null;
+}
+
+function EditCardDialog({ card, taskOptions }: { card: KanbanCard; taskOptions: CrmTask[] }) {
   const t = useTranslations("crm");
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState(card.title);
@@ -57,6 +61,7 @@ function EditCardDialog({ card }: { card: KanbanCard }) {
   const [priority, setPriority] = useState<(typeof TASK_PRIORITIES)[number]>(card.priority as (typeof TASK_PRIORITIES)[number]);
   const [labels, setLabels] = useState(card.labels.join(", "));
   const [dueAt, setDueAt] = useState(toDateInput(card.dueAt));
+  const [taskId, setTaskId] = useState(card.taskId ?? "none");
   const update = useUpdateCard(card.id);
 
   const submit = async (e: FormEvent<HTMLFormElement>) => {
@@ -66,6 +71,7 @@ function EditCardDialog({ card }: { card: KanbanCard }) {
       title: title.trim(),
       description: description.trim() || null,
       priority,
+      ...(taskId === "none" ? {} : { taskId }),
       labels: labels.split(",").map((label) => label.trim()).filter(Boolean),
       dueAt: dueAt ? new Date(dueAt).toISOString() : null,
     });
@@ -120,6 +126,24 @@ function EditCardDialog({ card }: { card: KanbanCard }) {
               <Label htmlFor={`card-labels-${card.id}`}>{t("board.labels")}</Label>
               <Input id={`card-labels-${card.id}`} value={labels} onChange={(e) => setLabels(e.target.value)} />
             </div>
+            <div className="space-y-1.5">
+              <Label htmlFor={`card-task-${card.id}`}>{t("board.linkedTask")}</Label>
+              <Select value={taskId} onValueChange={(value) => setTaskId(value ?? "none")}>
+                <SelectTrigger id={`card-task-${card.id}`} className="w-full">
+                  <span data-slot="select-value" className="flex flex-1 text-left">
+                    {taskId === "none" ? t("board.noTask") : taskLabel(taskOptions, taskId) ?? t("board.unknownTask")}
+                  </span>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">{t("board.noTask")}</SelectItem>
+                  {taskOptions.map((task) => (
+                    <SelectItem key={task.id} value={task.id}>
+                      {task.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <DialogFooter>
             <Button type="submit" disabled={update.isPending}>
@@ -132,7 +156,7 @@ function EditCardDialog({ card }: { card: KanbanCard }) {
   );
 }
 
-function Card({ card }: { card: KanbanCard }) {
+function Card({ card, taskOptions }: { card: KanbanCard; taskOptions: CrmTask[] }) {
   const t = useTranslations("crm");
   const del = useDeleteCard();
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: card.id });
@@ -156,7 +180,7 @@ function Card({ card }: { card: KanbanCard }) {
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <EditCardDialog card={card} />
+          <EditCardDialog card={card} taskOptions={taskOptions} />
           <button className="text-muted-foreground hover:text-destructive" onClick={() => del.mutate(card.id)} aria-label={t("board.deleteCard")}>
             <Trash2Icon className="h-3.5 w-3.5" />
           </button>
@@ -184,7 +208,7 @@ function Card({ card }: { card: KanbanCard }) {
             {t("board.linkedDeal")}
           </Badge>
         )}
-        {card.taskId && <Badge variant="outline" className="text-[11px]">{t("board.linkedTask")}</Badge>}
+        {card.taskId && <Badge variant="outline" className="text-[11px]">{taskLabel(taskOptions, card.taskId) ?? t("board.linkedTask")}</Badge>}
         {card.meetingId && <Badge variant="outline" className="text-[11px]">{t("board.linkedMeeting")}</Badge>}
         {card.assigneeUserId && <Badge variant="secondary" className="text-[11px]">{t("board.assigned")}</Badge>}
         {card.labels.slice(0, 3).map((label) => (
@@ -197,7 +221,7 @@ function Card({ card }: { card: KanbanCard }) {
   );
 }
 
-function Column({ column, cards, boardId }: { column: KanbanColumn; cards: KanbanCard[]; boardId: string }) {
+function Column({ column, cards, boardId, taskOptions }: { column: KanbanColumn; cards: KanbanCard[]; boardId: string; taskOptions: CrmTask[] }) {
   const t = useTranslations("crm");
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
   const create = useCreateCard(boardId);
@@ -206,6 +230,7 @@ function Column({ column, cards, boardId }: { column: KanbanColumn; cards: Kanba
   const [priority, setPriority] = useState<(typeof TASK_PRIORITIES)[number]>("normal");
   const [labels, setLabels] = useState("");
   const [dueAt, setDueAt] = useState("");
+  const [taskId, setTaskId] = useState("none");
   const overWip = column.wipLimit !== null && cards.length > column.wipLimit;
 
   const submit = (e: FormEvent<HTMLFormElement>) => {
@@ -216,6 +241,7 @@ function Column({ column, cards, boardId }: { column: KanbanColumn; cards: Kanba
       title: title.trim(),
       description: description.trim() || null,
       priority,
+      taskId: taskId === "none" ? null : taskId,
       labels: labels.split(",").map((label) => label.trim()).filter(Boolean),
       dueAt: dueAt ? new Date(dueAt).toISOString() : null,
     });
@@ -224,6 +250,7 @@ function Column({ column, cards, boardId }: { column: KanbanColumn; cards: Kanba
     setPriority("normal");
     setLabels("");
     setDueAt("");
+    setTaskId("none");
   };
 
   return (
@@ -238,7 +265,7 @@ function Column({ column, cards, boardId }: { column: KanbanColumn; cards: Kanba
           {column.wipLimit ? `${cards.length}/${column.wipLimit}` : cards.length}
         </Badge>
       </div>
-      <div className="flex min-h-20 flex-col gap-2">{cards.map((c) => <Card key={c.id} card={c} />)}</div>
+      <div className="flex min-h-20 flex-col gap-2">{cards.map((c) => <Card key={c.id} card={c} taskOptions={taskOptions} />)}</div>
       <form
         className="space-y-2 rounded-lg border border-dashed bg-background/60 p-2"
         onSubmit={submit}
@@ -264,6 +291,21 @@ function Column({ column, cards, boardId }: { column: KanbanColumn; cards: Kanba
           <Input value={labels} onChange={(e) => setLabels(e.target.value)} placeholder={t("board.labelsPlaceholder")} className="h-8" />
           <Button size="icon" className="h-8 w-8 shrink-0" type="submit"><PlusIcon className="h-3.5 w-3.5" /></Button>
         </div>
+        <Select value={taskId} onValueChange={(value) => setTaskId(value ?? "none")}>
+          <SelectTrigger className="h-8 w-full">
+            <span data-slot="select-value" className="flex flex-1 text-left">
+              {taskId === "none" ? t("board.noTask") : taskLabel(taskOptions, taskId) ?? t("board.unknownTask")}
+            </span>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">{t("board.noTask")}</SelectItem>
+            {taskOptions.map((task) => (
+              <SelectItem key={task.id} value={task.id}>
+                {task.title}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </form>
     </div>
   );
@@ -271,6 +313,7 @@ function Column({ column, cards, boardId }: { column: KanbanColumn; cards: Kanba
 
 export function KanbanBoardView({ boardId }: { boardId: string }) {
   const { data } = useQuery(crmQueries.board(boardId));
+  const { data: tasks } = useQuery(crmQueries.tasks({ page: 1, pageSize: 100, status: "open" }));
   const move = useMoveCard();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
@@ -289,6 +332,7 @@ export function KanbanBoardView({ boardId }: { boardId: string }) {
       <div className="flex gap-3 overflow-x-auto pb-4">
         {data.columns.map((col) => (
           <Column key={col.id} column={col} boardId={boardId}
+            taskOptions={tasks?.items ?? []}
             cards={data.cards.filter((c) => c.columnId === col.id).sort((a, b) => a.position - b.position)} />
         ))}
       </div>

@@ -588,6 +588,8 @@
       "linkedContact": "Kontakt",
       "linkedDeal": "Obchod",
       "linkedTask": "Úkol",
+      "noTask": "Bez úkolu",
+      "unknownTask": "Neznámý úkol",
       "linkedMeeting": "Schůzka",
       "assigned": "Přiřazeno",
       "group": {
