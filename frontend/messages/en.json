@@ -807,6 +807,7 @@
     "files": "Files",
     "marketing": "Marketing",
     "notifications": "Notifications",
+    "operations": "Operations",
     "platformFleet": "Fleet",
     "platformTenants": "Tenants",
     "privacy": "Privacy",
@@ -819,6 +820,31 @@
     "crmTasks": "Tasks",
     "crmCompanies": "Companies",
     "crmBoard": "Board"
+  },
+  "operations": {
+    "metaTitle": "Operations — ModularPlatform",
+    "page": {
+      "heading": "Operations",
+      "description": "History of long-running work started by modules in this workspace."
+    },
+    "empty": {
+      "title": "No operations yet",
+      "description": "Long-running imports, exports, and background tasks will appear here."
+    },
+    "table": {
+      "type": "Type",
+      "status": "Status",
+      "created": "Created",
+      "completed": "Completed",
+      "error": "Error",
+      "notFinished": "Not finished"
+    },
+    "status": {
+      "pending": "Pending",
+      "running": "Running",
+      "succeeded": "Completed",
+      "failed": "Failed"
+    }
   },
   "notifications": {
     "badge": {

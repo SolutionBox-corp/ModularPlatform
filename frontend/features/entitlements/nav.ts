@@ -4,6 +4,7 @@ import {
   CreditCardIcon,
   FileIcon,
   BellIcon,
+  HistoryIcon,
   UserIcon,
   ShieldIcon,
   BuildingIcon,
@@ -54,6 +55,13 @@ export const NAV_ITEMS: NavItem[] = [
     labelKey: "notifications",
     icon: BellIcon,
     moduleKey: "notifications",
+  },
+  {
+    key: "operations",
+    href: "/operations",
+    labelKey: "operations",
+    icon: HistoryIcon,
+    moduleKey: "operations",
   },
   {
     key: "crm",

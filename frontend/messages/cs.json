@@ -807,6 +807,7 @@
     "files": "Soubory",
     "marketing": "Marketing",
     "notifications": "Oznámení",
+    "operations": "Operace",
     "platformFleet": "Flotila",
     "platformTenants": "Nájemci",
     "privacy": "Soukromí",
@@ -819,6 +820,31 @@
     "crmTasks": "Úkoly",
     "crmCompanies": "Firmy",
     "crmBoard": "Nástěnka"
+  },
+  "operations": {
+    "metaTitle": "Operace — ModularPlatform",
+    "page": {
+      "heading": "Operace",
+      "description": "Historie dlouho běžících úloh spuštěných moduly v tomto workspace."
+    },
+    "empty": {
+      "title": "Zatím žádné operace",
+      "description": "Dlouho běžící importy, exporty a úlohy na pozadí se zobrazí zde."
+    },
+    "table": {
+      "type": "Typ",
+      "status": "Stav",
+      "created": "Vytvořeno",
+      "completed": "Dokončeno",
+      "error": "Chyba",
+      "notFinished": "Nedokončeno"
+    },
+    "status": {
+      "pending": "Čeká",
+      "running": "Probíhá",
+      "succeeded": "Dokončeno",
+      "failed": "Selhalo"
+    }
   },
   "notifications": {
     "badge": {

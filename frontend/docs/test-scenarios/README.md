@@ -18,6 +18,7 @@ catalogued and marked **manual** with their preconditions.
 | Billing (credits, packages, promo, subscription) | [billing.md](billing.md) | `e2e/billing.spec.ts` |
 | Files (upload / list / download) | [files.md](files.md) | `e2e/files.spec.ts` |
 | Notifications (feed / mark-read) | [notifications.md](notifications.md) | `e2e/notifications.spec.ts` |
+| Operations (long-running task history) | [operations.md](operations.md) | `e2e/operations.spec.ts` |
 | Account profile | [account-profile.md](account-profile.md) | `e2e/account-profile.spec.ts` |
 | Privacy / GDPR (consents / export / erase) | [privacy.md](privacy.md) | `e2e/privacy.spec.ts` |
 | Identity admin (roles / audit) | [identity-admin.md](identity-admin.md) | `e2e/identity-admin.spec.ts` |
