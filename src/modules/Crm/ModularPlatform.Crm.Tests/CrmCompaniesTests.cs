@@ -98,6 +98,7 @@ public sealed class CrmCompaniesTests(PlatformApiFactory fixture)
         var data = await PlatformApiFactory.ReadData(list);
         data.GetProperty("totalCount").GetInt32().ShouldBe(1);
         data.GetProperty("items")[0].GetProperty("id").GetGuid().ShouldBe(meetingId);
+        data.GetProperty("items")[0].GetProperty("contactName").GetString().ShouldBe("Jane Doe");
     }
 
     [Fact]

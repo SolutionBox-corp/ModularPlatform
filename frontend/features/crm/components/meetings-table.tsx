@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarPlusIcon, CheckIcon, XIcon } from "lucide-react";
+import { CalendarPlusIcon, CheckIcon, UserIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -57,7 +57,17 @@ export function MeetingsTable({ contactId, companyId }: MeetingsTableProps) {
     {
       key: "title",
       header: t("table.meetingTitle"),
-      cell: (row) => <span className="font-medium">{row.title}</span>,
+      cell: (row) => (
+        <div className="space-y-0.5">
+          <div className="font-medium">{row.title}</div>
+          {row.contactName && (
+            <div className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+              <UserIcon className="h-3 w-3" />
+              {row.contactName}
+            </div>
+          )}
+        </div>
+      ),
     },
     {
       key: "when",

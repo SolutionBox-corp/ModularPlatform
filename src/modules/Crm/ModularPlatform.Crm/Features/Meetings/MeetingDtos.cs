@@ -4,6 +4,7 @@ namespace ModularPlatform.Crm.Features.Meetings;
 public sealed record MeetingResponse(
     Guid Id,
     Guid? ContactId,
+    string? ContactName,
     string Title,
     DateTimeOffset ScheduledAt,
     int DurationMinutes,

@@ -55,6 +55,7 @@ export interface Interaction {
 export interface Meeting {
   id: string;
   contactId: string | null;
+  contactName: string | null;
   title: string;
   scheduledAt: string;
   durationMinutes: number;

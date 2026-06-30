@@ -47,15 +47,55 @@ internal sealed class ListMeetingsHandler(IReadDbContextFactory<CrmDbContext> re
 
         var total = await filtered.CountAsync(ct);
 
-        var items = await filtered
+        var rows = await filtered
             .OrderBy(m => m.ScheduledAt)
             .Skip(paging.Skip)
             .Take(paging.PageSize)
-            .Select(m => new MeetingResponse(
-                m.Id, m.ContactId, m.Title, m.ScheduledAt, m.DurationMinutes, m.Location, m.Notes,
-                m.Status, m.Outcome, m.CreatedAt, m.UpdatedAt))
+            .Select(m => new
+            {
+                m.Id,
+                m.ContactId,
+                ContactFirstName = db.Contacts
+                    .Where(c => c.Id == m.ContactId && c.UserId == query.UserId)
+                    .Select(c => c.FirstName)
+                    .FirstOrDefault(),
+                ContactLastName = db.Contacts
+                    .Where(c => c.Id == m.ContactId && c.UserId == query.UserId)
+                    .Select(c => c.LastName)
+                    .FirstOrDefault(),
+                m.Title,
+                m.ScheduledAt,
+                m.DurationMinutes,
+                m.Location,
+                m.Notes,
+                m.Status,
+                m.Outcome,
+                m.CreatedAt,
+                m.UpdatedAt,
+            })
             .ToListAsync(ct);
 
+        var items = rows.Select(m => new MeetingResponse(
+                m.Id,
+                m.ContactId,
+                FormatContactName(m.ContactFirstName, m.ContactLastName),
+                m.Title,
+                m.ScheduledAt,
+                m.DurationMinutes,
+                m.Location,
+                m.Notes,
+                m.Status,
+                m.Outcome,
+                m.CreatedAt,
+                m.UpdatedAt))
+            .ToList();
+
         return new PagedResponse<MeetingResponse>(items, paging.Page, paging.PageSize, total);
+    }
+
+    private static string? FormatContactName(string? firstName, string? lastName)
+    {
+        var name = string.Join(" ", new[] { firstName, lastName }.Where(s => !string.IsNullOrWhiteSpace(s)));
+        return string.IsNullOrWhiteSpace(name) ? null : name;
     }
 }

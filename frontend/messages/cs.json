@@ -555,7 +555,9 @@
       "newPlaceholder": "Název nástěnky",
       "empty": "Zatím žádné nástěnky.",
       "addCard": "Přidat kartu",
-      "deleteCard": "Smazat kartu"
+      "deleteCard": "Smazat kartu",
+      "linkedContact": "Kontakt",
+      "linkedDeal": "Obchod"
     },
     "tabs": {
       "contacts": "Kontakty",

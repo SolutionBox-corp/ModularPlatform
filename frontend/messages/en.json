@@ -555,7 +555,9 @@
       "newPlaceholder": "Board name",
       "empty": "No boards yet.",
       "addCard": "Add card",
-      "deleteCard": "Delete card"
+      "deleteCard": "Delete card",
+      "linkedContact": "Contact",
+      "linkedDeal": "Deal"
     },
     "tabs": {
       "contacts": "Contacts",

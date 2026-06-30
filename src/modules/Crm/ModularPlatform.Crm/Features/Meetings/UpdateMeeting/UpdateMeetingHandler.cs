@@ -30,8 +30,21 @@ internal sealed class UpdateMeetingHandler(CrmDbContext db)
 
         await db.SaveChangesAsync(ct);
 
+        var contact = meeting.ContactId is { } contactId
+            ? await db.Contacts
+                .Where(c => c.Id == contactId && c.UserId == command.UserId)
+                .Select(c => new { c.FirstName, c.LastName })
+                .FirstOrDefaultAsync(ct)
+            : null;
+
         return new MeetingResponse(
-            meeting.Id, meeting.ContactId, meeting.Title, meeting.ScheduledAt, meeting.DurationMinutes,
+            meeting.Id, meeting.ContactId, FormatContactName(contact?.FirstName, contact?.LastName), meeting.Title, meeting.ScheduledAt, meeting.DurationMinutes,
             meeting.Location, meeting.Notes, meeting.Status, meeting.Outcome, meeting.CreatedAt, meeting.UpdatedAt);
+    }
+
+    private static string? FormatContactName(string? firstName, string? lastName)
+    {
+        var name = string.Join(" ", new[] { firstName, lastName }.Where(s => !string.IsNullOrWhiteSpace(s)));
+        return string.IsNullOrWhiteSpace(name) ? null : name;
     }
 }
