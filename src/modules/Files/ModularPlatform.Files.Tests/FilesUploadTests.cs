@@ -412,6 +412,21 @@ public sealed class FilesUploadTests(PlatformApiFactory fixture)
             fixture.Authed(HttpMethod.Delete, $"/v1/files/links/{linkId}", otherToken));
         foreignUnlink.StatusCode.ShouldBe(HttpStatusCode.NotFound);
         (await foreignUnlink.Content.ReadAsStringAsync()).ShouldContain("file.link_not_found");
+
+        var foreignList = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get,
+            $"/v1/files/links?ownerType=example.record&ownerId={ownerId}",
+            otherToken));
+        foreignList.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var foreignListData = await PlatformApiFactory.ReadData(foreignList);
+        foreignListData.GetProperty("totalCount").GetInt64().ShouldBe(0);
+
+        var invalidList = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get,
+            $"/v1/files/links?ownerType=Example%20Record&ownerId={ownerId}",
+            ownerToken));
+        invalidList.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await invalidList.Content.ReadAsStringAsync()).ShouldContain("file.link.owner_type.invalid");
     }
 
     [Fact]
