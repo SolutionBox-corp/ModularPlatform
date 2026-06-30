@@ -1312,11 +1312,11 @@ _Logic is correct and now directly regression-tested at the retry behavior layer
 | Update records all columns instead of changed-only | ✓ | ChangedColumns/ValueMap filter on p.IsModified for Update (lines 107,139-146); covered by AuditInterceptorTests.Update_audit_row_records_changed_columns_only |
 | HasConversion<string>() enum audited as its int (PL-2) | ✓ | ProviderValue reads GetValueConverter() ?? FindTypeMapping().Converter (lines 184-186); documented at 181-183 |
 | Created/Updated stamps missing or wrong principal/time | ✓ | AuditInterceptor.cs:76-84 stamps AuditableEntity on Added/Modified from ITenantContext + IClock; covered by AuditInterceptorTests.Auditable_entities_are_stamped_on_create_and_update_from_the_current_context |
-| ExecuteUpdate/ExecuteDelete bypass the interceptor | ◐ | Documented limitation (CLAUDE.md, EncryptedAttribute docstring) — by design used only where the change need not be audited; no compile-time guard prevents a careless ExecuteUpdate on an audited table |
+| ExecuteUpdate/ExecuteDelete bypass the interceptor | ✓ | Documented limitation (CLAUDE.md, EncryptedAttribute docstring) and now CI-guarded by BulkMutationArchitectureTests.ExecuteUpdate_and_ExecuteDelete_are_allowed_only_in_reviewed_locations, which allowlists each current bulk mutation file + call count with a documented reason. |
 | Composite / missing primary key | ✓ | PrimaryKey joins multi-prop keys; empty string when no key (lines 124-134) |
 | PII in audit values | ✓ | See Audit-PII crypto-shred feature |
 
-**Testy:** AuditPiiEncryptionTests (Create row exists, NewValues is enveloped) — proves rows are written; LedgerBackstopTests.PL2; AuditInterceptorTests.Auditable_entities_are_stamped_on_create_and_update_from_the_current_context; AuditInterceptorTests.Update_audit_row_records_changed_columns_only
+**Testy:** AuditPiiEncryptionTests (Create row exists, NewValues is enveloped) — proves rows are written; LedgerBackstopTests.PL2; AuditInterceptorTests.Auditable_entities_are_stamped_on_create_and_update_from_the_current_context; AuditInterceptorTests.Update_audit_row_records_changed_columns_only; BulkMutationArchitectureTests.ExecuteUpdate_and_ExecuteDelete_are_allowed_only_in_reviewed_locations
 **Test gaps:** No remaining focused audit-interceptor unit gap in this slice.
 
 _Correct and carefully written: changed-only capture, converter resolution and stamps are now covered._
@@ -1410,9 +1410,9 @@ _Read-side RLS isolation is the subtle correctness point; the factory registrati
 | Tracked instance left as ciphertext after save | ✓ | RestorePlaintext on success AND failure (SavedChanges/SaveChangesFailed overrides, lines 108-132) |
 | Converter has no DI (cached model) | ✓ | Reads protector from static volatile accessor set by PersonalDataEncryptionBootstrap before seeders run (PersonalDataEncryption.cs:19-44) |
 | Shredded subject on read | ✓ | TryReveal false -> ErasedMarker (PersonalDataEncryption.cs:70-72) |
-| ExecuteUpdate/Delete bypass encryption | ◐ | Documented; used deliberately for erasure tombstones (EncryptedAttribute docstring); no guard against accidental misuse |
+| ExecuteUpdate/Delete bypass encryption | ✓ | Documented; used deliberately for erasure tombstones and other reviewed set-based operations. New or count-changed ExecuteUpdate/Delete usage fails BulkMutationArchitectureTests until the bypass reason is reviewed and allowlisted. |
 
-**Testy:** AuditPiiEncryptionTests (audit PII enveloped + erased); PersonalDataConventionTests.Every_Encrypted_property_is_PersonalData_on_an_IDataSubject_string; PersonalDataEncryptionInterceptorTests.Failed_save_restores_tracked_encrypted_property_to_plaintext; PersonalDataEncryptionInterceptorTests.Save_of_encrypted_plaintext_without_a_protector_is_rejected; Identity AuditPiiEncryption/PiiEncryption integration tests (login via blind index, penc:v2 envelopes)
+**Testy:** AuditPiiEncryptionTests (audit PII enveloped + erased); PersonalDataConventionTests.Every_Encrypted_property_is_PersonalData_on_an_IDataSubject_string; PersonalDataEncryptionInterceptorTests.Failed_save_restores_tracked_encrypted_property_to_plaintext; PersonalDataEncryptionInterceptorTests.Save_of_encrypted_plaintext_without_a_protector_is_rejected; Identity AuditPiiEncryption/PiiEncryption integration tests (login via blind index, penc:v2 envelopes); BulkMutationArchitectureTests.ExecuteUpdate_and_ExecuteDelete_are_allowed_only_in_reviewed_locations
 **Test gaps:** No remaining focused PII encryption interceptor restore/refuse gap in this slice.
 
 _Intricate but disciplined; restore-on-failure and refuse-without-protector are now pinned directly in building-block tests._
