@@ -17,7 +17,7 @@ Vyčerpávající číslovaný katalog **use cases** a **edge cases** pro nový 
 2. **Tenant-level encryption key (KEK/KMS)** — crypto-shred per-USER, tenant DEK infra není.
 3. **Company-read RLS path** — 00 hotové vs 05 nerozhodnuté. 4. **Druhý rerank provider.** 5. **Základní search permission.**
 
-## Pokrytí (roll-up) — **33 oblastí, 411 UC, 2388 EC**
+## Pokrytí (roll-up) — **33 oblastí, 411 UC, 2423 EC**
 
 | # | Oblast | #UC | #EC | P0 | P1 | P2 | P3 |
 |---|---|---:|---:|---:|---:|---:|---:|
@@ -47,13 +47,13 @@ Vyčerpávající číslovaný katalog **use cases** a **edge cases** pro nový 
 | [23](23-admin-management.md) | Admin / management (catalogue, reindex, delete) | 12 | 101 | 39 | 32 | 24 | 6 |
 | [24](24-configuration-tuning.md) | Configuration, tuning & parameter registry | 16 | 169 | 56 | 77 | 29 | 7 |
 | [25](25-audit-history.md) | Audit & change history (config + operace) | 15 | 116 | 33 | 46 | 35 | 2 |
-| [26](26-ui-upload-collections.md) | UI — Document upload & collection management | 14 | 44 | 4 | 24 | 20 | 2 |
-| [27](27-ui-search-chat-citations.md) | UI — Grounded search, chat & citations | 15 | 57 | 7 | 21 | 24 | 11 |
-| [28](28-ui-dashboards.md) | UI — Eval, cost, audit & observability dashboards | 14 | 49 | 12 | 11 | 23 | 3 |
-| [29](29-ui-config-hitl.md) | UI — Configuration/tuning panel & HITL review console | 18 | 75 | 7 | 11 | 35 | 22 |
-| [30](30-model-cost-optimization.md) | Model management, comparison & cost optimization | 16 | 48 | 14 | 21 | 12 | 0 |
-| [31](31-evaluation-deep.md) | LLM evaluation — golden set, rules, online eval, model comparison | 16 | 44 | 7 | 15 | 11 | 3 |
-| [32](32-human-in-the-loop.md) | Human-in-the-loop — configurable review, approval & feedback | 18 | 50 | 13 | 25 | 12 | 0 |
-| | **CELKEM** | **411** | **2388** | **689** | **907** | **654** | **137** |
+| [26](26-ui-upload-collections.md) | UI — Document upload & collection management | 14 | 49 | 5 | 28 | 20 | 2 |
+| [27](27-ui-search-chat-citations.md) | UI — Grounded search, chat & citations | 15 | 60 | 7 | 24 | 24 | 11 |
+| [28](28-ui-dashboards.md) | UI — Eval, cost, audit & observability dashboards | 14 | 52 | 12 | 14 | 23 | 3 |
+| [29](29-ui-config-hitl.md) | UI — Configuration/tuning panel & HITL review console | 18 | 78 | 7 | 14 | 35 | 22 |
+| [30](30-model-cost-optimization.md) | Model management, comparison & cost optimization | 16 | 54 | 15 | 27 | 12 | 0 |
+| [31](31-evaluation-deep.md) | LLM evaluation — golden set, rules, online eval, model comparison | 16 | 51 | 8 | 20 | 11 | 3 |
+| [32](32-human-in-the-loop.md) | Human-in-the-loop — configurable review, approval & feedback | 18 | 58 | 14 | 31 | 12 | 0 |
+| | **CELKEM** | **411** | **2423** | **693** | **937** | **654** | **137** |
 
 > P-rozpad = Severity (EC) + Priorita (UC). Passy: 24 generačních + completeness-critic (4) → ~38 EC + 34 konzist. nálezů → gap/consolidation (7) → +oblasti 26–32 (UI/model-cost/eval-deep/HITL) + competitor learnings (Langfuse/LangSmith/Braintrust/Ragas, HumanLayer/Argilla, LiteLLM/Portkey/Helicone, OpenAI/Vectara/Glean).

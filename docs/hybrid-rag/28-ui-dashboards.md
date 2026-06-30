@@ -238,3 +238,11 @@
 - **EC-28-14-01 — Graf jen barvou rozlišuje serie** · Trigger: barvoslepý uživatel. · Očekávané chování: serie rozlišené i tvarem/labelem, legenda textová. · Mechanismus: a11y design. · Severity: P2 · Test: a11y audit grafu.
 - **EC-28-14-02 — Focus-trap v trace/compare modalu** · Trigger: Tab uvnitř modalu. · Očekávané chování: fokus cyklí uvnitř, Esc zavře, fokus zpět na trigger. · Mechanismus: focus mgmt. · Severity: P2 · Test: keyboard přes modal.
 - **EC-28-14-03 — Mobilní waterfall/matice** · Trigger: úzký viewport. · Očekávané chování: přepnutí na akordeon/stack, žádný horizontální přetok mimo obrazovku. · Mechanismus: responsive breakpointy. · Severity: P2 · Test: 375px → stackovaný layout.
+
+
+---
+
+## Doplňky z completeness review
+- **EC-28-01-05 — Jednotlivá metrika null/chybí vs vykreslená jako reálná 0** · Trigger: část metrik snapshotu nespočítána (null), zbytek existuje · Očekávané chování: chybějící metrika se zobrazí jako „—"/„nedostupné", NIKDY jako `0,00` působící jako fakt (jinak falešný signál pro promote/rozhodnutí); odlišeno od empty-state celého běhu (EC-28-01-01) · Mechanismus: null-aware render (rozlišení absence vs nula) · Severity: P1 · Test: snapshot s null faithfulness → karta „—", ne 0.
+- **EC-28-13-05 — Cross-tenant SSE event izolace** · Trigger: jeden SSE realtime provider dostane event z jiného tenanta/uživatele · Očekávané chování: invalidace/aktualizace query klíčů jen pro vlastní tenant scope; cizí event NEinvaliduje ani neukáže data; stream owner-scoped tokenem server-side · Mechanismus: oblast 21 owner-scoped stream + oblast 16 izolace · Severity: P1 · Test: emit cizí-tenant event → 0 efektu na cache aktuálního uživatele.
+- **EC-28-13-06 — Izolace chyby jednoho widgetu (per-card error + retry)** · Trigger: jeden dashboard read-endpoint vrátí 500, ostatní OK · Očekávané chování: dotčená karta/graf ukáže error stav + „Zkusit znovu", zbytek dashboardu se vyrenderuje; žádný full-page crash / bílá obrazovka · Mechanismus: per-query error boundary + TanStack error stav (loading/empty/error taxonomie) · Severity: P1 · Test: mock 500 na jeden endpoint → jen ta karta error, zbytek funkční.
