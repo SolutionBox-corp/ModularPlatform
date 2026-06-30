@@ -38,17 +38,23 @@ public sealed class CrmTasksTests(PlatformApiFactory fixture)
     public async Task Due_today_filter_and_owner_scope()
     {
         var (_, token) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
-        await CreateTaskAsync(token, new { title = "Overdue", dueAt = DateTimeOffset.UtcNow.AddDays(-1) });
+        var overdueId = await CreateTaskAsync(token, new { title = "Overdue", dueAt = DateTimeOffset.UtcNow.AddDays(-1) });
         await CreateTaskAsync(token, new { title = "Later", dueAt = DateTimeOffset.UtcNow.AddDays(10) });
 
+        // The starter task seeded for this user by ProvisionCrmWorkspace is due tomorrow, so the "due before now" filter
+        // returns only the overdue task.
         var cutoff = Uri.EscapeDataString(DateTimeOffset.UtcNow.ToString("o"));
         var due = await fixture.Client.SendAsync(
             fixture.Authed(HttpMethod.Get, $"/v1/crm/tasks?status=open&dueBefore={cutoff}", token));
         (await PlatformApiFactory.ReadData(due)).GetProperty("totalCount").GetInt32().ShouldBe(1);
 
+        // Owner isolation: another user never sees this user's task. Assert the specific task is absent rather than a
+        // zero count — every new user is asynchronously seeded their OWN starter task, so "other" is not empty.
         var (_, other) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
         var otherList = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Get, "/v1/crm/tasks", other));
-        (await PlatformApiFactory.ReadData(otherList)).GetProperty("totalCount").GetInt32().ShouldBe(0);
+        var otherIds = (await PlatformApiFactory.ReadData(otherList)).GetProperty("items").EnumerateArray()
+            .Select(t => t.GetProperty("id").GetGuid()).ToList();
+        otherIds.ShouldNotContain(overdueId);
     }
 
     [Fact]

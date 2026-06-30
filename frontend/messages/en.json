@@ -294,6 +294,7 @@
     "search": "Search"
   },
   "crm": {
+    "title": "CRM",
     "page": {
       "metaTitle": "CRM — Contacts",
       "heading": "Contacts",
@@ -525,7 +526,8 @@
       "new": "New board",
       "newPlaceholder": "Board name",
       "empty": "No boards yet.",
-      "addCard": "Add card"
+      "addCard": "Add card",
+      "deleteCard": "Delete card"
     },
     "tabs": {
       "contacts": "Contacts",

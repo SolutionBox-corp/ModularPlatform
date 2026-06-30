@@ -9,8 +9,8 @@ namespace ModularPlatform.Crm.Entities;
 /// A revenue opportunity owned by a user (per-user RLS), tenant-scoped, soft-deletable. May reference a
 /// <see cref="Contact"/> by Id (optional). Amount is stored in minor units (cents) to avoid float money error;
 /// Currency is an ISO-4217 code. Lifecycle is a text <see cref="Stage"/>: lead → qualified → proposal →
-/// negotiation → won | lost (won/lost are terminal, set <see cref="ClosedAt"/>). Notes is plain text but
-/// [PersonalData] so the audited value crypto-shreds under the user's DEK; the eraser scrubs the live row.
+/// negotiation → won | lost (won/lost are terminal, set <see cref="ClosedAt"/>). Notes is free text, [PersonalData]
+/// (audit crypto-shred) AND [Encrypted] at rest under the user's DEK; it is not a list filter target.
 /// </summary>
 internal sealed class Deal : AuditableEntity, ITenantScoped, IUserOwned, ISoftDeletable, IDataSubject
 {
@@ -27,6 +27,7 @@ internal sealed class Deal : AuditableEntity, ITenantScoped, IUserOwned, ISoftDe
     public DateTimeOffset? ClosedAt { get; set; }
 
     [PersonalData]
+    [Encrypted]
     public string? Notes { get; set; }
 
     Guid IDataSubject.SubjectId => UserId;
@@ -58,7 +59,8 @@ internal sealed class DealConfiguration : IEntityTypeConfiguration<Deal>
         builder.Property(d => d.Title).HasMaxLength(256).IsRequired();
         builder.Property(d => d.Currency).HasMaxLength(3).IsRequired();
         builder.Property(d => d.Stage).HasMaxLength(32).IsRequired();
-        builder.Property(d => d.Notes).HasMaxLength(8192);
+        // Encrypted at rest (penc:v2 envelope) → unbounded text; plaintext length bounded by the validator (8192).
+        builder.Property(d => d.Notes);
 
         builder.HasIndex(d => new { d.UserId, d.Stage });
         builder.HasIndex(d => new { d.UserId, d.CreatedAt });

@@ -186,4 +186,31 @@ public sealed class CrmContactsTests(PlatformApiFactory fixture)
             HttpMethod.Post, "/v1/crm/contacts", token, new { fullName = "Bad", status = "bogus" }));
         resp.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
+
+    [Fact]
+    public async Task Patch_detaches_company_with_explicit_null_and_leaves_it_when_omitted()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
+
+        var companyResp = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/crm/companies", token, new { name = "Acme" }));
+        companyResp.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var companyId = (await PlatformApiFactory.ReadData(companyResp)).GetProperty("id").GetGuid();
+
+        var contactId = await CreateContactAsync(token, new { fullName = "Joe", status = "lead", companyId });
+
+        var omitPatch = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Patch, $"/v1/crm/contacts/{contactId}", token, new { status = "active" }));
+        omitPatch.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var afterOmit = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Get, $"/v1/crm/contacts/{contactId}", token));
+        var omitData = await PlatformApiFactory.ReadData(afterOmit);
+        omitData.GetProperty("companyId").GetGuid().ShouldBe(companyId);
+
+        var nullPatch = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Patch, $"/v1/crm/contacts/{contactId}", token, new { companyId = (Guid?)null }));
+        nullPatch.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var afterNull = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Get, $"/v1/crm/contacts/{contactId}", token));
+        var nullData = await PlatformApiFactory.ReadData(afterNull);
+        nullData.GetProperty("companyId").ValueKind.ShouldBe(System.Text.Json.JsonValueKind.Null);
+    }
 }

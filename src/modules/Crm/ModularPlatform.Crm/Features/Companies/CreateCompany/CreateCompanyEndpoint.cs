@@ -15,13 +15,17 @@ internal static class CreateCompanyEndpoint
                 CreateCompanyRequest request,
                 ITenantContext tenant,
                 IDispatcher dispatcher,
+                LinkGenerator links,
+                HttpContext http,
                 CancellationToken ct) =>
             {
                 var userId = tenant.UserId
                     ?? throw new UnauthorizedException("auth.required", "Authentication required.");
                 var result = await dispatcher.Send(
                     new CreateCompanyCommand(userId, request.Name ?? string.Empty, request.Domain, request.Industry, request.Notes), ct);
-                return Results.Created((string?)null, ApiResponse<CreateCompanyResponse>.Ok(result));
+                var location = links.GetPathByName(http, "GetCompany", new { companyId = result.Id })
+                    ?? $"/crm/companies/{result.Id}";
+                return Results.Created(location, ApiResponse<CreateCompanyResponse>.Ok(result));
             })
             .RequireAuthorization()
             .RequireModule("crm")

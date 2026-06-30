@@ -15,12 +15,16 @@ internal static class CreateBoardEndpoint
                 CreateBoardRequest request,
                 ITenantContext tenant,
                 IDispatcher dispatcher,
+                LinkGenerator links,
+                HttpContext http,
                 CancellationToken ct) =>
             {
                 var userId = tenant.UserId
                     ?? throw new UnauthorizedException("auth.required", "Authentication required.");
                 var result = await dispatcher.Send(new CreateBoardCommand(userId, request.Name ?? string.Empty), ct);
-                return Results.Created((string?)null, ApiResponse<CreateBoardResponse>.Ok(result));
+                var location = links.GetPathByName(http, "GetBoard", new { boardId = result.Id })
+                    ?? $"/crm/boards/{result.Id}";
+                return Results.Created(location, ApiResponse<CreateBoardResponse>.Ok(result));
             })
             .RequireAuthorization()
             .RequireModule("crm")

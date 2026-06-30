@@ -17,6 +17,7 @@ public sealed class ModuleMigrationArchitectureTests
         typeof(ModularPlatform.Files.FilesModule).Assembly,
         typeof(ModularPlatform.Marketing.MarketingModule).Assembly,
         typeof(ModularPlatform.Tenancy.TenancyModule).Assembly,
+        typeof(ModularPlatform.Crm.CrmModule).Assembly,
     ];
 
     [Fact]

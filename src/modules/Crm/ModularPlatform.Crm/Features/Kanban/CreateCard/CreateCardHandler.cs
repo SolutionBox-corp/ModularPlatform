@@ -15,6 +15,19 @@ internal sealed class CreateCardHandler(CrmDbContext db)
             .FirstOrDefaultAsync(c => c.Id == command.ColumnId && c.UserId == command.UserId, ct)
             ?? throw new NotFoundException("crm.column_not_found", "Column not found.");
 
+        // The optional contact/deal links must belong to the caller — otherwise a card could reference a foreign row.
+        if (command.ContactId is { } contactId
+            && !await db.Contacts.AnyAsync(c => c.Id == contactId && c.UserId == command.UserId, ct))
+        {
+            throw new NotFoundException("crm.contact_not_found", "Contact not found.");
+        }
+
+        if (command.DealId is { } dealId
+            && !await db.Deals.AnyAsync(d => d.Id == dealId && d.UserId == command.UserId, ct))
+        {
+            throw new NotFoundException("crm.deal_not_found", "Deal not found.");
+        }
+
         var position = await db.KanbanCards.CountAsync(c => c.ColumnId == column.Id, ct);
         var card = new KanbanCard
         {

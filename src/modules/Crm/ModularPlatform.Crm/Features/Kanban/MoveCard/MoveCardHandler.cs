@@ -23,42 +23,46 @@ internal sealed class MoveCardHandler(CrmDbContext db)
             ?? throw new NotFoundException("crm.column_not_found", "Column not found.");
 
         var sourceColumnId = card.ColumnId;
-        card.ColumnId = target.Id;
 
-        // Reorder source (if changed) then target densely, clamping the requested slot.
-        if (sourceColumnId != target.Id)
+        // Renumber against the IN-MEMORY card lists, not a post-mutation DB query: the moved card's ColumnId change
+        // is not yet persisted, so a `Where(ColumnId == …)` would still see the old column. Load both columns, move the
+        // tracked card between the in-memory lists, then assign dense 0..n positions. xmin + ConcurrencyRetryBehavior
+        // serialize concurrent moves.
+        if (sourceColumnId == target.Id)
         {
-            await Renumber(sourceColumnId, command.UserId, null, -1, ct);
-            await Renumber(target.Id, command.UserId, card.Id, command.Position, ct);
+            var cards = await LoadColumn(target.Id, command.UserId, ct);
+            cards.RemoveAll(c => c.Id == card.Id);
+            cards.Insert(Math.Clamp(command.Position, 0, cards.Count), card);
+            Renumber(cards);
         }
         else
         {
-            await Renumber(target.Id, command.UserId, card.Id, command.Position, ct);
+            var sourceCards = await LoadColumn(sourceColumnId, command.UserId, ct);
+            var targetCards = await LoadColumn(target.Id, command.UserId, ct);
+
+            sourceCards.RemoveAll(c => c.Id == card.Id);
+            card.ColumnId = target.Id;
+            targetCards.Insert(Math.Clamp(command.Position, 0, targetCards.Count), card);
+
+            Renumber(sourceCards);
+            Renumber(targetCards);
         }
 
         await db.SaveChangesAsync(ct);
         return Unit.Value;
     }
 
-    private async Task Renumber(Guid columnId, Guid userId, Guid? movedCardId, int insertAt, CancellationToken ct)
-    {
-        var cards = await db.KanbanCards
+    private Task<List<Entities.KanbanCard>> LoadColumn(Guid columnId, Guid userId, CancellationToken ct) =>
+        db.KanbanCards
             .Where(c => c.ColumnId == columnId && c.UserId == userId)
             .OrderBy(c => c.Position)
             .ToListAsync(ct);
 
-        var moved = movedCardId is { } id ? cards.FirstOrDefault(c => c.Id == id) : null;
-        var rest = cards.Where(c => c.Id != movedCardId).ToList();
-
-        if (moved is not null)
+    private static void Renumber(List<Entities.KanbanCard> cards)
+    {
+        for (var i = 0; i < cards.Count; i++)
         {
-            var slot = Math.Clamp(insertAt, 0, rest.Count);
-            rest.Insert(slot, moved);
-        }
-
-        for (var i = 0; i < rest.Count; i++)
-        {
-            rest[i].Position = i;
+            cards[i].Position = i;
         }
     }
 }

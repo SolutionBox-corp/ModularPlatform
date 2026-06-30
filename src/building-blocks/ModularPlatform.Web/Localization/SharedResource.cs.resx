@@ -162,7 +162,6 @@
   <data name="billing.portal.provider_failed" xml:space="preserve"><value>Poskytovatel billing portálu požadavek odmítl.</value></data>
   <data name="billing.subscription.plan_key.required" xml:space="preserve"><value>Klíč plánu je povinný.</value></data>
   <data name="billing.subscription.plan_key.too_long" xml:space="preserve"><value>Klíč plánu je příliš dlouhý.</value></data>
-  <data name="tenant.module_unknown" xml:space="preserve"><value>Neznámý klíč modulu.</value></data>
   <data name="crm.contact_not_found" xml:space="preserve"><value>Kontakt nenalezen.</value></data>
   <data name="crm.contact.full_name.required" xml:space="preserve"><value>Jméno kontaktu je povinné.</value></data>
   <data name="crm.contact.full_name.too_long" xml:space="preserve"><value>Jméno kontaktu je příliš dlouhé.</value></data>

@@ -120,4 +120,22 @@ public sealed class CrmDealsTests(PlatformApiFactory fixture)
             new { title = "X", amountCents = 1L, stage = "lead", contactId = Guid.CreateVersion7() }));
         resp.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
+
+    [Fact]
+    public async Task Move_deal_stage_same_stage_no_op_then_normal_advance()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
+        var id = await CreateDealAsync(token, new { title = "Steady", amountCents = 1000L, stage = "lead" });
+
+        var sameStage = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, $"/v1/crm/deals/{id}/stage", token, new { stage = "lead" }));
+        sameStage.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PlatformApiFactory.ReadData(sameStage)).GetProperty("stage").GetString().ShouldBe("lead");
+
+        var advance = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, $"/v1/crm/deals/{id}/stage", token, new { stage = "qualified" }));
+        advance.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var afterData = await PlatformApiFactory.ReadData(advance);
+        afterData.GetProperty("stage").GetString().ShouldBe("qualified");
+    }
 }

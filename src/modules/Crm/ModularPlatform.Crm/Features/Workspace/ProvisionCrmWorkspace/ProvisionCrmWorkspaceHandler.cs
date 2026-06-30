@@ -21,14 +21,21 @@ internal sealed class ProvisionCrmWorkspaceHandler(CrmDbContext db, IClock clock
             return Unit.Value;
         }
 
-        db.Tasks.Add(new CrmTask
+        var task = new CrmTask
         {
             UserId = command.UserId,
             Title = "Add your first contact",
             Description = "Welcome to CRM — add a contact, log a meeting, and track your first deal.",
             DueAt = clock.UtcNow.AddDays(1),
             Priority = TaskPriorities.Normal,
-        });
+        };
+        db.Tasks.Add(task);
+
+        // CrmTask is ITenantScoped (shadow TenantId, no CLR property). The Worker runs under the SYSTEM tenant
+        // context (TenantId == null), so TenantStampingInterceptor does NOT auto-stamp — a tenant-less row would be
+        // hidden from the user by the tenant query filter (or RLS-rejected). Stamp the shadow column explicitly from
+        // the integration event's tenant, mirroring Billing's EnsureCreditAccount.
+        db.Entry(task).Property("TenantId").CurrentValue = command.TenantId;
 
         await db.SaveChangesAsync(ct);
 

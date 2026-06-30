@@ -294,6 +294,7 @@
     "search": "Hledat"
   },
   "crm": {
+    "title": "CRM",
     "page": {
       "metaTitle": "CRM — Kontakty",
       "heading": "Kontakty",
@@ -525,7 +526,8 @@
       "new": "Nová nástěnka",
       "newPlaceholder": "Název nástěnky",
       "empty": "Zatím žádné nástěnky.",
-      "addCard": "Přidat kartu"
+      "addCard": "Přidat kartu",
+      "deleteCard": "Smazat kartu"
     },
     "tabs": {
       "contacts": "Kontakty",

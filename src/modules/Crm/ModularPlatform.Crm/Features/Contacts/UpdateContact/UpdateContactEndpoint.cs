@@ -25,8 +25,8 @@ internal static class UpdateContactEndpoint
                     new UpdateContactCommand(
                         userId,
                         contactId,
-                        request.CompanyId,
-                        request.CompanyId is not null,
+                        request.CompanyId.Value,
+                        request.CompanyId.IsSpecified,
                         request.FullName,
                         request.Email,
                         request.Phone,

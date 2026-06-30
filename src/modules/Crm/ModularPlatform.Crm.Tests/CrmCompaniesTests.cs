@@ -89,4 +89,21 @@ public sealed class CrmCompaniesTests(PlatformApiFactory fixture)
         var get = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Get, $"/v1/crm/companies/{id}", intruder));
         get.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
+
+    [Fact]
+    public async Task Update_partial_patch_keeps_unchanged_fields()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
+        var id = await CreateCompanyAsync(token, new { name = "Acme", industry = "tech" });
+
+        var patch = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Patch, $"/v1/crm/companies/{id}", token, new { name = "Acme Corp" }));
+        patch.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var get = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Get, $"/v1/crm/companies/{id}", token));
+        get.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var data = await PlatformApiFactory.ReadData(get);
+        data.GetProperty("name").GetString().ShouldBe("Acme Corp");
+        data.GetProperty("industry").GetString().ShouldBe("tech");
+    }
 }

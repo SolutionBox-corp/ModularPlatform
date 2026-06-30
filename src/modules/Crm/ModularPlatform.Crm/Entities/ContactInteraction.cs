@@ -8,8 +8,9 @@ namespace ModularPlatform.Crm.Entities;
 /// <summary>
 /// A logged interaction with a <see cref="Contact"/> ("called him on…", "sent a follow-up", a note). Owned by the
 /// user (per-user RLS) and tenant-scoped. References its contact by Id (no navigation, no cross-table JOIN beyond
-/// this module). <see cref="Body"/> is free text kept as a plain column (a CRM activity log the user reads back) but
-/// [PersonalData] so the audited value crypto-shreds under the user's DEK; the eraser scrubs the live row.
+/// this module). <see cref="Body"/> is a free-text activity log the user reads back; it is [PersonalData] (audit
+/// crypto-shred) AND [Encrypted] at rest under the user's DEK, so user erasure renders it unrecoverable in both the
+/// live row and the audit trail. It is not a list filter target, so encrypting it costs no query capability.
 /// </summary>
 internal sealed class ContactInteraction : AuditableEntity, ITenantScoped, IUserOwned, IDataSubject
 {
@@ -22,6 +23,7 @@ internal sealed class ContactInteraction : AuditableEntity, ITenantScoped, IUser
     public DateTimeOffset OccurredAt { get; set; }
 
     [PersonalData]
+    [Encrypted]
     public string? Body { get; set; }
 
     Guid IDataSubject.SubjectId => UserId;
@@ -46,7 +48,9 @@ internal sealed class ContactInteractionConfiguration : IEntityTypeConfiguration
         builder.ToTable("crm_contact_interactions");
         builder.HasKey(i => i.Id);
         builder.Property(i => i.Type).HasMaxLength(32).IsRequired();
-        builder.Property(i => i.Body).HasMaxLength(8192);
+        // Encrypted at rest: the column stores a penc:v2 envelope (longer than the plaintext), so it is unbounded text
+        // rather than varchar(8192). The plaintext length is bounded by the validator (8192).
+        builder.Property(i => i.Body);
         builder.HasIndex(i => new { i.ContactId, i.OccurredAt });
         builder.HasIndex(i => i.UserId);
     }

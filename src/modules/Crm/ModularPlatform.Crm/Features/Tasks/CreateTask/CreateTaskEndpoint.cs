@@ -16,6 +16,8 @@ internal static class CreateTaskEndpoint
                 CreateTaskRequest request,
                 ITenantContext tenant,
                 IDispatcher dispatcher,
+                LinkGenerator links,
+                HttpContext http,
                 CancellationToken ct) =>
             {
                 var userId = tenant.UserId
@@ -26,7 +28,9 @@ internal static class CreateTaskEndpoint
                         request.Description, request.DueAt,
                         string.IsNullOrWhiteSpace(request.Priority) ? TaskPriorities.Normal : request.Priority.Trim().ToLowerInvariant()),
                     ct);
-                return Results.Created((string?)null, ApiResponse<CreateTaskResponse>.Ok(result));
+                var location = links.GetPathByName(http, "GetTask", new { taskId = result.Id })
+                    ?? $"/crm/tasks/{result.Id}";
+                return Results.Created(location, ApiResponse<CreateTaskResponse>.Ok(result));
             })
             .RequireAuthorization()
             .RequireModule("crm")

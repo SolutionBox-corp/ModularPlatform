@@ -1,4 +1,5 @@
 using ModularPlatform.Cqrs;
+using ModularPlatform.Crm.Json;
 
 namespace ModularPlatform.Crm.Features.Contacts.UpdateContact;
 
@@ -17,7 +18,7 @@ public sealed record UpdateContactCommand(
     string? Status) : ICommand<ModularPlatform.Crm.Features.Contacts.ContactResponse>;
 
 public sealed record UpdateContactRequest(
-    Guid? CompanyId,
+    Optional<Guid?> CompanyId,
     string FullName,
     string? Email,
     string? Phone,

@@ -19,6 +19,7 @@ import { crmQueries, type KanbanCard } from "@/features/crm/api";
 import { useCreateCard, useDeleteCard, useMoveCard } from "@/features/crm/hooks";
 
 function Card({ card }: { card: KanbanCard }) {
+  const t = useTranslations("crm");
   const del = useDeleteCard();
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: card.id });
   return (
@@ -29,7 +30,7 @@ function Card({ card }: { card: KanbanCard }) {
     >
       <div className="flex items-start justify-between gap-2">
         <span {...attributes} {...listeners} className="flex-1 cursor-grab">{card.title}</span>
-        <button className="text-muted-foreground hover:text-destructive" onClick={() => del.mutate(card.id)} aria-label="delete">
+        <button className="text-muted-foreground hover:text-destructive" onClick={() => del.mutate(card.id)} aria-label={t("board.deleteCard")}>
           <Trash2Icon className="h-3.5 w-3.5" />
         </button>
       </div>

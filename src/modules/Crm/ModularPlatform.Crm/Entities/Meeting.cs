@@ -8,8 +8,8 @@ namespace ModularPlatform.Crm.Entities;
 /// <summary>
 /// A scheduled (or held) meeting owned by a user (per-user RLS), tenant-scoped, soft-deletable. May reference a
 /// <see cref="Contact"/> by Id (optional — a meeting can stand alone). Meeting metadata (location/notes/outcome) is
-/// plain text but [PersonalData] so audited values crypto-shred under the user's DEK; the eraser scrubs the live
-/// row. Lifecycle is a text <see cref="Status"/>: planned → done | canceled | no_show.
+/// free text, [PersonalData] (audit crypto-shred) AND [Encrypted] at rest under the user's DEK; none are list filter
+/// targets. Lifecycle is a text <see cref="Status"/>: planned → done | canceled | no_show.
 /// </summary>
 internal sealed class Meeting : AuditableEntity, ITenantScoped, IUserOwned, ISoftDeletable, IDataSubject
 {
@@ -21,14 +21,17 @@ internal sealed class Meeting : AuditableEntity, ITenantScoped, IUserOwned, ISof
     public int DurationMinutes { get; set; }
 
     [PersonalData]
+    [Encrypted]
     public string? Location { get; set; }
 
     [PersonalData]
+    [Encrypted]
     public string? Notes { get; set; }
 
     public string Status { get; set; } = MeetingStatuses.Planned;
 
     [PersonalData]
+    [Encrypted]
     public string? Outcome { get; set; }
 
     Guid IDataSubject.SubjectId => UserId;
@@ -55,10 +58,11 @@ internal sealed class MeetingConfiguration : IEntityTypeConfiguration<Meeting>
         builder.ToTable("crm_meetings");
         builder.HasKey(m => m.Id);
         builder.Property(m => m.Title).HasMaxLength(256).IsRequired();
-        builder.Property(m => m.Location).HasMaxLength(512);
-        builder.Property(m => m.Notes).HasMaxLength(8192);
         builder.Property(m => m.Status).HasMaxLength(32).IsRequired();
-        builder.Property(m => m.Outcome).HasMaxLength(8192);
+        // Encrypted at rest (penc:v2 envelope) → unbounded text; plaintext lengths bounded by the validators.
+        builder.Property(m => m.Location);
+        builder.Property(m => m.Notes);
+        builder.Property(m => m.Outcome);
 
         builder.HasIndex(m => new { m.UserId, m.ScheduledAt });
         builder.HasIndex(m => m.ContactId);

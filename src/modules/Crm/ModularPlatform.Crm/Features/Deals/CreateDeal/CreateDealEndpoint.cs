@@ -16,6 +16,8 @@ internal static class CreateDealEndpoint
                 CreateDealRequest request,
                 ITenantContext tenant,
                 IDispatcher dispatcher,
+                LinkGenerator links,
+                HttpContext http,
                 CancellationToken ct) =>
             {
                 var userId = tenant.UserId
@@ -32,7 +34,9 @@ internal static class CreateDealEndpoint
                         request.ExpectedCloseAt,
                         request.Notes),
                     ct);
-                return Results.Created((string?)null, ApiResponse<CreateDealResponse>.Ok(result));
+                var location = links.GetPathByName(http, "GetDeal", new { dealId = result.Id })
+                    ?? $"/crm/deals/{result.Id}";
+                return Results.Created(location, ApiResponse<CreateDealResponse>.Ok(result));
             })
             .RequireAuthorization()
             .RequireModule("crm")

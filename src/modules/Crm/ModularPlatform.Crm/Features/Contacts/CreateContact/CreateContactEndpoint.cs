@@ -16,6 +16,8 @@ internal static class CreateContactEndpoint
                 CreateContactRequest request,
                 ITenantContext tenant,
                 IDispatcher dispatcher,
+                LinkGenerator links,
+                HttpContext http,
                 CancellationToken ct) =>
             {
                 var userId = tenant.UserId
@@ -33,9 +35,9 @@ internal static class CreateContactEndpoint
                         request.Tags ?? [],
                         string.IsNullOrWhiteSpace(request.Status) ? ContactStatuses.Lead : request.Status.Trim().ToLowerInvariant()),
                     ct);
-                // 201 with no fabricated Location: building "/v1/crm/contacts/{id}" by hand would hardcode the
-                // version-group prefix (forbidden). The client reads back via GET /crm/contacts/{id} using the id.
-                return Results.Created((string?)null, ApiResponse<CreateContactResponse>.Ok(result));
+                var location = links.GetPathByName(http, "GetContact", new { contactId = result.Id })
+                    ?? $"/crm/contacts/{result.Id}";
+                return Results.Created(location, ApiResponse<CreateContactResponse>.Ok(result));
             })
             .RequireAuthorization()
             .RequireModule("crm")

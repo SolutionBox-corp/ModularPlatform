@@ -1,7 +1,8 @@
 # ModularPlatform — CRM Module Test Scenarios (UC + EC)
 
-Coverage map + test plan for the **CRM module** (contacts, interactions, meetings) on branch
-`feature/crm-module`. Each scenario is **Given / When / Then**, tagged by type and status.
+Coverage map + test plan for the **CRM module** (contacts, interactions, meetings, deals, tasks, companies,
+kanban, workspace provisioning) on branch `feature/crm-module`. Each scenario is **Given / When / Then**, tagged by
+type and status.
 Types: **U** unit (no host) · **I** integration (shared `PlatformApiFactory` + Testcontainers-Postgres) ·
 **C** concurrency · **F** failure/resilience · **A** architecture (ArchUnitNET) · **E** end-to-end frontend
 (Playwright over the live BFF + API).
@@ -14,6 +15,16 @@ Status: **✓** implemented · **▢** gap (no test / not built) · **◐** part
 > entity configs/migrations, GDPR port impls, and the Next.js CRM slice). Rows cite the exact `file:line` evidence
 > so this catalog doubles as a gap map. Where a row is `▢`/`◐`, the "Known issues feeding these" section at the
 > end pins the concrete HIGH/MEDIUM defect behind it.
+>
+> **2026-06-30 — review fix-wave landed (see §7 below).** A second review found the §3 Meetings rows are STALE: the
+> shipped code is idempotent and enforces a state machine (the audit predates that). This pass: corrects the Meetings
+> rows; adds sections **7. Deals**, **8. Tasks**, **9. Companies**, **10. Kanban**, **11. Workspace provisioning**
+> for the areas the original catalog omitted; and marks the cross-column kanban move, the tenant-stamped starter task,
+> the `Optional<>` contact-detach, the encrypted free-text PII (`Body`/`Notes`/`Outcome`/`Location`), and the CRM
+> GDPR export/erase as now-covered (`✓`). NOTE: several §1/§4 rows authored 2026-06-28 (e.g. CT-10 "full-replace
+> PATCH", GD-14 "`SubjectId => Id`") describe an EARLIER revision and no longer match the shipped handlers
+> (`UpdateContactHandler` is a partial patch; `Contact` is `SubjectId => UserId`) — they are left as-is pending a
+> full re-audit and should be read against the current code.
 
 ---
 
@@ -23,7 +34,7 @@ Status: **✓** implemented · **▢** gap (no test / not built) · **◐** part
 |---|---|---|---|---|
 | 1. Contacts — CRUD, validation, IDOR, paging | 7 | 5 | 20 | PATCH is a **full-replace** (silent data loss); status silently defaults to `lead`; page shape `total` not `totalCount`; **no `(UserId,CreatedAt)` index** behind the default sort; tags + name unqueryable; non-unique email blind index |
 | 2. Interactions — append-only activity log | 3 | 4 | 18 | **No correction path** (append-only, no edit/delete); **not pageable** (>500 unreachable); no `occurredAt` sanity guard; orphan-listable after parent contact soft-delete; double-submit duplicates |
-| 3. Meetings — scheduling & state machine | 9 | 9 | 11 | **No state machine** (terminal transitions silently succeed); **CompleteMeeting non-idempotent** → duplicate timeline rows; `no_show` is a dead enum; `Outcome` half-wired (UI always nulls); no DeleteMeeting slice |
+| 3. Meetings — scheduling & state machine | 11 | 7 | 11 | **State machine IS enforced** (non-`planned` source → `crm.meeting.invalid_transition`) and **CompleteMeeting IS idempotent** (`status==done` → no-op, no duplicate timeline row) — the 2026-06-28 "non-idempotent / no state machine" rows were stale; `no_show` is a dead enum; `Outcome` half-wired (UI always nulls); no DeleteMeeting slice |
 | 4. GDPR, encryption-at-rest, audit-PII, RLS | 5 | 3 | 13 | **Contact-as-own-`IDataSubject` blocks user-erasure DEK shred** → audit PII stays decryptable; **free-text PII (Notes/Body/Outcome) stored plaintext in audit**; export↔erasure asymmetry (Company/Position/Tags survive); no CRM export/erasure test |
 | 5. Concurrency, idempotency, data-model, perf | 8 | 4 | 13 | Missing `(UserId,CreatedAt)` index; **Tags unqueryable** (no GIN, no filter); **no FK → orphan-on-delete**; no idempotency keys (double-submit dup); status/type free `varchar(32)` with no DB CHECK |
 | 6. Frontend — pages, forms, states, nav, i18n | 0 | 10 | 15 | **No `crm.spec.ts` e2e at all**; backend field errors don't bind to forms; full-replace PATCH from forms; standalone `/crm/meetings` orphaned (no nav link); complete-meeting always sends `outcome:null`; delete has no confirm |
@@ -125,9 +136,9 @@ Status: **✓** implemented · **▢** gap (no test / not built) · **◐** part
 | MT-17 | Foreign user `PATCH`es the owner's meeting → `404 crm.meeting_not_found` (`UpdateMeetingHandler.cs:15`) | I | ▢ (gap — no cross-user update test) |
 | MT-18 | `POST /{id}/complete` with outcome → `204`; meeting `status="done"`, `outcome` stored; linked contact gets a `type="meeting"` interaction on its timeline (`CompleteMeetingHandler.cs:22-34`) | I | ✓ `Complete_marks_done_and_logs_interaction_on_contact` |
 | MT-19 | Complete an **unlinked** meeting (no contactId) → `204`, status done, **no** interaction inserted | I | ▢ (gap — only the linked path is tested) |
-| MT-20 | **Complete is NOT idempotent**: completing twice flips done→done but **inserts a second `meeting` interaction** each call → duplicated timeline rows (no dedup key, `CompleteMeetingHandler.cs:27`) | I | ◐ known bug (no test; double-submit duplicates) |
-| MT-21 | **ConcurrencyRetryBehavior re-run also duplicates**: a transient xmin/save retry re-executes `Handle`, re-adding the `ContactInteraction` (tracker cleared between retries) → phantom duplicate interaction on a single complete | C | ◐ known bug (interaction add is not guarded by a UNIQUE/idempotency key) |
-| MT-22 | **No state machine — terminal transitions silently succeed**: complete an already-`canceled` meeting, cancel a `done` meeting, or `PATCH`-reschedule a terminal meeting all return success with no guard (handlers blindly set `Status`) | I | ◐ known design gap (`Cancel/Complete/UpdateMeetingHandler` have no status precondition) |
+| MT-20 | **Complete IS idempotent** (corrected 2026-06-30): the handler returns early when `status==done` (`CompleteMeetingHandler.cs:23-26`), so a second complete is a no-op and does **not** insert a duplicate `meeting` interaction; the contact-timeline insert happens once | I | ✓ `CrmMeetingsTests` (complete logs exactly one interaction; the 2026-06-28 "non-idempotent" claim was stale) |
+| MT-21 | **Retry-safe**: because complete no-ops on an already-`done` meeting, a `ConcurrencyRetryBehavior` re-run (tracker cleared) re-enters, sees `done`, and returns without re-adding the `ContactInteraction` → no phantom duplicate | C | ◐ (idempotency guard present `CompleteMeetingHandler.cs:23-26`; the concurrent-retry path itself is not separately stress-tested) |
+| MT-22 | **State machine IS enforced** (corrected 2026-06-30): completing a non-`planned` meeting throws `BusinessRuleException crm.meeting.invalid_transition` (`CompleteMeetingHandler.cs:28-32`); cancel/complete guard their source state rather than blindly setting `Status` | I | ✓ `CrmMeetingsTests` (invalid-transition rejected; the 2026-06-28 "no state machine" claim was stale) |
 | MT-23 | `POST /{id}/cancel` → `204`, status `canceled`; re-cancel is a no-op (doc-claimed "idempotent" — really just re-sets `canceled`, `CancelMeetingHandler.cs:18`) | I | ✓ cancel exercised by `List_is_ordered_soonest_first_and_filtered_by_status`; re-cancel path untested |
 | MT-24 | Foreign user `POST`s `/cancel` or `/complete` on the owner's meeting → `404 crm.meeting_not_found` | I | ▢ (gap — no cross-user mutation test) |
 | MT-25 | **`no_show` status is UNREACHABLE (dead)**: it's a valid `MeetingStatuses` value + an FE filter/badge, but no slice ever assigns it (`Meeting.cs:36`, `meetings-table.tsx:23`) | A | ▢ (dead enum member — present, never set) |
@@ -227,6 +238,78 @@ Status: **✓** implemented · **▢** gap (no test / not built) · **◐** part
 | UI-23 | i18n: every CRM key resolves in BOTH `cs` and `en` (`crm.*`: page/table/status/meetingStatus/interactionType/filter/contacts/contactForm/interactionForm/timeline/meetings/meetingForm/toast/validation) | E | ◐ (untested by e2e, but static parity verified — identical `crm` top-level key sets in `messages/{cs,en}.json`) |
 | UI-24 | Single data source + coarse invalidation: one `apiFetch` BFF client (no client-side token), one TanStack source via `crmQueries`, every mutation invalidates the whole `queryRoots.crm` root → lists/detail/timeline all refetch | E | ◐ (untested; deliberate coarse invalidation `hooks.ts:22-25` — refetches more than strictly needed, but never stale) |
 | UI-25 | Delete contact: trash action → DELETE `/crm/contacts/{id}` (no confirm dialog), button disabled while pending, list refetch + toast | E | ◐ (untested; `contacts-table.tsx:83-92` — destructive action has no confirmation step) |
+
+---
+
+## 7. Deals — pipeline & revenue
+
+| # | Scenario (Given / When / Then) | Type | Status |
+|---|---|---|---|
+| DL-1 | Owner POSTs a deal (title/amountCents/currency, optional contactId/companyId) → `201` + `Location: /crm/deals/{id}`; GET round-trips; initial `stage="lead"` | I | ✓ `CrmDealsTests` |
+| DL-2 | `POST /crm/deals/{id}/stage {stage}` advances lead→qualified→…; won/lost are terminal and stamp `ClosedAt`; advancing a terminal deal is rejected | I | ✓ `CrmDealsTests` (pipeline advance + terminal lock) |
+| DL-3 | **MoveDealStage same-stage no-op**: posting the deal's CURRENT stage returns success and leaves the stage unchanged (idempotent `if (deal.Stage == command.Stage) return;`) | I | ✓ `CrmDealsTests.Move_deal_stage_same_stage_no_op_then_normal_advance` |
+| DL-4 | MoveDealStage concurrency: two parallel stage moves serialize via xmin + `ConcurrencyRetryBehavior` (tracked entity), no lost update | C | ▢ (mechanism inherited; no deal-specific concurrency test) |
+| DL-5 | Partial PATCH (title/amount/notes/contact/company) leaves omitted fields unchanged | I | ✓ `CrmDealsTests` |
+| DL-6 | List owner-scoped + `?stage=` filter, ordered; a second user sees `total=0` (IDOR/RLS) | I | ✓ `CrmDealsTests` (owner scope) |
+| DL-7 | Delete soft-deletes; deal then 404s on GET and drops from list | I | ✓ `CrmDealsTests` |
+| DL-8 | `Notes` is `[PersonalData]+[Encrypted]` at rest (penc:v2 envelope); GDPR erase scrubs it + soft-deletes the deal | I | ◐ (encryption added 2026-06-30; covered generically by `PersonalDataConventionTests` + CRM GDPR test scrubs contacts/interactions — deal-notes-specific scrub not separately asserted) |
+
+## 8. Tasks — reminders & follow-ups
+
+| # | Scenario (Given / When / Then) | Type | Status |
+|---|---|---|---|
+| TK-1 | Owner POSTs a task (title, optional priority/dueAt/contact/deal) → `201` + `Location: /crm/tasks/{id}`; GET round-trips; `status="open"` | I | ✓ `CrmTasksTests.Create_then_get_round_trips` |
+| TK-2 | List `?status=open&dueBefore=…` returns only due/open tasks (the starter task, due +1d, is excluded) | I | ✓ `CrmTasksTests.Due_today_filter_and_owner_scope` |
+| TK-3 | **Owner isolation**: a different user never sees this user's task ids (asserted by id-absence, since every new user is async-seeded their own starter task) | I | ✓ `CrmTasksTests.Due_today_filter_and_owner_scope` (corrected 2026-06-30 from a `total==0` assertion that was green only because the starter task was hidden by the TenantId-null bug) |
+| TK-4 | **Complete is idempotent**: completing twice keeps `status="done"` (no error) | I | ✓ `CrmTasksTests.Complete_is_idempotent` |
+| TK-5 | Partial PATCH leaves omitted fields unchanged (e.g. rename keeps priority) | I | ✓ `CrmTasksTests.Patch_is_partial` |
+| TK-6 | Foreign task id → `404 crm.task_not_found` (owner WHERE + RLS) | I | ✓ `CrmTasksTests.Foreign_task_is_not_found` |
+| TK-7 | Delete soft-deletes; task 404s afterwards | I | ◐ (soft-delete slice ships; no dedicated test) |
+
+## 9. Companies — B2B accounts
+
+| # | Scenario (Given / When / Then) | Type | Status |
+|---|---|---|---|
+| CO-1 | Owner POSTs a company (name + optional domain/industry/notes) → `201` + `Location: /crm/companies/{id}`; GET round-trips | I | ✓ `CrmCompaniesTests.Create_then_get_round_trips` |
+| CO-2 | Rollup: GET company lists its contacts + deals (by `CompanyId`, owner-scoped) | I | ✓ `CrmCompaniesTests.Rollup_lists_contacts_and_deals_by_company` |
+| CO-3 | Linking a contact/deal to a company is validated as owned at the edge | I | ✓ `CrmCompaniesTests` (linking) |
+| CO-4 | **Partial PATCH**: updating `name` leaves `industry`/other fields intact | I | ✓ `CrmCompaniesTests.Update_partial_patch_keeps_unchanged_fields` (added 2026-06-30) |
+| CO-5 | **Delete detaches children atomically**: soft-deleting a company nulls `CompanyId` on the user's contacts + deals in ONE transaction (parent soft-delete + bulk child detach commit together) | I | ✓ `CrmCompaniesTests` (soft-delete detaches) — atomicity hardened 2026-06-30 (`DeleteCompanyHandler` wraps the tracked soft-delete + `ExecuteUpdate` detaches in an explicit transaction) |
+| CO-6 | Foreign company id → `404 crm.company_not_found` | I | ✓ `CrmCompaniesTests` (owner scope) |
+
+## 10. Kanban — boards, columns, cards
+
+| # | Scenario (Given / When / Then) | Type | Status |
+|---|---|---|---|
+| KB-1 | Create board → seeds 3 default columns (To Do / In Progress / Done) | I | ✓ `CrmKanbanTests.Create_board_seeds_three_columns` |
+| KB-2 | `POST /crm/boards/{id}/columns` appends a column → board has 4 | I | ✓ `CrmKanbanTests.Create_column_adds_to_board` |
+| KB-3 | `POST /crm/boards/{id}/cards` appends a card at the column's tail | I | ✓ `CrmKanbanTests` (add card helper) |
+| KB-4 | **CreateCard rejects a foreign contact/deal link**: a `contactId`/`dealId` not owned by the caller → `404 crm.contact_not_found` / `crm.deal_not_found` | I | ✓ `CrmKanbanTests.Create_card_with_foreign_contact_is_not_found` (ownership check added 2026-06-30) |
+| KB-5 | **Move card WITHIN a column** to a requested position → dense 0..n renumber | I | ✓ `CrmKanbanTests.Move_card_changes_column_and_renumbers` |
+| KB-6 | **Move card ACROSS columns into a NON-EMPTY target at a requested slot**: source closes its gap (dense 0..n), target inserts at the slot and shifts the rest (regression for the in-memory-reshuffle fix) | I | ✓ `CrmKanbanTests.Move_card_into_non_empty_target_lands_at_requested_position` (fixed 2026-06-30 — the prior renumber queried the DB post-mutation and mis-placed cross-column moves) |
+| KB-7 | Move card MoveCard concurrency: parallel moves serialize via xmin | C | ▢ (no concurrency test) |
+| KB-8 | `DELETE /crm/cards/{id}` removes the card from the board | I | ✓ `CrmKanbanTests.Delete_card_removes_it_from_board` |
+| KB-9 | `DELETE /crm/boards/{id}` soft-deletes the board (+ cards) and deletes its columns atomically; GET → `404` afterwards | I | ✓ `CrmKanbanTests.Delete_board_returns_not_found_afterwards` — atomicity hardened 2026-06-30 (explicit transaction) |
+| KB-10 | `GET /crm/boards` lists the owner's boards (paged); contains the created board | I | ✓ `CrmKanbanTests.List_boards_contains_created_board` |
+| KB-11 | Foreign board id → `404 crm.board_not_found` (IDOR/RLS) | I | ✓ `CrmKanbanTests.Foreign_board_is_not_found` |
+| KB-12 | Card/column order is deterministic even on a duplicate `Position`: GetBoard orders by `(Position, CreatedAt, Id)` so a rare concurrent-append tie renders in stable insertion order | I | ◐ (tiebreaker added 2026-06-30 `GetBoardHandler`; the race itself is cosmetic and not stress-tested) |
+
+## 11. Workspace provisioning (cross-module `UserRegistered`)
+
+| # | Scenario (Given / When / Then) | Type | Status |
+|---|---|---|---|
+| WS-1 | Registering a user publishes `UserRegistered`; the CRM Worker handler (`ProvisionCrmWorkspace`) seeds exactly one starter task | I | ✓ `CrmWorkspaceProvisioningTests.Provisioning_seeds_exactly_one_starter_task` |
+| WS-2 | **Starter task is tenant-stamped and visible to the owner**: the seeded `CrmTask` (an `ITenantScoped` shadow-`TenantId` entity) is explicitly stamped from the event's tenant in the SYSTEM Worker context, so it appears through the tenant query filter | I | ✓ `CrmWorkspaceProvisioningTests.Registering_a_user_seeds_one_starter_task_visible_to_the_owner` (fixed 2026-06-30 — the prior handler left `TenantId` null, hiding the task) |
+| WS-3 | Idempotent: a redelivered `UserRegistered` (Wolverine inbox dedup + the handler's existence check) never seeds a second starter task | I | ✓ `CrmWorkspaceProvisioningTests.Provisioning_seeds_exactly_one_starter_task` |
+| WS-4 | The handler is a thin PUBLIC Wolverine shell dispatching the internal command; the consumed event is from `Identity.Contracts`, never Identity Core | A | ✓ `ModuleBoundaryTests` + `MessageWireIdentityTests` (CRM loaded) |
+
+## 12. CRM GDPR fan-out (export + erasure)
+
+| # | Scenario (Given / When / Then) | Type | Status |
+|---|---|---|---|
+| CG-1 | `GET /v1/gdpr/me/export` includes a populated `Crm` section (contacts + interactions + tasks…) for a user with CRM data | I | ✓ `CrmGdprTests.Export_includes_the_crm_section_and_erase_scrubs_the_subjects_pii` |
+| CG-2 | `POST /v1/gdpr/me/erase` fans out `CrmPersonalDataEraser` (durable, async): contact `FullName→"[erased]"`, `Email`/`EmailHash`/`Phone`/`Notes` nulled + soft-deleted; interaction `Body` nulled | I | ✓ `CrmGdprTests` (asserts `[erased]` + cleared EmailHash + null interaction body) |
+| CG-3 | Erasure scrubs every CRM entity the user owns (meetings/deals/tasks/companies/kanban free-text → `[erased]`/null + soft-delete; columns hard-delete) | I | ◐ (contacts + interactions asserted in `CrmGdprTests`; meetings/deals/tasks/companies/kanban scrub not separately asserted) |
 
 ---
 

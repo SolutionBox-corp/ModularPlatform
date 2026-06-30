@@ -15,6 +15,8 @@ internal static class CreateMeetingEndpoint
                 CreateMeetingRequest request,
                 ITenantContext tenant,
                 IDispatcher dispatcher,
+                LinkGenerator links,
+                HttpContext http,
                 CancellationToken ct) =>
             {
                 var userId = tenant.UserId
@@ -29,7 +31,9 @@ internal static class CreateMeetingEndpoint
                         request.Location,
                         request.Notes),
                     ct);
-                return Results.Created((string?)null, ApiResponse<CreateMeetingResponse>.Ok(result));
+                var location = links.GetPathByName(http, "GetMeeting", new { meetingId = result.Id })
+                    ?? $"/crm/meetings/{result.Id}";
+                return Results.Created(location, ApiResponse<CreateMeetingResponse>.Ok(result));
             })
             .RequireAuthorization()
             .RequireModule("crm")

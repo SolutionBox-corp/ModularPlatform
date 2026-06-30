@@ -20,15 +20,17 @@ internal sealed class GetBoardHandler(IReadDbContextFactory<CrmDbContext> readFa
             .FirstOrDefaultAsync(ct)
             ?? throw new NotFoundException("crm.board_not_found", "Board not found.");
 
+        // CreatedAt + Id tiebreakers make the order deterministic even if two concurrent appends raced to the same
+        // Position (cosmetic duplicate positions then render in stable insertion order instead of arbitrarily).
         var columns = await db.KanbanColumns
             .Where(c => c.BoardId == board.Id && c.UserId == query.UserId)
-            .OrderBy(c => c.Position)
+            .OrderBy(c => c.Position).ThenBy(c => c.CreatedAt).ThenBy(c => c.Id)
             .Select(c => new KanbanColumnDto(c.Id, c.Name, c.Position))
             .ToListAsync(ct);
 
         var cards = await db.KanbanCards
             .Where(c => c.BoardId == board.Id && c.UserId == query.UserId)
-            .OrderBy(c => c.Position)
+            .OrderBy(c => c.Position).ThenBy(c => c.CreatedAt).ThenBy(c => c.Id)
             .Select(c => new KanbanCardDto(c.Id, c.ColumnId, c.Position, c.Title, c.Description, c.ContactId, c.DealId, c.DueAt))
             .ToListAsync(ct);
 
