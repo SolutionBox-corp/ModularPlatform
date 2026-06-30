@@ -23,6 +23,7 @@ internal sealed class FilesPersonalDataExporter(IReadDbContextFactory<FilesDbCon
         var files = await db.Files
             .Where(f => f.UserId == userId)
             .OrderByDescending(f => f.CreatedAt)
+            .ThenByDescending(f => f.Id)
             .Select(f => new
             {
                 f.Id,
@@ -36,6 +37,7 @@ internal sealed class FilesPersonalDataExporter(IReadDbContextFactory<FilesDbCon
         var links = await db.FileLinks
             .Where(l => l.UserId == userId)
             .OrderByDescending(l => l.CreatedAt)
+            .ThenByDescending(l => l.Id)
             .Select(l => new
             {
                 l.Id,

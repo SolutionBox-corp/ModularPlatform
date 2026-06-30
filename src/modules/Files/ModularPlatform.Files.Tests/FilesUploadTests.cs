@@ -589,6 +589,44 @@ public sealed class FilesUploadTests(PlatformApiFactory fixture)
             token,
             new { ownerType = "crm.deal", ownerId }));
         link.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var linkId = (await PlatformApiFactory.ReadData(link)).GetProperty("id").GetGuid();
+
+        var secondUpload = await UploadAsync(token, "brief.txt", "text/plain", Encoding.UTF8.GetBytes("brief bytes"));
+        secondUpload.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var secondFileId = (await PlatformApiFactory.ReadData(secondUpload)).GetProperty("id").GetGuid();
+        var secondLink = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post,
+            $"/v1/files/{secondFileId}/links",
+            token,
+            new { ownerType = "crm.deal", ownerId }));
+        secondLink.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var secondLinkId = (await PlatformApiFactory.ReadData(secondLink)).GetProperty("id").GetGuid();
+
+        var thirdUpload = await UploadAsync(token, "diagram.txt", "text/plain", Encoding.UTF8.GetBytes("diagram bytes"));
+        thirdUpload.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var thirdFileId = (await PlatformApiFactory.ReadData(thirdUpload)).GetProperty("id").GetGuid();
+        var thirdLink = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post,
+            $"/v1/files/{thirdFileId}/links",
+            token,
+            new { ownerType = "crm.deal", ownerId }));
+        thirdLink.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var thirdLinkId = (await PlatformApiFactory.ReadData(thirdLink)).GetProperty("id").GetGuid();
+
+        await fixture.ExecuteSqlAsync(
+            "UPDATE file_objects " +
+            "SET \"CreatedAt\" = timestamp with time zone '2030-01-01 00:00:00+00' " +
+            $"WHERE \"Id\" IN ('{fileId}', '{secondFileId}', '{thirdFileId}')");
+        await fixture.ExecuteSqlAsync(
+            "UPDATE file_links " +
+            "SET \"CreatedAt\" = timestamp with time zone '2030-01-01 00:00:00+00' " +
+            $"WHERE \"Id\" IN ('{linkId}', '{secondLinkId}', '{thirdLinkId}')");
+        var expectedFileIds = new[] { fileId, secondFileId, thirdFileId }
+            .OrderByDescending(id => id)
+            .ToArray();
+        var expectedLinkIds = new[] { linkId, secondLinkId, thirdLinkId }
+            .OrderByDescending(id => id)
+            .ToArray();
 
         await using var scope = fixture.Services.CreateAsyncScope();
         var exporter = scope.ServiceProvider
@@ -599,20 +637,23 @@ public sealed class FilesUploadTests(PlatformApiFactory fixture)
 
         using var filesJson = System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(export["files"]));
         var files = filesJson.RootElement;
-        files.GetArrayLength().ShouldBe(1);
-        files[0].GetProperty("Id").GetGuid().ShouldBe(fileId);
-        files[0].GetProperty("FileName").GetString().ShouldBe("contract.pdf");
-        files[0].GetProperty("ContentType").GetString().ShouldBe("application/pdf");
-        files[0].GetProperty("Size").GetInt64().ShouldBe(bytes.LongLength);
-        files[0].TryGetProperty("StorageKey", out _).ShouldBeFalse();
-        files[0].TryGetProperty("Bytes", out _).ShouldBeFalse();
+        files.GetArrayLength().ShouldBe(3);
+        files.EnumerateArray().Select(f => f.GetProperty("Id").GetGuid()).ToArray().ShouldBe(expectedFileIds);
+        var contractFile = files.EnumerateArray().Single(f => f.GetProperty("Id").GetGuid() == fileId);
+        contractFile.GetProperty("FileName").GetString().ShouldBe("contract.pdf");
+        contractFile.GetProperty("ContentType").GetString().ShouldBe("application/pdf");
+        contractFile.GetProperty("Size").GetInt64().ShouldBe(bytes.LongLength);
+        contractFile.TryGetProperty("StorageKey", out _).ShouldBeFalse();
+        contractFile.TryGetProperty("Bytes", out _).ShouldBeFalse();
 
         using var linksJson = System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(export["fileLinks"]));
         var links = linksJson.RootElement;
-        links.GetArrayLength().ShouldBe(1);
-        links[0].GetProperty("FileObjectId").GetGuid().ShouldBe(fileId);
-        links[0].GetProperty("OwnerType").GetString().ShouldBe("crm.deal");
-        links[0].GetProperty("OwnerId").GetGuid().ShouldBe(ownerId);
+        links.GetArrayLength().ShouldBe(3);
+        links.EnumerateArray().Select(l => l.GetProperty("Id").GetGuid()).ToArray().ShouldBe(expectedLinkIds);
+        var contractLink = links.EnumerateArray().Single(l => l.GetProperty("Id").GetGuid() == linkId);
+        contractLink.GetProperty("FileObjectId").GetGuid().ShouldBe(fileId);
+        contractLink.GetProperty("OwnerType").GetString().ShouldBe("crm.deal");
+        contractLink.GetProperty("OwnerId").GetGuid().ShouldBe(ownerId);
     }
 
     [Fact]
