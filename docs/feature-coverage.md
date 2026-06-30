@@ -985,13 +985,14 @@ _The non-fatal-missing-template and retry/idempotency behavior is now pinned dir
 | Redis not configured | ✓ | DependencyInjection.cs:24-40 selects LocalRealtimePublisher when Redis:ConnectionString is blank; the registry + ports are always present so producers don't change. |
 | One connection's delivery throws and starves the user's other tabs | ✓ | RealtimeConnectionRegistry.DeliverLocal Realtime.cs:72-90 try/catches per handler so a failing subscriber can't starve siblings. Proven by RealtimeSseTests.Registry_isolates_a_throwing_connection_from_other_connections. |
 | Redis envelope malformed / wrong channel guid | ✓ | RealtimeRedisSubscriber.cs:58-69 guards Guid.TryParse + null/empty value + null envelope before delivering. |
+| Redis pub/sub fan-out into the local SSE registry | ✓ | `RedisRealtimeReplayTests.Redis_subscriber_forwards_user_channel_messages_to_the_local_registry_with_the_stream_id` starts a live Redis Testcontainer, a `RealtimeRedisSubscriber`, publishes through `RedisRealtimePublisher`, and verifies the local registry receives the event with the stream id. |
 | PublishToTenantAsync on the local publisher | ✓ | LocalRealtimePublisher.PublishToTenantAsync now fails loud with NotSupportedException instead of silently dropping tenant broadcasts; proven by RealtimeSseTests.Local_tenant_broadcast_fails_loud_instead_of_silently_dropping_events. |
 | Connection registered then disposed (client disconnect) | ✓ | Subscribe returns an IDisposable that TryRemoves the connection (Realtime.cs:58-69); the SSE endpoint disposes it on enumerator cancel. |
 
-**Testy:** RealtimeSseTests.Registry_delivers_an_event_only_to_the_owning_user; RealtimeSseTests.Registry_isolates_a_throwing_connection_from_other_connections; RealtimeSseTests.Local_tenant_broadcast_fails_loud_instead_of_silently_dropping_events
-**Test gaps:** No test for the Redis publisher/subscriber path (acknowledged — needs live Redis)
+**Testy:** RedisRealtimeReplayTests.Redis_subscriber_forwards_user_channel_messages_to_the_local_registry_with_the_stream_id; RealtimeSseTests.Registry_delivers_an_event_only_to_the_owning_user; RealtimeSseTests.Registry_isolates_a_throwing_connection_from_other_connections; RealtimeSseTests.Local_tenant_broadcast_fails_loud_instead_of_silently_dropping_events
+**Test gaps:** No remaining focused realtime fan-out gap in this slice.
 
-_Owner-scoping + local fan-out are sound; unsupported tenant broadcast now fails loudly instead of pretending to work._
+_Owner-scoping + local fan-out are sound; Redis fan-out now has a live container test; unsupported tenant broadcast fails loudly instead of pretending to work._
 
 ### SSE stream endpoint (/realtime/stream) — 🟢 minor-gaps
 *Native .NET 10 Server-Sent-Events endpoint that bridges the push registry to an IAsyncEnumerable, emitting replay then live events, owner-scoped.*
@@ -1019,17 +1020,17 @@ _The replay/live duplicate-by-id window is the only substantive correctness nuan
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
 | Null/empty/whitespace Last-Event-ID | ✓ | Both impls return [] (no full-history replay by design) — Realtime.cs:140-143 (Redis) and 232-236/271-272 (local). Tested. |
-| Replay disabled via config | ✓ | Enabled=false -> PublishToUserAsync skips the XADD/buffer push and ReadSinceAsync returns [] (Realtime.cs:114-126,146-149,218-223). Tested (local). |
-| Ring buffer over capacity | ✓ | LocalRealtimePublisher UserBuffer trims front when > MaxEvents (Realtime.cs:252-263); Redis uses approximate MAXLEN (Realtime.cs:119-123). Both tested (local) / asserted via the eviction test. |
-| Cursor at the last event | ✓ | Returns empty — Redis IncrementStreamId bumps the seq for an exclusive XRANGE lower bound (Realtime.cs:154-156,181-197); local compares numerically > cursor (Realtime.cs:271-283). Tested for local. |
+| Replay disabled via config | ✓ | Enabled=false -> PublishToUserAsync skips the XADD/buffer push and ReadSinceAsync returns [] (Realtime.cs:114-126,146-149,218-223). Tested for local and Redis. |
+| Ring buffer over capacity | ✓ | LocalRealtimePublisher UserBuffer trims front when > MaxEvents (Realtime.cs:252-263); Redis uses approximate MAXLEN (Realtime.cs:119-123). Local exact eviction is tested; Redis publish path is covered live and the approximate bound remains a documented soft limit. |
+| Cursor at the last event | ✓ | Returns empty — Redis IncrementStreamId bumps the seq for an exclusive XRANGE lower bound (Realtime.cs:154-156,181-197); local compares numerically > cursor (Realtime.cs:271-283). Tested for local and Redis. |
 | Malformed Redis stream id in IncrementStreamId | ✓ | Falls back to the original id (Realtime.cs:191-196); XRANGE on an unknown id returns empty — safe. No-dash case appends '-1' (line 184-187). Proven by RealtimeReplayTests.Redis_stream_cursor_increment_handles_missing_malformed_and_overflow_sequence. |
 | Approximate MAXLEN means Redis may retain MORE than MaxEvents | ◐ | useApproximateMaxLength:true trades exactness for performance — slightly more PII may linger than MaxEvents implies. The options contract now calls MaxEvents a soft event-count bound for Redis; TTL remains the hard time bound. |
 | Local ring id overflow / cross-restart cursor | ◐ | LocalRealtimePublisher ids are a process-local Interlocked counter; on Api restart the counter resets to 1, so an old client cursor (e.g. '5000') would replay nothing or mismatch. The class contract now documents that local cursors are meaningful only within the current API process lifetime. |
 
-**Testy:** RealtimeReplayTests.ReadSinceAsync_with_null_or_empty_lastEventId_returns_empty; RealtimeReplayTests.ReadSinceAsync_returns_only_events_newer_than_cursor; RealtimeReplayTests.ReadSinceAsync_at_last_event_returns_empty; RealtimeReplayTests.Ring_buffer_bounded_to_maxEvents_evicts_oldest_first; RealtimeReplayTests.ReadSinceAsync_for_unknown_userId_returns_empty; RealtimeReplayTests.Events_from_different_users_are_isolated; RealtimeReplayTests.Disabled_replay_buffer_returns_empty_from_ReadSince; RealtimeReplayTests.Redis_stream_cursor_increment_handles_missing_malformed_and_overflow_sequence
-**Test gaps:** Zero live Redis impl tests for XADD MAXLEN, TTL refresh, and exclusive XRANGE behaviour — only the cursor helper and local ring are covered; no test for TTL expiry behavior.
+**Testy:** RedisRealtimeReplayTests.Redis_replay_reads_only_events_after_the_last_event_id_and_refreshes_ttl; RedisRealtimeReplayTests.Redis_replay_is_user_scoped_and_disabled_mode_does_not_store_a_stream; RealtimeReplayTests.ReadSinceAsync_with_null_or_empty_lastEventId_returns_empty; RealtimeReplayTests.ReadSinceAsync_returns_only_events_newer_than_cursor; RealtimeReplayTests.ReadSinceAsync_at_last_event_returns_empty; RealtimeReplayTests.Ring_buffer_bounded_to_maxEvents_evicts_oldest_first; RealtimeReplayTests.ReadSinceAsync_for_unknown_userId_returns_empty; RealtimeReplayTests.Events_from_different_users_are_isolated; RealtimeReplayTests.Disabled_replay_buffer_returns_empty_from_ReadSince; RealtimeReplayTests.Redis_stream_cursor_increment_handles_missing_malformed_and_overflow_sequence
+**Test gaps:** No remaining focused replay-buffer gap in this slice. The Redis `MAXLEN ~` count remains approximate by design; TTL is the hard PII retention bound and is covered by a live Redis test.
 
-_Local path is well covered; the Redis production replay path has solid code but no automated live-Redis tests, and approximate-MAXLEN intentionally makes the event-count PII bound soft._
+_Local path and Redis production replay path are both covered; approximate-MAXLEN intentionally makes the event-count PII bound soft, while TTL is verified as the hard time bound._
 
 ### GDPR export / erasure (Notifications) — 🟢 minor-gaps
 *Export the subject's in-app feed and anonymize PII in place on erasure, keeping structural rows.*

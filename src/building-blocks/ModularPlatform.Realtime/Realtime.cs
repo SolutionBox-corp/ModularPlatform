@@ -5,6 +5,7 @@ using ModularPlatform.Abstractions;
 using StackExchange.Redis;
 
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("ModularPlatform.Operations.Tests")]
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("ModularPlatform.BuildingBlocks.Tests")]
 
 namespace ModularPlatform.Realtime;
 
