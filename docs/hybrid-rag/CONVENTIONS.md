@@ -43,6 +43,9 @@ z completeness-critic passu (34 konzistenčních poznámek). **Kde se katalog ro
 `RagConversationTurn`, `RagAnswerCitation`, `RagAnswerTrace`.
 **Provozní/auxiliary (read-modely, ne PII subjekty):** `eval_samples`, `rag_usage_daily`, `rag_query_trace`,
 `rag_cost_ledger`, `rag_abuse_flag`, `rag_budget_alert_state`.
+**Konfigurace/audit:** `RagSetting` (`ITenantScoped`, per-tenant/collection override knobů, auditovaný přes `AuditInterceptor`
+— oblast 24/25). Audit operací (search/answer/ingest) + config změn jde do `hybridrag_audit_entries`; query-text je `[PersonalData]`
+(crypto-shred) — oblast 25.
 
 Tabulky vždy `hybridrag_` prefix: `hybridrag_collections`, `hybridrag_documents`, `hybridrag_chunks`,
 `hybridrag_graph_nodes`, `hybridrag_graph_edges`, `hybridrag_entity_aliases`, `hybridrag_ingest_sagas`,
@@ -97,10 +100,17 @@ Dotted stringy slouží i jako errorCode/claim; PascalCase const je API. **Drift
 `RetrievalStatus { Complete | Partial | Degraded }` + `legs[] { source, ok, latency, reason }`. Zero-retrieval =
 `Partial` s `reason = no_relevant_context` (JEDNA reprezentace; NE `noContext`/`degradedReason`/`Degraded=false`).
 
-## 9. Config klíče (jeden each)
+## 9. Config klíče — kanonický registr v oblasti 24
 
-`Rag:Retrieval:MinScore` (NE `Rag:MinSimilarity`), `Rag:Lexical:Provider` (`pg_search|ts_rank`),
-`Rag:Lexical:Bm25:{K1,B}`, `Rag:UseFakeGateways`, `Rag:Rerank:Provider`. Cron pod `Modules:HybridRag:Jobs:*`.
+**Autoritativní zdroj všech tunable knobů = `RagParameterRegistry` / tabulka v [oblasti 24](24-configuration-tuning.md)
+(UC-24-01).** Tam je každý knob s kanonickým klíčem, scope (Global·Tenant·Collection·Query), defaultem, runtime-vs-restart,
+validačním rozsahem a zda je trasovaný. Namespace tunable knobů = `Rag:*` (bind do `RagTuningOptions` pod `Modules:HybridRag`).
+Vyřešený drift (UC-24-16): **`Rag:Fusion:Rrf:K`** (NE `Rag:Rrf:K`/`Rag:Fusion:K`), **`Rag:Chunk:Size`/`:Overlap`**
+(NE `Rag:Chunking:*`), **`Rag:Fusion:{CandidateK,TopN}`** (NE `Rag:Hybrid:CandidateK`), **`Rag:Dense:MinSimilarity`**
++ **`Rag:Fusion:MinScore`** (NE `Rag:Retrieval:MinScore`/`Rag:MinSimilarity`), **`Rag:Embedding:Model`** (NE `Rag:Embed:Model`/
+`Rag:Embeddings:CurrentModel`), per-leg timeouty `Rag:{Lexical,Rerank}:TimeoutMs` + globální `Rag:OverallTimeout`.
+Secrets (`Rag:OpenAi:ApiKey`, `Rag:Rerank:Cohere:ApiKey`) jsou MIMO tunable registr (oddělené Options, fail-fast, maskované
+v effective-config). Cron pod `Modules:HybridRag:Jobs:*`. Per-tenant/collection override = DB entita `RagSetting`.
 
 ## 10. Cost — jeden autoritativní zdroj
 

@@ -2,15 +2,17 @@
 
 Vyčerpávající číslovaný katalog **use cases** a **edge cases** pro nový modul `HybridRag` (hybrid vektor + knowledge-graph RAG) v ModularPlatform. **Design dokumentace — produkční kód zatím neexistuje**; katalog je zdroj pravdy chování, podklad pro test scaffolding a implementaci. Plán: `~/.claude/plans/pojdme-udelat-plan-na-moonlit-kahan.md`.
 
-> 📐 **[CONVENTIONS.md](CONVENTIONS.md) je nadřazený zdroj pravdy pro pojmenování.** Katalog generovalo 24 paralelních agentů, takže jednotlivé soubory místy driftují (route prefix, názvy entit/tabulek, permissions, enum hodnoty). Kanonickou volbu + konsolidovaná otevřená rozhodnutí drží CONVENTIONS.md — kde se soubor rozchází, vyhrává CONVENTIONS.
+> 📐 **[CONVENTIONS.md](CONVENTIONS.md) je nadřazený zdroj pravdy pro pojmenování.** Katalog generovaly paralelní agenti, takže soubory místy driftují (route prefix, názvy entit/tabulek, permissions, config klíče, enum hodnoty). Kanonickou volbu + konsolidovaná otevřená rozhodnutí drží CONVENTIONS.md — kde se soubor rozchází, vyhrává CONVENTIONS.
+> 🎛️ **Vše konfigurovatelné/laditelné/trasovatelné:** [oblast 24](24-configuration-tuning.md) drží kanonický **parameter registry** (chunk size, topK per stage, RRF k, BM25 k1/b, rerank threshold, graph hops, freshness half-life, timeouty…) se scope hierarchií Global→Tenant→Collection→Query + effective-config v každém trace. **Audit** (config změn + operací) = [oblast 25](25-audit-history.md).
 
-**Číslování:** `UC-NN-MM` (oblast-pořadí), `EC-NN-MM-KK` (oblast-UC-EC). Severity/Priorita P0 (kritické) → P3 (nice-to-have). Sekce „Doplňky z completeness review" na konci souborů = nálezy z adversariálního review passu.
+**Číslování:** `UC-NN-MM` (oblast-pořadí), `EC-NN-MM-KK` (oblast-UC-EC). Severity/Priorita P0 (kritické) → P3. Sekce „Doplňky z completeness review" = nálezy z adversariálního review passu.
 
 ## Klíčová rozhodnutí (frozen — detail v CONVENTIONS.md)
 - **Graf** = relační edge tabulky (`GraphNode`/`GraphEdge`) + pgvector přes EF/LINQ (NE Apache AGE/Neo4j; RLS/audit/xmin zdarma).
 - **Korpus dvouvrstvý**: `Scope = Tenant | User`. User hledá v tenant korpusu + svých privátních současně; tenant-admin (permission-gated) napříč všemi usery.
 - **Lexikál = pravé BM25 přes ParadeDB `pg_search`** (`@@@`, IDF + length-norm) by default; `ts_rank_cd` LINQ fallback. Raw-SQL carve-out (parametrizovaný `FromSqlInterpolated`).
 - **Vektor** = pgvector HNSW, `CosineDistance` LINQ, **`halfvec(3072)`** (HNSW >2000 dim). **RRF** k=60 v C#. **Rerank** = Cohere `rerank-3.5`. **Embed** = OpenAI `text-embedding-3-large`. **Chat** = Claude. Fake pod `Rag:UseFakeGateways`.
+- **Konfigurace** = `Rag:*` namespace, registr v oblasti 24, override přes `RagSetting` (tenant/collection), secrets oddělené. **Audit** = `hybridrag_audit_entries`, query-text `[PersonalData]`.
 
 ## ⚠️ Otevřená rozhodnutí PŘED implementací (§11 — STOP) — plný seznam v [CONVENTIONS.md §12](CONVENTIONS.md)
 1. **PII × plaintext lexikální/graf index (KRITICKÉ):** `[Encrypted]` Content/graf klíče vs BM25/tsvector/lookup potřebují plaintext → přežije crypto-shred → GDPR erasure díra.
@@ -19,7 +21,7 @@ Vyčerpávající číslovaný katalog **use cases** a **edge cases** pro nový 
 4. **Druhý rerank provider** (bge self-hosted port) — rozšíření vs §11.
 5. **Základní search permission** — existuje (15) vs neexistuje (13/16)?
 
-## Pokrytí (roll-up) — **24 oblastí, 269 UC, 1736 EC** (vč. completeness-review doplňků)
+## Pokrytí (roll-up) — **26 oblastí, 300 UC, 2021 EC**
 
 | # | Oblast | #UC | #EC | P0 | P1 | P2 | P3 |
 |---|---|---:|---:|---:|---:|---:|---:|
@@ -47,6 +49,8 @@ Vyčerpávající číslovaný katalog **use cases** a **edge cases** pro nový 
 | [21](21-streaming-realtime.md) | Streaming & realtime | 9 | 55 | 14 | 18 | 19 | 4 |
 | [22](22-rate-limiting-abuse.md) | Rate limiting & abuse | 8 | 54 | 11 | 24 | 17 | 2 |
 | [23](23-admin-management.md) | Admin / management (catalogue, reindex, delete) | 12 | 101 | 39 | 32 | 24 | 6 |
-| | **CELKEM** | **269** | **1736** | **536** | **656** | **453** | **87** |
+| [24](24-configuration-tuning.md) | Configuration, tuning & parameter registry | 16 | 169 | 56 | 77 | 29 | 7 |
+| [25](25-audit-history.md) | Audit & change history (config + operace) | 15 | 116 | 33 | 46 | 35 | 2 |
+| | **CELKEM** | **300** | **2021** | **625** | **779** | **517** | **96** |
 
-> P-rozpad = součet Severity (EC) + Priorita (UC) výskytů. Review pass: 4 adversariální kritici → ~38 doplňkových P0/P1 EC + 34 konzistenčních nálezů (vyřešeno v CONVENTIONS.md).
+> P-rozpad = součet Severity (EC) + Priorita (UC). Review: 4 adversariální kritici → ~38 doplňkových P0/P1 EC + 34 konzistenčních nálezů (vyřešeno v CONVENTIONS.md). Oblasti 24/25 přidány na vyžádání (konfigurovatelnost + audit).
