@@ -253,3 +253,11 @@ Tato oblast pokrývá druhou fázi retrievalu HybridRag pipeline: cross-encoder 
 - **EC-08-12-02 — Smíšený Tenant+User scope pořadí** · Trigger: privátní i tenant chunky v jednom okně · Očekávané chování: rerank je skórovací — řadí dle relevance bez ohledu na scope; oba scope legitimně koexistují (dvouvrstvé vlastnictví), žádný scope se nepreferuje uměle · Mechanismus: rerank scope-agnostic nad autorizovaným vstupem · Severity: P2 · Test: integrační — smíšený vstup → pořadí dle skóre, oba scope přítomné.
 - **EC-08-12-03 — Tenant id z LLM/MCP argumentu** · Trigger: pokud by rerank byl exponován jako MCP tool s tenant argumentem · Očekávané chování: tenant/identity VŽDY z tokenu (`ITenantContext`), NIKDY z argumentu nástroje (trust boundary) · Mechanismus: zákon „Identita z tokenu"; MCP arg ignorován pro scope · Severity: P0 · Test: integrační — MCP volání s cizím tenant arg → ignorováno, vlastní scope.
 - **EC-08-12-04 — Firemní search bez permission** · Trigger: user bez `rag.search.tenant` žádá cross-user firemní rerank · Očekávané chování: parent dotaz odmítnut `ForbiddenException` PŘED rerankem; rerank se nespustí · Mechanismus: `.RequirePermission(PlatformPermissions.RagSearchTenant)` na endpointu · Severity: P0 · Test: integrační — bez permission → 403, rerank nezavolán.
+
+
+---
+
+## Doplňky z completeness review
+
+### UC-08-10 (data opouští hranici)
+- **EC-08-10-07 — Egress se týká i QUERY textu, nejen dokumentů** · Trigger: Cohere rerank dostává `query + documents`; UC-08-10 gatuje `AllowHostedForPersonalData` jen na PII korpusu (documents), ale `query` je uživatelem zadaný a může nést PII (např. „najdi plat Jana Nováka") · Očekávané chování: boundary/consent gate i redakce se MUSÍ vztahovat na query text stejně jako na documents; když je hosted egress pro PII zakázán, nesmí ven ani query; query se nikdy neloguje plaintextem (rozšiřuje EC-08-10-02) · Mechanismus: gate kontroluje celý egress payload (query+docs) před odesláním; zero-retention header pokrývá obojí · Severity: P1 · Test: integrační — PII-flag korpus + zákaz → ani query neodejde do Cohere; log neobsahuje query.

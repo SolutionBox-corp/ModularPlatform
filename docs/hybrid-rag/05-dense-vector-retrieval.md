@@ -202,3 +202,9 @@ Tato oblast pokrývá hustý (dense) sémantický retrieval nad `Chunk.Embedding
 - **EC-05-11-03 — dense vrátí prázdno, BM25 ne** · Trigger: dense embed selhal, BM25 OK · Očekávané chování: hybrid degraduje na BM25-only + `Degraded=true`, ne celý fail · Mechanismus: dense port signalizuje degradaci; fusion pokračuje s jednou větví explicitně · Severity: P1 · Test: dense fail → hybrid vrací BM25 výsledky + Degraded.
 - **EC-05-11-04 — k pro dense vs finální top-K mismatch** · Trigger: hybrid chce fuse top-100 dense + top-100 BM25 → final top-10 · Očekávané chování: dense k (kandidátní hloubka) ≥ final K; konfigurovatelné · Mechanismus: `Rag:Hybrid:CandidateK` ≥ finalK · Severity: P2 · Test: candidateK=100, finalK=10 → 100 dense kandidátů předáno.
 - **EC-05-11-05 — duplicitní ChunkId mezi dense a BM25** · Trigger: stejný chunk v obou větvích · Očekávané chování: RRF správně sečte ranky pro stejný ChunkId (dedup podle id) · Mechanismus: fusion klíčuje podle ChunkId · Severity: P1 · Test: chunk v obou → jeden výsledek se sečteným RRF skóre.
+
+
+---
+
+## Doplňky z completeness review
+- **EC-05-02-07 — Dense predikát neobsahuje EmbeddingModel/Dimensions drift guard (kontradikce s EC-03-03-04)** · Trigger: během re-embed/model-drift okna koexistují chunky dvou modelů; predikát UC-05-02 filtruje jen `TenantId/Scope/IsCurrent`, NE `EmbeddingModel==current` → `CosineDistance` míchá vektory dvou modelů v jednom žebříčku (nesmyslné skóre) · Očekávané chování: dense predikát MUSÍ obsahovat `c.EmbeddingModel == currentModel && c.EmbeddingDimensions == currentDims` (jak vyžaduje EC-03-03-04), drift chunky přeskočit + `Partial/Degraded` flag + `platform.rag.embed_model_drift` · Mechanismus: doplnit model/dim guard do sdíleného `CurrentOnly()` extension (UC-05-04) reusovaného všemi retrieval slice · Severity: P0 · Test: integ — smíšený index → dense vrací jen current-model chunky, drift metrika inkrementována.

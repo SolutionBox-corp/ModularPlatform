@@ -369,3 +369,14 @@
 3. **EC-06-08-02** — auto-fallback `pg_search → ts_rank` za běhu (default OFF, kvalita se mění tiše) vs tvrdá chyba.
 4. **EC-06-10-01** — prázdný dotaz: validační chyba na orchestrátoru vs tichý prázdný list na lexikální noze.
 5. **Errorové kódy** k doplnění do `SharedResource.resx` (`en`+`cs`): `rag.lexical.topk_out_of_range`, `rag.lexical.scoring_failed`, `rag.lexical.no_tenant`, `rag.lexical.tenant_search_forbidden`, `rag.lexical.unsupported_language`, `rag.lexical.bm25_param_out_of_range`, `rag.lexical.provider_unavailable`, `rag.lexical.reindex_in_progress`, `rag.lexical.empty_query`, `rag.lexical.query_too_long`, `rag.lexical.timeout`.
+
+
+---
+
+## Doplňky z completeness review
+
+### UC-06-08 (ts_rank fallback)
+- **EC-06-08-08 — generated `search_vector` / pg_search index nad CIPHERTEXTEM `[Encrypted]` Content** · Trigger: `Content` je at-rest `[Encrypted]` (`penc:v2`), migrace přidá `search_vector GENERATED ALWAYS AS (to_tsvector(content))` resp. BM25 index nad `content` · Očekávané chování: generated column i pg_search index počítají nad ULOŽENOU hodnotou (ciphertext), NE nad app-dešifrovaným plaintextem (converter dešifruje až při čtení do entity, nikdy pro výpočet indexu) → indexují se tokeny `penc`/`v2`/base64 a lexikál nad PII collections je rozbitý. Strukturní tvář blokeru EC-06-09-05, ne zvláštní případ: žádná app vrstva nevstoupí mezi uložení ciphertextu a DB-side index/generated column. STOP a eskalovat (zákon §11) spolu s EC-06-09-05; nezavádět tiše plaintext odvozené pole · Mechanismus: known design tension; cross-ref EC-06-09-05 + souhrn bod 1 · Severity: P0 · Test: design-review gate — žádný generated `search_vector` ani pg_search index nad `[Encrypted]` sloupcem bez explicitního rozhodnutí.
+
+### UC-06-04 (raw-SQL carve-out)
+- **EC-06-04-08 — Plný dotaz-text uniká do Postgres server logu (mimo EF logging)** · Trigger: prod má `log_min_duration_statement>=0` + `log_parameter_max_length!=0`; pomalý/timeoutující BM25 dotaz se zaloguje včetně bound parametru `{queryText}` (potenciální PII) · Očekávané chování: EC-06-04-07 řeší jen EF command logging; server-side Postgres log je druhý leak kanál. `log_parameter_max_length=0` pro `app_rls` role, nebo dotaz-text nikdy jako logovatelný bound literál; PII minimalizace jako u audit IP · Mechanismus: role/infra config + deploy checklist · Severity: P1 · Test: prod log config neobsahuje plný dotaz ani bound parametry lexikálního legu.

@@ -285,3 +285,11 @@ Vzorec: `rrf(d) = Σ_listy 1 / (k + rank_list(d))`, kde `k = 60` (konfigurovatel
 - **EC-07-12-02 — Rank 0 nebo záporný** · Trigger: list s rankem 0 (0-based omylem) · Očekávané chování: kontrakt je 1-based; `1/(k+0)` nezpůsobí dělení nulou (k≥1), ale 0-based zkresluje váhu vs jiný list → normalizovat na 1-based v retrieveru · Mechanismus: kontrakt 1-based + dokumentace · Severity: P2 · Test: unit — rank 0 vs 1 dá jinou váhu; assert retrievery dodávají 1-based.
 - **EC-07-12-03 — Null `opts`** · Trigger: volání bez options · Očekávané chování: default `FusionOptions` (k=60, TopN=50, váhy 1.0) · Mechanismus: `opts ??= FusionOptions.Default` · Severity: P3 · Test: unit — `Fuse(lists)` bez opts → defaulty.
 - **EC-07-12-04 — Obrovský vstup (DoS)** · Trigger: zlomyslně velké listy (miliony) přes manipulovaný retrieval param · Očekávané chování: per-list input cap (retrieval `Limit` max, např. ≤ 200) vynucen už v retrievalu; fúze chráněna upstream limitem + rate-limit na search endpointu · Mechanismus: retrieval `Limit` validátor + endpoint rate-limit (DoS taxonomie) · Severity: P1 · Test: integration — request s `limit=10_000_000` → odmítnut validátorem na search vstupu.
+
+
+---
+
+## Doplňky z completeness review
+
+### UC-07-05 (paralelní degradace)
+- **EC-07-05-07 — Sdílený DbContext napříč paralelními retriever legy (Task.WhenAll)** · Trigger: `HybridSearchHandler` spustí dense + lexikální retriever paralelně (`Task.WhenAll`), oba ale použijí TÝŽ read DbContext z `IReadDbContextFactory` · Očekávané chování: EF Core DbContext NENÍ thread-safe — paralelní operace na jedné instanci hodí „A second operation was started on this context...". Každý paralelní leg MUSÍ dostat VLASTNÍ kontext z factory; sdílení = runtime crash, ne degradace. Pozn.: lexikální leg navíc běží přes raw-SQL carve-out na téže connection → vlastní kontext i kvůli RLS GUC stampingu · Mechanismus: per-leg `IReadDbContextFactory.Create()`, žádné sdílení instance přes await hranici · Severity: P1 · Test: integrační — paralelní dense+lexical → žádná concurrency výjimka, oba legy vlastní kontext.

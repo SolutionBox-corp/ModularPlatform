@@ -281,3 +281,11 @@ Tato oblast pokrývá časovou relevanci výsledků (time-decay až PO reranku),
 - **EC-09-11-04 — AsOf decay vs UtcNow decay záměna** · Trigger: implementace omylem počítá decay k `UtcNow` u as-of dotazu · Očekávané chování: decay referenční čas = `AsOf`, jinak jsou všechny historické verze „staré" a decay je nesmyslný · Mechanismus: decay funkce přijímá referenční čas jako parametr (ne pevně `IClock.UtcNow`) · Severity: P2 · Test: unit — as-of decay používá AsOf jako referenci
 - **EC-09-11-05 — Supersede-mode dokument bez zachované staré verze** · Trigger: Supersede dokument, jehož N-1 byla pruned, as-of cílí na N-1 · Očekávané chování: degraded (jako EC-09-11-03); Supersede negarantuje historii bez retence · Mechanismus: stejný degradation flag · Severity: P3 · Test: integ — supersede + pruned historie + as-of → degraded
 - **EC-09-11-06 — Cross-tenant/IDOR přes asOf** · Trigger: pokus dostat se k cizí historii přes parametr · Očekávané chování: RLS filtruje stejně jako u běžného dotazu; `asOf` neobchází tenant/user scope · Mechanismus: RLS + Scope predikát aplikován před verzním oknem · Severity: P0 · Test: integ — as-of dotaz nevidí cizí tenant historii
+
+
+---
+
+## Doplňky z completeness review
+
+### UC-09-01 (time-decay po reranku)
+- **EC-09-01-10 — Freshness po reranku může jen přeřadit přeživší top-8, nikdy nezachrání čerstvý dokument, který rerank zahodil** · Trigger: relevantní čerstvý dokument skončí rerankem na pozici 9 (mimo top-8), decay běží až nad top-8 · Očekávané chování: frozen pořadí „decay AŽ PO reranku" znamená, že decay reorderuje pouze rerank-survivors — velmi čerstvý, ale rerankem vyřazený dokument je nenávratně pryč. To je DŮSLEDEK zákona, který je třeba EXPLICITNĚ zdokumentovat; pokud má freshness reálně promovat čerstvost, decay musí běžet nad PRE-rerank top-50 (kandidátní okno), ne nad post-rerank top-8 — otevřené rozhodnutí (kde v pipeline decay aplikovat vs frozen „po reranku") · Mechanismus: dokumentovaný trade-off; pokud rescue žádán → decay nad rerank candidate window před finálním Take(8) · Severity: P1 · Test: integrační — čerstvý dokument na rerank-pozici 9 se s decay NEdostane do výsledku (demonstrace limitu); rozhodnutí potvrzeno.

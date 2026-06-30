@@ -193,3 +193,10 @@ Tato oblast pokrývá vstupní bránu celé HybridRag pipeline: nahrání zdrojo
 - **EC-01-08-03 — Tenant scope bez `rag.manage`** · Trigger: běžný user vytvoří tenant korpus · Očekávané chování: 403 · Mechanismus: `.RequirePermission` · Severity: P1 · Test: bez perm → 403.
 - **EC-01-08-04 — Neplatný scope enum** · Trigger: `scope="global"` · Očekávané chování: 422 `rag.collection.invalid_scope` · Mechanismus: validator enum · Severity: P2 · Test: bad scope → 422.
 - **EC-01-08-05 — Modul HybridRag není entitled pro tenant** · Trigger: tenant bez entitlementu volá endpoint · Očekávané chování: 404 (ModuleEntitlementGuard) · Mechanismus: `ModuleEntitlementGuard` → 404 (multitenancy doc) · Severity: P1 · Test: neentitled tenant → 404.
+
+
+---
+
+## Doplňky z completeness review
+- **EC-01-01-16 — Malware/virus v nahraném souboru** · Trigger: uživatel nahraje soubor s embedded malware (PDF s exploit payloadem, makro-DOCX) v POVOLENÉM MIME · Očekávané chování: blob projde MIME allowlistem, ale před extrakcí/zpřístupněním proběhne AV sken (port `IMalwareScanner`, no-op v Dev, ClamAV/cloud v prod); detekce → `Document.Status=Failed`, `FailureReason=malware_detected`, blob karanténován/smazán, žádné chunky · Mechanismus: AV sken seam mezi `PutAsync` a extrakcí (analogie content-type allowlist u Files); fail-closed v prod · Severity: P1 · Test: integ — EICAR test soubor → Failed + blob karanténa, žádná extrakce.
+- **EC-01-02-12 — SSRF přes externí reference v dokumentu (HTML/SVG/PDF)** · Trigger: ingestované HTML/SVG/PDF obsahuje `<img src=http://169.254.169.254/...>` nebo remote resource; extraktor by je mohl fetchnout · Očekávané chování: extraktor NIKDY nestahuje externí zdroje — parsuje jen lokální bytes, žádný outbound HTTP; URL zůstanou jen jako text · Mechanismus: extraktory nakonfigurované offline (žádný resource resolver / network stack), HTML sanitizace bez resource fetch · Severity: P1 · Test: integ — dokument s odkazem na interní IP → 0 outbound requestů (network spy), jen text extrahován.

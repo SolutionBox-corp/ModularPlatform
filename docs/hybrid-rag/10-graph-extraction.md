@@ -273,3 +273,11 @@ Tato oblast pokrývá fázi ingest pipeline, ve které se z již nachunkovaných
 - **EC-10-12-07 — Cizí dokument (IDOR) v delete/invalidate** · Trigger: user pošle delete na dokument jiného usera · Očekávané chování: RLS → 404, žádná invalidace cizího grafu · Mechanismus: RLS na `Document` (IUserOwned) + identity z tokenu · Severity: P0 · Test: cizí docId → 404, graf netknut.
 - **EC-10-12-08 — Invalidace osiří hranu (uzel zůstane, oba sousedi pryč)** · Trigger: smazání zanechá hranu s odstraněným endpointem · Očekávané chování: hrana se smaže společně s posledním evidence; žádná dangling hrana na neexistující uzel · Mechanismus: cascade integrity guard · Severity: P1 · Test: po invalidaci žádná hrana na neexistující uzel.
 - **EC-10-12-09 — Stale `CommunityId` po invalidaci** · Trigger: odstranění uzlů změní komunity · Očekávané chování: dotčené `CommunityId` markovány stale → re-detection (Oblast 11) · Mechanismus: stale flag · Severity: P2 · Test: invalidace → community stale flag set.
+
+
+---
+
+## Doplňky z completeness review
+
+### UC-10-01 (schema-guided extrakce)
+- **EC-10-01-15 — Per-document / per-collection náklad extrakce (LLM fan-out 1 zpráva/chunk) není ohraničen** · Trigger: dokument s 1000 chunky → 1000× `ExtractGraphFromChunkCommand` → 1000 Claude volání; EC-10-01-14 a EC-10-11-05 capují jen PER-CHUNK (entity flood, token flood), ne agregát · Očekávané chování: per-document a per-collection cost/token cap + případně dávkování více chunků do jednoho volání; nad rozpočet → degradace (graf partial, `Degraded`, ne tichá půlka), ne neomezené utrácení; cost proxy metrika per dokument · Mechanismus: cost budget guard v sáze (per `DocumentId`/`CollectionId`), `platform.rag.extraction_cost`/`_calls` counter; degradation flag (zákon graceful degradation) · Severity: P1 · Test: integrační — dokument s N chunky nad rozpočtem → extrakce zastavena/degradována s explicit flagem, ne 1000 volání naslepo.
