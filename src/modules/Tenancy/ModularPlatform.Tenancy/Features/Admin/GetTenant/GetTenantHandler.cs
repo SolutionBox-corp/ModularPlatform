@@ -28,6 +28,7 @@ internal sealed class GetTenantHandler(
                 t.Subdomain,
                 t.Name,
                 Status = t.Status.ToString(),
+                RegistrationMode = t.RegistrationMode.ToString(),
                 t.Placement,
                 t.CreatedAt,
             })
@@ -40,6 +41,13 @@ internal sealed class GetTenantHandler(
             .ToList();
 
         return new TenantDetail(
-            tenant.Id, tenant.Subdomain, tenant.Name, tenant.Status, tenant.Placement, tenant.CreatedAt, modules);
+            tenant.Id,
+            tenant.Subdomain,
+            tenant.Name,
+            tenant.Status,
+            tenant.RegistrationMode,
+            tenant.Placement,
+            tenant.CreatedAt,
+            modules);
     }
 }

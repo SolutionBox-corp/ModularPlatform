@@ -70,6 +70,60 @@ public sealed class RegistrationJoinTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Admin_can_switch_registration_mode_between_open_and_closed()
+    {
+        var admin = await AdminTokenAsync();
+        var (tenantId, subdomain) = await ProvisionTenantAsync(admin);
+
+        var open = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Put,
+            $"/v1/tenant/admin/tenants/{tenantId}/registration-mode",
+            admin,
+            new { registrationMode = "open" }));
+        open.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PlatformApiFactory.ReadData(open)).GetProperty("registrationMode").GetString().ShouldBe("Open");
+
+        var detail = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, $"/v1/tenant/admin/tenants/{tenantId}", admin));
+        detail.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PlatformApiFactory.ReadData(detail)).GetProperty("registrationMode").GetString().ShouldBe("Open");
+
+        var joinedWithoutInvite = await RegisterOnHostAsync(
+            $"open-{Guid.CreateVersion7():N}@x.com", $"{subdomain}.lvh.me", inviteToken: null);
+        joinedWithoutInvite.StatusCode.ShouldBe(HttpStatusCode.Created);
+        (await TenantOfAsync((await PlatformApiFactory.ReadData(joinedWithoutInvite)).GetProperty("userId").GetGuid()))
+            .ShouldBe(tenantId);
+
+        var closed = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Put,
+            $"/v1/tenant/admin/tenants/{tenantId}/registration-mode",
+            admin,
+            new { registrationMode = "Closed" }));
+        closed.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PlatformApiFactory.ReadData(closed)).GetProperty("registrationMode").GetString().ShouldBe("Closed");
+
+        var blocked = await RegisterOnHostAsync(
+            $"closed-{Guid.CreateVersion7():N}@x.com", $"{subdomain}.lvh.me", inviteToken: null);
+        blocked.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Set_registration_mode_rejects_unknown_values()
+    {
+        var admin = await AdminTokenAsync();
+        var (tenantId, _) = await ProvisionTenantAsync(admin);
+
+        var invalid = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Put,
+            $"/v1/tenant/admin/tenants/{tenantId}/registration-mode",
+            admin,
+            new { registrationMode = "public-ish" }));
+
+        invalid.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        (await invalid.Content.ReadAsStringAsync()).ShouldContain("tenant.registration_mode.invalid");
+    }
+
+    [Fact]
     public async Task An_invite_is_single_use()
     {
         var admin = await AdminTokenAsync();

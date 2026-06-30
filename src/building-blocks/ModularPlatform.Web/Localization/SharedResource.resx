@@ -39,6 +39,7 @@
   <data name="tenant.module_not_entitled" xml:space="preserve"><value>This feature is not available for your workspace.</value></data>
   <data name="tenant.module_unknown" xml:space="preserve"><value>Unknown module key.</value></data>
   <data name="tenant.not_found" xml:space="preserve"><value>Workspace not found.</value></data>
+  <data name="tenant.registration_mode.invalid" xml:space="preserve"><value>Registration mode must be Open, InviteOnly or Closed.</value></data>
   <data name="registration.not_allowed" xml:space="preserve"><value>Registration into this workspace is not allowed.</value></data>
   <data name="tenant.invite.expiry_out_of_range" xml:space="preserve"><value>The invite expiry must be between 1 and 30 days.</value></data>
   <data name="tenant.invite.collision" xml:space="preserve"><value>Could not mint a unique invite. Please retry.</value></data>

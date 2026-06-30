@@ -39,6 +39,7 @@
   <data name="tenant.module_not_entitled" xml:space="preserve"><value>Tato funkce není pro vaši organizaci dostupná.</value></data>
   <data name="tenant.module_unknown" xml:space="preserve"><value>Neznámý klíč modulu.</value></data>
   <data name="tenant.not_found" xml:space="preserve"><value>Organizace nebyla nalezena.</value></data>
+  <data name="tenant.registration_mode.invalid" xml:space="preserve"><value>Režim registrace musí být Open, InviteOnly nebo Closed.</value></data>
   <data name="registration.not_allowed" xml:space="preserve"><value>Registrace do tohoto workspace není povolena.</value></data>
   <data name="tenant.invite.expiry_out_of_range" xml:space="preserve"><value>Platnost pozvánky musí být 1 až 30 dní.</value></data>
   <data name="tenant.invite.collision" xml:space="preserve"><value>Nepodařilo se vytvořit jedinečnou pozvánku. Zkuste to znovu.</value></data>
