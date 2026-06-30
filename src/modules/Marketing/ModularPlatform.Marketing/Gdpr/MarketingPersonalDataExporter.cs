@@ -24,6 +24,7 @@ internal sealed class MarketingPersonalDataExporter(IReadDbContextFactory<Market
         var pulls = await db.DataPulls
             .Where(p => p.UserId == userId)
             .OrderByDescending(p => p.CreatedAt)
+            .ThenByDescending(p => p.Id)
             .Select(p => new
             {
                 p.Id,
@@ -40,6 +41,7 @@ internal sealed class MarketingPersonalDataExporter(IReadDbContextFactory<Market
         var snapshots = await db.MetricSnapshots
             .Where(m => m.UserId == userId)
             .OrderByDescending(m => m.RecordedAt)
+            .ThenByDescending(m => m.Id)
             .Select(m => new
             {
                 m.Id,
@@ -56,6 +58,7 @@ internal sealed class MarketingPersonalDataExporter(IReadDbContextFactory<Market
         var analyses = await db.MarketingAnalyses
             .Where(a => a.UserId == userId)
             .OrderByDescending(a => a.AnalyzedAt)
+            .ThenByDescending(a => a.Id)
             .Select(a => new
             {
                 a.Id,
@@ -71,6 +74,7 @@ internal sealed class MarketingPersonalDataExporter(IReadDbContextFactory<Market
         var conversations = await db.VibeConversations
             .Where(c => c.UserId == userId)
             .OrderByDescending(c => c.CreatedAt)
+            .ThenByDescending(c => c.Id)
             .Select(c => new
             {
                 c.Id,
@@ -84,6 +88,7 @@ internal sealed class MarketingPersonalDataExporter(IReadDbContextFactory<Market
         var messages = await db.VibeMessages
             .Where(m => m.UserId == userId)
             .OrderBy(m => m.CreatedAt)
+            .ThenBy(m => m.Id)
             .Select(m => new
             {
                 m.Id,

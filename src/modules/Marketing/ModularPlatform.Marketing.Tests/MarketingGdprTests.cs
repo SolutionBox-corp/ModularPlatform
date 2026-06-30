@@ -66,6 +66,55 @@ public sealed class MarketingGdprTests(PlatformApiFactory fixture)
         await fixture.WaitForCountAsync(
             $"""SELECT count(*)::bigint FROM vibe_messages WHERE "UserId" = '{userId}' AND "Role" = 'assistant'""", 1);
 
+        // Stable GDPR export ordering: seed three same-timestamp rows per exported marketing section that is safe
+        // to seed directly (vibe messages are encrypted at rest, so those stay covered by the real message flow).
+        var secondConversation = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Post, "/v1/marketing/vibe/conversations", token, new { title = "GDPR seed 2" }));
+        secondConversation.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var secondConversationId = (await PlatformApiFactory.ReadData(secondConversation))
+            .GetProperty("conversationId").GetGuid();
+        var thirdConversation = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Post, "/v1/marketing/vibe/conversations", token, new { title = "GDPR seed 3" }));
+        thirdConversation.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var thirdConversationId = (await PlatformApiFactory.ReadData(thirdConversation))
+            .GetProperty("conversationId").GetGuid();
+
+        var stablePullIds = new[] { dataPullId, Guid.CreateVersion7(), Guid.CreateVersion7() };
+        var stableSnapshotIds = new[] { Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7() };
+        var stableAnalysisIds = new[] { Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7() };
+        var stableConversationIds = new[] { conversationId, secondConversationId, thirdConversationId };
+        const string stableInstant = "2030-01-01 00:00:00+00";
+
+        await fixture.ExecuteSqlAsync(
+            "UPDATE data_pulls " +
+            $"SET \"CreatedAt\" = timestamp with time zone '{stableInstant}' " +
+            $"WHERE \"Id\" = '{dataPullId}'");
+        foreach (var id in stablePullIds.Skip(1))
+        {
+            await fixture.ExecuteSqlAsync(
+                "INSERT INTO data_pulls (\"Id\", \"UserId\", \"Source\", \"Status\", \"CreatedAt\") " +
+                $"VALUES ('{id}', '{userId}', 'Ga4', 'Completed', timestamp with time zone '{stableInstant}')");
+        }
+
+        foreach (var id in stableSnapshotIds)
+        {
+            await fixture.ExecuteSqlAsync(
+                "INSERT INTO metric_snapshots (\"Id\", \"UserId\", \"DataPullId\", \"Source\", \"MetricName\", \"Value\", \"RecordedAt\") " +
+                $"VALUES ('{id}', '{userId}', '{dataPullId}', 'Ga4', 'ga4:stable', 42, timestamp with time zone '{stableInstant}')");
+        }
+
+        foreach (var id in stableAnalysisIds)
+        {
+            await fixture.ExecuteSqlAsync(
+                "INSERT INTO marketing_analyses (\"Id\", \"UserId\", \"DataPullId\", \"Source\", \"Summary\", \"AnalyzedAt\", \"CreatedAt\") " +
+                $"VALUES ('{id}', '{userId}', '{dataPullId}', 'Ga4', 'Stable analysis', timestamp with time zone '{stableInstant}', timestamp with time zone '{stableInstant}')");
+        }
+
+        await fixture.ExecuteSqlAsync(
+            "UPDATE vibe_conversations " +
+            $"SET \"CreatedAt\" = timestamp with time zone '{stableInstant}' " +
+            $"WHERE \"Id\" IN ('{conversationId}', '{secondConversationId}', '{thirdConversationId}')");
+
         // ----- EXPORT: the Marketing section is present and populated -----------------------------------------
 
         var export = await fixture.Client.SendAsync(
@@ -86,6 +135,22 @@ public sealed class MarketingGdprTests(PlatformApiFactory fixture)
         marketing.GetProperty("vibe_conversations").EnumerateArray()
             .Select(c => c.GetProperty("id").GetGuid())
             .ShouldContain(conversationId);
+        marketing.GetProperty("pulls").EnumerateArray()
+            .Take(3)
+            .Select(p => p.GetProperty("id").GetGuid())
+            .ShouldBe(stablePullIds.OrderByDescending(id => id).ToArray());
+        marketing.GetProperty("snapshots").EnumerateArray()
+            .Take(3)
+            .Select(s => s.GetProperty("id").GetGuid())
+            .ShouldBe(stableSnapshotIds.OrderByDescending(id => id).ToArray());
+        marketing.GetProperty("analyses").EnumerateArray()
+            .Take(3)
+            .Select(a => a.GetProperty("id").GetGuid())
+            .ShouldBe(stableAnalysisIds.OrderByDescending(id => id).ToArray());
+        marketing.GetProperty("vibe_conversations").EnumerateArray()
+            .Take(3)
+            .Select(c => c.GetProperty("id").GetGuid())
+            .ShouldBe(stableConversationIds.OrderByDescending(id => id).ToArray());
 
         // ----- ERASE: every Marketing row for the subject is removed (durable fan-out → poll to zero) ---------
 
