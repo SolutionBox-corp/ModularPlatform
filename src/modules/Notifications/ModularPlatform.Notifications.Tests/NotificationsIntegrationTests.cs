@@ -608,6 +608,48 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task My_notifications_feed_orders_same_timestamp_rows_by_id_for_stable_paging()
+    {
+        var (userId, token) = await fixture.RegisterAndLoginAsync(
+            $"notif-stable-{Guid.CreateVersion7():N}@example.com", Password);
+
+        var firstTemplate = $"feed-stable-1-{Guid.CreateVersion7():N}";
+        var secondTemplate = $"feed-stable-2-{Guid.CreateVersion7():N}";
+        var thirdTemplate = $"feed-stable-3-{Guid.CreateVersion7():N}";
+        await SeedTemplateAsync(firstTemplate, "S1");
+        await SeedTemplateAsync(secondTemplate, "S2");
+        await SeedTemplateAsync(thirdTemplate, "S3");
+
+        await SendDirectAsync(userId, firstTemplate);
+        await SendDirectAsync(userId, secondTemplate);
+        await SendDirectAsync(userId, thirdTemplate);
+
+        await fixture.ExecuteSqlAsync(
+            "UPDATE notifications " +
+            "SET \"CreatedAt\" = timestamp with time zone '2030-01-01 00:00:00+00' " +
+            $"WHERE \"UserId\" = '{userId}' AND \"TemplateKey\" IN ('{firstTemplate}', '{secondTemplate}', '{thirdTemplate}')");
+
+        var expectedIds = new[]
+        {
+            await NotificationIdForTemplateAsync(userId, firstTemplate),
+            await NotificationIdForTemplateAsync(userId, secondTemplate),
+            await NotificationIdForTemplateAsync(userId, thirdTemplate),
+        }.OrderByDescending(id => id).ToArray();
+
+        var response = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/notifications/me?page=1&pageSize=3", token));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var actualIds = (await PlatformApiFactory.ReadData(response))
+            .GetProperty("items")
+            .EnumerateArray()
+            .Select(n => n.GetProperty("id").GetGuid())
+            .ToArray();
+
+        actualIds.ShouldBe(expectedIds);
+    }
+
+    [Fact]
     public async Task My_notifications_default_feed_includes_read_and_unread_and_clamps_page_bounds()
     {
         var (userId, token) = await fixture.RegisterAndLoginAsync(
@@ -1053,6 +1095,10 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
     private Task<long> CountNotificationsAsync(Guid userId, string templateKey) =>
         fixture.ScalarAsync<long>(
             $"SELECT count(*)::bigint FROM notifications WHERE \"UserId\" = '{userId}' AND \"TemplateKey\" = '{templateKey}'");
+
+    private Task<Guid> NotificationIdForTemplateAsync(Guid userId, string templateKey) =>
+        fixture.ScalarAsync<Guid>(
+            $"SELECT \"Id\" FROM notifications WHERE \"UserId\" = '{userId}' AND \"TemplateKey\" = '{templateKey}'");
 
     private Task<long> BuiltInTemplateDuplicateGroupCountAsync() =>
         fixture.ScalarAsync<long>(

@@ -25,6 +25,7 @@ internal sealed class GetMyNotificationsHandler(IReadDbContextFactory<Notificati
 
         return await feed
             .OrderByDescending(n => n.CreatedAt)
+            .ThenByDescending(n => n.Id)
             .Select(n => new NotificationItem(n.Id, n.TemplateKey, n.Title, n.Body, n.ReadAt, n.CreatedAt))
             .ToPagedResponseAsync(query.Page, ct);
     }
