@@ -42,7 +42,20 @@ public sealed class PlatformApiFactory : IAsyncLifetime
 
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:16-alpine").Build();
     private readonly string _storageRoot = Path.Combine(Path.GetTempPath(), $"mp-storage-{Guid.CreateVersion7():N}");
+    private readonly bool _soloMode;
     private WebApplicationFactory<Program> _factory = default!;
+
+    public PlatformApiFactory()
+        : this(soloMode: true)
+    {
+    }
+
+    public static PlatformApiFactory PublisherOnly() => new(soloMode: false);
+
+    private PlatformApiFactory(bool soloMode)
+    {
+        _soloMode = soloMode;
+    }
 
     public HttpClient Client { get; private set; } = default!;
     public string ConnectionString => _postgres.GetConnectionString();
@@ -63,7 +76,7 @@ public sealed class PlatformApiFactory : IAsyncLifetime
     public WebApplicationFactory<Program> CreateHost(params (string Key, string Value)[] overrides) =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
-            builder.UseSetting("Messaging:SoloMode", "true");  // single-node -> Solo durability (drains immediately)
+            builder.UseSetting("Messaging:SoloMode", _soloMode ? "true" : "false");
             builder.UseSetting("ConnectionStrings:Write", _postgres.GetConnectionString());
             builder.UseSetting("ConnectionStrings:Read", _postgres.GetConnectionString());
             builder.UseSetting("RunMigrationsAtStartup", "true");

@@ -66,7 +66,7 @@ Status: **✓** implemented · **▢** gap (planned) · **◐** partially covere
 | EV-1 | Register a user → `UserRegisteredIntegrationEvent` → Billing auto-provisions a credit account | I | ✓ `CrossModuleEventTests` |
 | EV-2 | Register → Notifications welcome path runs (template now SEEDED by `NotificationsSeeder`); missing template stays non-fatal for unseeded keys | I/F | ✓ `NotificationsIntegrationTests` (rewritten: the welcome in-app row IS created) |
 | EV-3 | A thrown message handler dead-letters after retries (does not silently mark Handled) | F | ✓ `DeadLetterTests` (unknown event id → gateway throws every retry → durable dead-letter row, ProcessedAt stays NULL) |
-| EV-4 | Kill the worker mid-message; restart → the durable message is processed once (inbox dedup) | F | ▢ NOT COVERABLE on TestServer (Api+worker share one process under SoloMode) — needs an out-of-process worker harness; durability itself is Wolverine-native |
+| EV-4 | Kill the worker mid-message; restart → the durable message is processed once (inbox dedup) | F | ✓ `WorkerDurabilityTests` (API runs publisher-only, real `ModularPlatform.Worker` child process blocks on `credit_accounts`, is killed, restarted, then provisions exactly one account) |
 | EV-5 | `EnsureCreditAccount` dispatched twice/concurrently for one user → exactly one account (UNIQUE userId) | C | ✓ `LedgerBackstopTests` (8-way concurrent) |
 
 ## 5. Notifications
@@ -116,5 +116,4 @@ plus the new commerce suite (package purchase saga e2e, subscription lifecycle, 
 sweep, PII column encryption, dead-letter, replay buffer).
 
 **Remaining, in priority order:**
-1. **EV-4** kill-worker-mid-message durability — needs infrastructure the harness can't fake (an out-of-process
-   worker that can be killed mid-message); Wolverine durability itself is native and covered by dead-letter/dedup tests.
+No explicit `▢ gap` scenario remains in this map as of the EV-4 out-of-process worker harness.

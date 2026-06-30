@@ -11,8 +11,6 @@ namespace ModularPlatform.Billing.Tests;
 /// dead-letter store; it is NEVER silently marked Handled (the §9b ServiceLocationPolicy failure mode).
 /// Arranged for real: a signed webhook for an event id the fake gateway does NOT know — the worker's
 /// refetch throws on every attempt, the retry policy exhausts, the envelope dead-letters.
-/// (EV-4 — kill-the-worker durability — is NOT coverable on TestServer: the harness runs Api+worker in
-/// one process; it needs an out-of-process worker harness, tracked in docs/test-scenarios.md.)
 /// </summary>
 [Collection("Integration")]
 public sealed class DeadLetterTests(PlatformApiFactory fixture)

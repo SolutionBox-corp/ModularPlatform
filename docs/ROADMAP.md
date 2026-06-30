@@ -132,20 +132,19 @@ event-based flow with idempotency/concurrency/self-healing. Only free, battle-te
 | Suite | ✅ | Current coverage tracked in `docs/test-scenarios.md` and module test projects; latest touched suites stay green in CI/local verification |
 | Robustness backlog **wave 1** (ID-2/6/8, PL-5, BL-6/7/8/9/12, ST-1/2/3, GD-3/4/5, EV-2, NT-1/4) | ✅ | `docs/test-scenarios.md` |
 | Audit-PII tests (envelope + decrypt + erased + arch + DEK-never-audited) | ✅ | |
-| Robustness **wave 2+** | ✅ (mostly) | shipped and extended — EV-3/5, ST-4/5 full, BL-5/10/11, PL-2/3/5/6/7/8/9/10/11, NT-2/3/5, GD-4; still open: EV-4 (needs out-of-process worker harness) |
+| Robustness **wave 2+** | ✅ | shipped and extended — EV-3/4/5, ST-4/5 full, BL-5/10/11, PL-2/3/5/6/7/8/9/10/11, NT-2/3/5, GD-4 |
 
 ---
 
 ## What’s left — prioritized
 
-The full intended scope from the architecture plan is **BUILT** as of 2026-06-10 (suite green; see
-`docs/test-scenarios.md` for the per-scenario map). Remaining items are deliberate deferrals:
+The full intended scope from the architecture plan is **BUILT** as of 2026-06-30 (suite green; see
+`docs/test-scenarios.md` for the per-scenario map). Remaining items are deliberate product/GA deferrals:
 
 1. **Per-need (no pattern yet — ASK, Law 11):** search, feature flags, bulk ops.
 2. **Pre-GA hardening:** KEK/KMS envelope-wrapping of DEKs (dev stores the raw DEK); legal sign-off that
    crypto-shredding satisfies erasure in target jurisdictions.
-3. **Test tail:** EV-4 (kill-worker durability — needs an out-of-process worker harness).
-4. **Optional:** Aspire dev inner-loop; LemonSqueezy adapter behind a provider port mirroring `IStripeGateway`.
+3. **Optional:** Aspire dev inner-loop; LemonSqueezy adapter behind a provider port mirroring `IStripeGateway`.
 
 > Design docs: `billing-revenue-design.md`, `pii-column-encryption-design.md`, `ops-jobs-design.md`,
 > `realtime-replay-design.md`, `audit-pii-encryption-design.md`. CLAUDE.md §4 holds the canonical examples.
