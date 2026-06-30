@@ -16,7 +16,7 @@ internal sealed class MetricSnapshot : Entity, IUserOwned
     public Guid DataPullId { get; set; }
     public PullSource Source { get; set; }
 
-    /// <summary>Dotted metric key, e.g. <c>gsc:clicks</c>, <c>ga4:sessions</c>, <c>reddit:mentions</c>.</summary>
+    /// <summary>Dotted metric key, e.g. <c>gsc:clicks</c> or <c>ga4:sessions</c>.</summary>
     public string MetricName { get; set; } = string.Empty;
 
     /// <summary>The dimension this value belongs to (a query string, channel, subreddit, …), if any.</summary>

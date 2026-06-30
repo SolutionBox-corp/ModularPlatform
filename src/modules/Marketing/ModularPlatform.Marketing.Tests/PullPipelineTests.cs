@@ -80,5 +80,23 @@ public sealed class PullPipelineTests(PlatformApiFactory fixture)
             fixture.Authed(HttpMethod.Post, "/v1/marketing/pulls", token, new { source = "myspace" }));
 
         start.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await start.Content.ReadAsStringAsync()).ShouldContain("marketing.source_unknown");
+    }
+
+    [Theory]
+    [InlineData("posthog")]
+    [InlineData("reddit")]
+    [InlineData("trends")]
+    public async Task Known_but_unwired_sources_are_rejected_before_creating_a_pull(string source)
+    {
+        var (userId, token) = await fixture.RegisterAndLoginAsync($"mkt-unwired-{source}-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+
+        var start = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Post, "/v1/marketing/pulls", token, new { source }));
+
+        start.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await start.Content.ReadAsStringAsync()).ShouldContain("marketing.source_not_supported");
+        (await fixture.ScalarAsync<long>($"SELECT count(*)::bigint FROM data_pulls WHERE \"UserId\" = '{userId}'"))
+            .ShouldBe(0);
     }
 }

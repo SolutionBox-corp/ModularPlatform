@@ -4,8 +4,7 @@ import { z } from "zod";
 type Translate = (key: string) => string;
 
 /**
- * Trigger-pull input — the data source to pull. Mirrors the backend PullSource enum
- * (TriggerPullValidator checks `Enum.TryParse<PullSource>`): "ga4" | "gsc".
+ * Trigger-pull input — the data source to pull. Mirrors the backend's currently wired gateways: "ga4" | "gsc".
  */
 export function buildTriggerPullSchema(t: Translate) {
   return z.object({

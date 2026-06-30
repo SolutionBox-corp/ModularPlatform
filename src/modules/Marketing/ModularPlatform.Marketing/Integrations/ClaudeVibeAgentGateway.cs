@@ -171,7 +171,7 @@ internal sealed class VibeAgentTools(IReadDbContextFactory<MarketingDbContext> r
 
     [Description("Lists the user's normalized metric snapshots, optionally filtered by source (ga4 | gsc).")]
     public async Task<object> ListSnapshotsAsync(
-        [Description("Optional source filter: ga4 | gsc | posthog | reddit | trends. Null = all sources.")] string? source = null,
+        [Description("Optional source filter: ga4 | gsc. Null = all sources.")] string? source = null,
         [Description("Maximum number of snapshots to return (1-50).")] int limit = 25)
     {
         await using var db = readDb.Create();
@@ -200,7 +200,7 @@ internal sealed class VibeAgentTools(IReadDbContextFactory<MarketingDbContext> r
 
     [Description("Lists the user's saved AI analyses (headline summaries), optionally filtered by source.")]
     public async Task<object> ListAnalysesAsync(
-        [Description("Optional source filter: ga4 | gsc | posthog | reddit | trends. Null = all sources.")] string? source = null,
+        [Description("Optional source filter: ga4 | gsc. Null = all sources.")] string? source = null,
         [Description("Maximum number of analyses to return (1-20).")] int limit = 10)
     {
         await using var db = readDb.Create();

@@ -6,7 +6,8 @@ using ModularPlatform.Persistence.Entities;
 namespace ModularPlatform.Marketing.Entities;
 
 /// <summary>
-/// One pull of data from a marketing source (GA4, GSC, PostHog, Reddit, Trends). <see cref="IUserOwned"/> → RLS-isolated
+/// One pull of data from a marketing source. Public triggering currently supports wired GA4/GSC gateways;
+/// historical/experimental enum values are rejected at the edge until a gateway exists. <see cref="IUserOwned"/> → RLS-isolated
 /// so a user only ever sees their own pulls. Created <see cref="PullStatus.Pending"/> by the accepting request, advanced
 /// to a terminal state by the durable worker. The raw provider payload is kept verbatim in <see cref="RawResultJson"/>
 /// (auditability + re-analysis); normalized numbers are projected into <see cref="MetricSnapshot"/> rows.

@@ -26,7 +26,7 @@ using Wolverine;
 namespace ModularPlatform.Marketing;
 
 /// <summary>
-/// Marketing module: pulls free marketing-data sources (GA4, Search Console, PostHog, Reddit, Google Trends),
+/// Marketing module: pulls wired marketing-data sources (GA4, Search Console),
 /// persists raw pulls + normalized metric snapshots, runs AI (Claude) analyses, and powers the "vibe marketing"
 /// agentic chat. Owns the <c>marketing</c> schema. Gated on <c>Modules:Marketing:Enabled</c>.
 /// </summary>

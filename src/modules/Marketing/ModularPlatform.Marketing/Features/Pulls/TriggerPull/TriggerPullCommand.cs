@@ -4,7 +4,7 @@ namespace ModularPlatform.Marketing.Features.Pulls.TriggerPull;
 
 /// <summary>
 /// Accepts a marketing-data pull for the calling user. <c>Source</c> is the wire string (e.g. "ga4", "gsc"); the
-/// validator checks it maps to a known <see cref="Entities.PullSource"/>. Dates bound the pull window.
+/// validator accepts only sources that have a wired gateway. Dates bound the pull window.
 /// </summary>
 public sealed record TriggerPullCommand(Guid UserId, string Source, DateOnly StartDate, DateOnly EndDate)
     : ICommand<TriggerPullResponse>;
