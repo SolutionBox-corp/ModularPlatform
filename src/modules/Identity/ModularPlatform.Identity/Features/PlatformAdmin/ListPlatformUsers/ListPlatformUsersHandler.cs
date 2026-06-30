@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
 using ModularPlatform.Identity.Entities;
 using ModularPlatform.Identity.Persistence;
@@ -15,6 +16,7 @@ namespace ModularPlatform.Identity.Features.PlatformAdmin.ListPlatformUsers;
 /// </summary>
 internal sealed class ListPlatformUsersHandler(
     IReadDbContextFactory<IdentityDbContext> readFactory,
+    IBlindIndexHasher blindIndex,
     ILogger<ListPlatformUsersHandler> logger)
     : IQueryHandler<ListPlatformUsersQuery, PlatformUsersResponse>
 {
@@ -35,6 +37,12 @@ internal sealed class ListPlatformUsersHandler(
         if (query.TenantId is { } tenantId)
         {
             filtered = filtered.Where(u => EF.Property<Guid?>(u, "TenantId") == tenantId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Email))
+        {
+            var emailHash = blindIndex.Hash(query.Email.Trim().ToUpperInvariant());
+            filtered = filtered.Where(u => u.EmailHash == emailHash);
         }
 
         var total = await filtered.CountAsync(ct);

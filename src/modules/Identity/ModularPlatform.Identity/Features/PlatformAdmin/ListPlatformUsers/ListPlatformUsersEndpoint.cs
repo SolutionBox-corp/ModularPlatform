@@ -17,13 +17,14 @@ internal static class ListPlatformUsersEndpoint
     {
         app.MapGet("/identity/platform/users", async (
                 Guid? tenantId,
+                string? email,
                 int? limit,
                 int? offset,
                 IDispatcher dispatcher,
                 CancellationToken ct) =>
             {
                 var result = await dispatcher.Query(
-                    new ListPlatformUsersQuery(tenantId, limit ?? 50, offset ?? 0), ct);
+                    new ListPlatformUsersQuery(tenantId, email, limit ?? 50, offset ?? 0), ct);
                 return Results.Ok(ApiResponse<PlatformUsersResponse>.Ok(result));
             })
             .RequirePermission(PlatformPermissions.PlatformUsersList)

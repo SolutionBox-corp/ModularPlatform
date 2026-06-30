@@ -78,6 +78,25 @@ public sealed class PlatformUsersTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Platform_user_list_can_find_a_user_by_exact_email_blind_index()
+    {
+        var targetEmail = $"platform-search-{Guid.CreateVersion7():N}@example.com";
+        var (targetUserId, _) = await fixture.RegisterAndLoginAsync(targetEmail, Password);
+        await fixture.RegisterAndLoginAsync($"platform-search-other-{Guid.CreateVersion7():N}@example.com", Password);
+
+        var response = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get,
+            $"/v1/identity/platform/users?email={Uri.EscapeDataString("  " + targetEmail.ToUpperInvariant() + "  ")}",
+            await AdminTokenAsync()));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var data = await PlatformApiFactory.ReadData(response);
+        data.GetProperty("total").GetInt32().ShouldBe(1);
+        data.GetProperty("items").EnumerateArray().Select(UserId).ShouldBe([targetUserId]);
+    }
+
+    [Fact]
     public async Task Platform_user_list_orders_created_at_ties_by_user_id_for_stable_paging()
     {
         var (firstUserId, _) = await fixture.RegisterAndLoginAsync(

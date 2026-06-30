@@ -4,9 +4,10 @@ namespace ModularPlatform.Identity.Features.PlatformAdmin.ListPlatformUsers;
 
 /// <summary>
 /// Platform-admin (CROSS-TENANT) read: list users across ALL tenants, optionally narrowed to one tenant.
-/// Bypasses the per-tenant query filter (re-adding only the soft-delete guard). Paged.
+/// Bypasses the per-tenant query filter (re-adding only the soft-delete guard). Optional e-mail search is exact
+/// match through the blind index because the live e-mail column is encrypted. Paged.
 /// </summary>
-public sealed record ListPlatformUsersQuery(Guid? TenantId, int Limit, int Offset)
+public sealed record ListPlatformUsersQuery(Guid? TenantId, string? Email, int Limit, int Offset)
     : IQuery<PlatformUsersResponse>;
 
 public sealed record PlatformUsersResponse(
