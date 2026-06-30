@@ -25,6 +25,7 @@ internal sealed class ReconcileStaleOperationsHandler(
             .Where(o => (o.Status == OperationStatus.Pending || o.Status == OperationStatus.Running)
                 && (o.UpdatedAt ?? o.CreatedAt) < cutoff)
             .OrderBy(o => o.UpdatedAt ?? o.CreatedAt)
+            .ThenBy(o => o.Id)
             .Take(cap)
             .ToListAsync(ct);
 

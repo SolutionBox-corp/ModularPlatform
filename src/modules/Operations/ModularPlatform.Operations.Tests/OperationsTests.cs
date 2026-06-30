@@ -405,6 +405,41 @@ public sealed class OperationsTests(PlatformApiFactory fixture)
         terminalStatus.ErrorDetail.ShouldBe("Original failure.");
     }
 
+    [Fact]
+    public async Task Reconcile_stale_operations_uses_id_tie_breaker_when_cap_cuts_same_timestamp_rows()
+    {
+        var userId = Guid.CreateVersion7();
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IOperationStore>();
+        var dispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
+
+        var first = await store.CreateAsync("generic-module-first", userId, CancellationToken.None);
+        var second = await store.CreateAsync("generic-module-second", userId, CancellationToken.None);
+        var third = await store.CreateAsync("generic-module-third", userId, CancellationToken.None);
+        var orderedIds = new[] { first, second, third }.OrderBy(id => id).ToArray();
+
+        await fixture.ExecuteSqlAsync($"""
+            UPDATE operations
+            SET "CreatedAt" = now() - interval '3 hours', "UpdatedAt" = NULL
+            WHERE "Id" IN ('{first}', '{second}', '{third}');
+            """);
+
+        var result = await dispatcher.Send(new ReconcileStaleOperationsCommand(StaleAfterMinutes: 60, Cap: 2));
+
+        result.FailedCount.ShouldBe(2);
+        result.CapReached.ShouldBeTrue();
+
+        foreach (var id in orderedIds.Take(2))
+        {
+            var status = await dispatcher.Query(new GetOperationStatusQuery(id, userId));
+            status.Status.ShouldBe("Failed");
+            status.ErrorCode.ShouldBe("operation.stale_reconciled");
+        }
+
+        var skipped = await dispatcher.Query(new GetOperationStatusQuery(orderedIds[2], userId));
+        skipped.Status.ShouldBe("Pending");
+    }
+
     private async Task<Guid> StartDemoAsync(string token)
     {
         var start = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Post, "/v1/operations/demo", token));
