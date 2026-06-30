@@ -118,10 +118,19 @@ export interface CompaniesPage {
   totalCount: number;
 }
 
-export interface KanbanColumn { id: string; name: string; position: number; }
+export interface KanbanColumn {
+  id: string;
+  name: string;
+  position: number;
+  color: string;
+  group: string;
+  isDefault: boolean;
+  wipLimit: number | null;
+}
 export interface KanbanCard {
   id: string; columnId: string; position: number; title: string; description: string | null;
-  contactId: string | null; dealId: string | null; dueAt: string | null;
+  contactId: string | null; dealId: string | null; meetingId: string | null; taskId: string | null;
+  assigneeUserId: string | null; priority: string; labels: string[]; startAt: string | null; dueAt: string | null;
 }
 export interface KanbanBoardListItem { id: string; name: string; createdAt: string; }
 export interface KanbanBoardDetail { id: string; name: string; columns: KanbanColumn[]; cards: KanbanCard[]; }
@@ -486,8 +495,23 @@ export function createBoard(name: string): Promise<{ id: string }> {
   return apiFetch<{ id: string }>("crm/boards", { method: "POST", body: { name } });
 }
 
-export function createCard(boardId: string, columnId: string, title: string): Promise<{ id: string }> {
-  return apiFetch<{ id: string }>(`crm/boards/${boardId}/cards`, { method: "POST", body: { columnId, title } });
+export interface KanbanCardInput {
+  columnId: string;
+  title: string;
+  description?: string | null;
+  contactId?: string | null;
+  dealId?: string | null;
+  meetingId?: string | null;
+  taskId?: string | null;
+  assigneeUserId?: string | null;
+  priority?: string | null;
+  labels?: string[] | null;
+  startAt?: string | null;
+  dueAt?: string | null;
+}
+
+export function createCard(boardId: string, input: KanbanCardInput): Promise<{ id: string }> {
+  return apiFetch<{ id: string }>(`crm/boards/${boardId}/cards`, { method: "POST", body: input });
 }
 
 export function moveCard(cardId: string, columnId: string, position: number): Promise<void> {

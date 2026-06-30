@@ -565,9 +565,23 @@
       "newPlaceholder": "Board name",
       "empty": "No boards yet.",
       "addCard": "Add card",
+      "descriptionPlaceholder": "Short description",
+      "labelsPlaceholder": "labels, comma separated",
+      "dueAt": "Due date",
       "deleteCard": "Delete card",
       "linkedContact": "Contact",
-      "linkedDeal": "Deal"
+      "linkedDeal": "Deal",
+      "linkedTask": "Task",
+      "linkedMeeting": "Meeting",
+      "assigned": "Assigned",
+      "group": {
+        "backlog": "Backlog",
+        "unstarted": "Unstarted",
+        "started": "Started",
+        "completed": "Completed",
+        "cancelled": "Cancelled",
+        "triage": "Triage"
+      }
     },
     "tabs": {
       "contacts": "Contacts",

@@ -32,6 +32,7 @@ import {
   type CompanyInput,
   type DealInput,
   type InteractionInput,
+  type KanbanCardInput,
   type MeetingInput,
   type TaskInput,
 } from "@/features/crm/api";
@@ -256,7 +257,7 @@ export function useCreateBoard() {
 export function useCreateCard(boardId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ columnId, title }: { columnId: string; title: string }) => createCard(boardId, columnId, title),
+    mutationFn: (input: KanbanCardInput) => createCard(boardId, input),
     onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: queryRoots.crm }); },
   });
 }

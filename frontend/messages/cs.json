@@ -565,9 +565,23 @@
       "newPlaceholder": "Název nástěnky",
       "empty": "Zatím žádné nástěnky.",
       "addCard": "Přidat kartu",
+      "descriptionPlaceholder": "Krátký popis",
+      "labelsPlaceholder": "štítky, oddělené čárkou",
+      "dueAt": "Termín",
       "deleteCard": "Smazat kartu",
       "linkedContact": "Kontakt",
-      "linkedDeal": "Obchod"
+      "linkedDeal": "Obchod",
+      "linkedTask": "Úkol",
+      "linkedMeeting": "Schůzka",
+      "assigned": "Přiřazeno",
+      "group": {
+        "backlog": "Backlog",
+        "unstarted": "Nezačato",
+        "started": "Rozpracováno",
+        "completed": "Dokončeno",
+        "cancelled": "Zrušeno",
+        "triage": "Triage"
+      }
     },
     "tabs": {
       "contacts": "Kontakty",
