@@ -1,23 +1,18 @@
 import { test, expect } from "@playwright/test";
-import { ANONYMOUS } from "./helpers";
+import { ANONYMOUS, registerFreshUser } from "./helpers";
 
 // Most tests reuse the primary authenticated session (default storageState from setup).
 // Tests that need isolation (fresh user without displayName, unauthenticated) opt out below.
 
 test.describe("Account Profile — /account/profile", () => {
   // ---------------------------------------------------------------------------
-  // PROF-07: User menu Profile link
+  // PROF-07: Sidebar Profile link
   // ---------------------------------------------------------------------------
-  test("user menu Profile link navigates to profile page", async ({ page }) => {
+  test("sidebar Profile link navigates to profile page", async ({ page }) => {
     await page.goto("/");
 
-    // Open the user menu trigger (aria-label from AppShell)
-    const userMenuTrigger = page.getByRole("button", { name: "User menu" });
-    await userMenuTrigger.click();
-
-    // Click the Profile item inside the dropdown
-    const profileItem = page.getByRole("menuitem", { name: /^Profile$/i });
-    await profileItem.click();
+    const sidebar = page.locator('[data-slot="sidebar"]').first();
+    await sidebar.getByRole("link", { name: "Profile", exact: true }).click();
 
     await expect(page).toHaveURL("/account/profile");
     await expect(page.getByRole("heading", { name: /profile/i })).toBeVisible();
@@ -46,13 +41,13 @@ test.describe("Account Profile — /account/profile", () => {
   // ---------------------------------------------------------------------------
   // PROF-02: Display name field — primary user registered with "E2E Primary"
   // ---------------------------------------------------------------------------
-  test("profile page shows display name in read-only field", async ({ page }) => {
+  test("profile page shows editable display name field", async ({ page }) => {
     await page.goto("/account/profile");
     await expect(page.getByRole("heading", { name: /profile/i })).toBeVisible();
 
     const displayNameInput = page.locator("#profile-display-name");
     await expect(displayNameInput).toBeVisible();
-    await expect(displayNameInput).toBeDisabled();
+    await expect(displayNameInput).toBeEnabled();
 
     // Primary user was registered with displayName "E2E Primary" in auth.setup.ts
     const value = await displayNameInput.inputValue();
@@ -60,54 +55,68 @@ test.describe("Account Profile — /account/profile", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // PROF-03: Locale field renders and is read-only
+  // PROF-03: Locale field renders as editable select
   // ---------------------------------------------------------------------------
-  test("profile page shows locale in read-only field", async ({ page }) => {
+  test("profile page shows editable locale select", async ({ page }) => {
     await page.goto("/account/profile");
     await expect(page.getByRole("heading", { name: /profile/i })).toBeVisible();
 
-    const localeInput = page.locator("#profile-locale");
-    await expect(localeInput).toBeVisible();
-    await expect(localeInput).toBeDisabled();
-
-    // Locale must be a non-empty string (e.g. "en" or "cs")
-    const value = await localeInput.inputValue();
-    expect(value.length).toBeGreaterThan(0);
+    const localeTrigger = page.locator("#profile-locale");
+    await expect(localeTrigger).toBeVisible();
+    await expect(localeTrigger).toBeEnabled();
+    await expect(localeTrigger).toHaveText(/en|cs/);
   });
 
   // ---------------------------------------------------------------------------
-  // PROF-04: Read-only info alert is displayed
+  // PROF-04: Email read-only hint is displayed
   // ---------------------------------------------------------------------------
-  test("profile page shows read-only notice", async ({ page }) => {
+  test("profile page explains email is read-only", async ({ page }) => {
     await page.goto("/account/profile");
     await expect(page.getByRole("heading", { name: /profile/i })).toBeVisible();
 
-    // The Alert contains a sentence about editing not being available
-    await expect(
-      page.getByText(/profile editing is not yet available/i),
-    ).toBeVisible();
+    await expect(page.getByText(/Changing your email requires/i)).toBeVisible();
   });
 
   // ---------------------------------------------------------------------------
-  // PROF-12: No submit / Save button present (update not yet built)
+  // PROF-12: Save button is present and disabled until the form is dirty
   // ---------------------------------------------------------------------------
-  test("profile page has no submit button (update not yet available)", async ({
-    page,
-  }) => {
+  test("profile save button is disabled until a field changes", async ({ page }) => {
     await page.goto("/account/profile");
     await expect(page.getByRole("heading", { name: /profile/i })).toBeVisible();
 
-    // Confirm absolutely no submit-type or Save-labeled button is rendered on the card
-    const submitButton = page.getByRole("button", { name: /save|submit|update/i });
-    await expect(submitButton).toHaveCount(0);
+    const save = page.getByRole("button", { name: /save changes/i });
+    await expect(save).toBeVisible();
+    await expect(save).toBeDisabled();
+
+    await page.locator("#profile-display-name").fill("E2E Primary Updated");
+    await expect(save).toBeEnabled();
+  });
+
+  // ---------------------------------------------------------------------------
+  // PROF-15/16/17: Editable profile update flow
+  // ---------------------------------------------------------------------------
+  test("profile edit saves display name and survives reload", async ({ page }) => {
+    await registerFreshUser(page, { displayName: "Before Profile Save" });
+    await page.goto("/account/profile");
+    await expect(page.getByRole("heading", { name: /profile/i })).toBeVisible();
+
+    const displayName = page.locator("#profile-display-name");
+    await expect(displayName).toHaveValue("Before Profile Save");
+
+    await displayName.fill("After Profile Save");
+    await page.getByRole("button", { name: /save changes/i }).click();
+
+    await expect(page.getByText(/Profile updated/i)).toBeVisible();
+    await page.reload();
+    await expect(page.locator("#profile-display-name")).toHaveValue("After Profile Save");
   });
 
   // ---------------------------------------------------------------------------
   // PROF-05: Locale toggle in topbar updates locale field
   // ---------------------------------------------------------------------------
   test("locale toggle switches the UI language", async ({ page }) => {
-    // The locale toggle changes the UI LANGUAGE (NEXT_LOCALE cookie) — NOT the user's stored
-    // profile locale (which comes from /me and has no update endpoint). Verify the nav relabels.
+    // The locale toggle changes the UI LANGUAGE (NEXT_LOCALE cookie). Stored profile locale
+    // changes through the editable profile form above.
     await page.goto("/account/profile");
     const nav = page.locator('[data-slot="sidebar"]').first();
     await expect(nav.getByRole("link", { name: "Dashboard", exact: true })).toBeVisible();
@@ -149,19 +158,9 @@ test.describe("Account Profile — /account/profile", () => {
 
   // ---------------------------------------------------------------------------
   // PROF-11: Display name shows placeholder when not set
-  // Register a fresh user WITHOUT a displayName option (registerFreshUser falls
-  // back to "E2E User", so skip the displayName arg entirely and check the
-  // actual backend response: if displayName is null the input value is "" and
-  // the placeholder "Not set" is visible in the DOM attribute.
-  // We use a fresh user registered with an explicit empty displayName via direct
-  // API bypass — however, registerFreshUser always fills "E2E User" when no
-  // displayName is given. So we rely on a known behaviour: if the backend stores
-  // null the component renders value="" and the <input placeholder="Not set">.
-  //
-  // Since we CANNOT register without a name via the helper, we assert the
-  // placeholder attribute exists on the element (component sets it unconditionally)
-  // and note that verifying the null-name rendering path requires a dedicated
-  // backend user fixture (marked as partial automation below).
+  // The current helper always creates a user with a display name, so this test
+  // asserts the stable placeholder contract. A full null-name rendering path
+  // needs a dedicated backend fixture or direct API setup.
   // ---------------------------------------------------------------------------
   test("profile display name input has 'Not set' placeholder attribute", async ({
     page,

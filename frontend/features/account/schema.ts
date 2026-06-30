@@ -2,7 +2,7 @@ import { z } from "zod";
 import { locales } from "@/lib/i18n/config";
 
 /**
- * Schema for the profile display form fields (read-only mirror of the API shape).
+ * Schema for the profile query/display API shape.
  */
 export const profileSchema = z.object({
   email: z.string(),
