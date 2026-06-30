@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -134,6 +135,33 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
 
         // The handler throws NotFoundException when the template is missing — HTTP 404.
         send.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    // NT-5 — Validation rejects unknown channels before the handler can silently ignore them. This pins the
+    // public API contract: callers get RFC9457 validation.failed with the field-level notification.channel.invalid
+    // code, not a successful request that drops a misspelled channel.
+    [Fact]
+    public async Task SendNotification_with_unknown_channel_returns_validation_problem()
+    {
+        var (recipientId, adminToken) = await AdminTokenAsync();
+
+        var response = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/notifications/send", adminToken, new
+            {
+                userId = recipientId,
+                templateKey = "welcome",
+                channels = new[] { "fax" },
+                data = new Dictionary<string, string>(),
+            }));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        response.Content.Headers.ContentType!.MediaType.ShouldBe("application/problem+json");
+
+        var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+        body.GetProperty("errorCode").GetString().ShouldBe("validation.failed");
+        body.GetProperty("errors").EnumerateArray()
+            .ShouldContain(e => e.GetProperty("field").GetString()!.StartsWith("Channels", StringComparison.Ordinal)
+                                && e.GetProperty("errorCode").GetString() == "notification.channel.invalid");
     }
 
     // NT-1 — SendNotification persists an in-app row inline AND hands per-channel delivery off via the outbox

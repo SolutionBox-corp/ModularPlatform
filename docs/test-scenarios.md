@@ -77,7 +77,7 @@ Status: **✓** implemented · **▢** gap (planned) · **◐** partially covere
 | NT-2 | In-app realtime push happens AFTER commit (force first save to fail once → exactly one delivery, one row) | C/F | ▢ |
 | NT-3 | Email delivery handler runs in the Worker; per-user locale resolved | I | ▢ |
 | NT-4 | `GetMyNotifications(unreadOnly)` + `MarkNotificationRead` round-trip | I | ✓ `NotificationsIntegrationTests` |
-| NT-5 | Channel validation: unknown channel → `notification.channel.invalid` | U | ▢ |
+| NT-5 | Channel validation: unknown channel → `notification.channel.invalid` | U | ✓ `SendNotification_with_unknown_channel_returns_validation_problem` |
 
 ## 6. GDPR
 
