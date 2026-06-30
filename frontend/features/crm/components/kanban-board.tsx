@@ -12,10 +12,20 @@ import {
   useDraggable,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { BriefcaseIcon, CalendarIcon, ContactIcon, GripVerticalIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { BriefcaseIcon, CalendarIcon, ContactIcon, GripVerticalIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -24,7 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { crmQueries, TASK_PRIORITIES, type KanbanCard, type KanbanColumn } from "@/features/crm/api";
-import { useCreateCard, useDeleteCard, useMoveCard } from "@/features/crm/hooks";
+import { useCreateCard, useDeleteCard, useMoveCard, useUpdateCard } from "@/features/crm/hooks";
 
 const TODAY_START = new Date();
 TODAY_START.setHours(0, 0, 0, 0);
@@ -34,6 +44,93 @@ const PRIORITY_VARIANT: Record<string, "default" | "secondary" | "outline" | "de
   normal: "secondary",
   high: "destructive",
 };
+
+function toDateInput(iso: string | null): string {
+  return iso ? new Date(iso).toISOString().slice(0, 10) : "";
+}
+
+function EditCardDialog({ card }: { card: KanbanCard }) {
+  const t = useTranslations("crm");
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState(card.title);
+  const [description, setDescription] = useState(card.description ?? "");
+  const [priority, setPriority] = useState<(typeof TASK_PRIORITIES)[number]>(card.priority as (typeof TASK_PRIORITIES)[number]);
+  const [labels, setLabels] = useState(card.labels.join(", "));
+  const [dueAt, setDueAt] = useState(toDateInput(card.dueAt));
+  const update = useUpdateCard(card.id);
+
+  const submit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!title.trim()) return;
+    await update.mutateAsync({
+      title: title.trim(),
+      description: description.trim() || null,
+      priority,
+      labels: labels.split(",").map((label) => label.trim()).filter(Boolean),
+      dueAt: dueAt ? new Date(dueAt).toISOString() : null,
+    });
+    setOpen(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger
+        render={
+          <button className="text-muted-foreground hover:text-foreground" aria-label={t("board.editCard")}>
+            <PencilIcon className="h-3.5 w-3.5" />
+          </button>
+        }
+      />
+      <DialogContent>
+        <form onSubmit={submit} noValidate>
+          <DialogHeader>
+            <DialogTitle>{t("board.editCard")}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            <div className="space-y-1.5">
+              <Label htmlFor={`card-title-${card.id}`}>{t("board.cardTitle")}</Label>
+              <Input id={`card-title-${card.id}`} value={title} onChange={(e) => setTitle(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor={`card-desc-${card.id}`}>{t("board.cardDescription")}</Label>
+              <Textarea id={`card-desc-${card.id}`} rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>{t("taskForm.priority")}</Label>
+                <Select value={priority} onValueChange={(v) => setPriority((v ?? "normal") as (typeof TASK_PRIORITIES)[number])}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TASK_PRIORITIES.map((p) => (
+                      <SelectItem key={p} value={p}>
+                        {t(`taskPriority.${p}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor={`card-due-${card.id}`}>{t("board.dueAt")}</Label>
+                <Input id={`card-due-${card.id}`} type="date" value={dueAt} onChange={(e) => setDueAt(e.target.value)} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor={`card-labels-${card.id}`}>{t("board.labels")}</Label>
+              <Input id={`card-labels-${card.id}`} value={labels} onChange={(e) => setLabels(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="submit" disabled={update.isPending}>
+              {update.isPending ? t("contactForm.saving") : t("contactForm.save")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function Card({ card }: { card: KanbanCard }) {
   const t = useTranslations("crm");
@@ -58,9 +155,12 @@ function Card({ card }: { card: KanbanCard }) {
             )}
           </div>
         </div>
-        <button className="text-muted-foreground hover:text-destructive" onClick={() => del.mutate(card.id)} aria-label={t("board.deleteCard")}>
-          <Trash2Icon className="h-3.5 w-3.5" />
-        </button>
+        <div className="flex items-center gap-1">
+          <EditCardDialog card={card} />
+          <button className="text-muted-foreground hover:text-destructive" onClick={() => del.mutate(card.id)} aria-label={t("board.deleteCard")}>
+            <Trash2Icon className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <Badge variant={PRIORITY_VARIANT[card.priority] ?? "secondary"} className="text-[11px]">

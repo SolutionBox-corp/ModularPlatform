@@ -201,6 +201,28 @@ public sealed class CrmKanbanTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Update_card_changes_existing_metadata()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
+        var boardId = await CreateBoardAsync(token, "Editable");
+        var board = await GetBoardAsync(token, boardId);
+        var columnId = board.GetProperty("columns").EnumerateArray().First(c => c.GetProperty("isDefault").GetBoolean()).GetProperty("id").GetGuid();
+        var cardId = await AddCardAsync(token, boardId, columnId, "Old title");
+        var due = DateTimeOffset.UtcNow.Date.AddDays(3);
+
+        var update = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Patch, $"/v1/crm/cards/{cardId}", token,
+            new { title = "New title", description = "Edited", priority = "high", labels = new[] { "vip", "proposal" }, dueAt = due }));
+        update.StatusCode.ShouldBe(HttpStatusCode.OK, await update.Content.ReadAsStringAsync());
+        var data = await PlatformApiFactory.ReadData(update);
+        data.GetProperty("title").GetString().ShouldBe("New title");
+        data.GetProperty("description").GetString().ShouldBe("Edited");
+        data.GetProperty("priority").GetString().ShouldBe("high");
+        data.GetProperty("labels").EnumerateArray().Select(x => x.GetString()).ShouldBe(["vip", "proposal"]);
+        data.GetProperty("dueAt").GetDateTimeOffset().ShouldBe(due);
+    }
+
+    [Fact]
     public async Task Delete_card_removes_it_from_board()
     {
         var (_, token) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");

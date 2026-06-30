@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslations } from "next-intl";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { DEAL_STAGES, type DealInput } from "@/features/crm/api";
+import { crmQueries, DEAL_STAGES, type DealInput } from "@/features/crm/api";
 import { useCreateDeal } from "@/features/crm/hooks";
 import { buildDealSchema, type DealFormValues } from "@/features/crm/schema";
 
@@ -40,7 +41,10 @@ export function DealFormDialog({ contactId, trigger }: DealFormDialogProps) {
   const t = useTranslations("crm");
   const [open, setOpen] = useState(false);
   const [stage, setStage] = useState<(typeof DEAL_STAGES)[number]>("lead");
+  const [companyId, setCompanyId] = useState("none");
   const createMutation = useCreateDeal();
+  const { data: companies } = useQuery(crmQueries.companies({ page: 1, pageSize: 100 }));
+  const companyOptions = companies?.items ?? [];
 
   const {
     register,
@@ -56,6 +60,7 @@ export function DealFormDialog({ contactId, trigger }: DealFormDialogProps) {
   const onSubmit = handleSubmit(async (values) => {
     const input: DealInput = {
       contactId: contactId ?? null,
+      companyId: companyId === "none" ? null : companyId,
       title: values.title.trim(),
       amountCents: Math.round(values.amount * 100),
       currency: values.currency.trim().toUpperCase(),
@@ -66,6 +71,7 @@ export function DealFormDialog({ contactId, trigger }: DealFormDialogProps) {
     try {
       await createMutation.mutateAsync(input);
       reset();
+      setCompanyId("none");
       setOpen(false);
     } catch (err: unknown) {
       if (err && typeof err === "object" && "fieldErrors" in err && err.fieldErrors) {
@@ -132,6 +138,27 @@ export function DealFormDialog({ contactId, trigger }: DealFormDialogProps) {
                 <Label htmlFor="d-close">{t("dealForm.expectedCloseAt")}</Label>
                 <Input id="d-close" type="date" defaultValue={toLocalDate("")} {...register("expectedCloseAt")} />
               </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="d-company">{t("dealForm.company")}</Label>
+              <Select value={companyId} onValueChange={(value) => setCompanyId(value ?? "none")}>
+                <SelectTrigger id="d-company" className="w-full">
+                  <span data-slot="select-value" className="flex flex-1 text-left">
+                    {companyId === "none"
+                      ? t("dealForm.noCompany")
+                      : companyOptions.find((company) => company.id === companyId)?.name ?? t("contactForm.companyUnknown")}
+                  </span>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">{t("dealForm.noCompany")}</SelectItem>
+                  {companyOptions.map((company) => (
+                    <SelectItem key={company.id} value={company.id}>
+                      {company.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-1.5">

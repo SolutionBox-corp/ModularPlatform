@@ -28,6 +28,13 @@ public sealed class CrmDealsTests(PlatformApiFactory fixture)
         return (await PlatformApiFactory.ReadData(resp)).GetProperty("id").GetGuid();
     }
 
+    private async Task<Guid> CreateCompanyAsync(string token, string name)
+    {
+        var resp = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Post, "/v1/crm/companies", token, new { name }));
+        resp.StatusCode.ShouldBe(HttpStatusCode.Created, await resp.Content.ReadAsStringAsync());
+        return (await PlatformApiFactory.ReadData(resp)).GetProperty("id").GetGuid();
+    }
+
     [Fact]
     public async Task Create_then_get_round_trips()
     {
@@ -44,6 +51,27 @@ public sealed class CrmDealsTests(PlatformApiFactory fixture)
         data.GetProperty("amountCents").GetInt64().ShouldBe(250000);
         data.GetProperty("currency").GetString().ShouldBe("USD");
         data.GetProperty("stage").GetString().ShouldBe("qualified");
+    }
+
+    [Fact]
+    public async Task Create_links_company_explicitly_or_from_contact()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
+        var companyId = await CreateCompanyAsync(token, "Acme");
+        var contact = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/crm/contacts", token,
+            new { firstName = "Jane", lastName = "Buyer", status = "engaged", companyId }));
+        contact.StatusCode.ShouldBe(HttpStatusCode.Created, await contact.Content.ReadAsStringAsync());
+        var contactId = (await PlatformApiFactory.ReadData(contact)).GetProperty("id").GetGuid();
+
+        var fromCompany = await CreateDealAsync(token, new { companyId, title = "Company Deal", amountCents = 100L, stage = "lead" });
+        var fromContact = await CreateDealAsync(token, new { contactId, title = "Contact Deal", amountCents = 100L, stage = "lead" });
+
+        var explicitGet = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Get, $"/v1/crm/deals/{fromCompany}", token));
+        (await PlatformApiFactory.ReadData(explicitGet)).GetProperty("companyId").GetGuid().ShouldBe(companyId);
+
+        var derivedGet = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Get, $"/v1/crm/deals/{fromContact}", token));
+        (await PlatformApiFactory.ReadData(derivedGet)).GetProperty("companyId").GetGuid().ShouldBe(companyId);
     }
 
     [Fact]

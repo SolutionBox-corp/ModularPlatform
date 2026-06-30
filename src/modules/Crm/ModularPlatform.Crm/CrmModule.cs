@@ -30,6 +30,7 @@ using ModularPlatform.Crm.Features.Kanban.DeleteCard;
 using ModularPlatform.Crm.Features.Kanban.GetBoard;
 using ModularPlatform.Crm.Features.Kanban.ListBoards;
 using ModularPlatform.Crm.Features.Kanban.MoveCard;
+using ModularPlatform.Crm.Features.Kanban.UpdateCard;
 using ModularPlatform.Crm.Features.Meetings.CancelMeeting;
 using ModularPlatform.Crm.Features.Meetings.CompleteMeeting;
 using ModularPlatform.Crm.Features.Meetings.CreateMeeting;
@@ -121,6 +122,7 @@ public sealed class CrmModule : IModule
         endpoints.MapDeleteBoard();
         endpoints.MapCreateColumn();
         endpoints.MapCreateCard();
+        endpoints.MapUpdateCard();
         endpoints.MapMoveCard();
         endpoints.MapDeleteCard();
     }

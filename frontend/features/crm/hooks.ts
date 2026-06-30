@@ -26,6 +26,7 @@ import {
   updateContact,
   updateCompany,
   updateDeal,
+  updateCard,
   updateMeeting,
   updateTask,
   type ContactInput,
@@ -275,6 +276,14 @@ export function useDeleteCard() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => deleteCard(id),
+    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: queryRoots.crm }); },
+  });
+}
+
+export function useUpdateCard(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Partial<KanbanCardInput>) => updateCard(id, input),
     onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: queryRoots.crm }); },
   });
 }

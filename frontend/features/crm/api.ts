@@ -421,6 +421,7 @@ export function completeMeeting(id: string, outcome: string | null): Promise<voi
 
 export interface DealInput {
   contactId?: string | null;
+  companyId?: string | null;
   title: string;
   amountCents: number;
   currency?: string | null;
@@ -525,4 +526,8 @@ export function moveCard(cardId: string, columnId: string, position: number): Pr
 
 export function deleteCard(id: string): Promise<void> {
   return apiFetch<void>(`crm/cards/${id}`, { method: "DELETE" });
+}
+
+export function updateCard(id: string, input: Partial<KanbanCardInput>): Promise<KanbanCard> {
+  return apiFetch<KanbanCard>(`crm/cards/${id}`, { method: "PATCH", body: input });
 }

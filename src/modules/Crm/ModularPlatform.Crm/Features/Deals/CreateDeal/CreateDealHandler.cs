@@ -16,16 +16,24 @@ internal sealed class CreateDealHandler(CrmDbContext db, IClock clock)
 {
     public async Task<CreateDealResponse> Handle(CreateDealCommand command, CancellationToken ct)
     {
+        Guid? companyIdFromContact = null;
         if (command.ContactId is { } contactId)
         {
-            var owned = await db.Contacts.AnyAsync(c => c.Id == contactId && c.UserId == command.UserId, ct);
-            if (!owned)
+            var contact = await db.Contacts
+                .Where(c => c.Id == contactId && c.UserId == command.UserId)
+                .Select(c => new { c.CompanyId })
+                .FirstOrDefaultAsync(ct);
+            if (contact is null)
             {
                 throw new NotFoundException("crm.contact_not_found", "Contact not found.");
             }
+
+            companyIdFromContact = contact.CompanyId;
         }
 
-        if (command.CompanyId is { } cid
+        var companyId = command.CompanyId ?? companyIdFromContact;
+
+        if (companyId is { } cid
             && !await db.Companies.AnyAsync(c => c.Id == cid && c.UserId == command.UserId, ct))
         {
             throw new NotFoundException("crm.company_not_found", "Company not found.");
@@ -35,7 +43,7 @@ internal sealed class CreateDealHandler(CrmDbContext db, IClock clock)
         {
             UserId = command.UserId,
             ContactId = command.ContactId,
-            CompanyId = command.CompanyId,
+            CompanyId = companyId,
             Title = command.Title.Trim(),
             AmountCents = command.AmountCents,
             Currency = command.Currency,
