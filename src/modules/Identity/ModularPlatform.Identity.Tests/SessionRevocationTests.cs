@@ -143,6 +143,43 @@ public sealed class SessionRevocationTests(PlatformApiFactory fixture)
         logout.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
+    [Fact]
+    public async Task Admin_can_revoke_all_refresh_sessions_for_a_user()
+    {
+        var (userId, accessToken, firstRefreshToken, email) = await RegisterLoginAsync();
+
+        var secondLogin = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/login",
+            new { email, password = Password });
+        secondLogin.EnsureSuccessStatusCode();
+        var secondRefreshToken = (await PlatformApiFactory.ReadData(secondLogin)).GetProperty("refreshToken").GetString()!;
+
+        var (_, normalToken, _, _) = await RegisterLoginAsync();
+        var forbidden = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, $"/v1/identity/admin/users/{userId}/sessions/revoke", normalToken));
+        forbidden.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        var adminToken = await EnsureAdminTokenAsync();
+        var revoke = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, $"/v1/identity/admin/users/{userId}/sessions/revoke", adminToken));
+        revoke.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        (await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM refresh_tokens WHERE \"UserId\" = '{userId}' AND \"RevokedAt\" IS NULL"))
+            .ShouldBe(0);
+
+        var firstRefresh = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/refresh",
+            new { refreshToken = firstRefreshToken });
+        firstRefresh.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+
+        var secondRefresh = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/refresh",
+            new { refreshToken = secondRefreshToken });
+        secondRefresh.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+
+        var existingAccessTokenStillBoundedByExpiry = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/identity/users/me", accessToken));
+        existingAccessTokenStillBoundedByExpiry.StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
     private async Task<(Guid UserId, string AccessToken, string RefreshToken, string Email)> RegisterLoginAsync()
     {
         var email = $"sess-{Guid.CreateVersion7():N}@example.com";
@@ -156,5 +193,17 @@ public sealed class SessionRevocationTests(PlatformApiFactory fixture)
         login.EnsureSuccessStatusCode();
         var data = await PlatformApiFactory.ReadData(login);
         return (userId, data.GetProperty("accessToken").GetString()!, data.GetProperty("refreshToken").GetString()!, email);
+    }
+
+    private async Task<string> EnsureAdminTokenAsync()
+    {
+        await fixture.Client.PostAsJsonAsync(
+            "/v1/identity/users", new { email = PlatformApiFactory.AdminEmail, password = Password });
+
+        var login = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/login",
+            new { email = PlatformApiFactory.AdminEmail, password = Password });
+        login.EnsureSuccessStatusCode();
+
+        return (await PlatformApiFactory.ReadData(login)).GetProperty("accessToken").GetString()!;
     }
 }
