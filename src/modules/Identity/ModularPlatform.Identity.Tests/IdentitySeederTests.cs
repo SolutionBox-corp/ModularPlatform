@@ -1,7 +1,15 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using ModularPlatform.Abstractions;
+using ModularPlatform.Identity.Authorization;
+using ModularPlatform.Identity.Persistence;
 using ModularPlatform.IntegrationTesting;
+using ModularPlatform.Persistence.Rls;
+using Npgsql;
 using Shouldly;
 
 namespace ModularPlatform.Identity.Tests;
@@ -92,6 +100,36 @@ public sealed class IdentitySeederTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Startup_seeder_tolerates_missing_identity_tables_before_migrations_finish()
+    {
+        var databaseName = $"mp_identity_seeder_missing_tables_{Guid.CreateVersion7():N}";
+        var connectionString = await CreateDatabaseAsync(databaseName);
+
+        try
+        {
+            var services = new ServiceCollection();
+            services.AddSingleton<ITenantContext>(new SystemTenantContext());
+            services.AddSingleton<IBlindIndexHasher>(new TestBlindIndexHasher());
+            services.AddDbContext<IdentityDbContext>(options => options.UseNpgsql(connectionString));
+
+            await using var provider = services.BuildServiceProvider();
+            var seeder = new IdentitySeeder(
+                provider,
+                Options.Create(new IdentityAuthOptions
+                {
+                    AdminEmails = [PlatformApiFactory.AdminEmail],
+                }),
+                NullLogger<IdentitySeeder>.Instance);
+
+            await Should.NotThrowAsync(() => seeder.StartAsync(CancellationToken.None));
+        }
+        finally
+        {
+            await DropDatabaseAsync(databaseName);
+        }
+    }
+
+    [Fact]
     public async Task Concurrent_startup_seeders_leave_one_complete_authorization_model()
     {
         var email = $"concurrent-admin-{Guid.CreateVersion7():N}@x.com";
@@ -173,4 +211,38 @@ public sealed class IdentitySeederTests(PlatformApiFactory fixture)
               WHERE r."Name" = 'admin'
                 AND p."Name" = '{{permissionName}}'
               """);
+
+    private async Task<string> CreateDatabaseAsync(string databaseName)
+    {
+        await using var conn = new NpgsqlConnection(MaintenanceConnectionString());
+        await conn.OpenAsync();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"""CREATE DATABASE "{databaseName}";""";
+        await cmd.ExecuteNonQueryAsync();
+
+        return new NpgsqlConnectionStringBuilder(fixture.ConnectionString)
+        {
+            Database = databaseName,
+        }.ConnectionString;
+    }
+
+    private async Task DropDatabaseAsync(string databaseName)
+    {
+        await using var conn = new NpgsqlConnection(MaintenanceConnectionString());
+        await conn.OpenAsync();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"""DROP DATABASE IF EXISTS "{databaseName}" WITH (FORCE);""";
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    private string MaintenanceConnectionString() =>
+        new NpgsqlConnectionStringBuilder(fixture.ConnectionString)
+        {
+            Database = "postgres",
+        }.ConnectionString;
+
+    private sealed class TestBlindIndexHasher : IBlindIndexHasher
+    {
+        public string Hash(string normalizedValue) => normalizedValue;
+    }
 }
