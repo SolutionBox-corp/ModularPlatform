@@ -274,6 +274,34 @@ public sealed class AuthzTests(PlatformApiFactory fixture)
         data.GetProperty("email").GetString().ShouldBe(memberEmail);
     }
 
+    [Fact]
+    public async Task Tenant_user_picker_lists_only_same_tenant_users_for_assignees()
+    {
+        var platformAdminToken = await EnsureAdminTokenAsync();
+        var (tenantId, subdomain) = await ProvisionTenantAsync(platformAdminToken);
+        var userEmail = $"tenant-picker-user-{Guid.CreateVersion7():N}@x.com";
+        var memberEmail = $"tenant-picker-member-{Guid.CreateVersion7():N}@x.com";
+        var otherEmail = $"tenant-picker-other-{Guid.CreateVersion7():N}@x.com";
+
+        var userId = await RegisterOnTenantHostAsync(
+            userEmail, $"{subdomain}.lvh.me", await CreateInviteAsync(platformAdminToken, tenantId));
+        var memberId = await RegisterOnTenantHostAsync(
+            memberEmail, $"{subdomain}.lvh.me", await CreateInviteAsync(platformAdminToken, tenantId));
+        var (otherId, _) = await fixture.RegisterAndLoginAsync(otherEmail, Password);
+        var userToken = await LoginAsync(userEmail, Password);
+
+        var list = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, "/v1/identity/users?page=1&pageSize=20", userToken));
+        list.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var items = (await PlatformApiFactory.ReadData(list)).GetProperty("items").EnumerateArray().ToList();
+        var ids = items.Select(item => item.GetProperty("id").GetGuid()).ToList();
+
+        ids.ShouldContain(userId);
+        ids.ShouldContain(memberId);
+        ids.ShouldNotContain(otherId);
+        items.First(item => item.GetProperty("id").GetGuid() == memberId).GetProperty("email").GetString().ShouldBe(memberEmail);
+    }
+
     private async Task<string> LoginAsync(string email, string password)
     {
         var (accessToken, _) = await LoginWithTokensAsync(email, password);

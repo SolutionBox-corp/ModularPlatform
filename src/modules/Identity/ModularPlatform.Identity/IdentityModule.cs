@@ -23,6 +23,7 @@ using ModularPlatform.Identity.Features.Auth.RefreshToken;
 using ModularPlatform.Identity.Features.Auth.ResetPassword;
 using ModularPlatform.Identity.Features.Auth.VerifyEmail;
 using ModularPlatform.Identity.Features.Users.GetProfile;
+using ModularPlatform.Identity.Features.Users.ListTenantUsers;
 using ModularPlatform.Identity.Features.Users.RequestEmailVerification;
 using ModularPlatform.Identity.Features.Users.RegisterUser;
 using ModularPlatform.Identity.Features.Users.UpdateProfile;
@@ -75,6 +76,7 @@ public sealed class IdentityModule : IModule
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
         endpoints.MapRegisterUser();
+        endpoints.MapListTenantUsers();
         endpoints.MapGetProfile();
         endpoints.MapUpdateProfile();
         endpoints.MapChangePassword();

@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
+using ModularPlatform.Crm.Entities;
 using ModularPlatform.Crm.Persistence;
 
 namespace ModularPlatform.Crm.Features.Kanban.MoveCard;
@@ -9,7 +11,7 @@ namespace ModularPlatform.Crm.Features.Kanban.MoveCard;
 /// target column must be on the same board and owned. xmin + ConcurrencyRetryBehavior serialize concurrent moves;
 /// EF/LINQ only. Foreign card/column ⇒ 404.
 /// </summary>
-internal sealed class MoveCardHandler(CrmDbContext db)
+internal sealed class MoveCardHandler(CrmDbContext db, IClock clock)
     : ICommandHandler<MoveCardCommand, Unit>
 {
     public async Task<Unit> Handle(MoveCardCommand command, CancellationToken ct)
@@ -46,6 +48,25 @@ internal sealed class MoveCardHandler(CrmDbContext db)
 
             Renumber(sourceCards);
             Renumber(targetCards);
+        }
+
+        if (card.TaskId is { } linkedTaskId)
+        {
+            var task = await db.Tasks
+                .FirstOrDefaultAsync(t => t.Id == linkedTaskId && t.UserId == command.UserId, ct);
+            if (task is not null)
+            {
+                if (target.Group == KanbanColumnGroups.Completed)
+                {
+                    task.Status = TaskStatuses.Done;
+                    task.CompletedAt ??= clock.UtcNow;
+                }
+                else if (task.Status == TaskStatuses.Done)
+                {
+                    task.Status = TaskStatuses.Open;
+                    task.CompletedAt = null;
+                }
+            }
         }
 
         await db.SaveChangesAsync(ct);

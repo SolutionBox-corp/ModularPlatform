@@ -15,25 +15,25 @@ internal sealed class UpdateCardHandler(CrmDbContext db)
             .FirstOrDefaultAsync(c => c.Id == command.CardId && c.UserId == command.UserId, ct)
             ?? throw new NotFoundException("crm.card_not_found", "Card not found.");
 
-        if (command.ContactId is { } contactId
+        if (command.ContactIdSet && command.ContactId is { } contactId
             && !await db.Contacts.AnyAsync(c => c.Id == contactId && c.UserId == command.UserId, ct))
         {
             throw new NotFoundException("crm.contact_not_found", "Contact not found.");
         }
 
-        if (command.DealId is { } dealId
+        if (command.DealIdSet && command.DealId is { } dealId
             && !await db.Deals.AnyAsync(d => d.Id == dealId && d.UserId == command.UserId, ct))
         {
             throw new NotFoundException("crm.deal_not_found", "Deal not found.");
         }
 
-        if (command.MeetingId is { } meetingId
+        if (command.MeetingIdSet && command.MeetingId is { } meetingId
             && !await db.Meetings.AnyAsync(m => m.Id == meetingId && m.UserId == command.UserId, ct))
         {
             throw new NotFoundException("crm.meeting_not_found", "Meeting not found.");
         }
 
-        if (command.TaskId is { } taskId
+        if (command.TaskIdSet && command.TaskId is { } taskId
             && !await db.Tasks.AnyAsync(t => t.Id == taskId && t.UserId == command.UserId, ct))
         {
             throw new NotFoundException("crm.task_not_found", "Task not found.");
@@ -49,27 +49,27 @@ internal sealed class UpdateCardHandler(CrmDbContext db)
             card.Description = string.IsNullOrWhiteSpace(command.Description) ? null : command.Description;
         }
 
-        if (command.ContactId is not null)
+        if (command.ContactIdSet)
         {
             card.ContactId = command.ContactId;
         }
 
-        if (command.DealId is not null)
+        if (command.DealIdSet)
         {
             card.DealId = command.DealId;
         }
 
-        if (command.MeetingId is not null)
+        if (command.MeetingIdSet)
         {
             card.MeetingId = command.MeetingId;
         }
 
-        if (command.TaskId is not null)
+        if (command.TaskIdSet)
         {
             card.TaskId = command.TaskId;
         }
 
-        if (command.AssigneeUserId is not null)
+        if (command.AssigneeUserIdSet)
         {
             card.AssigneeUserId = command.AssigneeUserId;
         }
@@ -92,6 +92,19 @@ internal sealed class UpdateCardHandler(CrmDbContext db)
         if (command.DueAt is not null)
         {
             card.DueAt = command.DueAt.Value.ToUniversalTime();
+        }
+
+        if (card.TaskId is { } linkedTaskId)
+        {
+            var task = await db.Tasks
+                .FirstOrDefaultAsync(t => t.Id == linkedTaskId && t.UserId == command.UserId, ct);
+            if (task is not null)
+            {
+                task.Title = card.Title;
+                task.Description = card.Description;
+                task.DueAt = card.DueAt;
+                task.Priority = card.Priority;
+            }
         }
 
         await db.SaveChangesAsync(ct);

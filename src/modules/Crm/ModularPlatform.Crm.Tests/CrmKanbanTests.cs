@@ -208,18 +208,31 @@ public sealed class CrmKanbanTests(PlatformApiFactory fixture)
         var board = await GetBoardAsync(token, boardId);
         var columnId = board.GetProperty("columns").EnumerateArray().First(c => c.GetProperty("isDefault").GetBoolean()).GetProperty("id").GetGuid();
         var cardId = await AddCardAsync(token, boardId, columnId, "Old title");
+        var task = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/crm/tasks", token,
+            new { title = "Old task", description = "Task body", priority = "low" }));
+        task.StatusCode.ShouldBe(HttpStatusCode.Created, await task.Content.ReadAsStringAsync());
+        var taskId = (await PlatformApiFactory.ReadData(task)).GetProperty("id").GetGuid();
         var due = DateTimeOffset.UtcNow.Date.AddDays(3);
 
         var update = await fixture.Client.SendAsync(fixture.Authed(
             HttpMethod.Patch, $"/v1/crm/cards/{cardId}", token,
-            new { title = "New title", description = "Edited", priority = "high", labels = new[] { "vip", "proposal" }, dueAt = due }));
+            new { title = "New title", description = "Edited", priority = "high", labels = new[] { "vip", "proposal" }, taskId, dueAt = due }));
         update.StatusCode.ShouldBe(HttpStatusCode.OK, await update.Content.ReadAsStringAsync());
         var data = await PlatformApiFactory.ReadData(update);
         data.GetProperty("title").GetString().ShouldBe("New title");
         data.GetProperty("description").GetString().ShouldBe("Edited");
         data.GetProperty("priority").GetString().ShouldBe("high");
+        data.GetProperty("taskId").GetGuid().ShouldBe(taskId);
         data.GetProperty("labels").EnumerateArray().Select(x => x.GetString()).ShouldBe(["vip", "proposal"]);
         data.GetProperty("dueAt").GetDateTimeOffset().ShouldBe(due);
+
+        var getTask = await fixture.Client.SendAsync(fixture.Authed(HttpMethod.Get, $"/v1/crm/tasks/{taskId}", token));
+        var taskData = await PlatformApiFactory.ReadData(getTask);
+        taskData.GetProperty("title").GetString().ShouldBe("New title");
+        taskData.GetProperty("description").GetString().ShouldBe("Edited");
+        taskData.GetProperty("priority").GetString().ShouldBe("high");
+        taskData.GetProperty("dueAt").GetDateTimeOffset().ShouldBe(due);
     }
 
     [Fact]

@@ -1,4 +1,5 @@
 using ModularPlatform.Cqrs;
+using ModularPlatform.Crm.Json;
 
 namespace ModularPlatform.Crm.Features.Kanban.UpdateCard;
 
@@ -9,10 +10,15 @@ public sealed record UpdateCardCommand(
     string? Title,
     string? Description,
     Guid? ContactId,
+    bool ContactIdSet,
     Guid? DealId,
+    bool DealIdSet,
     Guid? MeetingId,
+    bool MeetingIdSet,
     Guid? TaskId,
+    bool TaskIdSet,
     Guid? AssigneeUserId,
+    bool AssigneeUserIdSet,
     string? Priority,
     string[]? Labels,
     DateTimeOffset? StartAt,
@@ -21,11 +27,11 @@ public sealed record UpdateCardCommand(
 public sealed record UpdateCardRequest(
     string? Title,
     string? Description,
-    Guid? ContactId,
-    Guid? DealId,
-    Guid? MeetingId,
-    Guid? TaskId,
-    Guid? AssigneeUserId,
+    Optional<Guid?> ContactId,
+    Optional<Guid?> DealId,
+    Optional<Guid?> MeetingId,
+    Optional<Guid?> TaskId,
+    Optional<Guid?> AssigneeUserId,
     string? Priority,
     string[]? Labels,
     DateTimeOffset? StartAt,

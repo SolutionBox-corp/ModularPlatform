@@ -11,12 +11,37 @@ export interface UserProfileResponse {
   emailConfirmed: boolean;
 }
 
+export interface TenantUserListItem {
+  id: string;
+  email: string;
+  displayName: string | null;
+}
+
+export interface TenantUsersPage {
+  items: TenantUserListItem[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}
+
 export const accountQueries = {
   /** GET /v1/identity/users/me */
   profile: () =>
     queryOptions({
       queryKey: [...queryRoots.identity, "profile", "me"],
       queryFn: () => apiFetch<UserProfileResponse>("identity/users/me"),
+      staleTime: 60_000,
+    }),
+
+  users: (params: { page?: number; pageSize?: number } = {}) =>
+    queryOptions({
+      queryKey: [...queryRoots.identity, "users", params],
+      queryFn: () => {
+        const sp = new URLSearchParams();
+        sp.set("page", String(params.page ?? 1));
+        sp.set("pageSize", String(params.pageSize ?? 50));
+        return apiFetch<TenantUsersPage>(`identity/users?${sp.toString()}`);
+      },
       staleTime: 60_000,
     }),
 };
