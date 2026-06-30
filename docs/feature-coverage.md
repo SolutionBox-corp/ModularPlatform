@@ -45,8 +45,8 @@ v tabulkách níže jsou **snapshot PŘED** těmito fixy:
 - **Operations stuck-reaper** — uzavřeno: Operations má vlastní reconcile job, který staré Pending/Running operace terminalizuje jako Failed.
 - **ExpireCredits N+1** přes účty — perf/škálovatelnost, ne korektnost.
 - **LocalRealtimePublisher.PublishToTenantAsync no-op** vs Redis publikuje — tenant broadcast asymetrie (lokální fallback).
-- **Push delivery** zůstává provider stub; **messaging health alert routing** je infra follow-up; **duplikovaná
-  account-provisioning logika** (EnsureCreditAccount vs inline v CreditTopUp) — DRY.
+- **Push delivery** zůstává provider stub; **duplikovaná account-provisioning logika** (EnsureCreditAccount vs
+  inline v CreditTopUp) — DRY.
 
 ## Přehled — verdikt per feature
 
@@ -1526,12 +1526,12 @@ _Single-instance cross-instance coordination is now a code-enforced deployment c
 | Incoming backlog threshold | ✓ | Incoming-pending branch warns independently from outgoing backlog; proven by MessagingHealthEvaluationTests.Incoming_pending_above_threshold_warns_separately_from_outgoing_backlog |
 | ObservableGauge pull model vs per-fire job instance | ✓ | Static gauges registered once at class load; job refreshes static backing fields via Interlocked.Exchange (MessagingHealthJob.cs:27-62); pinned by MessagingHealthEvaluationTests.Job_refreshes_all_platform_messaging_gauge_values_from_store_counts |
 | Queries Wolverine internal tables directly | ✓ | Always via IMessageStore.Admin.FetchCountsAsync (MessagingHealthJob.cs:54); documented constraint line 18 |
-| Warnings are LogWarning only — no paging/alert routing | ◐ | By design alerting belongs to infrastructure (CLAUDE.md); the WARN + gauge is the signal. A deployment with no OTel/log alerting wired would not be paged — operational gap, not a code gap |
+| Warnings are LogWarning only — no paging/alert routing | ✓ | The job still logs WARN and exports OTel gauges, and now routes warning evaluations to an infra webhook sink when `Messaging:HealthAlerts:WebhookUrl` is configured. Healthy evaluations do not call the sink. Proven by MessagingHealthEvaluationTests.Job_refreshes_all_platform_messaging_gauge_values_from_store_counts and Job_does_not_route_alerts_when_the_message_store_is_healthy. |
 
-**Testy:** MessagingHealthEvaluationTests.A_stuck_outbox_is_reported_via_outgoing_not_scheduled; MessagingHealthEvaluationTests.Scheduled_messages_alone_do_not_raise_a_false_outbox_alarm; MessagingHealthEvaluationTests.Dead_letters_always_warn; MessagingHealthEvaluationTests.Incoming_pending_above_threshold_warns_separately_from_outgoing_backlog; MessagingHealthEvaluationTests.Job_refreshes_all_platform_messaging_gauge_values_from_store_counts
+**Testy:** MessagingHealthEvaluationTests.A_stuck_outbox_is_reported_via_outgoing_not_scheduled; MessagingHealthEvaluationTests.Scheduled_messages_alone_do_not_raise_a_false_outbox_alarm; MessagingHealthEvaluationTests.Dead_letters_always_warn; MessagingHealthEvaluationTests.Incoming_pending_above_threshold_warns_separately_from_outgoing_backlog; MessagingHealthEvaluationTests.Job_refreshes_all_platform_messaging_gauge_values_from_store_counts; MessagingHealthEvaluationTests.Job_does_not_route_alerts_when_the_message_store_is_healthy
 **Test gaps:** No remaining focused messaging-health job/evaluation gap in this slice.
 
-_Pure evaluation cleanly extracted and unit-tested; the Scheduled-vs-Outgoing bug fix is well-guarded._
+_Pure evaluation cleanly extracted and unit-tested; the Scheduled-vs-Outgoing bug fix is well-guarded, and alert routing is now an infrastructure webhook seam rather than WARN-only._
 
 ### RFC 9457 error contract + i18n (GlobalExceptionMiddleware + resx) — 🟢 minor-gaps
 *Translates every exception into application/problem+json with stable errorCode title/type and Accept-Language-localized detail.*

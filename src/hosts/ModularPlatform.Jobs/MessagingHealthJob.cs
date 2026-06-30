@@ -21,7 +21,8 @@ namespace ModularPlatform.Jobs;
 internal sealed class MessagingHealthJob(
     IMessageStore messageStore,
     IConfiguration configuration,
-    ILogger<MessagingHealthJob> logger) : IJob
+    ILogger<MessagingHealthJob> logger,
+    IMessagingHealthAlertSink alertSink) : IJob
 {
     // Static backing fields — ObservableGauge uses a pull (callback) model; the job refreshes these on each run.
     private static int _latestDeadLetters;
@@ -64,6 +65,11 @@ internal sealed class MessagingHealthJob(
         foreach (var warning in evaluation.Warnings)
         {
             logger.LogWarning("{MessagingHealthWarning}", warning);
+        }
+
+        if (evaluation.Warnings.Count > 0)
+        {
+            await alertSink.NotifyAsync(evaluation, context?.CancellationToken ?? CancellationToken.None);
         }
 
         logger.LogInformation(

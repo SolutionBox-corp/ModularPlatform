@@ -42,6 +42,17 @@ public static class JobsHostBuilder
         // IRealtimePublisher). Register the realtime publisher (Redis fan-out, or the local no-Redis fallback) so the
         // module graph is resolvable here exactly as in the Worker — without it the Jobs DI graph is unfulfillable.
         builder.Services.AddPlatformRealtime(builder.Configuration);
+        builder.Services.Configure<MessagingHealthAlertOptions>(
+            builder.Configuration.GetSection(MessagingHealthAlertOptions.SectionName));
+        builder.Services.AddHttpClient("messaging-health-alerts");
+        if (string.IsNullOrWhiteSpace(builder.Configuration["Messaging:HealthAlerts:WebhookUrl"]))
+        {
+            builder.Services.AddSingleton<IMessagingHealthAlertSink, NoOpMessagingHealthAlertSink>();
+        }
+        else
+        {
+            builder.Services.AddSingleton<IMessagingHealthAlertSink, WebhookMessagingHealthAlertSink>();
+        }
 
         var modules = ModuleLoader.Discover(
             builder.Configuration,

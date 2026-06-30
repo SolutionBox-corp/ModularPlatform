@@ -79,8 +79,9 @@ public sealed class MessagingHealthEvaluationTests
             .GetType("ModularPlatform.Jobs.MessagingHealthJob", throwOnError: true)!;
         var loggerType = typeof(NullLogger<>).MakeGenericType(jobType);
         var logger = loggerType.GetField(nameof(NullLogger<object>.Instance))!.GetValue(null);
+        var alertSink = new RecordingAlertSink();
         var job = Activator.CreateInstance(jobType, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public,
-            binder: null, args: [store, configuration, logger], culture: null)!;
+            binder: null, args: [store, configuration, logger, alertSink], culture: null)!;
 
         var executeTask = (Task)jobType.GetMethod("Execute")!.Invoke(job, [null!])!;
         await executeTask;
@@ -88,10 +89,49 @@ public sealed class MessagingHealthEvaluationTests
         ReadStaticInt(jobType, "_latestDeadLetters").ShouldBe(3);
         ReadStaticInt(jobType, "_latestIncomingPending").ShouldBe(11);
         ReadStaticInt(jobType, "_latestOutgoingPending").ShouldBe(22);
+        alertSink.Evaluations.ShouldHaveSingleItem();
+        alertSink.Evaluations[0].Warnings.ShouldNotBeEmpty();
+    }
+
+    [Fact]
+    public async Task Job_does_not_route_alerts_when_the_message_store_is_healthy()
+    {
+        var counts = new PersistedCounts { Incoming = 0, Outgoing = 0, Scheduled = 999, DeadLetter = 0 };
+        var store = MessageStoreProxy.Create(counts);
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Messaging:StuckThreshold"] = "100",
+            })
+            .Build();
+
+        var jobType = typeof(JobsHostBuilder).Assembly
+            .GetType("ModularPlatform.Jobs.MessagingHealthJob", throwOnError: true)!;
+        var loggerType = typeof(NullLogger<>).MakeGenericType(jobType);
+        var logger = loggerType.GetField(nameof(NullLogger<object>.Instance))!.GetValue(null);
+        var alertSink = new RecordingAlertSink();
+        var job = Activator.CreateInstance(jobType, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public,
+            binder: null, args: [store, configuration, logger, alertSink], culture: null)!;
+
+        var executeTask = (Task)jobType.GetMethod("Execute")!.Invoke(job, [null!])!;
+        await executeTask;
+
+        alertSink.Evaluations.ShouldBeEmpty();
     }
 
     private static int ReadStaticInt(Type type, string fieldName) =>
         (int)type.GetField(fieldName, BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
+
+    private sealed class RecordingAlertSink : IMessagingHealthAlertSink
+    {
+        public List<MessagingHealthEvaluation.Result> Evaluations { get; } = [];
+
+        public Task NotifyAsync(MessagingHealthEvaluation.Result evaluation, CancellationToken ct)
+        {
+            Evaluations.Add(evaluation);
+            return Task.CompletedTask;
+        }
+    }
 
     private class MessageStoreProxy : DispatchProxy
     {
