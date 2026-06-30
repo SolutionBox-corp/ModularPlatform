@@ -74,6 +74,14 @@ export function ContactFormDialog({ contact, trigger, onSaved }: ContactFormDial
   const updateMutation = useUpdateContact(contact?.id ?? "");
   const isEdit = !!contact;
   const { data: companies } = useQuery(crmQueries.companies({ page: 1, pageSize: 100 }));
+  const companyOptions = companies?.items ?? [];
+
+  const companyLabel = (companyId: string | undefined) => {
+    if (!companyId || companyId === "none") return t("contactForm.noCompany");
+    return companyOptions.find((company) => company.id === companyId)?.name
+      ?? (contact?.companyId === companyId ? contact.companyName : undefined)
+      ?? t("contactForm.companyUnknown");
+  };
 
   const {
     register,
@@ -124,11 +132,13 @@ export function ContactFormDialog({ contact, trigger, onSaved }: ContactFormDial
                 render={({ field }) => (
                   <Select value={field.value || "none"} onValueChange={field.onChange}>
                     <SelectTrigger id="c-company">
-                      <SelectValue />
+                      <span data-slot="select-value" className="flex flex-1 text-left">
+                        {companyLabel(field.value)}
+                      </span>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">{t("contactForm.noCompany")}</SelectItem>
-                      {(companies?.items ?? []).map((company) => (
+                      {companyOptions.map((company) => (
                         <SelectItem key={company.id} value={company.id}>
                           {company.name}
                         </SelectItem>

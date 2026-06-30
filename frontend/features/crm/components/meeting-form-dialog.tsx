@@ -28,7 +28,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
 import { useCreateMeeting, useUpdateMeeting } from "@/features/crm/hooks";
 import { buildMeetingSchema, type MeetingFormValues } from "@/features/crm/schema";
@@ -70,6 +69,13 @@ export function MeetingFormDialog({ meeting, contactId, companyId, trigger }: Me
   const isEdit = !!meeting;
   const contactLocked = !!contactId || isEdit;
   const { data: contacts } = useQuery(crmQueries.contacts({ page: 1, pageSize: 100, companyId }));
+  const contactOptions = contacts?.items ?? [];
+
+  const selectedContactLabel = (selectedContactId: string | undefined) => {
+    if (!selectedContactId) return t("meetingForm.contactPlaceholder");
+    const selected = contactOptions.find((contact) => contact.id === selectedContactId);
+    return selected ? contactDisplayName(selected) : t("meetingForm.contactUnknown");
+  };
 
   const {
     register,
@@ -129,10 +135,12 @@ export function MeetingFormDialog({ meeting, contactId, companyId, trigger }: Me
                   render={({ field }) => (
                     <Select value={field.value} onValueChange={field.onChange}>
                       <SelectTrigger id="m-contact" aria-invalid={!!errors.contactId}>
-                        <SelectValue placeholder={t("meetingForm.contactPlaceholder")} />
+                        <span data-slot="select-value" className="flex flex-1 text-left">
+                          {selectedContactLabel(field.value)}
+                        </span>
                       </SelectTrigger>
                       <SelectContent>
-                        {(contacts?.items ?? []).map((contact) => (
+                        {contactOptions.map((contact) => (
                           <SelectItem key={contact.id} value={contact.id}>
                             {contactDisplayName(contact)}
                           </SelectItem>
