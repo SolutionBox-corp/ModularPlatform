@@ -28,8 +28,8 @@ Status: **✓** implemented · **▢** gap (planned) · **◐** partially covere
 | ID-7 | **Lockout**: 5 wrong passwords → account locked 15 min; correct password while locked → still rejected `auth.locked_out`; success resets counters | I | ✓ `AccountLockoutTests` |
 | ID-8 | Two parallel `/refresh` with the same valid token → exactly one `200`, family ends revoked, no unhandled 500 | C | ✓ `AuthRobustnessTests` |
 | ID-9 | Brute-force: >10 `/login` from one IP in a minute → `429`; per-account lockout independent of the IP budget | F | ▢ (A13 shipped) |
-| ID-10 | JWT issued validates under the configured key; a token signed with a wrong key is rejected | U | ▢ |
-| ID-11 | `JwtOptionsValidator`: empty/<32-byte key in non-Development → host fails to start; Development → allowed | U | ▢ |
+| ID-10 | JWT issued validates under the configured key; a token signed with a wrong key is rejected | U | ✓ `TokenIssuerTests.Access_token_validates_with_configured_key_and_rejects_wrong_key` |
+| ID-11 | `JwtOptionsValidator`: empty/<32-byte key in non-Development → host fails to start; Development → allowed | U | ✓ `JwtOptionsValidatorTests` |
 | ID-12 | Audit after profile update records ONLY changed columns (JSONB) | I | ◐ (e2e checks Create row) |
 
 ## 2. Billing — credit ledger (money-critical)
@@ -123,5 +123,5 @@ sweep, PII column encryption, dead-letter, replay buffer).
    the shared container; medium value.
 3. **NT-2** realtime-push-after-commit fault injection (force the first save to fail) — the after-commit
    ordering is a source invariant (`SendNotificationHandler`); a fault-injection seam would be test-only code.
-4. **NT-3 / NT-5** e-mail Worker locale assertion + channel validation; **ID-4/9/10/11, PL-5/6/11** —
+4. **NT-3 / NT-5** e-mail Worker locale assertion + channel validation; **ID-4/9, PL-5/6/11** —
    smaller ◐/▢ from wave 1 notes.

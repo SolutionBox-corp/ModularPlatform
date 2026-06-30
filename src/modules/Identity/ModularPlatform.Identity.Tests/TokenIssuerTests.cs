@@ -1,6 +1,9 @@
 using System.Security.Cryptography;
+using System.Security.Claims;
 using System.Text;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.JsonWebTokens;
+using Microsoft.IdentityModel.Tokens;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Identity.Security;
 using ModularPlatform.Web;
@@ -45,6 +48,27 @@ public sealed class TokenIssuerTests
         hash.Length.ShouldBe(64);
     }
 
+    [Fact]
+    public async Task Access_token_validates_with_configured_key_and_rejects_wrong_key()
+    {
+        var now = new DateTimeOffset(2026, 6, 28, 10, 30, 0, TimeSpan.Zero);
+        var issuer = CreateIssuer(now);
+        var userId = Guid.CreateVersion7();
+        var tenantId = Guid.CreateVersion7();
+
+        var token = issuer.IssueAccessToken(userId, tenantId, "user@example.com", ["admin"], ["billing.read"]);
+
+        var valid = await ValidateAsync(token.Value, "0123456789abcdef0123456789abcdef");
+        valid.IsValid.ShouldBeTrue(valid.Exception?.ToString());
+        valid.Claims[ClaimTypes.NameIdentifier].ToString().ShouldBe(userId.ToString());
+        valid.Claims[HttpTenantContext.TenantClaim].ToString().ShouldBe(tenantId.ToString());
+        valid.Claims[AuthorizationClaims.Role].ToString().ShouldBe("admin");
+        valid.Claims[AuthorizationClaims.Permission].ToString().ShouldBe("billing.read");
+
+        var wrongKey = await ValidateAsync(token.Value, "abcdef0123456789abcdef0123456789");
+        wrongKey.IsValid.ShouldBeFalse("a token signed with a different HMAC key must be rejected");
+    }
+
     private static JwtTokenIssuer CreateIssuer(DateTimeOffset now, int accessTokenMinutes = 10)
     {
         var options = Options.Create(new JwtOptions
@@ -56,6 +80,22 @@ public sealed class TokenIssuerTests
         });
 
         return new JwtTokenIssuer(options, new FixedClock(now));
+    }
+
+    private static async Task<TokenValidationResult> ValidateAsync(string token, string signingKey)
+    {
+        var handler = new JsonWebTokenHandler();
+        return await handler.ValidateTokenAsync(token, new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = "modular-platform-tests",
+            ValidateAudience = true,
+            ValidAudience = "modular-platform-tests",
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)),
+            ValidateLifetime = false,
+            RoleClaimType = AuthorizationClaims.Role,
+        });
     }
 
     private sealed class FixedClock(DateTimeOffset now) : IClock
