@@ -1288,8 +1288,8 @@ _The PII-safe logging contract is now covered directly: request values stay out 
 
 | Edge case | | Jak se k tomu stavíme |
 |---|:--:|---|
-| Stale sibling entities after partial reload | ✓ | ChangeTracker.Clear() before each retry so the whole handler re-queries fresh (ConcurrencyRetryBehavior.cs:37-38; docstring 8-12); pinned by ConcurrencyRetryBehaviorTests.Retries_after_concurrency_conflict_and_clears_the_change_tracker_before_rerun |
-| Retry exhaustion (>5 conflicts) | ✓ | when(attempt<MaxRetries) guard (line 30) lets the 6th DbUpdateConcurrencyException propagate as a 5xx — intentional give-up; pinned by ConcurrencyRetryBehaviorTests.Gives_up_after_max_retries_and_surfaces_the_concurrency_exception |
+| Stale sibling entities after partial reload | ✓ | ChangeTracker.Clear() before each retry so the whole handler re-queries fresh (`Behaviors/ConcurrencyRetryBehavior.cs:37-38`; docstring 8-12); pinned by ConcurrencyRetryBehaviorTests.Retries_after_concurrency_conflict_and_clears_the_change_tracker_before_rerun |
+| Retry exhaustion (>5 conflicts) | ✓ | when(attempt<MaxRetries) guard (`Behaviors/ConcurrencyRetryBehavior.cs:30`) lets the 6th DbUpdateConcurrencyException propagate as a 5xx — intentional give-up; pinned by ConcurrencyRetryBehaviorTests.Gives_up_after_max_retries_and_surfaces_the_concurrency_exception |
 | Queries hitting the retry loop | ✓ | ICommandOnlyBehavior excludes it from the query pipeline (line 16) |
 | Cooldown on conflict storm / backoff | ✓ | Exponential delay 50ms*2^(n-1) (line 40) |
 | Idempotency (DbUpdateException, not concurrency) leaking into retry | ✓ | Only catches DbUpdateConcurrencyException; idempotency handled in handlers via catch DbUpdateException (per CLAUDE.md money rules) |
