@@ -8,7 +8,8 @@ import { registerFreshUser, ANONYMOUS } from "./helpers";
  * from a known state. The shared primary session (default storageState) is used only for
  * read-only structural checks that cannot be ruined by prior mark-read mutations.
  *
- * Covered: NOTIF-01, NOTIF-02, NOTIF-03, NOTIF-04, NOTIF-06, NOTIF-09, NOTIF-13, NOTIF-15, NOTIF-20.
+ * Covered: NOTIF-01, NOTIF-02, NOTIF-03, NOTIF-04, NOTIF-06, NOTIF-09, NOTIF-13, NOTIF-15, NOTIF-20,
+ * NOTIF-21, NOTIF-22, NOTIF-23, NOTIF-24.
  */
 
 // ---------------------------------------------------------------------------
@@ -68,6 +69,7 @@ test.describe("Notifications feed — fresh user", () => {
 
     // "New" badge must be present for an unread item.
     await expect(welcomeItem.getByText("New")).toBeVisible();
+    await expect(page.locator("ul").filter({ has: welcomeItem })).toBeVisible();
 
     // Checkmark "Mark as read" button must be present.
     const markReadBtn = welcomeItem.getByRole("button", {
@@ -97,6 +99,42 @@ test.describe("Notifications feed — fresh user", () => {
 
     // Mark-as-read button has an accessible label (NOTIF-20).
     await expect(markReadBtn).toHaveAttribute("aria-label", /^Mark .* as read$/);
+  });
+
+  test("unread filter shows unread welcome then empty state after mark-all", async ({
+    page,
+  }) => {
+    // NOTIF-23, NOTIF-24
+    await registerFreshUser(page);
+    await page.goto("/notifications");
+
+    const welcomeItem = page
+      .locator("ul li")
+      .filter({ hasText: "Welcome to the platform!" })
+      .first();
+
+    await expect(async () => {
+      if (!(await welcomeItem.isVisible())) {
+        await page.reload();
+      }
+      await expect(welcomeItem).toBeVisible();
+    }).toPass({ timeout: 30_000, intervals: [2_000] });
+
+    const unreadFilter = page.getByRole("button", { name: /unread/i });
+    await unreadFilter.click();
+    await expect(unreadFilter).toHaveAttribute("aria-pressed", "true");
+    await expect(welcomeItem).toBeVisible();
+    await expect(welcomeItem.getByText("New")).toBeVisible();
+
+    const markAll = page.getByRole("button", { name: /mark all read/i });
+    await expect(markAll).toBeEnabled();
+    await markAll.click();
+
+    await expect(page.getByText("No unread notifications")).toBeVisible();
+    await expect(
+      page.getByText("You're all caught up. Switch to All to see earlier notifications."),
+    ).toBeVisible();
+    await expect(page.getByText("Welcome to the platform!")).toHaveCount(0);
   });
 
   test("mark-read removes badge and button from the feed item", async ({

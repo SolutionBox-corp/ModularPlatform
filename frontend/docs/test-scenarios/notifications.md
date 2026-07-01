@@ -9,7 +9,10 @@ notification therefore appears in a fresh user's feed automatically.
 
 Endpoint surface:
 - `GET /v1/notifications/me?page=&pageSize=&unreadOnly=` — paged feed, newest-first, user-scoped via JWT
+- `GET /v1/notifications/me/unread-count` — unread badge counter, user-scoped via JWT
 - `POST /v1/notifications/{id}/read` — stamps `ReadAt`; idempotent (no-op if already read)
+- `POST /v1/notifications/me/read-all` — stamps all unread rows for the caller; idempotent when nothing is unread
+- `GET /v1/notifications/me/preferences` / `PUT /v1/notifications/me/preferences/{channel}` — per-user channel preferences; in-app is required and not configurable
 
 ---
 
@@ -49,7 +52,7 @@ Endpoint surface:
   - When: a POST to `/v1/notifications/{id}/read` is repeated (e.g. via network retry)
   - Then: the response is 200 OK (no error), the `ReadAt` timestamp does not change, and no duplicate
     row is created
-  - Priority: P1 · Type: edge · Automated: manual (backend unit coverage; UI button hidden after first read)
+  - Priority: P1 · Type: edge · Automated: yes (backend integration: mark-read idempotency; UI button hidden after first read)
 
 - **NOTIF-06** — **Timestamp is displayed and formatted**
   - Given: the welcome notification is displayed
@@ -114,15 +117,14 @@ Endpoint surface:
   - When: user B calls `POST /v1/notifications/{idA}/read`
   - Then: the API returns 404 (NotFoundException `notification.not_found`) — the handler scopes by `UserId`
     from the token, so a foreign id simply produces "not found"
-  - Priority: P0 · Type: security · Automated: manual (requires two active sessions; not feasible in serial
-    Playwright run without custom API calls)
+  - Priority: P0 · Type: security · Automated: yes (backend integration verifies foreign notification id returns `notification.not_found`)
 
 - **NOTIF-15** — **Tokens are NOT exposed in JS storage**
   - Given: an authenticated user on `/notifications`
   - When: `localStorage`, `sessionStorage`, and `document.cookie` are inspected from JS
   - Then: no JWT or refresh-token string is found; only the readable `mp_csrf` cookie may be present; session
     cookie is httpOnly and not accessible from JS
-  - Priority: P0 · Type: security · Automated: partial (e2e: `session tokens not in JS storage`)
+  - Priority: P0 · Type: security · Automated: yes (e2e: `session tokens not in JS storage`)
 
 - **NOTIF-16** — **Module entitlement guard: notifications link absent when module disabled**
   - Given: a tenant that does not have the `notifications` entitlement
@@ -173,4 +175,22 @@ Endpoint surface:
   - When: the DOM structure is inspected
   - Then: items are wrapped in a `<ul>` element and each notification is an `<li>`, providing list
     semantics for screen readers
-  - Priority: P1 · Type: a11y · Automated: manual (structure assertion; not covered by functional E2E)
+  - Priority: P1 · Type: a11y · Automated: yes (e2e: `shows welcome notification unread with badge, button and timestamp`)
+
+- **NOTIF-23** — **Unread-only filter shows only unread notifications**
+  - Given: a fresh user's welcome notification is unread
+  - When: they click the `Unread` filter
+  - Then: the `Unread` button has `aria-pressed="true"` and the unread welcome notification remains visible with its `New` badge
+  - Priority: P1 · Type: happy/edge · Automated: yes (e2e: `unread filter shows unread welcome then empty state after mark-all`)
+
+- **NOTIF-24** — **Mark all read clears unread filter state**
+  - Given: the user is viewing the unread-only feed and has one unread notification
+  - When: they click `Mark all read`
+  - Then: the unread feed switches to the `No unread notifications` empty state and the welcome item disappears from the unread-only list
+  - Priority: P1 · Type: happy/edge · Automated: yes (e2e: `unread filter shows unread welcome then empty state after mark-all`; backend integration verifies idempotent read-all)
+
+- **NOTIF-25** — **Notification preferences are per-user and in-app is mandatory**
+  - Given: a user opens notification channel preferences on the Account profile page
+  - When: preferences load
+  - Then: email and push are configurable, in-app is visible but disabled; backend rejects disabling in-app and persists per-user email/push choices
+  - Priority: P1 · Type: edge/security · Automated: backend integration (`Notification_preferences_default_enabled_can_be_changed_and_reject_required_inapp_channel`); frontend page structure is covered by account-profile smoke
