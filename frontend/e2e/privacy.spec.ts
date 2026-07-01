@@ -316,6 +316,73 @@ test.describe("Consent toggles — fresh user", () => {
       "false",
     );
   });
+
+  // PRIV-05 — the switch is disabled while the consent mutation is in-flight
+  test("toggle marketing consent disables switch while grant is pending", async ({ page }) => {
+    let releaseGrant!: () => void;
+    const grantPending = new Promise<void>((resolve) => {
+      releaseGrant = resolve;
+    });
+
+    await page.route(COOKIE_CONSENT_GRANT_PATH, async (route) => {
+      await grantPending;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: { consentRecordId: crypto.randomUUID() } }),
+      });
+    });
+
+    await registerFreshUser(page);
+    await page.goto("/account/privacy");
+
+    const consentSwitch = page.getByRole("switch", { name: /product news & offers/i });
+    await expect(consentSwitch).toBeVisible();
+    await expect(consentSwitch).toHaveAttribute("aria-checked", "false");
+
+    await consentSwitch.click();
+    await expect(consentSwitch).toBeDisabled();
+
+    releaseGrant();
+    await expect(consentSwitch).toHaveAttribute("aria-checked", "true");
+    await expect(page.getByText(/consent granted/i)).toBeVisible();
+  });
+
+  // PRIV-07 — failed consent mutation shows a toast and does not persist the new state
+  test("toggle marketing consent grant failure shows error and keeps switch unchecked", async ({
+    page,
+  }) => {
+    await page.route(COOKIE_CONSENT_GRANT_PATH, async (route) => {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/problem+json",
+        body: JSON.stringify({
+          status: 500,
+          errorCode: "gdpr.consent_failed",
+          detail: "Consent write failed.",
+        }),
+      });
+    });
+
+    await registerFreshUser(page);
+    await page.goto("/account/privacy");
+
+    const consentSwitch = page.getByRole("switch", { name: /product news & offers/i });
+    await expect(consentSwitch).toBeVisible();
+    await expect(consentSwitch).toHaveAttribute("aria-checked", "false");
+
+    await consentSwitch.click();
+
+    await expect(page.getByText(/Consent write failed/i)).toBeVisible();
+    await expect(consentSwitch).toBeEnabled();
+    await expect(consentSwitch).toHaveAttribute("aria-checked", "false");
+
+    await page.reload();
+    await expect(page.getByRole("switch", { name: /product news & offers/i })).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
