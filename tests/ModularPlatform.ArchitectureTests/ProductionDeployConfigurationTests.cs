@@ -30,6 +30,8 @@ public sealed class ProductionDeployConfigurationTests
         Assert.DoesNotContain("16010", runbook);
 
         Assert.Contains("ForwardedHeaders__KnownNetworks__0=172.16.0.0/12", env);
+        Assert.Contains("--exclude '.env'", runbook);
+        Assert.Contains("--exclude '*.env'", runbook);
     }
 
     [Fact]
