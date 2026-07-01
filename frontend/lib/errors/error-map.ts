@@ -16,6 +16,7 @@ const CATALOG: Catalog = {
   "generic.error": { en: "Something went wrong. Please try again.", cs: "Něco se pokazilo. Zkuste to znovu." },
   "network.error": { en: "Network error. Check your connection.", cs: "Chyba sítě. Zkontrolujte připojení." },
   // Auth
+  "auth.required": { en: "Please sign in to continue.", cs: "Pro pokračování se přihlaste." },
   "auth.unauthenticated": { en: "Please sign in to continue.", cs: "Pro pokračování se přihlaste." },
   "auth.expired": { en: "Your session expired. Please sign in again.", cs: "Platnost vaší relace vypršela. Přihlaste se znovu." },
   "auth.invalid_credentials": { en: "Incorrect email or password.", cs: "Nesprávný e-mail nebo heslo." },
@@ -31,6 +32,8 @@ const CATALOG: Catalog = {
   "user.not_found": { en: "User not found.", cs: "Uživatel nenalezen." },
   "user.current_password_invalid": { en: "The current password is incorrect.", cs: "Aktuální heslo není správné." },
   "user.password_unchanged": { en: "The new password must differ from the current one.", cs: "Nové heslo se musí lišit od aktuálního." },
+  "user.accepted_terms_version.required": { en: "Terms version is required.", cs: "Verze souhlasu s podmínkami je povinná." },
+  "user.accepted_terms_version.too_long": { en: "Terms version is too long.", cs: "Verze souhlasu s podmínkami je příliš dlouhá." },
   // Billing
   "billing.insufficient_credits": { en: "Not enough credits for this action.", cs: "Nedostatek kreditů pro tuto akci." },
   "billing.no_billing_account": { en: "No billing account yet. Subscribe or buy credits first.", cs: "Zatím nemáte fakturační účet. Nejprve si předplaťte nebo kupte kredity." },

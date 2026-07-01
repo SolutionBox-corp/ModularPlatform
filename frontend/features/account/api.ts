@@ -9,6 +9,8 @@ export interface UserProfileResponse {
   displayName: string | null;
   locale: string;
   emailConfirmed: boolean;
+  acceptedTermsVersion: string | null;
+  acceptedTermsAt: string | null;
 }
 
 export const accountQueries = {
@@ -54,5 +56,12 @@ export async function changePassword(body: {
 export async function requestEmailVerification(): Promise<void> {
   await apiFetch<void>("identity/users/me/email-verification", {
     method: "POST",
+  });
+}
+
+export function acceptTerms(termsVersion: string): Promise<UserProfileResponse> {
+  return apiFetch<UserProfileResponse>("identity/users/me/terms-acceptance", {
+    method: "POST",
+    body: { termsVersion },
   });
 }

@@ -6,6 +6,7 @@ import { notificationQueries } from "@/features/notifications/api";
 import { ProfileForm } from "@/features/account/components/profile-form";
 import { ChangePasswordForm } from "@/features/account/components/change-password-form";
 import { EmailVerificationCard } from "@/features/account/components/email-verification-card";
+import { TermsAcceptanceCard } from "@/features/account/components/terms-acceptance-card";
 import { NotificationPreferencesCard } from "@/features/notifications/components/notification-preferences-card";
 import type { Metadata } from "next";
 
@@ -36,6 +37,7 @@ export default async function ProfilePage() {
         </div>
 
         <EmailVerificationCard profile={profile} />
+        <TermsAcceptanceCard profile={profile} />
         <ProfileForm />
         <NotificationPreferencesCard />
         <ChangePasswordForm />

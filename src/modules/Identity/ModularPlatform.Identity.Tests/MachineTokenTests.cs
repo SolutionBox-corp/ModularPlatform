@@ -90,6 +90,11 @@ public sealed class MachineTokenTests(PlatformApiFactory fixture)
             HttpMethod.Post, "/v1/identity/users/me/change-password", machineToken,
             new { currentPassword = "irrelevant", newPassword = "N3wSup3rSecret!" }));
         humanOnly.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        var termsAcceptance = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/identity/users/me/terms-acceptance", machineToken,
+            new { termsVersion = "2026-07-01" }));
+        termsAcceptance.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
 
     [Fact]

@@ -74,5 +74,65 @@ public sealed class IdentityE2ETests(PlatformApiFactory fixture)
 
     private sealed record ApiEnvelope<T>(T Data, string? Message, bool Success);
     private sealed record Tokens(string AccessToken, DateTimeOffset AccessTokenExpiresAt, string RefreshToken);
-    private sealed record Profile(Guid Id, string Email, string? DisplayName, string Locale);
+    [Fact]
+    public async Task User_can_accept_current_terms_version_after_registration()
+    {
+        var email = $"terms-{Guid.CreateVersion7():N}@example.com";
+        var register = await fixture.Client.PostAsJsonAsync("/v1/identity/users",
+            new
+            {
+                email,
+                password = "Sup3rSecret!",
+                displayName = "Terms User",
+                acceptedTermsVersion = "2026-01-01"
+            });
+        register.StatusCode.ShouldBe(HttpStatusCode.Created);
+
+        var login = await fixture.Client.PostAsJsonAsync("/v1/identity/auth/login",
+            new { email, password = "Sup3rSecret!" });
+        login.EnsureSuccessStatusCode();
+        var tokens = await Unwrap<Tokens>(login);
+
+        var before = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, "/v1/identity/users/me", tokens.AccessToken));
+        before.EnsureSuccessStatusCode();
+        var beforeProfile = await Unwrap<Profile>(before);
+        beforeProfile.AcceptedTermsVersion.ShouldBe("2026-01-01");
+
+        var accept = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post,
+            "/v1/identity/users/me/terms-acceptance",
+            tokens.AccessToken,
+            new { termsVersion = "2026-06-20" }));
+
+        accept.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var afterProfile = await Unwrap<Profile>(accept);
+        afterProfile.AcceptedTermsVersion.ShouldBe("2026-06-20");
+        afterProfile.AcceptedTermsAt.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task Accept_terms_requires_a_terms_version()
+    {
+        var email = $"terms-validation-{Guid.CreateVersion7():N}@example.com";
+        var (_, accessToken) = await fixture.RegisterAndLoginAsync(email, "Sup3rSecret!");
+
+        var response = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post,
+            "/v1/identity/users/me/terms-acceptance",
+            accessToken,
+            new { termsVersion = "" }));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await response.Content.ReadAsStringAsync()).ShouldContain("user.accepted_terms_version.required");
+    }
+
+    private sealed record Profile(
+        Guid Id,
+        string Email,
+        string? DisplayName,
+        string Locale,
+        bool EmailConfirmed,
+        string? AcceptedTermsVersion,
+        DateTimeOffset? AcceptedTermsAt);
 }

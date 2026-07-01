@@ -44,10 +44,10 @@ All mutating endpoints (`POST /v1/tenant/admin/tenants`, `PUT .../entitlements/{
 - Priority: **P0** · Type: security · Automated: yes (e2e: `platform admin is not exposed on the normal host — /platform/tenants/{id} renders 404`)
 
 ### PA-04 — Client cannot spoof `x-tenant` header to gain admin access
-- **Given** an authenticated regular user sends a request to `/platform` with a spoofed `x-tenant: __admin__` header
+- **Given** an authenticated regular user sends a request to `/platform` on the tenant host with a spoofed `x-tenant: __admin__` header
 - **When** the proxy processes the request
-- **Then** the proxy strips the client-supplied `x-tenant` before passing it downstream; the platform layout receives the real host-derived tenant and the 403 error is shown (not the admin UI)
-- Priority: **P0** · Type: security · Automated: manual (requires intercepting HTTP headers at the transport layer)
+- **Then** the proxy strips the client-supplied `x-tenant`, applies the real host-derived tenant, rewrites `/platform` to `/not-found`, and the platform admin UI is not rendered
+- Priority: **P0** · Type: security · Automated: yes (e2e: `spoofed x-tenant header cannot expose platform admin UI`)
 
 ### PA-05 — Unauthenticated user on admin host is redirected to `/login`
 - **Preconditions** running admin host at `admin.lvh.me:3000`; no active session
@@ -268,7 +268,7 @@ All mutating endpoints (`POST /v1/tenant/admin/tenants`, `PUT .../entitlements/{
 - **Given** the user makes a direct API call to `POST /v1/tenant/admin/tenants` with their session token
 - **When** the backend processes the request
 - **Then** the backend returns 403 Forbidden (enforced by `.RequirePermission(PlatformPermissions.PlatformTenantsManage)`)
-- Priority: **P0** · Type: security · Automated: manual (requires direct API call; confirmed by the backend integration test `A_non_admin_cannot_provision_a_tenant`)
+- Priority: **P0** · Type: security · Automated: yes (e2e: `POST /api/bff/tenant/admin/tenants is blocked (CSRF or permission)`; backend integration test `A_non_admin_cannot_provision_a_tenant`)
 
 ### PA-36 — Keyboard navigation in Provision Tenant dialog
 - **Preconditions** admin host + dialog open

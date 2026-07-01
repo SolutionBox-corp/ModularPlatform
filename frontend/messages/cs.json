@@ -49,6 +49,15 @@
       "sent": "Ověřovací e-mail byl odeslán.",
       "error": "Ověřovací e-mail se nepodařilo odeslat. Zkuste to prosím znovu."
     },
+    "termsAcceptance": {
+      "title": "Zkontrolujte aktualizované podmínky",
+      "description": "Aktuální verze podmínek je {version}. Potvrďte ji, aby záznam vašeho účtu zůstal aktuální.",
+      "hint": "Přečtěte si <terms>podmínky služby</terms> a <privacy>zásady ochrany osobních údajů</privacy> a poté potvrďte souhlas.",
+      "accept": "Přijmout aktualizované podmínky",
+      "accepting": "Potvrzuji…",
+      "accepted": "Podmínky přijaty.",
+      "error": "Aktualizované podmínky se nepodařilo přijmout. Zkuste to prosím znovu."
+    },
     "notificationPreferences": {
       "title": "Kanály oznámení",
       "description": "Zvolte, kam se doručují volitelná oznámení. Oznámení v aplikaci zůstávají zapnutá, aby důležité události byly vždy viditelné.",

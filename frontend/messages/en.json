@@ -49,6 +49,15 @@
       "sent": "Verification email sent.",
       "error": "Could not send verification email. Please try again."
     },
+    "termsAcceptance": {
+      "title": "Review updated terms",
+      "description": "The current Terms version is {version}. Please accept it to keep your account record current.",
+      "hint": "Review the <terms>Terms of Service</terms> and <privacy>Privacy Policy</privacy>, then confirm your acceptance.",
+      "accept": "Accept updated terms",
+      "accepting": "Accepting…",
+      "accepted": "Terms accepted.",
+      "error": "Could not accept the updated terms. Please try again."
+    },
     "notificationPreferences": {
       "title": "Notification channels",
       "description": "Choose where optional notifications are delivered. In-app notifications stay on so important product events remain visible.",

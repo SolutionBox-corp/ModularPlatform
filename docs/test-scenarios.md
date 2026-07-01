@@ -31,6 +31,7 @@ Status: **✓** implemented · **▢** gap (planned) · **◐** partially covere
 | ID-10 | JWT issued validates under the configured key; a token signed with a wrong key is rejected | U | ✓ `TokenIssuerTests.Access_token_validates_with_configured_key_and_rejects_wrong_key` |
 | ID-11 | `JwtOptionsValidator`: empty/<32-byte key in non-Development → host fails to start; Development → allowed | U | ✓ `JwtOptionsValidatorTests` |
 | ID-12 | Audit after profile update records ONLY changed columns (JSONB) | I | ✓ `Update_profile_audit_row_records_changed_columns_only` |
+| ID-13 | Accept current terms from `/identity/users/me/terms-acceptance`: subject comes from token, version/timestamp persist, profile returns the accepted version, invalid versions reject, machine principals are forbidden | I/S | ✓ `AcceptTermsTests` + `MachineTokenTests.Admin_mints_a_tenant_scoped_machine_token` |
 
 ## 2. Billing — credit ledger (money-critical)
 

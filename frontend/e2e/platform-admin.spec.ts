@@ -11,7 +11,7 @@ import { test, expect } from "@playwright/test";
  *
  * The proxy (proxy.ts) rewrites any /platform/* path from a non-admin host to /not-found
  * before the Next.js routing layer. This must hold for authenticated AND unauthenticated
- * users, and for every /platform sub-path.
+ * users, for spoofed x-tenant headers, and for every /platform sub-path.
  *
  * All other scenarios (tenant provisioning, entitlement toggles, invite creation, billing
  * card, permission-gated nav) require the admin host and are catalogued as MANUAL in
@@ -86,6 +86,19 @@ test.describe("platform admin is not exposed on the normal host", () => {
   test("X-Content-Type-Options nosniff header present on /platform", async ({ request }) => {
     const response = await request.get("/platform");
     expect(response.headers()["x-content-type-options"]).toBe("nosniff");
+  });
+
+  test("spoofed x-tenant header cannot expose platform admin UI", async ({ page }) => {
+    await page.setExtraHTTPHeaders({ "x-tenant": "__admin__" });
+    await page.goto("/platform");
+
+    await expect(
+      page.getByRole("heading", { name: /platform administration/i }),
+    ).not.toBeVisible({ timeout: 5_000 });
+    await expect(
+      page.getByRole("button", { name: /provision tenant/i }),
+    ).not.toBeVisible();
+    await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
   });
 });
 

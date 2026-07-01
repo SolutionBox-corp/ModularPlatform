@@ -26,6 +26,7 @@ using ModularPlatform.Identity.Features.Auth.Logout;
 using ModularPlatform.Identity.Features.Auth.RefreshToken;
 using ModularPlatform.Identity.Features.Auth.ResetPassword;
 using ModularPlatform.Identity.Features.Auth.VerifyEmail;
+using ModularPlatform.Identity.Features.Users.AcceptTerms;
 using ModularPlatform.Identity.Features.Users.GetProfile;
 using ModularPlatform.Identity.Features.Users.RequestEmailVerification;
 using ModularPlatform.Identity.Features.Users.RegisterUser;
@@ -81,6 +82,7 @@ public sealed class IdentityModule : IModule
     {
         endpoints.MapRegisterUser();
         endpoints.MapGetProfile();
+        endpoints.MapAcceptTerms();
         endpoints.MapUpdateProfile();
         endpoints.MapChangePassword();
         endpoints.MapLogin();

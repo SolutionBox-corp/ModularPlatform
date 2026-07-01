@@ -1,8 +1,9 @@
 # Account Profile — Test Scenario Catalog
 
 **Route:** `/account/profile`
-**Backend:** `GET /v1/identity/users/me` -> `UserProfileResponse { id, email, displayName, locale, emailConfirmed }`
+**Backend:** `GET /v1/identity/users/me` -> `UserProfileResponse { id, email, displayName, locale, emailConfirmed, acceptedTermsVersion, acceptedTermsAt }`
 **Update endpoint:** `PATCH /v1/identity/users/me` -> updates `displayName` and `locale`.
+**Terms endpoint:** `POST /v1/identity/users/me/terms-acceptance` -> records the current accepted Terms version.
 
 Email is intentionally read-only. Changing e-mail needs a separate verified e-mail-change flow.
 
@@ -114,6 +115,24 @@ Email is intentionally read-only. Changing e-mail needs a separate verified e-ma
   - Then a toast error is displayed and the form remains editable
   - Priority: P1 · Type: error · Automated: manual (requires network interception/API stubbing)
 
+- **PROF-18** — Updated Terms acceptance card appears for stale accepted version
+  - Given the backend profile returns `acceptedTermsVersion` different from the frontend `TERMS_VERSION`
+  - When the user opens `/account/profile`
+  - Then an updated Terms card is visible with links to Terms and Privacy Policy
+  - Priority: P0 · Type: compliance · Automated: backend integration for profile field + endpoint; frontend manual/API-stub
+
+- **PROF-19** — Accept updated Terms records current version
+  - Given the updated Terms card is visible
+  - When the user clicks "Accept updated terms"
+  - Then `POST /v1/identity/users/me/terms-acceptance` stores the current `TERMS_VERSION`, refreshes profile, hides the card, and shows a success toast
+  - Priority: P0 · Type: compliance · Automated: backend integration
+
+- **PROF-20** — Missing Terms version is rejected
+  - Given an authenticated caller posts an empty `termsVersion`
+  - When the backend handles the request
+  - Then it returns 400 with `user.accepted_terms_version.required`
+  - Priority: P1 · Type: edge · Automated: backend integration
+
 ---
 
 ## Known Gaps / Assumptions
@@ -121,3 +140,4 @@ Email is intentionally read-only. Changing e-mail needs a separate verified e-ma
 1. E-mail change is intentionally not part of the profile form; it needs a verified e-mail-change flow.
 2. Skeleton state (PROF-06), cache freshness (PROF-10), and save-error UI (PROF-17) need network interception or manual observation.
 3. Accessibility audit (PROF-13) requires assistive technology; PROF-14 is partially covered by e2e attribute checks.
+4. Frontend Terms-card visibility is best covered with an API-stub E2E because normal fresh users accept the current version at registration.
