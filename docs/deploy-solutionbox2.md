@@ -60,7 +60,7 @@ ssh solutionbox2 'mkdir -p /opt/modularplatform'
 # from the repo root on the dev machine (working tree on `main`):
 rsync -az --delete \
   --exclude '.git/' --exclude '**/bin/' --exclude '**/obj/' \
-  --exclude '.env' --exclude '*.env' \
+  --exclude '.env' --exclude '*.env' --exclude 'backups/' \
   --exclude 'frontend/node_modules/' --exclude 'frontend/.next/' \
   ./ solutionbox2:/opt/modularplatform/
 # put the deploy hooks where the runbook expects them
