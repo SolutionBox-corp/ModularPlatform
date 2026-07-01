@@ -36,6 +36,11 @@ internal sealed class SendNotificationHandler(
 
         var title = TemplateRenderer.Render(template.Subject, command.Data);
         var body = TemplateRenderer.Render(template.Body, command.Data);
+        var disabledChannels = await db.NotificationPreferences
+            .Where(p => p.UserId == command.UserId && !p.Enabled)
+            .Select(p => p.Channel)
+            .ToListAsync(ct);
+        var disabled = disabledChannels.ToHashSet(StringComparer.Ordinal);
 
         var notification = new Notification
         {
@@ -55,6 +60,11 @@ internal sealed class SendNotificationHandler(
             switch (channel)
             {
                 case "email":
+                    if (disabled.Contains("email"))
+                    {
+                        break;
+                    }
+
                     await outbox.PublishAsync(new EmailDeliveryRequested(
                         EventId: Guid.CreateVersion7(),
                         OccurredAt: clock.UtcNow,
@@ -66,6 +76,11 @@ internal sealed class SendNotificationHandler(
                     break;
 
                 case "push":
+                    if (disabled.Contains("push"))
+                    {
+                        break;
+                    }
+
                     await outbox.PublishAsync(new PushDeliveryRequested(
                         EventId: Guid.CreateVersion7(),
                         OccurredAt: clock.UtcNow,

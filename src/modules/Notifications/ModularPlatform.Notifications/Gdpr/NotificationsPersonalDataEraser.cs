@@ -30,5 +30,9 @@ internal sealed class NotificationsPersonalDataEraser(NotificationsDbContext db)
                     .SetProperty(n => n.Title, string.Empty)
                     .SetProperty(n => n.Body, string.Empty),
                 ct);
+
+        await db.NotificationPreferences
+            .Where(p => p.UserId == userId)
+            .ExecuteDeleteAsync(ct);
     }
 }

@@ -33,10 +33,22 @@ internal sealed class NotificationsPersonalDataExporter(IReadDbContextFactory<No
                 n.CreatedAt,
             })
             .ToListAsync(ct);
+        var preferences = await db.NotificationPreferences
+            .Where(p => p.UserId == userId)
+            .OrderBy(p => p.Channel)
+            .Select(p => new
+            {
+                p.Channel,
+                p.Enabled,
+                p.UpdatedAt,
+                p.CreatedAt,
+            })
+            .ToListAsync(ct);
 
         return new Dictionary<string, object?>
         {
             ["notifications"] = notifications,
+            ["preferences"] = preferences,
         };
     }
 }

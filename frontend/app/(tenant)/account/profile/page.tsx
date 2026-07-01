@@ -2,9 +2,11 @@ import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
 import { getTranslations } from "next-intl/server";
 import { getQueryClient } from "@/lib/api/query-client";
 import { accountQueries } from "@/features/account/api";
+import { notificationQueries } from "@/features/notifications/api";
 import { ProfileForm } from "@/features/account/components/profile-form";
 import { ChangePasswordForm } from "@/features/account/components/change-password-form";
 import { EmailVerificationCard } from "@/features/account/components/email-verification-card";
+import { NotificationPreferencesCard } from "@/features/notifications/components/notification-preferences-card";
 import type { Metadata } from "next";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -19,6 +21,7 @@ export default async function ProfilePage() {
   const t = await getTranslations("account");
 
   const profile = await queryClient.fetchQuery(accountQueries.profile());
+  void queryClient.prefetchQuery(notificationQueries.preferences());
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
@@ -34,6 +37,7 @@ export default async function ProfilePage() {
 
         <EmailVerificationCard profile={profile} />
         <ProfileForm />
+        <NotificationPreferencesCard />
         <ChangePasswordForm />
       </div>
     </HydrationBoundary>

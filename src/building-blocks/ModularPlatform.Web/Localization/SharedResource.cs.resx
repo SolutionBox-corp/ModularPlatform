@@ -117,7 +117,9 @@
   <data name="notification.template_key.required" xml:space="preserve"><value>Klíč šablony je povinný.</value></data>
   <data name="notification.template_key.too_long" xml:space="preserve"><value>Klíč šablony je příliš dlouhý.</value></data>
   <data name="notification.channels.required" xml:space="preserve"><value>Je vyžadován alespoň jeden kanál.</value></data>
+  <data name="notification.channel.required" xml:space="preserve"><value>Kanál notifikací je povinný.</value></data>
   <data name="notification.channel.invalid" xml:space="preserve"><value>Neznámý kanál notifikace.</value></data>
+  <data name="notification.channel_preference.invalid" xml:space="preserve"><value>Tento kanál notifikací nelze změnit.</value></data>
   <data name="notification.id.required" xml:space="preserve"><value>ID notifikace je povinné.</value></data>
   <data name="notification.template_not_found" xml:space="preserve"><value>Šablona notifikace nenalezena.</value></data>
   <data name="notification.not_found" xml:space="preserve"><value>Notifikace nenalezena.</value></data>

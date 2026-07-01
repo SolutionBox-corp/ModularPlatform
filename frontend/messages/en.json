@@ -49,6 +49,26 @@
       "sent": "Verification email sent.",
       "error": "Could not send verification email. Please try again."
     },
+    "notificationPreferences": {
+      "title": "Notification channels",
+      "description": "Choose where optional notifications are delivered. In-app notifications stay on so important product events remain visible.",
+      "saved": "Notification preference saved.",
+      "error": "Could not save notification preference.",
+      "channels": {
+        "inapp": {
+          "label": "In-app",
+          "description": "Required feed entry inside the app."
+        },
+        "email": {
+          "label": "Email",
+          "description": "Send notification emails when a template requests email delivery."
+        },
+        "push": {
+          "label": "Push",
+          "description": "Send push or webhook notifications when configured."
+        }
+      }
+    },
     "page": {
       "heading": "Profile",
       "metaTitle": "Profile — ModularPlatform",

@@ -16,4 +16,5 @@ internal sealed class NotificationsDbContext(DbContextOptions<NotificationsDbCon
 
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<NotificationTemplate> NotificationTemplates => Set<NotificationTemplate>();
+    public DbSet<NotificationPreference> NotificationPreferences => Set<NotificationPreference>();
 }

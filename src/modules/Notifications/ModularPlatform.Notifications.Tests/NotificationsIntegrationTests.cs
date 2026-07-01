@@ -248,6 +248,43 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task SendNotification_respects_email_and_push_preferences_without_dropping_the_feed_row()
+    {
+        var recipientId = Guid.CreateVersion7();
+        var templateKey = $"nt-pref-send-{Guid.CreateVersion7():N}";
+        var tenant = new TestTenantContext(recipientId);
+
+        await using var db = NewNotificationsDbContext(tenant);
+        db.NotificationTemplates.Add(new NotificationTemplate
+        {
+            Key = templateKey,
+            Locale = "en",
+            Subject = "Preference {displayName}",
+            Body = "Body {displayName}"
+        });
+        db.NotificationPreferences.AddRange(
+            new NotificationPreference { UserId = recipientId, Channel = "email", Enabled = false },
+            new NotificationPreference { UserId = recipientId, Channel = "push", Enabled = false });
+        await db.SaveChangesAsync();
+
+        var outbox = new RecordingOutbox(db);
+        var realtime = new RecordingRealtimePublisher();
+        var handler = new SendNotificationHandler(outbox, realtime, new FixedClock());
+
+        await handler.Handle(new SendNotificationCommand(
+                recipientId,
+                templateKey,
+                ["email", "push", "inapp"],
+                new Dictionary<string, string> { ["displayName"] = "Ada", ["email"] = "ada@example.com" }),
+            CancellationToken.None);
+
+        db.Notifications.Count(n => n.UserId == recipientId && n.TemplateKey == templateKey).ShouldBe(1);
+        outbox.Published.OfType<EmailDeliveryRequested>().ShouldBeEmpty();
+        outbox.Published.OfType<PushDeliveryRequested>().ShouldBeEmpty();
+        realtime.Published.ShouldContain(p => p.UserId == recipientId && p.EventType == "notification");
+    }
+
+    [Fact]
     public async Task SendNotification_email_delivery_message_uses_requested_locale_template()
     {
         var (recipientId, adminToken) = await AdminTokenAsync();
@@ -826,6 +863,44 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
         bobRowsStillUnread.ShouldBe(1);
     }
 
+    [Fact]
+    public async Task Notification_preferences_default_enabled_can_be_changed_and_reject_required_inapp_channel()
+    {
+        var (userId, token) = await fixture.RegisterAndLoginAsync(
+            $"pref-{Guid.CreateVersion7():N}@example.com", Password);
+
+        var defaults = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/notifications/me/preferences", token));
+        defaults.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var defaultItems = (await PlatformApiFactory.ReadData(defaults)).GetProperty("items").EnumerateArray().ToArray();
+        Preference(defaultItems, "inapp").GetProperty("enabled").GetBoolean().ShouldBeTrue();
+        Preference(defaultItems, "inapp").GetProperty("configurable").GetBoolean().ShouldBeFalse();
+        Preference(defaultItems, "email").GetProperty("enabled").GetBoolean().ShouldBeTrue();
+        Preference(defaultItems, "email").GetProperty("configurable").GetBoolean().ShouldBeTrue();
+        Preference(defaultItems, "push").GetProperty("enabled").GetBoolean().ShouldBeTrue();
+
+        var disableEmail = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Put, "/v1/notifications/me/preferences/email", token, new { enabled = false }));
+        disableEmail.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var disableData = await PlatformApiFactory.ReadData(disableEmail);
+        disableData.GetProperty("channel").GetString().ShouldBe("email");
+        disableData.GetProperty("enabled").GetBoolean().ShouldBeFalse();
+
+        var after = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/notifications/me/preferences", token));
+        Preference((await PlatformApiFactory.ReadData(after)).GetProperty("items").EnumerateArray().ToArray(), "email")
+            .GetProperty("enabled").GetBoolean().ShouldBeFalse();
+
+        var invalid = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Put, "/v1/notifications/me/preferences/inapp", token, new { enabled = false }));
+        invalid.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await invalid.Content.ReadAsStringAsync()).ShouldContain("notification.channel_preference.invalid");
+
+        var storedRows = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM notification_preferences WHERE \"UserId\" = '{userId}' AND \"Channel\" = 'email' AND \"Enabled\" = false");
+        storedRows.ShouldBe(1);
+    }
+
     // A notification's PII (Title/Body) is crypto-shredded in the audit trail: the live row keeps the rendered
     // text, but notifications_audit_entries stores it as a penc:v2: envelope — never the plaintext.
     [Fact]
@@ -869,9 +944,9 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
     [Fact]
     public async Task Notifications_gdpr_export_and_erasure_ports_return_feed_and_scrub_only_the_subject()
     {
-        var (aliceId, _) = await fixture.RegisterAndLoginAsync(
+        var (aliceId, aliceToken) = await fixture.RegisterAndLoginAsync(
             $"gdpr-notif-alice-{Guid.CreateVersion7():N}@example.com", Password);
-        var (bobId, _) = await fixture.RegisterAndLoginAsync(
+        var (bobId, bobToken) = await fixture.RegisterAndLoginAsync(
             $"gdpr-notif-bob-{Guid.CreateVersion7():N}@example.com", Password);
 
         await fixture.ExecuteSqlAsync($"UPDATE notifications SET \"ReadAt\" = now() WHERE \"UserId\" IN ('{aliceId}', '{bobId}')");
@@ -889,6 +964,12 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
         await SeedTemplateAsync(aliceThirdTemplate, "Alice export marker 3");
         await SendDirectAsync(aliceId, aliceSecondTemplate);
         await SendDirectAsync(aliceId, aliceThirdTemplate);
+        var alicePreference = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Put, "/v1/notifications/me/preferences/email", aliceToken, new { enabled = false }));
+        alicePreference.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var bobPreference = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Put, "/v1/notifications/me/preferences/push", bobToken, new { enabled = false }));
+        bobPreference.StatusCode.ShouldBe(HttpStatusCode.OK);
         await fixture.ExecuteSqlAsync(
             "UPDATE notifications " +
             "SET \"CreatedAt\" = timestamp with time zone '2030-01-01 00:00:00+00' " +
@@ -911,6 +992,10 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
         rows.ShouldContain(row => row.ToString()!.Contains(aliceTemplate, StringComparison.Ordinal));
         rows.ShouldNotContain(row => row.ToString()!.Contains(bobTemplate, StringComparison.Ordinal));
         rows.Select(NotificationExportId).Take(3).ToArray().ShouldBe(expectedExportIds);
+        var preferences = JsonSerializer.Serialize(export["preferences"]);
+        preferences.ShouldContain("email");
+        preferences.ShouldContain("false");
+        preferences.ShouldNotContain("push");
 
         await eraser.EraseAsync(aliceId, CancellationToken.None);
         await eraser.EraseAsync(aliceId, CancellationToken.None);
@@ -922,6 +1007,13 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
         var bobStillHasContent = await fixture.ScalarAsync<long>(
             $"SELECT count(*)::bigint FROM notifications WHERE \"UserId\" = '{bobId}' AND \"TemplateKey\" = '{bobTemplate}' AND \"Title\" <> '' AND \"Body\" <> ''");
         bobStillHasContent.ShouldBe(1);
+
+        var alicePreferencesGone = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM notification_preferences WHERE \"UserId\" = '{aliceId}'");
+        alicePreferencesGone.ShouldBe(0);
+        var bobPreferencesRemain = await fixture.ScalarAsync<long>(
+            $"SELECT count(*)::bigint FROM notification_preferences WHERE \"UserId\" = '{bobId}' AND \"Channel\" = 'push'");
+        bobPreferencesRemain.ShouldBe(1);
     }
 
     // purchase_completed consumer — publishing CreditPurchaseCompletedIntegrationEvent via IMessageBus
@@ -1250,6 +1342,9 @@ public sealed class NotificationsIntegrationTests(PlatformApiFactory fixture)
             _ => data.ToString() ?? string.Empty,
         };
     }
+
+    private static JsonElement Preference(JsonElement[] items, string channel) =>
+        items.Single(i => i.GetProperty("channel").GetString() == channel);
 
     private sealed class TestTenantContext(Guid userId) : ITenantContext
     {

@@ -6,6 +6,7 @@ import {
   markNotificationRead,
   markAllNotificationsRead,
   notificationQueries,
+  setNotificationPreference,
 } from "@/features/notifications/api";
 
 /**
@@ -37,6 +38,21 @@ export function useMarkAllNotificationsRead() {
 
   return useMutation({
     mutationFn: () => markAllNotificationsRead(),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryRoots.notifications });
+    },
+  });
+}
+
+export function useNotificationPreferences() {
+  return useQuery(notificationQueries.preferences());
+}
+
+export function useSetNotificationPreference() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: setNotificationPreference,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryRoots.notifications });
     },

@@ -20,7 +20,7 @@ public sealed class BulkMutationArchitectureTests
         ["src/modules/Gdpr/ModularPlatform.Gdpr/Features/Consents/ConsentPersonalDataEraser.cs"] = 1,
         ["src/modules/Identity/ModularPlatform.Identity/Gdpr/IdentityPersonalDataEraser.cs"] = 2,
         ["src/modules/Marketing/ModularPlatform.Marketing/Gdpr/MarketingPersonalDataEraser.cs"] = 5,
-        ["src/modules/Notifications/ModularPlatform.Notifications/Gdpr/NotificationsPersonalDataEraser.cs"] = 1,
+        ["src/modules/Notifications/ModularPlatform.Notifications/Gdpr/NotificationsPersonalDataEraser.cs"] = 2,
 
         // Non-PII maintenance purge; expired refresh tokens are removed after the retention window.
         ["src/modules/Identity/ModularPlatform.Identity/Features/Auth/PurgeRefreshTokens/PurgeRefreshTokensHandler.cs"] = 1,

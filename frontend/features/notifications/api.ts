@@ -16,6 +16,16 @@ export interface UnreadCountResponse {
   count: number;
 }
 
+export interface NotificationPreferenceItem {
+  channel: "inapp" | "email" | "push";
+  enabled: boolean;
+  configurable: boolean;
+}
+
+export interface NotificationPreferencesResponse {
+  items: NotificationPreferenceItem[];
+}
+
 export const notificationQueries = {
   /** GET /v1/notifications/me — paginated feed. */
   feed: (params?: { unreadOnly?: boolean; page?: number; pageSize?: number }) =>
@@ -52,6 +62,17 @@ export const notificationQueries = {
         apiFetch<UnreadCountResponse>("notifications/me/unread-count"),
       staleTime: 30_000,
     }),
+
+  /** GET /v1/notifications/me/preferences — per-user channel preferences. */
+  preferences: () =>
+    queryOptions({
+      queryKey: [...queryRoots.notifications, "preferences"],
+      queryFn: () =>
+        apiFetch<NotificationPreferencesResponse>(
+          "notifications/me/preferences",
+        ),
+      staleTime: 30_000,
+    }),
 };
 
 /** POST /v1/notifications/{id}/read — marks a single notification as read. */
@@ -64,4 +85,18 @@ export function markAllNotificationsRead(): Promise<{ marked: number }> {
   return apiFetch<{ marked: number }>("notifications/me/read-all", {
     method: "POST",
   });
+}
+
+/** PUT /v1/notifications/me/preferences/{channel} — updates one configurable channel. */
+export function setNotificationPreference(params: {
+  channel: "email" | "push";
+  enabled: boolean;
+}): Promise<{ channel: string; enabled: boolean }> {
+  return apiFetch<{ channel: string; enabled: boolean }>(
+    `notifications/me/preferences/${params.channel}`,
+    {
+      method: "PUT",
+      body: { enabled: params.enabled },
+    },
+  );
 }

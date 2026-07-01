@@ -49,6 +49,26 @@
       "sent": "Ověřovací e-mail byl odeslán.",
       "error": "Ověřovací e-mail se nepodařilo odeslat. Zkuste to prosím znovu."
     },
+    "notificationPreferences": {
+      "title": "Kanály oznámení",
+      "description": "Zvolte, kam se doručují volitelná oznámení. Oznámení v aplikaci zůstávají zapnutá, aby důležité události byly vždy viditelné.",
+      "saved": "Nastavení oznámení bylo uloženo.",
+      "error": "Nastavení oznámení se nepodařilo uložit.",
+      "channels": {
+        "inapp": {
+          "label": "V aplikaci",
+          "description": "Povinný záznam ve feedu aplikace."
+        },
+        "email": {
+          "label": "E-mail",
+          "description": "Odesílat e-mailová oznámení, pokud je šablona vyžaduje."
+        },
+        "push": {
+          "label": "Push",
+          "description": "Odesílat push nebo webhook oznámení, pokud jsou nakonfigurovaná."
+        }
+      }
+    },
     "page": {
       "heading": "Profil",
       "metaTitle": "Profil — ModularPlatform",
