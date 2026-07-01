@@ -23,7 +23,7 @@ Error codes are sourced from the backend validators (`RegisterUserValidator`, `L
   - Given the user has a valid session
   - When they navigate to `/register`
   - Then the auth layout redirects them to `/` immediately (no flicker of the form)
-  - Priority: P1 · Type: edge · Automated: manual (requires authenticated state + navigation to /register — not tested in ANONYMOUS suite)
+  - Priority: P1 · Type: edge · Automated: yes (e2e: `authenticated user visiting /register is redirected to dashboard`)
 
 ---
 
@@ -77,7 +77,7 @@ Error codes are sourced from the backend validators (`RegisterUserValidator`, `L
   - Given the user has a valid session
   - When they navigate to `/login`
   - Then the auth layout redirects them to `/` (no form shown)
-  - Priority: P1 · Type: edge · Automated: manual (requires authenticated context)
+  - Priority: P1 · Type: edge · Automated: yes (e2e: `authenticated user visiting /login is redirected to dashboard`)
 
 ---
 
@@ -164,7 +164,7 @@ Error codes are sourced from the backend validators (`RegisterUserValidator`, `L
 - **AUTH-21** — **Register Terms checkbox is keyboard-operable**
   - Given the user tabs to the Terms checkbox
   - Then pressing Space toggles `aria-checked` between true/false
-  - Priority: P2 · Type: a11y · Automated: manual
+  - Priority: P2 · Type: a11y · Automated: yes (e2e: `terms checkbox toggles with keyboard space`)
 
 ---
 
