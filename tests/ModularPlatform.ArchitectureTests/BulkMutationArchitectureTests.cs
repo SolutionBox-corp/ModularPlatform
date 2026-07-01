@@ -15,7 +15,7 @@ public sealed class BulkMutationArchitectureTests
     {
         // GDPR scrubs / erasures: intentionally bypass audit/encryption because retained audit PII is crypto-shredded
         // and live rows are being erased or removed.
-        ["src/modules/Crm/ModularPlatform.Crm/Gdpr/CrmPersonalDataEraser.cs"] = 9,
+        ["src/modules/Crm/ModularPlatform.Crm/Gdpr/CrmPersonalDataEraser.cs"] = 10,
         ["src/modules/Files/ModularPlatform.Files/Gdpr/FilesPersonalDataEraser.cs"] = 2,
         ["src/modules/Gdpr/ModularPlatform.Gdpr/Features/Consents/ConsentPersonalDataEraser.cs"] = 1,
         ["src/modules/Identity/ModularPlatform.Identity/Gdpr/IdentityPersonalDataEraser.cs"] = 2,

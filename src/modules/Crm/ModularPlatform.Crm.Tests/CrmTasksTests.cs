@@ -104,6 +104,28 @@ public sealed class CrmTasksTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Comments_add_and_list_newest_first()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");
+        var taskId = await CreateTaskAsync(token, new { title = "Needs notes" });
+
+        var first = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, $"/v1/crm/tasks/{taskId}/comments", token, new { body = "first note" }));
+        first.StatusCode.ShouldBe(HttpStatusCode.Created, await first.Content.ReadAsStringAsync());
+        var second = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, $"/v1/crm/tasks/{taskId}/comments", token, new { body = "second note" }));
+        second.StatusCode.ShouldBe(HttpStatusCode.Created, await second.Content.ReadAsStringAsync());
+
+        var list = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, $"/v1/crm/tasks/{taskId}/comments", token));
+        list.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var comments = (await PlatformApiFactory.ReadData(list)).GetProperty("items").EnumerateArray().ToList();
+        comments.Count.ShouldBe(2);
+        comments[0].GetProperty("body").GetString().ShouldBe("second note");
+        comments[1].GetProperty("body").GetString().ShouldBe("first note");
+    }
+
+    [Fact]
     public async Task Foreign_task_is_not_found()
     {
         var (_, owner) = await fixture.RegisterAndLoginAsync(Email(), "Sup3rSecret!");

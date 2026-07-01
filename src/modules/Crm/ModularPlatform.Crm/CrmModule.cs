@@ -38,10 +38,12 @@ using ModularPlatform.Crm.Features.Meetings.CreateMeeting;
 using ModularPlatform.Crm.Features.Meetings.GetMeeting;
 using ModularPlatform.Crm.Features.Meetings.ListMeetings;
 using ModularPlatform.Crm.Features.Meetings.UpdateMeeting;
+using ModularPlatform.Crm.Features.Tasks.AddTaskComment;
 using ModularPlatform.Crm.Features.Tasks.CompleteTask;
 using ModularPlatform.Crm.Features.Tasks.CreateTask;
 using ModularPlatform.Crm.Features.Tasks.DeleteTask;
 using ModularPlatform.Crm.Features.Tasks.GetTask;
+using ModularPlatform.Crm.Features.Tasks.ListTaskComments;
 using ModularPlatform.Crm.Features.Tasks.ListTasks;
 using ModularPlatform.Crm.Features.Tasks.UpdateTask;
 using ModularPlatform.Crm.Gdpr;
@@ -111,6 +113,8 @@ public sealed class CrmModule : IModule
         endpoints.MapListTasks();
         endpoints.MapUpdateTask();
         endpoints.MapCompleteTask();
+        endpoints.MapAddTaskComment();
+        endpoints.MapListTaskComments();
         endpoints.MapDeleteTask();
 
         endpoints.MapCreateCompany();

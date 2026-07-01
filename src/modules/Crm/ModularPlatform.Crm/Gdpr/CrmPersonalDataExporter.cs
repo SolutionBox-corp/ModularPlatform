@@ -102,6 +102,18 @@ internal sealed class CrmPersonalDataExporter(IReadDbContextFactory<CrmDbContext
             })
             .ToListAsync(ct);
 
+        var taskComments = await db.TaskComments
+            .IgnoreQueryFilters()
+            .Where(c => c.UserId == userId)
+            .Select(c => new
+            {
+                c.Id,
+                c.TaskId,
+                c.Body,
+                c.CreatedAt,
+            })
+            .ToListAsync(ct);
+
         var companies = await db.Companies
             .IgnoreQueryFilters()
             .Where(c => c.UserId == userId)
@@ -135,6 +147,7 @@ internal sealed class CrmPersonalDataExporter(IReadDbContextFactory<CrmDbContext
             ["meetings"] = meetings,
             ["deals"] = deals,
             ["tasks"] = tasks,
+            ["taskComments"] = taskComments,
             ["companies"] = companies,
             ["boards"] = boards,
             ["cards"] = cards,

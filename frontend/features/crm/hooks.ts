@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { queryRoots } from "@/lib/api/query-keys";
 import {
   addInteraction,
+  addTaskComment,
   cancelMeeting,
   completeMeeting,
   createContact,
@@ -82,6 +83,18 @@ export function useAddInteraction(contactId: string) {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: queryRoots.crm });
       toast.success(t("toast.interactionAdded"));
+    },
+  });
+}
+
+export function useAddTaskComment(taskId: string) {
+  const queryClient = useQueryClient();
+  const t = useTranslations("crm");
+  return useMutation({
+    mutationFn: (body: string) => addTaskComment(taskId, body),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryRoots.crm });
+      toast.success(t("toast.taskCommentAdded"));
     },
   });
 }

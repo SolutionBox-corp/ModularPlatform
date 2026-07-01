@@ -14,3 +14,9 @@ public sealed record TaskResponse(
     DateTimeOffset? CompletedAt,
     DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt);
+
+public sealed record TaskCommentResponse(
+    Guid Id,
+    Guid TaskId,
+    string Body,
+    DateTimeOffset CreatedAt);

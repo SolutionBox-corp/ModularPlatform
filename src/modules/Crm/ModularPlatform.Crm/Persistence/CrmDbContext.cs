@@ -19,6 +19,7 @@ internal sealed class CrmDbContext(DbContextOptions<CrmDbContext> options, ITena
     public DbSet<Meeting> Meetings => Set<Meeting>();
     public DbSet<Deal> Deals => Set<Deal>();
     public DbSet<CrmTask> Tasks => Set<CrmTask>();
+    public DbSet<CrmTaskComment> TaskComments => Set<CrmTaskComment>();
     public DbSet<Company> Companies => Set<Company>();
     public DbSet<KanbanBoard> KanbanBoards => Set<KanbanBoard>();
     public DbSet<KanbanColumn> KanbanColumns => Set<KanbanColumn>();

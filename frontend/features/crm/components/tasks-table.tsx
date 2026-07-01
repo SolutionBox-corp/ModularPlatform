@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { CheckIcon, PlusIcon, Trash2Icon } from "lucide-react";
@@ -61,7 +62,15 @@ export function TasksTable({ contactId, dealId }: TasksTableProps) {
   );
 
   const columns: ColumnDef<CrmTask>[] = [
-    { key: "title", header: t("table.taskTitle"), cell: (row) => <span className="font-medium">{row.title}</span> },
+    {
+      key: "title",
+      header: t("table.taskTitle"),
+      cell: (row) => (
+        <Link href={`/crm/tasks/${row.id}`} className="font-medium hover:underline">
+          {row.title}
+        </Link>
+      ),
+    },
     {
       key: "due",
       header: t("table.due"),

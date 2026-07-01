@@ -162,6 +162,20 @@ export interface TasksPage {
   totalCount: number;
 }
 
+export interface TaskComment {
+  id: string;
+  taskId: string;
+  body: string;
+  createdAt: string;
+}
+
+export interface TaskCommentsPage {
+  items: TaskComment[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}
+
 export interface Deal {
   id: string;
   contactId: string | null;
@@ -363,6 +377,21 @@ export const crmQueries = {
     });
   },
 
+  task: (id: string) =>
+    queryOptions({
+      queryKey: [...queryRoots.crm, "task", id],
+      queryFn: () => apiFetch<CrmTask>(`crm/tasks/${id}`),
+      enabled: id.length > 0,
+    }),
+
+  taskComments: (taskId: string) =>
+    queryOptions({
+      queryKey: [...queryRoots.crm, "task-comments", taskId],
+      queryFn: () => apiFetch<TaskCommentsPage>(`crm/tasks/${taskId}/comments?page=1&pageSize=50`),
+      enabled: taskId.length > 0,
+      staleTime: 15_000,
+    }),
+
   companies: (params: { page?: number; pageSize?: number; industry?: string; type?: string; name?: string } = {}) => {
     const pageSize = params.pageSize ?? 20;
     return queryOptions({
@@ -517,6 +546,10 @@ export function createTask(input: TaskInput): Promise<{ id: string }> {
 
 export function updateTask(id: string, input: Partial<TaskInput>): Promise<CrmTask> {
   return apiFetch<CrmTask>(`crm/tasks/${id}`, { method: "PATCH", body: input });
+}
+
+export function addTaskComment(taskId: string, body: string): Promise<{ id: string }> {
+  return apiFetch<{ id: string }>(`crm/tasks/${taskId}/comments`, { method: "POST", body: { body } });
 }
 
 export function completeTask(id: string): Promise<void> {
