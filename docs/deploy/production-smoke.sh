@@ -43,6 +43,7 @@ fi
 grep -q "ConnectionStrings__Write=Host=postgres;" .env || fail ".env must use compose Postgres for Write"
 grep -q "ConnectionStrings__Read=Host=postgres;" .env || fail ".env must use compose Postgres for Read"
 grep -q "ForwardedHeaders__KnownNetworks__0=172.16.0.0/12" .env || fail ".env must trust Docker private bridge range"
+grep -Eq "^(OTEL_EXPORTER_OTLP_ENDPOINT|OpenTelemetry__Otlp__Endpoint)=" .env || fail ".env must configure an OTLP endpoint"
 
 docker compose config >/dev/null
 

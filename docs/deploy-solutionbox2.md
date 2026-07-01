@@ -68,7 +68,8 @@ ssh solutionbox2 'cp /opt/modularplatform/docs/deploy/certbot-hetzner-*.sh /opt/
 ```
 Create `/opt/modularplatform/.env` from `docs/deploy/.env.example`, fill the generated secrets, `chmod 600 .env`.
 The DB host must stay `postgres`; the generated Postgres password goes into both `POSTGRES_PASSWORD` and the two
-connection strings.
+connection strings. `solutionbox2` already runs `grafana/otel-lgtm` on host ports 4317/4318, so keep
+`OTEL_EXPORTER_OTLP_ENDPOINT=http://host.docker.internal:4317` unless the collector is moved.
 ```bash
 # Publishes the 4 .NET hosts via a bind-mounted SDK (dodges the overlay glob bug) + builds thin runtime images + web.
 ssh solutionbox2 'cd /opt/modularplatform && bash docs/deploy/build-images.sh'

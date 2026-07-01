@@ -30,6 +30,7 @@ public sealed class ProductionDeployConfigurationTests
         Assert.DoesNotContain("16010", runbook);
 
         Assert.Contains("ForwardedHeaders__KnownNetworks__0=172.16.0.0/12", env);
+        Assert.Contains("OTEL_EXPORTER_OTLP_ENDPOINT=http://host.docker.internal:4317", env);
         Assert.Contains("--exclude '.env'", runbook);
         Assert.Contains("--exclude '*.env'", runbook);
         Assert.Contains("--exclude 'backups/'", runbook);
@@ -42,6 +43,7 @@ public sealed class ProductionDeployConfigurationTests
         var smoke = File.ReadAllText(Path.Combine(root, "docs/deploy/production-smoke.sh"));
 
         Assert.Contains("ConnectionStrings__Write=Host=postgres;", smoke);
+        Assert.Contains("OTEL_EXPORTER_OTLP_ENDPOINT", smoke);
         Assert.Contains("docker compose run --rm migrator", smoke);
         Assert.Contains("http://localhost:8080/health/ready", smoke);
         Assert.Contains("http://127.0.0.1:16013/", smoke);
