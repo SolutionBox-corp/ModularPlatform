@@ -1,8 +1,12 @@
 "use client";
 
 import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import * as CookieConsent from "vanilla-cookieconsent";
 import "vanilla-cookieconsent/dist/cookieconsent.css";
+import { CSRF_COOKIE, CSRF_HEADER } from "@/lib/auth/csrf";
+import { PRIVACY_VERSION } from "@/lib/legal-versions";
+import { queryRoots } from "@/lib/api/query-keys";
 
 /**
  * CookieConsentBanner
@@ -27,6 +31,8 @@ function readLocale(): "en" | "cs" {
 }
 
 export function CookieConsentBanner() {
+  const queryClient = useQueryClient();
+
   useEffect(() => {
     const locale = readLocale();
     void CookieConsent.run({
@@ -148,8 +154,76 @@ export function CookieConsentBanner() {
           position: "right",
         },
       },
+
+      onFirstConsent: () => {
+        void persistCookieConsent().then((changed) => {
+          if (changed) {
+            void queryClient.invalidateQueries({
+              queryKey: [...queryRoots.gdpr, "consents"],
+            });
+          }
+        }).catch(() => undefined);
+      },
+
+      onChange: () => {
+        void persistCookieConsent().then((changed) => {
+          if (changed) {
+            void queryClient.invalidateQueries({
+              queryKey: [...queryRoots.gdpr, "consents"],
+            });
+          }
+        }).catch(() => undefined);
+      },
     });
-  }, []);
+  }, [queryClient]);
 
   return null;
+}
+
+const COOKIE_CONSENT_TYPES = [
+  { category: "analytics", consentType: "cookie_analytics" },
+  { category: "marketing", consentType: "cookie_marketing" },
+] as const;
+
+async function persistCookieConsent(): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+
+  const results = await Promise.all(
+    COOKIE_CONSENT_TYPES.map(({ category, consentType }) =>
+      persistConsentDecision(consentType, CookieConsent.acceptedCategory(category)),
+    ),
+  );
+
+  return results.some(Boolean);
+}
+
+async function persistConsentDecision(
+  consentType: string,
+  granted: boolean,
+): Promise<boolean> {
+  const csrf = readCookie(CSRF_COOKIE);
+  const response = await fetch(
+    `/api/bff/gdpr/consents/${granted ? "grant" : "withdraw"}`,
+    {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        accept: "application/json",
+        "accept-language": document.documentElement.lang || "en",
+        "content-type": "application/json",
+        ...(csrf ? { [CSRF_HEADER]: csrf } : {}),
+      },
+      body: JSON.stringify({ consentType, policyVersion: PRIVACY_VERSION }),
+    },
+  );
+
+  if (response.ok) return true;
+  if (response.status === 401 || response.status === 403) return false;
+
+  throw new Error(`Cookie consent persistence failed: ${response.status}`);
+}
+
+function readCookie(name: string): string | undefined {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : undefined;
 }

@@ -4,7 +4,7 @@ Page: `/account/privacy`
 Backend module: `src/modules/Gdpr`  
 Auth requirement: authenticated user (all scenarios); destructive scenarios use a throwaway fresh user.
 
-The page has three sections: **Consent preferences** (three Switch toggles), **Export your data** (synchronous download), and **Delete account** (Dialog with typed confirmation gate).
+The page has four sections: **Consent preferences** (currently one real Switch toggle), **Consent history** (append-only grant/withdraw timeline), **Export your data** (synchronous download), and **Delete account** (Dialog with typed confirmation gate). The global cookie banner also persists authenticated users' analytics/marketing cookie choices into the same consent log.
 
 > Note on export flow: the `GET /v1/gdpr/me/export` endpoint is **synchronous** — it returns a JSON document in-band (no 202/operation poll). The UI triggers a browser download on success. There is no `OperationStatus` polling for this flow in the current implementation.
 
@@ -14,16 +14,28 @@ The page has three sections: **Consent preferences** (three Switch toggles), **E
 
 | ID | Title | Given / When / Then | Priority | Type | Automated |
 |---|---|---|---|---|---|
-| PRIV-01 | Page renders with consent section visible | Given an authenticated user navigates to `/account/privacy` | When the page loads | Then the heading "Consent preferences" and all three switch toggles (Marketing emails, Analytics & improvement, Third-party sharing) are visible | P0 | happy | yes (e2e: "Privacy page renders consent toggles") |
+| PRIV-01 | Page renders with consent section visible | Given an authenticated user navigates to `/account/privacy` | When the page loads | Then the heading "Consent preferences" and the "Product news & offers" switch are visible, while orphaned analytics/third-party toggles are absent | P0 | happy | yes (e2e: "Privacy page renders consent toggles") |
 | PRIV-02 | Grant a consent — switch flips and persists across reload | Given a fresh user on `/account/privacy` with "Marketing emails" switch unchecked | When the user clicks the switch | Then `aria-checked` becomes `"true"`, a "Consent granted." toast appears, and after a page reload the switch remains checked | P0 | happy | yes (e2e: "toggle marketing consent — grant persists after reload") |
-| PRIV-03 | Withdraw a consent — switch flips and persists | Given a fresh user who has already granted "Analytics & improvement" | When the user clicks the switch to turn it off | Then `aria-checked` becomes `"false"`, a "Consent withdrawn." toast appears, and after reload the switch is still unchecked | P0 | happy | yes (e2e: "toggle analytics consent — withdraw persists after reload") |
-| PRIV-04 | Toggle same consent type multiple times | Given a fresh user | When the user toggles "Third-party sharing" on, then immediately off | Then the switch settles at `aria-checked="false"` and the final backend state reflects withdrawn | P1 | edge | yes (e2e: "toggle third-party sharing twice settles at withdrawn") |
+| PRIV-03 | Withdraw a consent — switch flips and persists | Given a fresh user who has already granted "Product news & offers" | When the user clicks the switch to turn it off | Then `aria-checked` becomes `"false"`, a "Consent withdrawn." toast appears, and after reload the switch is still unchecked | P0 | happy | yes (e2e: "toggle marketing consent — withdraw persists after reload") |
+| PRIV-04 | Toggle same consent type multiple times | Given a fresh user | When the user toggles "Product news & offers" on, then immediately off | Then the switch settles at `aria-checked="false"` and the final backend state reflects withdrawn | P1 | edge | yes (e2e: "toggle marketing consent twice settles at withdrawn") |
 | PRIV-05 | Switch is disabled while its mutation is in-flight | Given the user clicks a switch that has not yet resolved | When the response is pending | Then the targeted switch is `disabled` (no double-submit) | P1 | edge | manual (requires network throttling) |
 | PRIV-06 | Consent state derives from newest history entry | Given a user who toggled a type multiple times (append-only history) | When the page is reloaded | Then the displayed checked state reflects the newest record only | P1 | edge | yes (implicitly covered by PRIV-02 and PRIV-03 reload assertions) |
 | PRIV-07 | Error toast on consent API failure | Given a network error or 4xx from `/gdpr/consents/grant` | When the user toggles a switch | Then an error toast is shown and the switch does not change state persistently | P1 | error | manual (requires network intercept) |
 | PRIV-08 | Unauthenticated access redirects | Given an unauthenticated user | When they navigate to `/account/privacy` | Then they are redirected to `/login` | P0 | security | yes (e2e: "unauthenticated access to privacy page redirects to login") |
 | PRIV-09 | Consent types are keyboard navigable | Given the user focuses the first switch via Tab | When they press Space | Then the switch toggles and a toast appears (keyboard parity with mouse) | P1 | a11y | manual |
 | PRIV-10 | Skeleton placeholders shown while loading | Given a slow network | When the page first loads before the consent query resolves | Then Skeleton placeholders appear in the consent list area | P2 | edge | manual (requires network throttling) |
+
+---
+
+## Consent History & Cookie Banner Persistence
+
+| ID | Title | Given / When / Then | Priority | Type | Automated |
+|---|---|---|---|---|---|
+| PRIV-27 | Consent history section renders | Given an authenticated user navigates to `/account/privacy` | When the page loads | Then the heading "Consent history" is visible and shows either an empty state or append-only rows newest-first | P0 | happy | yes (e2e: "Privacy page renders consent history section") |
+| PRIV-28 | Consent history shows policy version | Given a user grants or withdraws a consent through the privacy page | When the history refreshes | Then the row shows the consent label, grant/withdraw state, timestamp, and `policyVersion` | P0 | auditability | manual |
+| PRIV-29 | Cookie banner persists authenticated cookie choices | Given an authenticated user accepts analytics and marketing cookies in the global cookie banner | When the banner saves the choice | Then `POST /v1/gdpr/consents/grant` is called for `cookie_analytics` and `cookie_marketing`, using the active privacy policy version | P0 | compliance | yes (e2e: "cookie banner accept all persists analytics and marketing cookie grants") |
+| PRIV-30 | Cookie banner withdraw persists authenticated cookie choices | Given an authenticated user chooses necessary-only cookies in the global cookie banner | When the banner saves the choice | Then `POST /v1/gdpr/consents/withdraw` is called for `cookie_analytics` and `cookie_marketing`, using the active privacy policy version | P0 | compliance | yes (e2e: "cookie banner necessary only persists analytics and marketing cookie withdrawals") |
+| PRIV-31 | Anonymous cookie choices do not force login | Given an unauthenticated visitor accepts or rejects cookies on `/login`, `/terms`, or `/privacy` | When the backend returns 401 for consent persistence | Then the banner still saves the local `cc_cookie` and does not redirect the visitor to `/login` | P0 | security/UX | yes (e2e: "anonymous cookie consent persistence failure does not redirect to login") |
 
 ---
 
@@ -59,6 +71,6 @@ The page has three sections: **Consent preferences** (three Switch toggles), **E
 
 ## Summary
 
-- 26 scenarios total
-- 18 automated (E2E), 8 manual (require network throttling/intercept or precise timing)
-- Coverage: consent grant/withdraw persistence, unauthenticated redirect, export download flow, erase dialog gate, confirm phrase validation, post-erase redirect
+- 31 scenarios total
+- 22 automated (E2E), 9 manual (require network throttling/intercept or precise timing)
+- Coverage: consent grant/withdraw persistence, consent history visibility, cookie-banner consent persistence, unauthenticated redirect, export download flow, erase dialog gate, confirm phrase validation, post-erase redirect

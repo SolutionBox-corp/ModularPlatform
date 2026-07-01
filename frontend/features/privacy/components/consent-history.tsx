@@ -88,5 +88,11 @@ function consentTypeLabel(
   if (consentType === "marketing_emails") {
     return t("consents.types.marketingEmails.label");
   }
+  if (consentType === "cookie_analytics") {
+    return t("consents.types.cookieAnalytics.label");
+  }
+  if (consentType === "cookie_marketing") {
+    return t("consents.types.cookieMarketing.label");
+  }
   return consentType;
 }

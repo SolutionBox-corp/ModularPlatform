@@ -1,6 +1,9 @@
 import { test, expect } from "@playwright/test";
 import { ANONYMOUS, registerFreshUser, uniqueEmail } from "./helpers";
 
+const COOKIE_CONSENT_GRANT_PATH = /\/api\/bff\/gdpr\/consents\/grant$/;
+const COOKIE_CONSENT_WITHDRAW_PATH = /\/api\/bff\/gdpr\/consents\/withdraw$/;
+
 // ---------------------------------------------------------------------------
 // Privacy / GDPR page — /account/privacy
 // ---------------------------------------------------------------------------
@@ -39,6 +42,15 @@ test.describe("Privacy page structure", () => {
     await expect(page.getByRole("switch", { name: /third-party sharing/i })).toHaveCount(0);
   });
 
+  // PRIV-27
+  test("Privacy page renders consent history section", async ({ page }) => {
+    await page.goto("/account/privacy");
+    await expect(page.getByRole("heading", { name: /consent history/i })).toBeVisible();
+    await expect(
+      page.getByText(/every consent decision|no consent history/i).first(),
+    ).toBeVisible();
+  });
+
   // PRIV-11
   test("Privacy page renders export section", async ({ page }) => {
     await page.goto("/account/privacy");
@@ -65,6 +77,88 @@ test.describe("Privacy page structure", () => {
     // The dialog should mention what will be erased and that it cannot be undone.
     await expect(dialog).toContainText(/profile/i);
     await expect(dialog).toContainText(/cannot be undone/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SECTION C2: Cookie banner consent persistence
+// ---------------------------------------------------------------------------
+
+test.describe("Cookie banner consent persistence", () => {
+  // PRIV-29
+  test("cookie banner accept all persists analytics and marketing cookie grants", async ({
+    page,
+  }) => {
+    const posted: unknown[] = [];
+    await resetCookieBanner(page);
+    await page.route(COOKIE_CONSENT_GRANT_PATH, async (route) => {
+      posted.push(route.request().postDataJSON());
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: { consentRecordId: crypto.randomUUID() } }),
+      });
+    });
+
+    await page.goto("/account/privacy");
+    await page.getByRole("button", { name: /accept all/i }).click();
+
+    await expect
+      .poll(() => posted.map((body) => consentTypeFromBody(body)).sort())
+      .toEqual(["cookie_analytics", "cookie_marketing"]);
+    for (const body of posted) {
+      expect(policyVersionFromBody(body)).toBe("2026-06-20");
+    }
+  });
+
+  // PRIV-30
+  test("cookie banner necessary only persists analytics and marketing cookie withdrawals", async ({
+    page,
+  }) => {
+    const posted: unknown[] = [];
+    await resetCookieBanner(page);
+    await page.route(COOKIE_CONSENT_WITHDRAW_PATH, async (route) => {
+      posted.push(route.request().postDataJSON());
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: { consentRecordId: crypto.randomUUID() } }),
+      });
+    });
+
+    await page.goto("/account/privacy");
+    await page.getByRole("button", { name: /necessary only/i }).click();
+
+    await expect
+      .poll(() => posted.map((body) => consentTypeFromBody(body)).sort())
+      .toEqual(["cookie_analytics", "cookie_marketing"]);
+    for (const body of posted) {
+      expect(policyVersionFromBody(body)).toBe("2026-06-20");
+    }
+  });
+});
+
+test.describe("Cookie banner anonymous visitor", () => {
+  test.use(ANONYMOUS);
+
+  // PRIV-31
+  test("anonymous cookie consent persistence failure does not redirect to login", async ({
+    page,
+  }) => {
+    await resetCookieBanner(page);
+    await page.route(/\/api\/bff\/gdpr\/consents\/(grant|withdraw)$/, async (route) => {
+      await route.fulfill({
+        status: 401,
+        contentType: "application/problem+json",
+        body: JSON.stringify({ status: 401, errorCode: "auth.required" }),
+      });
+    });
+
+    await page.goto("/login");
+    await page.getByRole("button", { name: /accept all/i }).click();
+
+    await expect(page).toHaveURL(/\/login$/);
+    await expect(page.getByRole("button", { name: /accept all/i })).toHaveCount(0);
   });
 });
 
@@ -294,3 +388,22 @@ test.describe("Erase account — fresh user", () => {
     await expect(page).toHaveURL(/reason=erased/, { timeout: 5_000 });
   });
 });
+
+async function resetCookieBanner(page: import("@playwright/test").Page): Promise<void> {
+  await page.context().clearCookies({ name: "cc_cookie" });
+  await page.addInitScript(() => {
+    document.cookie = "cc_cookie=; Max-Age=0; path=/; SameSite=Lax";
+  });
+}
+
+function consentTypeFromBody(body: unknown): string | undefined {
+  return body && typeof body === "object" && "consentType" in body
+    ? String(body.consentType)
+    : undefined;
+}
+
+function policyVersionFromBody(body: unknown): string | undefined {
+  return body && typeof body === "object" && "policyVersion" in body
+    ? String(body.policyVersion)
+    : undefined;
+}
