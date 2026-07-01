@@ -135,6 +135,28 @@ public sealed class FrontendArchitectureTests
             + string.Join("; ", usedCodes));
     }
 
+    [Fact]
+    public void Frontend_application_source_does_not_use_raw_html_injection_sinks()
+    {
+        var violations = FindFrontendApplicationSourceFiles()
+            .Select(file => new
+            {
+                File = file,
+                Source = StripComments(File.ReadAllText(file)),
+            })
+            .Where(item =>
+                item.Source.Contains("dangerouslySetInnerHTML", StringComparison.Ordinal)
+                || Regex.IsMatch(item.Source, @"\b__html\b"))
+            .Select(item => RelativeToRepo(item.File))
+            .Order()
+            .ToList();
+
+        Assert.True(
+            violations.Count == 0,
+            "Frontend app/components/features/lib source must not use raw HTML injection sinks (dangerouslySetInnerHTML or __html): "
+            + string.Join(", ", violations));
+    }
+
     private static IReadOnlyList<string> FindFrontendFiles(string glob)
     {
         var frontend = Path.Combine(FindRepoRoot(), "frontend");
@@ -153,6 +175,28 @@ public sealed class FrontendArchitectureTests
             .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}.next{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
             .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}playwright-report{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
             .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}test-results{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .Order()
+            .ToList();
+    }
+
+    private static IReadOnlyList<string> FindFrontendApplicationSourceFiles()
+    {
+        var frontend = Path.Combine(FindRepoRoot(), "frontend");
+        var allowedRoots = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "app",
+            "components",
+            "features",
+            "lib",
+        };
+
+        return FindFrontendSourceFiles()
+            .Where(path =>
+            {
+                var relative = Path.GetRelativePath(frontend, path).Replace(Path.DirectorySeparatorChar, '/');
+                var root = relative.Split('/', 2)[0];
+                return allowedRoots.Contains(root);
+            })
             .Order()
             .ToList();
     }

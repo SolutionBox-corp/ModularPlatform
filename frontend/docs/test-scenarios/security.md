@@ -129,10 +129,11 @@ cookie is `mp_csrf` (the double-submit CSRF token). All `/v1` traffic is proxied
 - **When** the codebase is scanned for `dangerouslySetInnerHTML` and `__html`
 - **Then** none are found in `app/`, `components/`, `features/`, or `lib/` (only in
   `node_modules` and generated code is acceptable)
-- Priority: P0 · Type: security · Automated: manual (static grep at build time / in CI)
-- Rationale: Playwright cannot inspect the source; this is a code-review/CI lint check.
-  A grep in CI (`grep -r dangerouslySetInnerHTML app components features lib`) should
-  return exit 1 if any match is found.
+- Priority: P0 · Type: security · Automated: yes (architecture test:
+  `Frontend_application_source_does_not_use_raw_html_injection_sinks`)
+- Rationale: Playwright cannot inspect the source, so the ArchitectureTests suite
+  scans `frontend/app`, `frontend/components`, `frontend/features`, and `frontend/lib`
+  for `dangerouslySetInnerHTML` and `__html`.
 
 ---
 
