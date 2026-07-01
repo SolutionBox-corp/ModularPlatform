@@ -4,6 +4,8 @@ using ModularPlatform.IntegrationTesting;
 using ModularPlatform.Marketing.Features.TenantSnapshots.ReconcileTenantSnapshots;
 using ModularPlatform.Marketing.Features.TenantSnapshots.UpsertTenantSnapshot;
 using Shouldly;
+using System.Net;
+using System.Net.Http.Json;
 
 namespace ModularPlatform.Marketing.Tests;
 
@@ -29,6 +31,30 @@ public sealed class TenantSnapshotProjectionTests(PlatformApiFactory fixture)
         var name = await fixture.ScalarAsync<string>(
             $"""SELECT "Name" FROM marketing_tenant_snapshots WHERE "TenantId" = '{tenantId}'""");
         name.ShouldStartWith("tenant-");
+    }
+
+    [Fact]
+    public async Task Tenant_updated_event_refreshes_the_marketing_tenant_snapshot()
+    {
+        var email = $"mkt-tenant-update-{Guid.CreateVersion7():N}@example.com";
+        await fixture.RegisterAndLoginAsync(email, Password);
+        var tenantId = await TenantIdForEmailAsync(email);
+
+        await fixture.WaitForCountAsync(
+            $"""SELECT count(*)::bigint FROM marketing_tenant_snapshots WHERE "TenantId" = '{tenantId}'""", 1);
+
+        var admin = await AdminTokenAsync();
+        var subdomain = $"mkt-upd-{Guid.CreateVersion7():N}"[..30];
+        var update = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Put,
+            $"/v1/tenant/admin/tenants/{tenantId}",
+            admin,
+            new { name = "Marketing Snapshot Updated", subdomain }));
+        update.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        await fixture.WaitForCountAsync(
+            $"""SELECT count(*)::bigint FROM marketing_tenant_snapshots WHERE "TenantId" = '{tenantId}' AND "Subdomain" = '{subdomain}' AND "Name" = 'Marketing Snapshot Updated'""",
+            1);
     }
 
     [Fact]
@@ -94,5 +120,17 @@ public sealed class TenantSnapshotProjectionTests(PlatformApiFactory fixture)
         var emailHash = PlatformApiFactory.EmailHashOf(email);
         return await fixture.ScalarAsync<Guid>(
             $"""SELECT "TenantId" FROM users WHERE "EmailHash" = '{emailHash}'""");
+    }
+
+    private async Task<string> AdminTokenAsync()
+    {
+        await fixture.Client.PostAsJsonAsync(
+            "/v1/identity/users",
+            new { email = PlatformApiFactory.AdminEmail, password = Password });
+        var login = await fixture.Client.PostAsJsonAsync(
+            "/v1/identity/auth/login",
+            new { email = PlatformApiFactory.AdminEmail, password = Password });
+        login.IsSuccessStatusCode.ShouldBeTrue();
+        return (await PlatformApiFactory.ReadData(login)).GetProperty("accessToken").GetString()!;
     }
 }

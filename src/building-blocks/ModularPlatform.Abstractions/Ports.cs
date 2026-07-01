@@ -58,7 +58,7 @@ public interface IEntitlementResolver
 public sealed record TenantEntitlementsView(Guid TenantId, string? Tier, IReadOnlyList<ModuleEntitlementView> Modules);
 
 /// <summary>One module's entitlement for a tenant.</summary>
-public sealed record ModuleEntitlementView(string Key, bool Enabled, string? Tier);
+public sealed record ModuleEntitlementView(string Key, bool Enabled, string? Tier, string? Limits);
 
 /// <summary>
 /// Provisions a tenant row. Owned by Tenancy; consumed by registration (interim auto-provision) and the

@@ -17,4 +17,12 @@ public sealed class TenantProvisionedForMarketingHandler
             message.Name,
             message.EventId,
             message.OccurredAt), ct);
+
+    public Task Handle(TenantUpdatedIntegrationEvent message, IDispatcher dispatcher, CancellationToken ct) =>
+        dispatcher.Send(new UpsertTenantSnapshotCommand(
+            message.TenantId,
+            message.Subdomain,
+            message.Name,
+            message.EventId,
+            message.OccurredAt), ct);
 }

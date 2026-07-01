@@ -36,6 +36,14 @@ export interface SetEntitlementResponse {
   tenantId: string;
   moduleKey: string;
   enabled: boolean;
+  tier: string | null;
+  limits: string | null;
+}
+
+export interface UpdateTenantResponse {
+  tenantId: string;
+  name: string;
+  subdomain: string;
 }
 
 export interface CreateTenantInviteResponse {
@@ -76,6 +84,7 @@ export interface PlatformBillingModuleView {
   key: string;
   enabled: boolean;
   tier: string | null;
+  limits: string | null;
 }
 
 export interface PlatformBillingStatusView {
@@ -309,12 +318,28 @@ export async function setEntitlement(params: {
   moduleKey: string;
   enabled: boolean;
   tier: string | null;
+  limits: string | null;
 }): Promise<SetEntitlementResponse> {
   return apiFetch<SetEntitlementResponse>(
     `tenant/admin/tenants/${params.tenantId}/entitlements/${params.moduleKey}`,
     {
       method: "PUT",
-      body: { enabled: params.enabled, tier: params.tier },
+      body: { enabled: params.enabled, tier: params.tier, limits: params.limits },
+    },
+  );
+}
+
+/** PUT /v1/tenant/admin/tenants/{tenantId} — update registry display/routing fields. */
+export async function updateTenant(params: {
+  tenantId: string;
+  name: string;
+  subdomain: string;
+}): Promise<UpdateTenantResponse> {
+  return apiFetch<UpdateTenantResponse>(
+    `tenant/admin/tenants/${params.tenantId}`,
+    {
+      method: "PUT",
+      body: { name: params.name, subdomain: params.subdomain },
     },
   );
 }

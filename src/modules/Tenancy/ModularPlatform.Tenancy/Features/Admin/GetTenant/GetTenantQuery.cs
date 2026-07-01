@@ -19,4 +19,4 @@ public sealed record TenantDetail(
     IReadOnlyList<TenantModuleView> Modules);
 
 /// <summary>One module's persisted entitlement for the tenant (enabled = currently granted).</summary>
-public sealed record TenantModuleView(string Key, bool Enabled, string? Tier);
+public sealed record TenantModuleView(string Key, bool Enabled, string? Tier, string? Limits);

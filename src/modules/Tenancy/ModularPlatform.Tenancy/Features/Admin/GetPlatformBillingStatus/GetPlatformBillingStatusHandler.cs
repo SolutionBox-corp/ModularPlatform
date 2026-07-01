@@ -26,7 +26,7 @@ internal sealed class GetPlatformBillingStatusHandler(
         var view = await entitlements.GetForTenantAsync(tenantId, ct);
 
         var modules = view.Modules
-            .Select(m => new PlatformBillingModuleView(m.Key, m.Enabled, m.Tier))
+            .Select(m => new PlatformBillingModuleView(m.Key, m.Enabled, m.Tier, m.Limits))
             .ToList();
 
         var (provider, checkoutReady, actionRequired) = await GetCheckoutStatusAsync(tenantId, ct);

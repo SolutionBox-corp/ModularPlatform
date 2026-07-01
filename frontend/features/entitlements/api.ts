@@ -10,6 +10,7 @@ export interface ModuleEntitlementView {
   key: string;
   enabled: boolean;
   tier: string | null;
+  limits: string | null;
 }
 
 export interface TenantEntitlementsView {

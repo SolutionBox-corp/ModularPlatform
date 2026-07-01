@@ -946,6 +946,8 @@
       "disableLabel": "Vypnout {module}",
       "empty": "Nejsou k dispozici žádná data o oprávněních.",
       "enableLabel": "Zapnout {module}",
+      "limitsLabel": "Limity JSON",
+      "limitsPlaceholder": "{\"maxUsers\":50}",
       "modules": {
         "billing": "Fakturace",
         "files": "Soubory",
@@ -953,12 +955,24 @@
         "marketing": "Marketing",
         "notifications": "Oznámení",
         "operations": "Operace"
-      }
+      },
+      "save": "Uložit",
+      "tierLabel": "Tier",
+      "tierPlaceholder": "free, pro, enterprise"
     },
     "forbidden": {
       "area": "Nemáte přístup do oblasti správy platformy.",
       "audit": "Nemáte oprávnění číst auditní záznamy.",
       "users": "Nemáte oprávnění zobrazit seznam uživatelů platformy."
+    },
+    "editTenantDialog": {
+      "description": "Upraví název tenanta a směrovací subdoménu. Nová subdoména začne platit okamžitě.",
+      "nameLabel": "Název organizace",
+      "subdomainLabel": "Subdoména",
+      "submit": "Uložit změny",
+      "submitting": "Ukládání…",
+      "title": "Upravit tenanta",
+      "trigger": "Upravit"
     },
     "inviteDialog": {
       "copied": "Token pozvánky byl zkopírován do schránky.",

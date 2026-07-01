@@ -4,7 +4,11 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import { useSetEntitlement } from "@/features/platform/hooks";
 import type { PlatformBillingModuleView } from "@/features/platform/api";
 
@@ -41,7 +45,12 @@ export function EntitlementToggles({
     tenantId: string;
     values: Record<string, boolean>;
   }>({ tenantId, values: {} });
+  const [draftState, setDraftState] = useState<{
+    tenantId: string;
+    values: Record<string, { tier: string; limits: string }>;
+  }>({ tenantId, values: {} });
   const overrides = overrideState.tenantId === tenantId ? overrideState.values : {};
+  const drafts = draftState.tenantId === tenantId ? draftState.values : {};
 
   const persisted = new Map((modules ?? []).map((m) => [m.key, m]));
 
@@ -63,7 +72,30 @@ export function EntitlementToggles({
     );
   }
 
-  function handleToggle(key: string, checked: boolean, tier: string | null) {
+  function handleDraftChange(
+    key: string,
+    patch: Partial<{ tier: string; limits: string }>,
+    fallback: { tier: string; limits: string },
+  ) {
+    setDraftState((prev) => ({
+      tenantId,
+      values: {
+        ...(prev.tenantId === tenantId ? prev.values : {}),
+        [key]: {
+          ...fallback,
+          ...(prev.tenantId === tenantId ? prev.values[key] : undefined),
+          ...patch,
+        },
+      },
+    }));
+  }
+
+  function handleToggle(
+    key: string,
+    checked: boolean,
+    tier: string | null,
+    limits: string | null,
+  ) {
     setOverrideState((prev) => ({
       tenantId,
       values: {
@@ -72,7 +104,7 @@ export function EntitlementToggles({
       },
     }));
     void mutation
-      .mutateAsync({ tenantId, moduleKey: key, enabled: checked, tier })
+      .mutateAsync({ tenantId, moduleKey: key, enabled: checked, tier, limits })
       .catch(() => {
         setOverrideState((prev) => {
           const next = { ...(prev.tenantId === tenantId ? prev.values : {}) };
@@ -82,12 +114,31 @@ export function EntitlementToggles({
       });
   }
 
+  function handleSaveConfig(
+    key: string,
+    enabled: boolean,
+    tier: string,
+    limits: string,
+  ) {
+    void mutation.mutateAsync({
+      tenantId,
+      moduleKey: key,
+      enabled,
+      tier: tier.trim() || null,
+      limits: limits.trim() || null,
+    });
+  }
+
   return (
     <ul className="space-y-1" role="list">
       {KNOWN_MODULE_KEYS.map((key) => {
         const row = persisted.get(key);
         const enabled = overrides[key] ?? row?.enabled ?? false;
         const tier = row?.tier ?? null;
+        const limits = row?.limits ?? null;
+        const draft = drafts[key];
+        const tierValue = draft?.tier ?? tier ?? "";
+        const limitsValue = draft?.limits ?? limits ?? "";
         const label = moduleLabel(key);
         const isPending =
           mutation.isPending && mutation.variables?.moduleKey === key;
@@ -95,29 +146,81 @@ export function EntitlementToggles({
         return (
           <li
             key={key}
-            className="flex items-center justify-between rounded-lg px-3 py-2.5 hover:bg-muted/40 transition-colors"
+            className="space-y-3 rounded-lg px-3 py-3 hover:bg-muted/40 transition-colors"
           >
-            <div className="flex items-center gap-2.5 min-w-0">
-              <span className="text-sm font-medium truncate">{label}</span>
-              {tier && (
-                <Badge variant="secondary" className="text-xs shrink-0">
-                  {tier}
-                </Badge>
-              )}
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="text-sm font-medium truncate">{label}</span>
+                {tier && (
+                  <Badge variant="secondary" className="text-xs shrink-0">
+                    {tier}
+                  </Badge>
+                )}
+              </div>
+
+              <Switch
+                checked={enabled}
+                disabled={isPending}
+                aria-label={
+                  enabled
+                    ? t("entitlements.disableLabel", { module: label })
+                    : t("entitlements.enableLabel", { module: label })
+                }
+                onCheckedChange={(checked) => {
+                  handleToggle(key, checked, tier, limits);
+                }}
+              />
             </div>
 
-            <Switch
-              checked={enabled}
-              disabled={isPending}
-              aria-label={
-                enabled
-                  ? t("entitlements.disableLabel", { module: label })
-                  : t("entitlements.enableLabel", { module: label })
-              }
-              onCheckedChange={(checked) => {
-                handleToggle(key, checked, tier);
-              }}
-            />
+            <div className="grid gap-2 sm:grid-cols-[minmax(0,10rem)_1fr_auto] sm:items-end">
+              <div className="space-y-1">
+                <Label htmlFor={`${tenantId}-${key}-tier`} className="text-xs">
+                  {t("entitlements.tierLabel")}
+                </Label>
+                <Input
+                  id={`${tenantId}-${key}-tier`}
+                  value={tierValue}
+                  onChange={(event) =>
+                    handleDraftChange(
+                      key,
+                      { tier: event.target.value },
+                      { tier: tier ?? "", limits: limits ?? "" },
+                    )
+                  }
+                  placeholder={t("entitlements.tierPlaceholder")}
+                  className="h-8 text-xs"
+                  disabled={isPending}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor={`${tenantId}-${key}-limits`} className="text-xs">
+                  {t("entitlements.limitsLabel")}
+                </Label>
+                <Textarea
+                  id={`${tenantId}-${key}-limits`}
+                  value={limitsValue}
+                  onChange={(event) =>
+                    handleDraftChange(
+                      key,
+                      { limits: event.target.value },
+                      { tier: tier ?? "", limits: limits ?? "" },
+                    )
+                  }
+                  placeholder={t("entitlements.limitsPlaceholder")}
+                  className="min-h-8 resize-y text-xs"
+                  disabled={isPending}
+                />
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => handleSaveConfig(key, enabled, tierValue, limitsValue)}
+                disabled={isPending}
+              >
+                {t("entitlements.save")}
+              </Button>
+            </div>
           </li>
         );
       })}

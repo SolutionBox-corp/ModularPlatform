@@ -33,6 +33,7 @@ public sealed class MessageWireIdentityTests
         "ModularPlatform.Notifications.Contracts.EmailDeliveryRequested",
         "ModularPlatform.Notifications.Contracts.PushDeliveryRequested",
         "ModularPlatform.Tenancy.Contracts.TenantProvisionedIntegrationEvent",
+        "ModularPlatform.Tenancy.Contracts.TenantUpdatedIntegrationEvent",
     ];
 
     // Durable Wolverine SAGA messages live in module Core (NOT *.Contracts) and carry no IIntegrationEvent marker, so

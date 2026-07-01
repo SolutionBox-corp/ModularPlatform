@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { EntitlementToggles } from "./entitlement-toggles";
 import { CreateInviteDialog } from "./create-invite-dialog";
+import { EditTenantDialog } from "./edit-tenant-dialog";
 import { TenantInvitesList } from "./tenant-invites-list";
 import { useTenantDetail } from "@/features/platform/hooks";
 
@@ -54,6 +55,13 @@ export function TenantDetailContent({ tenantId }: TenantDetailContentProps) {
         </div>
 
         <div className="flex items-center gap-2">
+          {detail && (
+            <EditTenantDialog
+              tenantId={tenantId}
+              name={detail.name}
+              subdomain={detail.subdomain}
+            />
+          )}
           <CreateInviteDialog tenantId={tenantId} />
         </div>
       </div>

@@ -18,6 +18,7 @@ using ModularPlatform.Tenancy.Features.Admin.RevokeTenantInvite;
 using ModularPlatform.Tenancy.Features.Admin.SetEntitlement;
 using ModularPlatform.Tenancy.Features.Admin.SetRegistrationMode;
 using ModularPlatform.Tenancy.Features.Admin.SetTenantStatus;
+using ModularPlatform.Tenancy.Features.Admin.UpdateTenant;
 using ModularPlatform.Tenancy.Features.Entitlements.GetMyEntitlements;
 using ModularPlatform.Tenancy.Features.PlatformBilling.CreatePlatformCheckout;
 using ModularPlatform.Tenancy.Persistence;
@@ -64,6 +65,7 @@ public sealed class TenancyModule : IModule
     {
         endpoints.MapGetMyEntitlements();
         endpoints.MapProvisionTenant();
+        endpoints.MapUpdateTenant();
         endpoints.MapSetEntitlement();
         endpoints.MapSetRegistrationMode();
         endpoints.MapSetTenantStatus();

@@ -32,14 +32,15 @@ internal sealed class EntitlementResolver(IReadDbContextFactory<TenancyDbContext
         await using var db = readFactory.Create();
         var rows = await db.TenantEntitlements
             .Where(e => e.TenantId == tenantId)
-            .Select(e => new { e.ModuleKey, e.Enabled, e.Tier, e.ValidFrom, e.ValidTo })
+            .Select(e => new { e.ModuleKey, e.Enabled, e.Tier, e.Limits, e.ValidFrom, e.ValidTo })
             .ToListAsync(ct);
 
         var modules = rows
             .Select(r => new ModuleEntitlementView(
                 r.ModuleKey,
                 r.Enabled && (r.ValidFrom is null || r.ValidFrom <= now) && (r.ValidTo is null || r.ValidTo >= now),
-                r.Tier))
+                r.Tier,
+                r.Limits))
             .ToList();
 
         // The tenant-level plan tier (platform-plane subscription) is layered on later; per-module tier lives above.

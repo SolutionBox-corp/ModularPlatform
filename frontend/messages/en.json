@@ -946,6 +946,8 @@
       "disableLabel": "Disable {module}",
       "empty": "No entitlement data available.",
       "enableLabel": "Enable {module}",
+      "limitsLabel": "Limits JSON",
+      "limitsPlaceholder": "{\"maxUsers\":50}",
       "modules": {
         "billing": "Billing",
         "files": "Files",
@@ -953,12 +955,24 @@
         "marketing": "Marketing",
         "notifications": "Notifications",
         "operations": "Operations"
-      }
+      },
+      "save": "Save",
+      "tierLabel": "Tier",
+      "tierPlaceholder": "free, pro, enterprise"
     },
     "forbidden": {
       "area": "You do not have access to the platform administration area.",
       "audit": "You do not have permission to read the audit trail.",
       "users": "You do not have permission to list platform users."
+    },
+    "editTenantDialog": {
+      "description": "Update the tenant registry name and routing subdomain. The new subdomain is effective immediately.",
+      "nameLabel": "Organisation name",
+      "subdomainLabel": "Subdomain",
+      "submit": "Save changes",
+      "submitting": "Saving…",
+      "title": "Edit tenant",
+      "trigger": "Edit"
     },
     "inviteDialog": {
       "copied": "Invite token copied to clipboard.",

@@ -7,6 +7,7 @@ import {
   platformQueries,
   provisionTenant,
   setEntitlement,
+  updateTenant,
   createTenantInvite,
   revokeTenantInvite,
   createCreditPackage,
@@ -75,6 +76,22 @@ export function useSetEntitlement() {
       toast.success(
         `${variables.moduleKey} ${variables.enabled ? "enabled" : "disabled"}.`,
       );
+    },
+  });
+}
+
+export function useUpdateTenant() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: updateTenant,
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: platformQueries.tenantById(variables.tenantId).queryKey,
+      });
+      void queryClient.invalidateQueries({
+        queryKey: [...queryRoots.admin, "platform", "tenants"],
+      });
+      toast.success("Tenant updated.");
     },
   });
 }

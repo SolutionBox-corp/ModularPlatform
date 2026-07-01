@@ -38,6 +38,7 @@
   <data name="tenant.subdomain_taken" xml:space="preserve"><value>This subdomain is already taken.</value></data>
   <data name="tenant.module_not_entitled" xml:space="preserve"><value>This feature is not available for your workspace.</value></data>
   <data name="tenant.module_unknown" xml:space="preserve"><value>Unknown module key.</value></data>
+  <data name="tenant.entitlement_limits.invalid" xml:space="preserve"><value>Entitlement limits must be a JSON object.</value></data>
   <data name="tenant.not_found" xml:space="preserve"><value>Workspace not found.</value></data>
   <data name="tenant.registration_mode.invalid" xml:space="preserve"><value>Registration mode must be Open, InviteOnly or Closed.</value></data>
   <data name="tenant.status.invalid" xml:space="preserve"><value>Tenant status must be Active or Suspended.</value></data>

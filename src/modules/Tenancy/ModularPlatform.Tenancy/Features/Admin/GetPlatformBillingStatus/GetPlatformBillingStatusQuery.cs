@@ -25,4 +25,4 @@ public sealed record PlatformBillingStatusView(
     string? ActionRequired);
 
 /// <summary>One entitled module contributing to the tenant's platform-plane plan.</summary>
-public sealed record PlatformBillingModuleView(string Key, bool Enabled, string? Tier);
+public sealed record PlatformBillingModuleView(string Key, bool Enabled, string? Tier, string? Limits);

@@ -37,7 +37,7 @@ internal sealed class GetTenantHandler(
 
         var entitlements = await resolver.GetForTenantAsync(query.TenantId, ct);
         var modules = entitlements.Modules
-            .Select(m => new TenantModuleView(m.Key, m.Enabled, m.Tier))
+            .Select(m => new TenantModuleView(m.Key, m.Enabled, m.Tier, m.Limits))
             .ToList();
 
         return new TenantDetail(

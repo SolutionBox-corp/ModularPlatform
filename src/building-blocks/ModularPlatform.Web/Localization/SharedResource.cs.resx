@@ -38,6 +38,7 @@
   <data name="tenant.subdomain_taken" xml:space="preserve"><value>Tato subdoména je již obsazena.</value></data>
   <data name="tenant.module_not_entitled" xml:space="preserve"><value>Tato funkce není pro vaši organizaci dostupná.</value></data>
   <data name="tenant.module_unknown" xml:space="preserve"><value>Neznámý klíč modulu.</value></data>
+  <data name="tenant.entitlement_limits.invalid" xml:space="preserve"><value>Limity oprávnění musí být JSON objekt.</value></data>
   <data name="tenant.not_found" xml:space="preserve"><value>Organizace nebyla nalezena.</value></data>
   <data name="tenant.registration_mode.invalid" xml:space="preserve"><value>Režim registrace musí být Open, InviteOnly nebo Closed.</value></data>
   <data name="tenant.status.invalid" xml:space="preserve"><value>Stav organizace musí být Active nebo Suspended.</value></data>

@@ -12,3 +12,14 @@ public sealed record TenantProvisionedIntegrationEvent(
     Guid TenantId,
     string Subdomain,
     string Name) : IIntegrationEvent;
+
+/// <summary>
+/// Published when platform-admin changes tenant registry display/routing data. Other modules use it to refresh
+/// local read-model projections; Tenancy remains the owner of the registry row.
+/// </summary>
+public sealed record TenantUpdatedIntegrationEvent(
+    Guid EventId,
+    DateTimeOffset OccurredAt,
+    Guid TenantId,
+    string Subdomain,
+    string Name) : IIntegrationEvent;

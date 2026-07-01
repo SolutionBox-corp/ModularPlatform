@@ -57,6 +57,63 @@ public sealed class PlatformAdminTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Admin_can_set_module_tier_and_limits_and_detail_returns_them()
+    {
+        var admin = await AdminTokenAsync();
+        var subdomain = $"limits-{Guid.CreateVersion7():N}".Substring(0, 30);
+
+        var provision = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/tenant/admin/tenants", admin, new { name = "Limits", subdomain }));
+        provision.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var tenantId = (await PlatformApiFactory.ReadData(provision)).GetProperty("tenantId").GetGuid();
+
+        var set = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Put, $"/v1/tenant/admin/tenants/{tenantId}/entitlements/marketing", admin,
+            new { enabled = true, tier = "pro", limits = "{ \"maxUsers\": 50, \"aiCredits\": 1000 }" }));
+        set.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var setData = await PlatformApiFactory.ReadData(set);
+        setData.GetProperty("tier").GetString().ShouldBe("pro");
+        setData.GetProperty("limits").GetString().ShouldBe("{\"maxUsers\":50,\"aiCredits\":1000}");
+
+        var detail = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, $"/v1/tenant/admin/tenants/{tenantId}", admin));
+        detail.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var marketing = (await PlatformApiFactory.ReadData(detail))
+            .GetProperty("modules")
+            .EnumerateArray()
+            .Single(m => m.GetProperty("key").GetString() == "marketing");
+        marketing.GetProperty("enabled").GetBoolean().ShouldBeTrue();
+        marketing.GetProperty("tier").GetString().ShouldBe("pro");
+        using var limits = JsonDocument.Parse(marketing.GetProperty("limits").GetString()!);
+        limits.RootElement.GetProperty("maxUsers").GetInt32().ShouldBe(50);
+        limits.RootElement.GetProperty("aiCredits").GetInt32().ShouldBe(1000);
+    }
+
+    [Fact]
+    public async Task Set_entitlement_rejects_non_object_limits_json()
+    {
+        var admin = await AdminTokenAsync();
+        var subdomain = $"badlimits-{Guid.CreateVersion7():N}".Substring(0, 30);
+
+        var provision = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/tenant/admin/tenants", admin, new { name = "Bad Limits", subdomain }));
+        provision.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var tenantId = (await PlatformApiFactory.ReadData(provision)).GetProperty("tenantId").GetGuid();
+
+        var malformed = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Put, $"/v1/tenant/admin/tenants/{tenantId}/entitlements/marketing", admin,
+            new { enabled = true, tier = "pro", limits = "{ nope" }));
+        malformed.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        (await malformed.Content.ReadAsStringAsync()).ShouldContain("tenant.entitlement_limits.invalid");
+
+        var array = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Put, $"/v1/tenant/admin/tenants/{tenantId}/entitlements/marketing", admin,
+            new { enabled = true, tier = "pro", limits = "[1,2]" }));
+        array.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        (await array.Content.ReadAsStringAsync()).ShouldContain("tenant.entitlement_limits.invalid");
+    }
+
+    [Fact]
     public async Task Set_entitlement_rejects_unknown_module_keys_without_persisting_the_typo()
     {
         var admin = await AdminTokenAsync();
@@ -238,6 +295,115 @@ public sealed class PlatformAdminTests(PlatformApiFactory fixture)
         var invalidStatusData = await PlatformApiFactory.ReadData(invalidStatus);
         invalidStatusData.GetProperty("total").GetInt32().ShouldBe(0);
         invalidStatusData.GetProperty("items").EnumerateArray().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Admin_updates_tenant_name_and_subdomain_and_resolution_uses_the_new_subdomain()
+    {
+        var admin = await AdminTokenAsync();
+        var (userId, userToken) = await fixture.RegisterAndLoginAsync($"tenant-edit-{Guid.CreateVersion7():N}@x.com", Password);
+        var tenantId = await fixture.ScalarAsync<Guid>($"SELECT \"TenantId\" FROM users WHERE \"Id\" = '{userId}'");
+        var oldSubdomain = await fixture.ScalarAsync<string>($"SELECT \"Subdomain\" FROM tenants WHERE \"Id\" = '{tenantId}'");
+        var newSubdomain = $"renamed-{Guid.CreateVersion7():N}"[..30];
+
+        var update = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Put,
+            $"/v1/tenant/admin/tenants/{tenantId}",
+            admin,
+            new { name = "Renamed Tenant", subdomain = newSubdomain }));
+        update.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var updateData = await PlatformApiFactory.ReadData(update);
+        updateData.GetProperty("name").GetString().ShouldBe("Renamed Tenant");
+        updateData.GetProperty("subdomain").GetString().ShouldBe(newSubdomain);
+
+        var detail = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, $"/v1/tenant/admin/tenants/{tenantId}", admin));
+        detail.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var detailData = await PlatformApiFactory.ReadData(detail);
+        detailData.GetProperty("name").GetString().ShouldBe("Renamed Tenant");
+        detailData.GetProperty("subdomain").GetString().ShouldBe(newSubdomain);
+
+        var oldHost = fixture.Authed(HttpMethod.Get, "/v1/tenant/me/entitlements", userToken);
+        oldHost.Headers.Host = $"{oldSubdomain}.lvh.me";
+        (await fixture.Client.SendAsync(oldHost)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
+        var newHost = fixture.Authed(HttpMethod.Get, "/v1/tenant/me/entitlements", userToken);
+        newHost.Headers.Host = $"{newSubdomain}.lvh.me";
+        (await fixture.Client.SendAsync(newHost)).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var auditRows = await fixture.ScalarAsync<long>(
+            "SELECT count(*)::bigint FROM tenancy_audit_entries " +
+            "WHERE \"EntityType\" = 'Tenant' AND \"Action\" = 'Update' " +
+            $"AND \"EntityId\" = '{tenantId}'");
+        auditRows.ShouldBeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task Update_tenant_rejects_duplicate_reserved_or_invalid_subdomains_without_changing_the_tenant()
+    {
+        var admin = await AdminTokenAsync();
+        var firstSubdomain = $"upd-a-{Guid.CreateVersion7():N}"[..30];
+        var secondSubdomain = $"upd-b-{Guid.CreateVersion7():N}"[..30];
+
+        var first = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/tenant/admin/tenants", admin, new { name = "First", subdomain = firstSubdomain }));
+        first.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var firstTenantId = (await PlatformApiFactory.ReadData(first)).GetProperty("tenantId").GetGuid();
+
+        var second = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/tenant/admin/tenants", admin, new { name = "Second", subdomain = secondSubdomain }));
+        second.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var duplicate = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Put,
+            $"/v1/tenant/admin/tenants/{firstTenantId}",
+            admin,
+            new { name = "Collision", subdomain = secondSubdomain }));
+        duplicate.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await duplicate.Content.ReadAsStringAsync()).ShouldContain("tenant.subdomain_taken");
+
+        var reserved = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Put,
+            $"/v1/tenant/admin/tenants/{firstTenantId}",
+            admin,
+            new { name = "Reserved", subdomain = "admin" }));
+        reserved.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await reserved.Content.ReadAsStringAsync()).ShouldContain("tenant.subdomain.reserved");
+
+        var invalid = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Put,
+            $"/v1/tenant/admin/tenants/{firstTenantId}",
+            admin,
+            new { name = "Invalid", subdomain = "-bad" }));
+        invalid.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await invalid.Content.ReadAsStringAsync()).ShouldContain("tenant.subdomain.invalid");
+
+        var detail = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, $"/v1/tenant/admin/tenants/{firstTenantId}", admin));
+        detail.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var detailData = await PlatformApiFactory.ReadData(detail);
+        detailData.GetProperty("name").GetString().ShouldBe("First");
+        detailData.GetProperty("subdomain").GetString().ShouldBe(firstSubdomain);
+    }
+
+    [Fact]
+    public async Task A_non_admin_cannot_update_a_tenant()
+    {
+        var admin = await AdminTokenAsync();
+        var (_, userToken) = await fixture.RegisterAndLoginAsync($"plain-update-{Guid.CreateVersion7():N}@x.com", Password);
+        var subdomain = $"noedit-{Guid.CreateVersion7():N}"[..30];
+
+        var provision = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/tenant/admin/tenants", admin, new { name = "No edit", subdomain }));
+        provision.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var tenantId = (await PlatformApiFactory.ReadData(provision)).GetProperty("tenantId").GetGuid();
+
+        var forbidden = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Put,
+            $"/v1/tenant/admin/tenants/{tenantId}",
+            userToken,
+            new { name = "Nope", subdomain = $"nope-{Guid.CreateVersion7():N}"[..30] }));
+        forbidden.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
 
     private static void AssertPublicTenantListShape(JsonElement item)

@@ -19,7 +19,7 @@ internal static class SetEntitlementEndpoint
                 CancellationToken ct) =>
             {
                 var result = await dispatcher.Send(
-                    new SetEntitlementCommand(tenantId, moduleKey, request.Enabled, request.Tier), ct);
+                    new SetEntitlementCommand(tenantId, moduleKey, request.Enabled, request.Tier, request.Limits), ct);
                 return Results.Ok(ApiResponse<SetEntitlementResponse>.Ok(result));
             })
             .RequirePermission(PlatformPermissions.PlatformTenantsManage)
