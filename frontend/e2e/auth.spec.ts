@@ -112,6 +112,22 @@ test.describe("register", () => {
     await expect(page).toHaveURL("/register");
   });
 
+  test("terms checkbox toggles with keyboard space", async ({ page }) => {
+    // AUTH-21
+    await page.goto("/register");
+
+    const terms = page.locator('[data-slot="checkbox"]');
+    await expect(terms).toBeVisible();
+    await expect(terms).toHaveAttribute("aria-checked", "false");
+
+    await terms.focus();
+    await page.keyboard.press("Space");
+    await expect(terms).toHaveAttribute("aria-checked", "true");
+
+    await page.keyboard.press("Space");
+    await expect(terms).toHaveAttribute("aria-checked", "false");
+  });
+
   test("duplicate email shows field error", async ({ page }) => {
     // AUTH-07: register once, then attempt registration with the same email.
     const { email } = await registerFreshUser(page);
@@ -188,6 +204,29 @@ test.describe("register", () => {
     ).toBeVisible();
     // Must remain on /register (no redirect happened).
     await expect(page).toHaveURL("/register");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Auth routes while already authenticated
+// ---------------------------------------------------------------------------
+test.describe("authenticated auth routes", () => {
+  test("authenticated user visiting /register is redirected to dashboard", async ({ page }) => {
+    // AUTH-02
+    await page.goto("/register");
+
+    await expect(page).toHaveURL("/", { timeout: 15_000 });
+    await expect(page.getByRole("heading", { name: /welcome back/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /create account/i })).toHaveCount(0);
+  });
+
+  test("authenticated user visiting /login is redirected to dashboard", async ({ page }) => {
+    // AUTH-09
+    await page.goto("/login");
+
+    await expect(page).toHaveURL("/", { timeout: 15_000 });
+    await expect(page.getByRole("heading", { name: /welcome back/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^sign in$/i })).toHaveCount(0);
   });
 });
 

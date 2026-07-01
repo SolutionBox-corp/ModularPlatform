@@ -48,8 +48,7 @@ size hint in a subtitle; the file table shows empty state ("No files yet") befor
   - Given: authenticated user on `/files`
   - When: they attempt to upload a file whose size exceeds 10 MB
   - Then: a toast error appears containing "too large" / "10 MB"; no upload request is sent
-  - Priority: P1 · Type: error · Automated: partial (constructing a >10 MB buffer in-memory
-    works but is slow; mocking is preferred — see GAPS below)
+  - Priority: P1 · Type: error · Automated: yes (e2e: "client rejects an oversized file before upload")
 
 - **FILES-07** — Unauthenticated access redirects to login
   - Given: a user who is not logged in
@@ -81,8 +80,7 @@ size hint in a subtitle; the file table shows empty state ("No files yet") befor
   - Given: authenticated user on `/files`
   - When: they focus the dropzone (role="button") and press Enter or Space
   - Then: the hidden file input is triggered (no error, no crash); uploading remains functional
-  - Priority: P2 · Type: a11y · Automated: manual (OS file dialog cannot be driven by Playwright
-    without `setInputFiles` on the input directly)
+  - Priority: P2 · Type: a11y · Automated: yes (e2e: "dropzone opens the file chooser from keyboard activation")
 
 - **FILES-12** — Multiple sequential uploads accumulate in the table
   - Given: fresh user on `/files`

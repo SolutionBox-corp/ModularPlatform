@@ -95,6 +95,22 @@ test.describe("Files page — dropzone hints and a11y (primary session)", () => 
     await expect(dropzone).not.toHaveAttribute("aria-disabled", "true");
   });
 
+  test("dropzone opens the file chooser from keyboard activation", async ({ page }) => {
+    await page.goto("/files");
+
+    const dropzone = page.getByRole("button", {
+      name: "Upload a file — drag and drop or click to browse",
+    });
+    await expect(dropzone).toBeVisible();
+    await dropzone.focus();
+
+    const chooserPromise = page.waitForEvent("filechooser");
+    await page.keyboard.press("Enter");
+    const chooser = await chooserPromise;
+
+    expect(chooser.isMultiple()).toBe(true);
+  });
+
   test("session token is not accessible in JS storage", async ({ page }) => {
     await page.goto("/files");
 
@@ -214,6 +230,27 @@ test.describe("Files page — upload flow (fresh account)", () => {
     // Deterministic client-side rejection signal: no upload POST fired and the file never entered the table.
     await page.waitForTimeout(500);
     await expect(page.getByRole("row", { name: /image\.gif/i })).toHaveCount(0);
+    expect(uploadRequested).toBe(false);
+  });
+
+  test("client rejects an oversized file before upload", async ({ page }) => {
+    await page.goto("/files");
+
+    let uploadRequested = false;
+    page.on("request", (req) => {
+      if (req.url().includes("/api/bff/files") && req.method() === "POST") {
+        uploadRequested = true;
+      }
+    });
+
+    await page.locator('input[type="file"]').setInputFiles({
+      name: "too-large.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.alloc(11 * 1024 * 1024, "x"),
+    });
+
+    await expect(page.getByText(/too large|10 MB/i)).toBeVisible();
+    await expect(page.getByRole("row", { name: /too-large\.txt/i })).toHaveCount(0);
     expect(uploadRequested).toBe(false);
   });
 
