@@ -1,7 +1,7 @@
 # ModularPlatform — production compose for solutionbox2 (mp.solutionbox.cz).
-# DB = HOST PostgreSQL 15 (reached via host.docker.internal; pg_hba already allows docker subnets).
+# DB = dedicated Postgres container on the private compose network, persisted in the modularplatform-pgdata volume.
 # Redis is intentionally omitted (single-instance: Api realtime falls back to in-memory, BFF refresh
-# coalesces in-process). nginx (host) terminates TLS and proxies ONLY to `web` (127.0.0.1:16010).
+# coalesces in-process). nginx (host) terminates TLS and proxies ONLY to `web` (127.0.0.1:16013).
 # All secrets come from the gitignored .env beside this file (chmod 600). See docs/deploy-solutionbox2.md.
 name: modularplatform
 
@@ -124,7 +124,7 @@ networks:
   mp:
     name: modularplatform
     driver: bridge
-    # No fixed subnet — the server already has many docker networks in 172.x and a pinned /16 collides
-    # ("Pool overlaps"). Docker auto-assigns a free private subnet; the Api trusts the whole docker-private
-    # range for forwarded headers (.env ForwardedHeaders__KnownNetworks) — safe because the Api only ever
-    # receives traffic from the `web` BFF on this network, never directly from the internet.
+    # No fixed subnet — the server already has many docker networks in 172.x and a pinned /16 can collide
+    # ("Pool overlaps"). Docker auto-assigns a free private subnet; the Api trusts the docker-private
+    # 172.16.0.0/12 range for forwarded headers (.env ForwardedHeaders__KnownNetworks) — safe because the Api
+    # only ever receives traffic from the `web` BFF on this network, never directly from the internet.

@@ -1,7 +1,7 @@
 # Deploy ModularPlatform to solutionbox2 (`mp.solutionbox.cz`)
 
-Production deploy of the .NET 10 backend (Api/Worker/Jobs + one-shot MigrationService) and the Next.js 16
-BFF frontend onto **solutionbox2** (`46.224.177.212`, Docker + nginx + Certbot, host PostgreSQL 15), behind
+Production deploy of the .NET 10 backend (Api/Worker/Jobs + one-shot MigrationService), a dedicated compose
+Postgres instance, and the Next.js 16 BFF frontend onto **solutionbox2** (`46.224.177.212`, Docker + nginx + Certbot), behind
 a wildcard-TLS nginx vhost. Architecture is **subdomain-per-tenant**: `mp.solutionbox.cz` (apex → `demo`
 tenant), `admin.mp.solutionbox.cz` (platform admin), `{tenant}.mp.solutionbox.cz` (tenant apps).
 
@@ -15,7 +15,7 @@ vhost, certbot Hetzner hooks).
 > **bind-mounted** SDK container (glob expansion works there), then bakes the output into thin runtime images
 > (`Dockerfile.runtime`, glob-free COPY). **Always build with `build-images.sh`, never a bare `docker compose build`.**
 
-> nginx terminates TLS and proxies **only** to the Next BFF on `127.0.0.1:16010`. The Api is never reached
+> nginx terminates TLS and proxies **only** to the Next BFF on `127.0.0.1:16013`. The Api is never reached
 > by nginx — the BFF proxies `/api/bff/*` → `/v1` server-side. Redis is omitted (single-instance fallbacks).
 
 ## 0. Prereqs
@@ -23,14 +23,11 @@ vhost, certbot Hetzner hooks).
 - `HETZNER_API_TOKEN` exported in the shell running certbot (DNS lives on Hetzner Cloud DNS).
 - Docker + docker compose v2 + certbot on the server.
 
-## 1. Host PostgreSQL 15 — DB + admin role
-```sql
--- psql as a superuser on solutionbox2
-CREATE ROLE modularplatform_admin LOGIN PASSWORD '<PG_ADMIN_PWD>' CREATEROLE BYPASSRLS;
-CREATE DATABASE modularplatform OWNER modularplatform_admin;
-```
-Verify the docker bridge can reach PG: `listen_addresses` covers the bridge, and `pg_hba.conf` has a line
-for `172.28.0.0/16` (md5/scram) — the existing `172.16.0.0/12` rule already covers it. `systemctl reload postgresql` if edited.
+## 1. Database model
+Production uses the `postgres` service from `docker-compose.yml`, persisted in the `modularplatform-pgdata`
+Docker volume. The application, migrator, healthcheck and backup script all talk to this same container database.
+Do not point `.env` back to `host.docker.internal` unless you also remove the compose Postgres service and rewrite
+the backup/health gates; splitting those would let readiness pass against one database while the app uses another.
 
 ## 2. DNS (Hetzner Cloud API)
 Add two A records in zone `solutionbox.cz` → `46.224.177.212`:
@@ -69,6 +66,8 @@ rsync -az --delete \
 ssh solutionbox2 'cp /opt/modularplatform/docs/deploy/certbot-hetzner-*.sh /opt/modularplatform/deploy/ 2>/dev/null || (mkdir -p /opt/modularplatform/deploy && cp /opt/modularplatform/docs/deploy/certbot-hetzner-*.sh /opt/modularplatform/deploy/)'
 ```
 Create `/opt/modularplatform/.env` from `docs/deploy/.env.example`, fill the generated secrets, `chmod 600 .env`.
+The DB host must stay `postgres`; the generated Postgres password goes into both `POSTGRES_PASSWORD` and the two
+connection strings.
 ```bash
 # Publishes the 4 .NET hosts via a bind-mounted SDK (dodges the overlay glob bug) + builds thin runtime images + web.
 ssh solutionbox2 'cd /opt/modularplatform && bash docs/deploy/build-images.sh'
@@ -80,6 +79,7 @@ ssh solutionbox2 'cd /opt/modularplatform && docker compose run --rm migrator'  
 ssh solutionbox2 'cd /opt/modularplatform && docker compose up -d api worker jobs web'
 ssh solutionbox2 'cd /opt/modularplatform && docker compose ps'                  # all healthy
 ssh solutionbox2 'cd /opt/modularplatform && docker compose exec api curl -fsS http://localhost:8080/health/ready'
+ssh solutionbox2 'cd /opt/modularplatform && bash docs/deploy/production-smoke.sh --no-build'
 ```
 
 ## 6. nginx vhost
