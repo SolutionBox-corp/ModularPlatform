@@ -21,6 +21,7 @@ internal static class GetMyNotificationPreferencesEndpoint
                 return Results.Ok(ApiResponse<GetMyNotificationPreferencesResponse>.Ok(result));
             })
             .RequireAuthorization()
+            .RequireModule("notifications")
             .WithTags("Notifications")
             .WithName("GetMyNotificationPreferences");
     }

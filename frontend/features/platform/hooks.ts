@@ -10,6 +10,8 @@ import {
   updateTenant,
   createTenantInvite,
   issueMachineToken,
+  revokeMachineToken,
+  createPlatformCheckout,
   revokeTenantInvite,
   createCreditPackage,
   updateCreditPackage,
@@ -22,6 +24,21 @@ import {
 
 export function usePlatformBillingStatus() {
   return useQuery(platformQueries.billingStatus());
+}
+
+export function useMyPlatformBillingStatus() {
+  return useQuery(platformQueries.myBillingStatus());
+}
+
+export function usePlatformPlans() {
+  return useQuery(platformQueries.platformPlans());
+}
+
+export function useCreatePlatformCheckout() {
+  return useMutation({
+    mutationFn: createPlatformCheckout,
+    // No invalidation needed: success immediately redirects to the provider; platform status is re-read after return.
+  });
 }
 
 export function useListPlatformUsers(params: ListPlatformUsersParams = {}) {
@@ -39,6 +56,10 @@ export function useTenantDetail(tenantId: string) {
 
 export function useTenantInvites(params: ListTenantInvitesParams) {
   return useQuery(platformQueries.tenantInvites(params));
+}
+
+export function useMachineTokens(tenantId: string) {
+  return useQuery(platformQueries.machineTokens(tenantId));
 }
 
 export function usePlatformUserAudit(userId: string) {
@@ -110,11 +131,39 @@ export function useCreateTenantInvite() {
 }
 
 export function useIssueMachineToken() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: issueMachineToken,
-    // No invalidation needed: the raw machine token is a one-shot response and there is no token list cache.
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: [
+          ...queryRoots.admin,
+          "platform",
+          "tenants",
+          variables.tenantId,
+          "machine-tokens",
+        ],
+      });
       toast.success("Machine token issued.");
+    },
+  });
+}
+
+export function useRevokeMachineToken() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: revokeMachineToken,
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: [
+          ...queryRoots.admin,
+          "platform",
+          "tenants",
+          variables.tenantId,
+          "machine-tokens",
+        ],
+      });
+      toast.success("Machine token revoked.");
     },
   });
 }

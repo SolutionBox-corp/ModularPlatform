@@ -5,9 +5,10 @@ Route: `/billing` (requires auth + `billing` module entitlement)
 The billing page renders four sections:
 1. **Balance card** (`CreditBalanceCard`) — shows Available and Posted credits via `GET /v1/billing/credits/balance`.
 2. **Subscription card** (`SubscriptionCard`) — shows active plan / empty state via `GET /v1/billing/subscriptions/me`.
-3. **Buy credits** (`PackagesGrid`) — lists packages from `GET /v1/billing/packages`; empty state when none.
-4. **Promo code** (`PromoCodeInput`) — validates a code via `GET /v1/billing/promo-codes/{code}/validate`.
-5. **Credit balance table** (`CreditSummaryTable`) — three rows: Posted / Available / Held, derived from the balance endpoint.
+3. **Workspace platform plan** (`PlatformPlanCheckout`) — lists platform-plane checkout plans from `GET /v1/tenant/me/platform-plans` and starts `POST /v1/tenant/me/platform-checkout`.
+4. **Buy credits** (`PackagesGrid`) — lists packages from `GET /v1/billing/packages`; empty state when none.
+5. **Promo code** (`PromoCodeInput`) — validates a code via `GET /v1/billing/promo-codes/{code}/validate`.
+6. **Credit balance table** (`CreditSummaryTable`) — three rows: Posted / Available / Held, derived from the balance endpoint.
 
 Credit values render as `"N cr."` with tabular-nums via `MoneyAmount`. Checkout redirects are guarded by
 `safeExternalRedirect` (must be `https:` + `*.stripe.com`).
@@ -162,6 +163,35 @@ Credit values render as `"N cr."` with tabular-nums via `MoneyAmount`. Checkout 
 - **When** the page loads
 - **Then** the stored `billing:lastPurchaseId` is cleared and the page explains no charge was completed with a link back to Billing
 - Priority: P1 · Type: happy · Automated: manual
+
+### BILL-15c — Platform plan catalogue renders on Billing page
+
+- **Given** the tenant has the `billing` module enabled and `GET /v1/tenant/me/platform-plans` returns at least one plan
+- **When** the user opens `/billing`
+- **Then** the **Workspace platform plan** section renders each plan with description, plan key, formatted price, and an **Upgrade** button
+- Priority: P0 · Type: happy · Automated: manual
+
+### BILL-15d — Platform checkout starts by plan key only
+
+- **Given** platform checkout is ready and a platform plan card is visible
+- **When** the user clicks **Upgrade**
+- **Then** `POST /v1/tenant/me/platform-checkout` is called with `{ planKey }`
+- **And** the browser redirects to the backend-provided provider checkout URL
+- Priority: P0 · Type: happy · Automated: manual
+
+### BILL-15e — Missing platform payment gateway disables checkout
+
+- **Given** `GET /v1/tenant/admin/platform-billing` returns `checkoutReady=false`
+- **When** `/billing` renders platform plans
+- **Then** an alert explains that platform checkout is not ready and **Upgrade** buttons are disabled
+- Priority: P0 · Type: edge · Automated: manual
+
+### BILL-15f — Checkout return does not grant entitlements locally
+
+- **Given** the user returns from a provider checkout before the payment webhook/reconcile updates the tenant
+- **When** `/billing` reloads
+- **Then** the UI re-reads platform status/entitlements and does not enable modules from URL query parameters or provider ids
+- Priority: P0 · Type: security · Automated: manual
 
 ---
 

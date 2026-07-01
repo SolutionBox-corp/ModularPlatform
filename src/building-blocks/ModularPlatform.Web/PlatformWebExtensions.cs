@@ -13,6 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 using ModularPlatform.Abstractions;
 using ModularPlatform.Cqrs;
@@ -174,6 +175,33 @@ public static class PlatformWebExtensions
                     ClockSkew = TimeSpan.FromSeconds(30),
                     // Role claims are emitted as type "role" — make RequireRole / IsInRole match them.
                     RoleClaimType = AuthorizationClaims.Role,
+                };
+                options.Events = new JwtBearerEvents
+                {
+                    OnTokenValidated = async context =>
+                    {
+                        var principal = context.Principal;
+                        if (principal is null
+                            || !principal.HasClaim(AuthorizationClaims.Role, AuthorizationClaims.MachineRole))
+                        {
+                            return;
+                        }
+
+                        var registry = context.HttpContext.RequestServices.GetService<IMachineTokenRegistry>();
+                        if (registry is null)
+                        {
+                            return;
+                        }
+
+                        var tokenId = principal.FindFirstValue(JwtRegisteredClaimNames.Jti);
+                        var machineId = principal.FindFirstValue("machine_id");
+                        if (string.IsNullOrWhiteSpace(tokenId)
+                            || !Guid.TryParse(machineId, out var machineSubjectId)
+                            || !await registry.IsActiveAsync(tokenId, machineSubjectId, context.HttpContext.RequestAborted))
+                        {
+                            context.Fail("machine_token_revoked");
+                        }
+                    },
                 };
             });
 

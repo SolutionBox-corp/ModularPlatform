@@ -23,6 +23,7 @@ internal static class SetNotificationPreferenceEndpoint
                 return Results.Ok(ApiResponse<SetNotificationPreferenceResponse>.Ok(result));
             })
             .RequireAuthorization()
+            .RequireModule("notifications")
             .WithTags("Notifications")
             .WithName("SetNotificationPreference");
     }

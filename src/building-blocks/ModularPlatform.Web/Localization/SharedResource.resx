@@ -66,6 +66,7 @@
   <data name="machine_token.tenant_required" xml:space="preserve"><value>A tenant is required to issue a machine token.</value></data>
   <data name="machine_token.name_required" xml:space="preserve"><value>A machine token name is required.</value></data>
   <data name="machine_token.name_too_long" xml:space="preserve"><value>The machine token name is too long.</value></data>
+  <data name="machine_token.not_found" xml:space="preserve"><value>Machine token not found.</value></data>
   <data name="user.email.required" xml:space="preserve"><value>Email is required.</value></data>
   <data name="user.email.invalid" xml:space="preserve"><value>Email is not a valid address.</value></data>
   <data name="user.email.too_long" xml:space="preserve"><value>Email is too long.</value></data>

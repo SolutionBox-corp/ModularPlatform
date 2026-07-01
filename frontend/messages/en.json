@@ -284,6 +284,21 @@
       "noAccount": "No billing account yet. Subscribe or buy credits first.",
       "error": "Could not open the billing portal. Please try again."
     },
+    "platformPlans": {
+      "heading": "Workspace platform plan",
+      "description": "Upgrade this workspace's ModularPlatform plan. Payment starts a provider checkout; module access updates after payment confirmation.",
+      "emptyTitle": "No platform plans available",
+      "emptyDescription": "Platform checkout plans will appear here once configured.",
+      "current": "Current",
+      "currentPlan": "Current plan",
+      "checkout": "Upgrade",
+      "redirecting": "Redirecting…",
+      "oneTime": "one-time platform checkout",
+      "notReadyTitle": "Platform checkout is not ready",
+      "notReadyDescription": "A platform payment provider must be configured before workspace upgrades can start.",
+      "notReadyAction": "Checkout is blocked by {code}.",
+      "error": "Could not start platform checkout. Please try again."
+    },
     "plans": {
       "heading": "Choose a plan",
       "description": "Subscribe for recurring credits every billing period.",
@@ -1070,6 +1085,20 @@
           "Pending": "Pending",
           "Revoked": "Revoked"
         }
+      },
+      "machineTokens": {
+        "description": "Issued machine principals for edge agents and integrations. The raw token is only shown at issue time.",
+        "empty": "No machine tokens yet.",
+        "expiresAt": "Expires",
+        "heading": "Machine tokens",
+        "loading": "Loading machine tokens…",
+        "revoke": "Revoke machine token",
+        "revokedAt": "Revoked",
+        "status": {
+          "Active": "Active",
+          "Expired": "Expired",
+          "Revoked": "Revoked"
+        }
       }
     },
     "tenants": {
@@ -1166,6 +1195,12 @@
         "withdrawn": "Consent withdrawn."
       },
       "types": {
+        "cookieAnalytics": {
+          "label": "Analytics cookies"
+        },
+        "cookieMarketing": {
+          "label": "Marketing cookies"
+        },
         "marketingEmails": {
           "description": "Receive non-transactional marketing emails such as product news, tips, and promotional offers. Essential emails (account, security, and the welcome email) are always sent regardless of this setting.",
           "label": "Product news & offers"

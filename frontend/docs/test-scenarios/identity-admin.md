@@ -6,6 +6,8 @@
 - `DELETE /v1/identity/admin/users/{userId}/roles/{role}` — requires `identity.manage_roles`
 - `GET    /v1/identity/admin/users/{userId}/audit`  — requires `audit.read`
 - `POST   /v1/identity/admin/machine-tokens`        — requires `platform.machine_tokens`
+- `GET    /v1/identity/admin/machine-tokens?tenantId={tenantId}` — requires `platform.machine_tokens`
+- `POST   /v1/identity/admin/machine-tokens/{tokenId}/revoke?tenantId={tenantId}` — requires `platform.machine_tokens`
 
 **Permission model:** The server component reads `session.user.permissions` at render time and
 passes `canManageRoles` / `canReadAudit` boolean props down to the client island. The backend is
@@ -187,32 +189,57 @@ normal users.
   - Then the token can be copied to the clipboard, and closing the dialog clears it from UI state
   - Priority: P0 · Type: security · Automated: manual
 
-- **IADM-26** — Erased PII audit values render as "[erased]"
+- **IADM-26** — Machine-token list is metadata-only
+  - Given a permitted admin opens `/platform/tenants/{tenantId}`
+  - When the machine-token panel loads
+  - Then `GET /v1/identity/admin/machine-tokens?tenantId={tenantId}` returns token rows with id, machine subject, name, status, created/expires/revoked timestamps
+  - And the raw JWT/access token is not returned or rendered
+  - Priority: P0 · Type: security · Automated: yes (backend integration)
+
+- **IADM-27** — Revoke active machine token
+  - Given a machine token is listed as Active
+  - When the admin clicks revoke
+  - Then `POST /v1/identity/admin/machine-tokens/{tokenId}/revoke?tenantId={tenantId}` marks it Revoked, refreshes the list, and disables further use of that JWT
+  - Priority: P0 · Type: security · Automated: yes (backend integration)
+
+- **IADM-28** — Revoke is idempotent
+  - Given a machine token is already Revoked
+  - When the same revoke endpoint is called again
+  - Then the endpoint still returns 200 with the original `revokedAt` timestamp
+  - Priority: P1 · Type: edge · Automated: yes (backend integration)
+
+- **IADM-29** — Revoked machine JWT is rejected at auth validation
+  - Given an issued machine JWT worked before revocation
+  - When its issuance row is revoked
+  - Then subsequent calls with that same JWT return 401 before endpoint authorization/business logic runs
+  - Priority: P0 · Type: security · Automated: yes (backend integration)
+
+- **IADM-30** — Erased PII audit values render as "[erased]"
   - Given a user's DEK has been shredded (GDPR erasure)
   - When an admin views their audit trail
   - Then fields whose values were personal data (email, etc.) show "[erased]" in italic muted text, not the original value
   - Priority: P1 · Type: security · Automated: manual (requires GDPR erasure to have run)
 
-- **IADM-27** — Audit entries ordered newest-first
+- **IADM-31** — Audit entries ordered newest-first
   - Given a user has multiple audit entries
   - When the audit trail table renders
   - Then the most recent entry appears at the top (backend returns `OrderByDescending(Timestamp)`)
   - Priority: P1 · Type: happy · Automated: manual
 
-- **IADM-28** — Backend 403 on audit trail GET for unpermitted user surfaces as error
+- **IADM-32** — Backend 403 on audit trail GET for unpermitted user surfaces as error
   - Given a user whose token lacks `audit.read` somehow calls the audit endpoint
   - Then the backend returns 403 and the UI shows an error (empty state or toast, not a page crash)
   - Priority: P0 · Type: security · Automated: manual
 
 ### Keyboard / accessibility
 
-- **IADM-29** — User ID input and Look up button are keyboard-accessible
+- **IADM-33** — User ID input and Look up button are keyboard-accessible
   - Given an admin is on `/admin`
   - When they tab to the User ID input, type a UUID, and press Enter or Tab to "Look up" then Space/Enter
   - Then lookup fires without requiring a mouse click
   - Priority: P2 · Type: a11y · Automated: manual
 
-- **IADM-30** — Assign role input and button are keyboard-accessible
+- **IADM-34** — Assign role input and button are keyboard-accessible
   - Given the role manager is visible
   - When the admin tabs to the "Assign role" input, types a role, and presses Enter
   - Then the assign action fires

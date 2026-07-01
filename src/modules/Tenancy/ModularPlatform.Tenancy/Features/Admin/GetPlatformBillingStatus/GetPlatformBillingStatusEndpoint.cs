@@ -19,5 +19,15 @@ internal static class GetPlatformBillingStatusEndpoint
             .RequirePermission(PlatformPermissions.PlatformTenantsManage)
             .WithTags("Tenancy")
             .WithName("GetPlatformBillingStatus");
+
+        app.MapGet("/tenant/me/platform-billing", async (IDispatcher dispatcher, CancellationToken ct) =>
+            {
+                var status = await dispatcher.Query(new GetPlatformBillingStatusQuery(), ct);
+                return Results.Ok(ApiResponse<PlatformBillingStatusView>.Ok(status));
+            })
+            .RequireAuthorization()
+            .DenyMachinePrincipals()
+            .WithTags("Tenancy")
+            .WithName("GetMyPlatformBillingStatus");
     }
 }

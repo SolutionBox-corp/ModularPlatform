@@ -9,7 +9,7 @@ using ModularPlatform.Web;
 
 namespace ModularPlatform.Identity.Security;
 
-internal sealed record AccessToken(string Value, DateTimeOffset ExpiresAt);
+internal sealed record AccessToken(string Value, DateTimeOffset ExpiresAt, string TokenId);
 internal sealed record RefreshTokenValue(string Raw, string Hash);
 
 internal interface ITokenIssuer
@@ -35,12 +35,13 @@ internal sealed class JwtTokenIssuer(IOptions<JwtOptions> options, IClock clock)
         var now = clock.UtcNow;
         var expires = now.AddMinutes(_jwt.AccessTokenMinutes);
 
+        var tokenId = Guid.CreateVersion7().ToString();
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, userId.ToString()),
             new(JwtRegisteredClaimNames.Sub, userId.ToString()),
             new(JwtRegisteredClaimNames.Email, email),
-            new(JwtRegisteredClaimNames.Jti, Guid.CreateVersion7().ToString()),
+            new(JwtRegisteredClaimNames.Jti, tokenId),
         };
         if (tenantId is not null)
         {
@@ -63,7 +64,7 @@ internal sealed class JwtTokenIssuer(IOptions<JwtOptions> options, IClock clock)
         };
 
         var token = new JsonWebTokenHandler().CreateToken(descriptor);
-        return new AccessToken(token, expires);
+        return new AccessToken(token, expires, tokenId);
     }
 
     public AccessToken IssueMachineAccessToken(
@@ -72,13 +73,14 @@ internal sealed class JwtTokenIssuer(IOptions<JwtOptions> options, IClock clock)
         var now = clock.UtcNow;
         var expires = now.AddMinutes(_jwt.AccessTokenMinutes);
 
+        var tokenId = Guid.CreateVersion7().ToString();
         var claims = new List<Claim>
         {
             new("machine_id", machineId.ToString()),
             new("machine_name", name),
             new(JwtRegisteredClaimNames.Sub, machineId.ToString()),
             new(HttpTenantContext.TenantClaim, tenantId.ToString()),
-            new(JwtRegisteredClaimNames.Jti, Guid.CreateVersion7().ToString()),
+            new(JwtRegisteredClaimNames.Jti, tokenId),
             new(AuthorizationClaims.Role, AuthorizationClaims.MachineRole),
         };
         claims.AddRange(permissions.Select(permission => new Claim(AuthorizationClaims.Permission, permission)));
@@ -94,7 +96,7 @@ internal sealed class JwtTokenIssuer(IOptions<JwtOptions> options, IClock clock)
         };
 
         var token = new JsonWebTokenHandler().CreateToken(descriptor);
-        return new AccessToken(token, expires);
+        return new AccessToken(token, expires, tokenId);
     }
 
     public RefreshTokenValue CreateRefreshToken()

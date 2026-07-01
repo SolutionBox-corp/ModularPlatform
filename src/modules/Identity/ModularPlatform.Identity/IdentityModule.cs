@@ -12,6 +12,8 @@ using Quartz;
 using ModularPlatform.Identity.Features.Admin.AssignRole;
 using ModularPlatform.Identity.Features.Admin.GetUserDetail;
 using ModularPlatform.Identity.Features.Admin.IssueMachineToken;
+using ModularPlatform.Identity.Features.Admin.ListMachineTokens;
+using ModularPlatform.Identity.Features.Admin.RevokeMachineToken;
 using ModularPlatform.Identity.Features.Admin.RevokeRole;
 using ModularPlatform.Identity.Features.Admin.RevokeUserSessions;
 using ModularPlatform.Identity.Features.Admin.UnlockUser;
@@ -59,6 +61,7 @@ public sealed class IdentityModule : IModule
 
         services.AddScoped<IPasswordHasher, Argon2PasswordHasher>();
         services.AddScoped<ITokenIssuer, JwtTokenIssuer>();
+        services.AddScoped<IMachineTokenRegistry, MachineTokenRegistry>();
         services.AddOptions<PasswordResetOptions>().BindConfiguration(PasswordResetOptions.SectionName);
         services.AddOptions<EmailVerificationOptions>().BindConfiguration(EmailVerificationOptions.SectionName);
 
@@ -93,6 +96,8 @@ public sealed class IdentityModule : IModule
         endpoints.MapUnlockUser();
         endpoints.MapRevokeUserSessions();
         endpoints.MapIssueMachineToken();
+        endpoints.MapListMachineTokens();
+        endpoints.MapRevokeMachineToken();
         endpoints.MapGetUserAuditTrail();
         endpoints.MapListPlatformUsers();
         endpoints.MapGetPlatformUserAudit();

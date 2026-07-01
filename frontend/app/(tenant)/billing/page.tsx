@@ -5,6 +5,7 @@ import { billingQueries } from "@/features/billing/api";
 import { entitlementQueries, isModuleEnabled } from "@/features/entitlements/api";
 import { CreditBalanceCard, SubscriptionCard } from "@/features/billing/components/cards";
 import { SubscriptionPlans } from "@/features/billing/components/subscription-plans";
+import { PlatformPlanCheckout } from "@/features/billing/components/platform-plan-checkout";
 import { PackagesGrid } from "@/features/billing/components/packages-grid";
 import { CreditSummaryTable } from "@/features/billing/components/credit-summary-table";
 import { CreditLedgerTable } from "@/features/billing/components/credit-ledger-table";
@@ -12,6 +13,7 @@ import { PaymentGatewayConfigCard } from "@/features/billing/components/payment-
 import { PromoCodeInput } from "@/features/billing/components/promo-code-input";
 import { Separator } from "@/components/ui/separator";
 import { getSession } from "@/lib/auth/session";
+import { platformQueries } from "@/features/platform/api";
 import { getTranslations } from "next-intl/server";
 import type { Metadata } from "next";
 
@@ -36,6 +38,8 @@ export default async function BillingPage() {
   void queryClient.prefetchQuery(billingQueries.subscriptionMe());
   void queryClient.prefetchQuery(billingQueries.packages());
   void queryClient.prefetchQuery(billingQueries.subscriptionPlans());
+  void queryClient.prefetchQuery(platformQueries.platformPlans());
+  void queryClient.prefetchQuery(platformQueries.myBillingStatus());
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
@@ -67,6 +71,21 @@ export default async function BillingPage() {
             </p>
           </div>
           <SubscriptionPlans />
+        </section>
+
+        <Separator />
+
+        {/* Platform plan checkout */}
+        <section className="space-y-4">
+          <div>
+            <h2 className="text-base font-semibold">
+              {t("platformPlans.heading")}
+            </h2>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {t("platformPlans.description")}
+            </p>
+          </div>
+          <PlatformPlanCheckout />
         </section>
 
         <Separator />

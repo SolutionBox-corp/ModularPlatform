@@ -39,6 +39,7 @@ internal sealed class IssueMachineTokenHandler(ITokenIssuer tokenIssuer, IServic
         {
             TargetTenantId = command.TenantId,
             MachineSubjectId = machineId,
+            TokenId = access.TokenId,
             Name = name,
             ExpiresAt = access.ExpiresAt,
         });

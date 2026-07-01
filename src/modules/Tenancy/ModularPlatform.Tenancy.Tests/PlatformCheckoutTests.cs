@@ -16,6 +16,43 @@ namespace ModularPlatform.Tenancy.Tests;
 public sealed class PlatformCheckoutTests(PlatformApiFactory fixture)
 {
     [Fact]
+    public async Task Platform_plans_returns_server_authoritative_checkout_catalogue()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync($"plat-plans-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+
+        var response = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, "/v1/tenant/me/platform-plans", token));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var data = await PlatformApiFactory.ReadData(response);
+        var pro = data.EnumerateArray().Single(p => p.GetProperty("planKey").GetString() == "pro");
+        pro.GetProperty("amountMinorUnits").GetInt64().ShouldBe(4900);
+        pro.GetProperty("currency").GetString().ShouldBe("EUR");
+        pro.GetProperty("description").GetString().ShouldBe("Pro plan");
+    }
+
+    [Fact]
+    public async Task Platform_plans_omits_misconfigured_zero_price_entries()
+    {
+        var (_, token) = await fixture.RegisterAndLoginAsync(
+            $"plat-plans-invalid-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");
+        using var host = fixture.CreateHost(
+            ("Platform:Payments:Plans:broken:AmountMinorUnits", "0"),
+            ("Platform:Payments:Plans:broken:Currency", "EUR"),
+            ("Platform:Payments:Plans:broken:Description", "Broken plan"));
+        using var client = host.CreateClient();
+
+        var response = await client.SendAsync(fixture.Authed(
+            HttpMethod.Get, "/v1/tenant/me/platform-plans", token));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var data = await PlatformApiFactory.ReadData(response);
+        data.EnumerateArray()
+            .Any(p => p.GetProperty("planKey").GetString() == "broken")
+            .ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task A_tenant_can_start_a_platform_plane_checkout_on_the_platform_gateway()
     {
         var (userId, token) = await fixture.RegisterAndLoginAsync($"plat-{Guid.CreateVersion7():N}@x.com", "Sup3rSecret!");

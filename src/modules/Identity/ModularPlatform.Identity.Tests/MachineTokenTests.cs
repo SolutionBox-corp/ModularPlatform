@@ -52,6 +52,7 @@ public sealed class MachineTokenTests(PlatformApiFactory fixture)
 
         var claims = DecodeJwt(machineToken);
         var machineSubjectId = Guid.Parse(claims.GetProperty("machine_id").GetString()!);
+        var tokenId = claims.GetProperty("jti").GetString()!;
         claims.GetProperty("tenant_id").GetString().ShouldBe(tenantId.ToString());
         // The 'role' claim carries "machine" (single value serializes as a string).
         claims.GetProperty("role").GetString().ShouldBe("machine");
@@ -67,7 +68,7 @@ public sealed class MachineTokenTests(PlatformApiFactory fixture)
         await fixture.WaitForCountAsync(
             "SELECT count(*)::bigint FROM machine_token_issuances " +
             $"WHERE \"MachineSubjectId\" = '{machineSubjectId}' AND \"TargetTenantId\" = '{tenantId}' " +
-            "AND \"Name\" = 'door-agent-1'",
+            $"AND \"TokenId\" = '{tokenId}' AND \"Name\" = 'door-agent-1'",
             1);
         await fixture.WaitForCountAsync(
             "SELECT count(*)::bigint FROM identity_audit_entries " +
@@ -101,5 +102,59 @@ public sealed class MachineTokenTests(PlatformApiFactory fixture)
             new { tenantId = Guid.CreateVersion7(), name = "x" }));
 
         response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Admin_lists_and_revokes_machine_tokens_without_exposing_raw_jwt()
+    {
+        var admin = await AdminTokenAsync();
+        var tenantId = Guid.Parse(DecodeJwt(admin).GetProperty("tenant_id").GetString()!);
+
+        var issue = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, "/v1/identity/admin/machine-tokens", admin,
+            new { tenantId, name = "kiosk-agent-1" }));
+        issue.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var issued = await PlatformApiFactory.ReadData(issue);
+        var rawToken = issued.GetProperty("accessToken").GetString()!;
+        var machineSubjectId = Guid.Parse(DecodeJwt(rawToken).GetProperty("machine_id").GetString()!);
+
+        var beforeRevoke = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, "/v1/tenant/me/entitlements", rawToken));
+        beforeRevoke.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var list = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, $"/v1/identity/admin/machine-tokens?tenantId={tenantId}", admin));
+        list.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var items = (await PlatformApiFactory.ReadData(list)).GetProperty("items").EnumerateArray().ToArray();
+        var item = items.Single(i => i.GetProperty("machineSubjectId").GetGuid() == machineSubjectId);
+        var tokenRowId = item.GetProperty("id").GetGuid();
+        item.GetProperty("name").GetString().ShouldBe("kiosk-agent-1");
+        item.GetProperty("status").GetString().ShouldBe("Active");
+        item.ToString().ShouldNotContain(rawToken);
+
+        var revoke = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, $"/v1/identity/admin/machine-tokens/{tokenRowId}/revoke?tenantId={tenantId}", admin));
+        revoke.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var revoked = await PlatformApiFactory.ReadData(revoke);
+        revoked.GetProperty("id").GetGuid().ShouldBe(tokenRowId);
+        revoked.GetProperty("status").GetString().ShouldBe("Revoked");
+        revoked.GetProperty("revokedAt").ValueKind.ShouldNotBe(JsonValueKind.Null);
+
+        var secondRevoke = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Post, $"/v1/identity/admin/machine-tokens/{tokenRowId}/revoke?tenantId={tenantId}", admin));
+        secondRevoke.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PlatformApiFactory.ReadData(secondRevoke))
+            .GetProperty("revokedAt").GetDateTimeOffset()
+            .ShouldBe(revoked.GetProperty("revokedAt").GetDateTimeOffset());
+
+        var afterRevoke = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, "/v1/tenant/me/entitlements", rawToken));
+        afterRevoke.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+
+        var afterList = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, $"/v1/identity/admin/machine-tokens?tenantId={tenantId}", admin));
+        var afterItem = (await PlatformApiFactory.ReadData(afterList)).GetProperty("items").EnumerateArray()
+            .Single(i => i.GetProperty("id").GetGuid() == tokenRowId);
+        afterItem.GetProperty("status").GetString().ShouldBe("Revoked");
     }
 }

@@ -284,6 +284,21 @@
       "noAccount": "Zatím nemáte fakturační účet. Nejprve si předplaťte nebo kupte kredity.",
       "error": "Fakturační portál se nepodařilo otevřít. Zkuste to prosím znovu."
     },
+    "platformPlans": {
+      "heading": "Platformový plán workspace",
+      "description": "Upgradujte ModularPlatform plán tohoto workspace. Platba spustí checkout u providera; přístup k modulům se změní až po potvrzení platby.",
+      "emptyTitle": "Žádné platformové plány nejsou k dispozici",
+      "emptyDescription": "Platformové checkout plány se zde objeví po nastavení.",
+      "current": "Aktuální",
+      "currentPlan": "Aktuální plán",
+      "checkout": "Upgradovat",
+      "redirecting": "Přesměrování…",
+      "oneTime": "jednorázový platformový checkout",
+      "notReadyTitle": "Platformový checkout není připravený",
+      "notReadyDescription": "Než půjde spustit upgrade workspace, musí být nastavena platformová platební brána.",
+      "notReadyAction": "Checkout blokuje {code}.",
+      "error": "Platformový checkout se nepodařilo spustit. Zkuste to prosím znovu."
+    },
     "plans": {
       "heading": "Vyberte si plán",
       "description": "Předplaťte si pravidelné kredity v každém zúčtovacím období.",
@@ -1070,6 +1085,20 @@
           "Pending": "Čeká",
           "Revoked": "Odvolaná"
         }
+      },
+      "machineTokens": {
+        "description": "Vydaní machine principalové pro edge agenty a integrace. Nešifrovaný token se zobrazí pouze při vystavení.",
+        "empty": "Zatím žádné machine tokeny.",
+        "expiresAt": "Vyprší",
+        "heading": "Machine tokeny",
+        "loading": "Načítám machine tokeny…",
+        "revoke": "Odvolat machine token",
+        "revokedAt": "Odvoláno",
+        "status": {
+          "Active": "Aktivní",
+          "Expired": "Vypršel",
+          "Revoked": "Odvolaný"
+        }
       }
     },
     "tenants": {
@@ -1166,6 +1195,12 @@
         "withdrawn": "Souhlas odvolán."
       },
       "types": {
+        "cookieAnalytics": {
+          "label": "Analytické cookies"
+        },
+        "cookieMarketing": {
+          "label": "Marketingové cookies"
+        },
         "marketingEmails": {
           "description": "Dostávejte netransakční marketingové e-maily, jako jsou novinky o produktu, tipy a propagační nabídky. Nezbytné e-maily (účet, zabezpečení a uvítací e-mail) se odesílají vždy bez ohledu na toto nastavení.",
           "label": "Novinky o produktu a nabídky"

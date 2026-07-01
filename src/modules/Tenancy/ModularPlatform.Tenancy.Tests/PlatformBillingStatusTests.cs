@@ -9,7 +9,8 @@ namespace ModularPlatform.Tenancy.Tests;
 /// Platform-plane billing status (the tenant paying the SaaS operator for its entitlement tier). The read-only seam
 /// <c>GET /v1/tenant/admin/platform-billing</c> is gated by <c>platform.tenants.manage</c>: an admin sees the current
 /// tenant's plan (entitlement tier, default <c>"free"</c>) + the modules that make it up; a regular user cannot.
-/// The tenant comes from the token, never a route id. The full charging flow is a later step.
+/// Tenant self-service UI reads the same snapshot through <c>GET /v1/tenant/me/platform-billing</c>. The tenant comes
+/// from the token, never a route id.
 /// </summary>
 [Collection("Integration")]
 public sealed class PlatformBillingStatusTests(PlatformApiFactory fixture)
@@ -70,5 +71,21 @@ public sealed class PlatformBillingStatusTests(PlatformApiFactory fixture)
             fixture.Authed(HttpMethod.Get, "/v1/tenant/admin/platform-billing", userToken));
 
         response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Tenant_user_reads_own_platform_billing_status_for_checkout()
+    {
+        var (_, userToken) = await fixture.RegisterAndLoginAsync($"pb-self-{Guid.CreateVersion7():N}@x.com", Password);
+
+        var response = await fixture.Client.SendAsync(
+            fixture.Authed(HttpMethod.Get, "/v1/tenant/me/platform-billing", userToken));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var data = await PlatformApiFactory.ReadData(response);
+        data.GetProperty("plan").GetString().ShouldBe("free");
+        data.GetProperty("checkoutReady").GetBoolean().ShouldBeTrue();
+        data.GetProperty("modules").EnumerateArray().ShouldNotBeEmpty();
     }
 }

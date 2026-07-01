@@ -66,6 +66,7 @@
   <data name="machine_token.tenant_required" xml:space="preserve"><value>K vydání strojového tokenu je vyžadována organizace.</value></data>
   <data name="machine_token.name_required" xml:space="preserve"><value>Název strojového tokenu je povinný.</value></data>
   <data name="machine_token.name_too_long" xml:space="preserve"><value>Název strojového tokenu je příliš dlouhý.</value></data>
+  <data name="machine_token.not_found" xml:space="preserve"><value>Strojový token nebyl nalezen.</value></data>
   <data name="user.email.required" xml:space="preserve"><value>E-mail je povinný.</value></data>
   <data name="user.email.invalid" xml:space="preserve"><value>E-mail není platná adresa.</value></data>
   <data name="user.email.too_long" xml:space="preserve"><value>E-mail je příliš dlouhý.</value></data>

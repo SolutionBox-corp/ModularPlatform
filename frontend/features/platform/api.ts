@@ -56,6 +56,26 @@ export interface IssueMachineTokenResponse {
   expiresAt: string;
 }
 
+export interface MachineTokenItem {
+  id: string;
+  machineSubjectId: string;
+  name: string;
+  status: "Active" | "Expired" | "Revoked";
+  createdAt: string;
+  expiresAt: string;
+  revokedAt: string | null;
+}
+
+export interface MachineTokensResponse {
+  items: MachineTokenItem[];
+}
+
+export interface RevokeMachineTokenResponse {
+  id: string;
+  status: "Revoked";
+  revokedAt: string | null;
+}
+
 export interface TenantInviteItem {
   inviteId: string;
   status: "Pending" | "Consumed" | "Expired" | "Revoked";
@@ -99,6 +119,18 @@ export interface PlatformBillingStatusView {
   provider: string | null;
   checkoutReady: boolean;
   actionRequired: string | null;
+}
+
+export interface PlatformPlanResponse {
+  planKey: string;
+  amountMinorUnits: number;
+  currency: string;
+  description: string;
+}
+
+export interface CreatePlatformCheckoutResponse {
+  providerPaymentId: string;
+  redirectUrl: string;
 }
 
 /** A row of GET /v1/tenant/admin/tenants (cross-tenant registry list). */
@@ -187,6 +219,30 @@ export const platformQueries = {
     }),
 
   /**
+   * GET /v1/tenant/me/platform-billing
+   * Tenant self-service billing status for platform-plan checkout.
+   */
+  myBillingStatus: () =>
+    queryOptions({
+      queryKey: [...queryRoots.billing, "platform-billing"],
+      queryFn: () =>
+        apiFetch<PlatformBillingStatusView>("tenant/me/platform-billing"),
+      staleTime: 30_000,
+    }),
+
+  /**
+   * GET /v1/tenant/me/platform-plans
+   * Tenant self-service platform-plane checkout catalogue.
+   */
+  platformPlans: () =>
+    queryOptions({
+      queryKey: [...queryRoots.billing, "platform-plans"],
+      queryFn: () =>
+        apiFetch<PlatformPlanResponse[]>("tenant/me/platform-plans"),
+      staleTime: 5 * 60_000,
+    }),
+
+  /**
    * GET /v1/identity/platform/users?tenantId&limit&offset
    * Platform-wide user list (cross-tenant). Requires platform.users.list.
    */
@@ -272,6 +328,21 @@ export const platformQueries = {
           `tenant/admin/tenants/${tenantId}/invites?${sp.toString()}`,
         );
       },
+      enabled: tenantId.trim().length > 0,
+      staleTime: 30_000,
+    }),
+
+  /**
+   * GET /v1/identity/admin/machine-tokens?tenantId={id}
+   * Metadata-only machine-token registry. The raw JWT is never returned after issuance.
+   */
+  machineTokens: (tenantId: string) =>
+    queryOptions({
+      queryKey: [...queryRoots.admin, "platform", "tenants", tenantId, "machine-tokens"],
+      queryFn: () =>
+        apiFetch<MachineTokensResponse>(
+          `identity/admin/machine-tokens?tenantId=${encodeURIComponent(tenantId)}`,
+        ),
       enabled: tenantId.trim().length > 0,
       staleTime: 30_000,
     }),
@@ -372,6 +443,30 @@ export async function issueMachineToken(params: {
     method: "POST",
     body: { tenantId: params.tenantId, name: params.name },
   });
+}
+
+/** POST /v1/identity/admin/machine-tokens/{id}/revoke — revoke one tenant-scoped machine token. */
+export async function revokeMachineToken(params: {
+  tenantId: string;
+  tokenId: string;
+}): Promise<RevokeMachineTokenResponse> {
+  return apiFetch<RevokeMachineTokenResponse>(
+    `identity/admin/machine-tokens/${params.tokenId}/revoke?tenantId=${encodeURIComponent(params.tenantId)}`,
+    { method: "POST" },
+  );
+}
+
+/** POST /v1/tenant/me/platform-checkout — start platform-plane checkout for a plan key. */
+export async function createPlatformCheckout(params: {
+  planKey: string;
+}): Promise<CreatePlatformCheckoutResponse> {
+  return apiFetch<CreatePlatformCheckoutResponse>(
+    "tenant/me/platform-checkout",
+    {
+      method: "POST",
+      body: { planKey: params.planKey },
+    },
+  );
 }
 
 /** DELETE /v1/tenant/admin/tenants/{tenantId}/invites/{inviteId} — revoke a pending invite. */

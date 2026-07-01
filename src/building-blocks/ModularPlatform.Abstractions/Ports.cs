@@ -19,6 +19,20 @@ public interface ITenantContext
     string? IpAddress { get; }
 }
 
+/// <summary>
+/// Optional live validation hook for issued machine/service JWTs. The Web building block owns JWT validation, but the
+/// Identity module owns the machine-token issuance table, so the validator talks through this port instead of crossing
+/// module boundaries. A missing implementation means "no machine-token registry is enabled".
+/// </summary>
+public interface IMachineTokenRegistry
+{
+    /// <summary>
+    /// Returns true only when the JWT id belongs to the machine subject and has not been revoked or expired in the
+    /// registry. Human JWTs never call this port.
+    /// </summary>
+    Task<bool> IsActiveAsync(string tokenId, Guid machineSubjectId, CancellationToken ct = default);
+}
+
 /// <summary>Testable time source. Never call DateTime.UtcNow directly in handlers.</summary>
 public interface IClock
 {

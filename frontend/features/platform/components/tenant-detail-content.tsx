@@ -14,6 +14,7 @@ import { EntitlementToggles } from "./entitlement-toggles";
 import { CreateInviteDialog } from "./create-invite-dialog";
 import { EditTenantDialog } from "./edit-tenant-dialog";
 import { MachineTokenDialog } from "./machine-token-dialog";
+import { MachineTokensList } from "./machine-tokens-list";
 import { TenantInvitesList } from "./tenant-invites-list";
 import { useTenantDetail } from "@/features/platform/hooks";
 
@@ -97,6 +98,22 @@ export function TenantDetailContent({
 
         {/* Invites */}
         <div className="space-y-4">
+          {canIssueMachineTokens && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium">
+                  {t("tenantDetail.machineTokens.heading")}
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  {t("tenantDetail.machineTokens.description")}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <MachineTokensList tenantId={tenantId} />
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle className="text-sm font-medium">
