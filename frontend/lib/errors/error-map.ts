@@ -34,6 +34,7 @@ const CATALOG: Catalog = {
   "user.password_unchanged": { en: "The new password must differ from the current one.", cs: "Nové heslo se musí lišit od aktuálního." },
   "user.accepted_terms_version.required": { en: "Terms version is required.", cs: "Verze souhlasu s podmínkami je povinná." },
   "user.accepted_terms_version.too_long": { en: "Terms version is too long.", cs: "Verze souhlasu s podmínkami je příliš dlouhá." },
+  "profile.update_failed": { en: "Profile update failed.", cs: "Aktualizace profilu selhala." },
   // Billing
   "billing.insufficient_credits": { en: "Not enough credits for this action.", cs: "Nedostatek kreditů pro tuto akci." },
   "billing.no_billing_account": { en: "No billing account yet. Subscribe or buy credits first.", cs: "Zatím nemáte fakturační účet. Nejprve si předplaťte nebo kupte kredity." },
