@@ -2,8 +2,7 @@
 
 > Komplexní mapa: každá feature, její **use cases**, **edge cases** (a jak se k nim platforma staví —
 > handled/partial/unhandled s file:line), **test cases** (co je pokryté + gapy), a verdikt jestli to máme
-> správně. Vzniklo multi-agentní analýzou (8 paralelních architektů, read-only, ~1M tokenů) napříč celou
-> codebase pod `/goal ... sepiš USE/Edge/Test cases ... máme správně vše`. Doplňuje `docs/test-scenarios.md`
+> správně. Vzniklo jako audit napříč celou codebase a doplňuje `docs/test-scenarios.md`
 > (Given/When/Then) o feature-centrický pohled.
 
 **Stav: full `dotnet test --no-restore` zelený (717/717 testů).** 78 features, 8 oblastí.
@@ -14,8 +13,8 @@ Aktuální verdict mapa: **78 correct, 0 minor-gaps, 0 has-gaps, 0 risky**.
 - **Edge case status:** ✓ handled · ◐ partial · ✗ unhandled · – n/a.
 - Přehledová tabulka verdiktů je hned pod tímto úvodem; detail per feature následuje po oblastech.
 
-## Vyřešeno PO analýze (tato session — coverage-fix-wave)
-Analýza odhalila nálezy nad rámec `/fullreview`; reálné z nich opraveny (TDD, build-green). Edge-case statusy
+## Vyřešeno po analýze
+Analýza odhalila nálezy nad rámec původního review; reálné z nich jsou opravené a ověřené testy. Edge-case statusy
 v tabulkách níže jsou **snapshot PŘED** těmito fixy:
 - **Rate-limiter per-user partition byl mrtvý** (jediný 🟡 has-gaps) — klíčoval na `Identity.Name` (null, žádný
   name claim) → všichni autentizovaní uživatelé v JEDNOM bucketu. Fix: partition přes `NameIdentifier` claim (userId).
@@ -133,12 +132,12 @@ v tabulkách níže jsou **snapshot PŘED** těmito fixy:
 | messaging-hosts-web | Forwarded headers (proxy trust) + audit IP | ✅ correct |
 | messaging-hosts-web | JWT bearer auth + options validation | ✅ correct |
 | messaging-hosts-web | Security headers middleware | ✅ correct |
-| messaging-hosts-web | SSE building block (SseStream + native SSE endpoint) | ✅ correct |
+| messaging-hosts-web | SSE building block (native SSE endpoint) | ✅ correct |
 | messaging-hosts-web | Telemetry (OTel pipeline + TelemetryBehavior + PlatformMetrics) | ✅ correct |
 
 Legenda: ✅ correct · 🟢 minor-gaps · 🟡 has-gaps · 🔴 risky. Edge-case status: ✓ handled · ◐ partial · ✗ unhandled.
 
-> **Pozn.:** Tabulky níže zachycují snapshot analýzy. Část tehdy-otevřených edge cases byla v téže session opravena — viz `docs/stability-audit-2026-06-10.md` (fix-wave tabulky) a sekci „Vyřešeno po analýze" na konci.
+> **Pozn.:** Tabulky níže zachycují snapshot analýzy. Část tehdy otevřených edge cases už byla opravena — viz `docs/stability-audit-2026-06-10.md` a sekci „Vyřešeno po analýze".
 
 
 ---

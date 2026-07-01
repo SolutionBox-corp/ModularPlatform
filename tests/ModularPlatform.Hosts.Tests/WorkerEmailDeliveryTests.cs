@@ -147,7 +147,10 @@ public sealed class WorkerEmailDeliveryTests
             catch (OperationCanceledException)
             {
             }
-            catch (SocketException)
+            catch (SocketException ex) when (IsClientDisconnect(ex) || _cts.IsCancellationRequested)
+            {
+            }
+            catch (IOException ex) when (IsClientDisconnect(ex) || _cts.IsCancellationRequested)
             {
             }
 
@@ -158,10 +161,48 @@ public sealed class WorkerEmailDeliveryTests
         {
             while (!_cts.IsCancellationRequested)
             {
-                using var client = await _listener.AcceptTcpClientAsync(_cts.Token);
-                await HandleClientAsync(client);
+                TcpClient client;
+                try
+                {
+                    client = await _listener.AcceptTcpClientAsync(_cts.Token);
+                }
+                catch (OperationCanceledException) when (_cts.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (SocketException) when (_cts.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                using (client)
+                {
+                    try
+                    {
+                        await HandleClientAsync(client);
+                    }
+                    catch (IOException ex) when (IsClientDisconnect(ex))
+                    {
+                    }
+                    catch (SocketException ex) when (IsClientDisconnect(ex))
+                    {
+                    }
+                    catch (ObjectDisposedException) when (_cts.IsCancellationRequested)
+                    {
+                        return;
+                    }
+                }
             }
         }
+
+        private static bool IsClientDisconnect(IOException ex) =>
+            ex.InnerException is SocketException socket && IsClientDisconnect(socket);
+
+        private static bool IsClientDisconnect(SocketException ex) =>
+            ex.SocketErrorCode is SocketError.ConnectionReset
+                or SocketError.ConnectionAborted
+                or SocketError.OperationAborted
+                or SocketError.Shutdown;
 
         private async Task HandleClientAsync(TcpClient client)
         {
