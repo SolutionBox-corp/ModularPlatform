@@ -5,7 +5,7 @@
 > správně. Vzniklo jako audit napříč celou codebase a doplňuje `docs/test-scenarios.md`
 > (Given/When/Then) o feature-centrický pohled.
 
-**Stav: full `dotnet test --no-restore` zelený (717/717 testů).** 78 features, 8 oblastí.
+**Stav: full `dotnet test --no-restore -m:1` zelený (717/717 testů).** 78 features, 8 oblastí.
 Aktuální verdict mapa: **78 correct, 0 minor-gaps, 0 has-gaps, 0 risky**.
 
 ## Jak číst

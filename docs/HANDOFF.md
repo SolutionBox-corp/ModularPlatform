@@ -31,7 +31,7 @@ Docker running** (Testcontainers spins up Postgres). Connection strings: `Connec
 
 ```bash
 dotnet build                                          # whole solution — keep it 0 warnings / 0 errors
-dotnet test                                           # all assemblies
+dotnet test -m:1                                      # all assemblies; single MSBuild node avoids parallel Testcontainers/Ryuk bootstrap flakes
 dotnet test tests/ModularPlatform.ArchitectureTests   # boundary rules only (no DB needed)
 dotnet test --filter "FullyQualifiedName~BillingLedgerTests"   # one test class
 
@@ -121,8 +121,8 @@ a separate `ModularPlatform.Worker` process.
   `Handle(...)` signature must be `public` and registered via `options.Discovery.IncludeType<T>()`.
 - **`HttpTenantContext.IsSystem` is true when there is NO HttpContext** — so an in-Api **background** Wolverine
   handler or startup code runs as **SYSTEM**, not tenant-scoped. Don't assume it's scoped.
-- **TestServer cannot assert an infinite SSE round-trip** — the SSE stream never completes, so integration tests
-  assert the auth/route contract (e.g. 401 on `/v1/realtime/stream`), not a full live push.
+- **TestServer cannot assert an infinite SSE round-trip** — the SSE stream never completes, so the full browser
+  transport path is tested with Kestrel (`RealtimeSseTests.Authenticated_kestrel_sse_stream_receives_a_published_user_event`).
 - **`ExecuteUpdate`/`ExecuteDelete` BYPASS the `AuditInterceptor` and xmin.** Use them only where the change need
   not be audited (the ledger atomic debit guard, GDPR scrubs) — never on audited security rows.
 - **Never raw SQL** (EF/LINQ only); **all times UTC** via `IClock`; **identity always from the token**
@@ -130,19 +130,23 @@ a separate `ModularPlatform.Worker` process.
 
 ---
 
-## 7. Test status (last full `dotnet test` — 75 total, 0 failed, 0 skipped)
-
-Grew from 50 → 75: the robustness backlog wave (+20: ID/PL/BL/ST/GD/EV/NT) and audit-PII crypto-shred (+5).
+## 7. Test status (last full `dotnet test --no-restore -m:1` — 717 total, 0 failed, 0 skipped)
 
 | Assembly | Pass |
 |---|---|
-| Notifications | 5/5 |
-| Gdpr | 8/8 |
-| ArchitectureTests | 3/3 |
-| Operations | 3/3 |
-| Files | 15/15 |
-| Billing | 29/29 |
-| Identity | 12/12 |
-| **Total** | **75/75** |
+| Billing | 164/164 |
+| Crm | 51/51 |
+| Files | 37/37 |
+| Gdpr | 34/34 |
+| Identity | 118/118 |
+| Marketing | 22/22 |
+| Notifications | 41/41 |
+| Operations | 38/38 |
+| Tenancy | 47/47 |
+| ArchitectureTests | 26/26 |
+| BuildingBlocks.Tests | 116/116 |
+| Hosts.Tests | 9/9 |
+| Jobs.Tests | 14/14 |
+| **Total** | **717/717** |
 
 Build: 0 warnings / 0 errors.

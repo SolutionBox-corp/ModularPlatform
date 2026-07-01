@@ -219,7 +219,7 @@ custom dispatcher (ours) · **Wolverine** (MIT, durable messaging/outbox/inbox/s
 
 ```bash
 dotnet build                       # whole solution (warnings = errors; keep it 0/0)
-dotnet test                        # all tests
+dotnet test -m:1                   # all tests; single MSBuild node avoids parallel Testcontainers/Ryuk bootstrap flakes
 dotnet test tests/ModularPlatform.ArchitectureTests   # boundary rules only (no DB needed)
 
 # Add a migration for a module (design-time factory required):
