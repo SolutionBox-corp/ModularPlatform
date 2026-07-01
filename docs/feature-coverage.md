@@ -6,8 +6,8 @@
 > codebase pod `/goal ... sepiš USE/Edge/Test cases ... máme správně vše`. Doplňuje `docs/test-scenarios.md`
 > (Given/When/Then) o feature-centrický pohled.
 
-**Stav: 165/165 testů zelených, build 0/0/0 (0 warnings, 0 errors).** 78 features, 8 oblastí.
-Aktuální verdict mapa: **76 correct, 2 minor-gaps, 0 has-gaps, 0 risky**.
+**Stav: full `dotnet test --no-restore` zelený (717/717 testů).** 78 features, 8 oblastí.
+Aktuální verdict mapa: **78 correct, 0 minor-gaps, 0 has-gaps, 0 risky**.
 
 ## Jak číst
 - **Verdikt:** ✅ correct · 🟢 minor-gaps (drobné, vesměs test-coverage) · 🟡 has-gaps · 🔴 risky.
@@ -28,6 +28,10 @@ v tabulkách níže jsou **snapshot PŘED** těmito fixy:
 - **GlobalExceptionMiddleware bez `HasStarted` guardu** — write problem-body po flushnuté SSE odpovědi → throw. Fix: guard.
 - **Retry-After header** — docstring tvrdil „429 + Retry-After", kód neemitoval. Fix: `OnRejected` + Retry-After z lease metadata.
 - **`SseStream<T>` dead code** (0 referencí, duplikoval inline bounded channel endpointu) → smazáno.
+- **Realtime SSE full HTTP round-trip gap** — TestServer neumí nekonečný SSE stream dobře, takže chyběl transport
+  důkaz. Fix: `RealtimeSseTests.Authenticated_kestrel_sse_stream_receives_a_published_user_event` používá Kestrel
+  přes shared `PlatformApiFactory`, čte replay i live SSE frame přes reálný socket a zavřel wire bug, kde globální
+  `eventType: "message"` přepisoval per-event typ z `SseItem`.
 - **JwtOptionsValidator bez testů** (sibling ForwardedHeaders měl 7) → 5 unit testů doplněno.
 - **ExpireCredits N+1 přes účty** — sweep teď batch-loaduje kandidátní účty/holdy/buckety a ponechává per-account
   `SaveChanges` + fallback po chybě, takže škáluje bez ztráty izolace.
@@ -96,7 +100,7 @@ v tabulkách níže jsou **snapshot PŘED** těmito fixy:
 | notifications-realtime | In-app feed (get / mark-read) | ✅ correct |
 | notifications-realtime | Cross-module reaction handlers (welcome + purchase-completed + subscription-past-due) | ✅ correct |
 | notifications-realtime | Realtime fan-out (publisher + Redis + registry) | ✅ correct |
-| notifications-realtime | SSE stream endpoint (/realtime/stream) | 🟢 minor-gaps |
+| notifications-realtime | SSE stream endpoint (/realtime/stream) | ✅ correct |
 | notifications-realtime | Replay buffer (Last-Event-ID, TTL) | ✅ correct |
 | notifications-realtime | GDPR export / erasure (Notifications) | ✅ correct |
 | operations-files | Long-running operation accept (202 + outbox) | ✅ correct |
@@ -129,7 +133,7 @@ v tabulkách níže jsou **snapshot PŘED** těmito fixy:
 | messaging-hosts-web | Forwarded headers (proxy trust) + audit IP | ✅ correct |
 | messaging-hosts-web | JWT bearer auth + options validation | ✅ correct |
 | messaging-hosts-web | Security headers middleware | ✅ correct |
-| messaging-hosts-web | SSE building block (SseStream + native SSE endpoint) | 🟢 minor-gaps |
+| messaging-hosts-web | SSE building block (SseStream + native SSE endpoint) | ✅ correct |
 | messaging-hosts-web | Telemetry (OTel pipeline + TelemetryBehavior + PlatformMetrics) | ✅ correct |
 
 Legenda: ✅ correct · 🟢 minor-gaps · 🟡 has-gaps · 🔴 risky. Edge-case status: ✓ handled · ◐ partial · ✗ unhandled.
@@ -995,7 +999,7 @@ _The non-fatal-missing-template and retry/idempotency behavior is now pinned dir
 
 _Owner-scoping + local fan-out are sound; Redis fan-out now has a live container test; unsupported tenant broadcast fails loudly instead of pretending to work._
 
-### SSE stream endpoint (/realtime/stream) — 🟢 minor-gaps
+### SSE stream endpoint (/realtime/stream) — ✅ correct
 *Native .NET 10 Server-Sent-Events endpoint that bridges the push registry to an IAsyncEnumerable, emitting replay then live events, owner-scoped.*
 
 **Use cases:** Browser opens an authenticated EventSource to receive its own realtime events; On reconnect, replays missed events (Last-Event-ID) before switching to live
@@ -1007,11 +1011,13 @@ _Owner-scoping + local fan-out are sound; Redis fan-out now has a live container
 | Live events arriving while replay is being emitted | ✓ | Subscribes BEFORE emitting replay (RealtimeStreamEndpoint.cs:63-84) so no live event is lost in the gap; replay then live. |
 | Client disconnect mid-stream | ✓ | CancellationToken cancels ReadAllAsync; `using` disposes the subscription, removing the registry entry. |
 | Replay vs live duplicate (an event both replayed and delivered live) | ✓ | The endpoint keeps per-session emitted EventIds and suppresses the live copy when the same event was already yielded from replay. Pinned by RealtimeSseTests.Sse_stream_suppresses_replay_live_duplicate_event_ids. |
+| Full HTTP transport round-trip | ✓ | `RealtimeSseTests.Authenticated_kestrel_sse_stream_receives_a_published_user_event` starts the API on Kestrel through the shared `PlatformApiFactory`, authenticates with a bearer token, verifies `text/event-stream`, reads a replay frame from `Last-Event-ID: 0`, then publishes and reads a live frame on the same HTTP stream. |
+| Per-event type preserved on the wire | ✓ | `TypedResults.ServerSentEvents` no longer passes a global `eventType: "message"`, so each `SseItem.EventType` reaches the browser. The Kestrel test asserts `event: notification` on both replay and live frames. |
 
-**Testy:** RealtimeSseTests.Unauthenticated_stream_is_rejected; RealtimeSseTests.Sse_live_buffer_drops_oldest_events_under_back_pressure; RealtimeSseTests.Sse_stream_yields_live_events_after_subscribing_before_replay; RealtimeSseTests.Sse_stream_suppresses_replay_live_duplicate_event_ids
-**Test gaps:** The full authenticated HTTP streaming round-trip is explicitly NOT tested over TestServer (buffers infinite SSE); the endpoint's owner-resolved stream enumerator, live delivery, replay/live duplicate suppression and auth gate are covered in-process.
+**Testy:** RealtimeSseTests.Unauthenticated_stream_is_rejected; RealtimeSseTests.Authenticated_kestrel_sse_stream_receives_a_published_user_event; RealtimeSseTests.Sse_live_buffer_drops_oldest_events_under_back_pressure; RealtimeSseTests.Sse_stream_yields_live_events_after_subscribing_before_replay; RealtimeSseTests.Sse_stream_suppresses_replay_live_duplicate_event_ids
+**Test gaps:** No remaining focused SSE endpoint gap in this slice.
 
-_The replay/live duplicate-by-id window is handled in-process by per-session EventId dedupe, and the live enumerator path is pinned. The remaining gap is specifically the HTTP transport harness, not the endpoint stream behavior._
+_The replay/live duplicate-by-id window is handled in-process by per-session EventId dedupe, and the authenticated HTTP transport path is now pinned through Kestrel._
 
 ### Replay buffer (Last-Event-ID, TTL) — ✅ correct
 *Per-user short-lived event buffer (Redis Streams or in-memory ring) replayed on SSE reconnect; PII-minimized via MAXLEN + TTL.*
@@ -1625,7 +1631,7 @@ _JwtOptionsValidator now has direct fail-fast coverage, and the JWT bearer optio
 
 _Correct and minimal; the baseline header contract is covered by an integration test._
 
-### SSE stream endpoint (native SSE endpoint) — 🟢 minor-gaps
+### SSE stream endpoint (native SSE endpoint) — ✅ correct
 *Per-connection bounded SSE buffer; the /v1/realtime/stream endpoint streams owner-scoped events with Last-Event-ID replay.*
 
 **Use cases:** Browser realtime stream of a user's own events; Reconnect replay via Last-Event-ID; Back-pressure tolerance for slow/dead consumers
@@ -1636,12 +1642,13 @@ _Correct and minimal; the baseline header contract is covered by an integration 
 | Client disconnect must dispose subscription | ✓ | Enumerator cancellation (CancellationToken) ends ReadAllAsync; using subscription disposes (RealtimeStreamEndpoint.cs:63-91) |
 | Unauthenticated access to the stream | ✓ | .RequireAuthorization() + tenant.UserId ?? throw UnauthorizedException('auth.required') (RealtimeStreamEndpoint.cs:32-41) |
 | Event ordering / duplicates across replay→live boundary | ✓ | Subscribe-before-replay still preserves no-loss behavior; per-session EventId dedupe suppresses the duplicate replay/live frame. Durable facts still live in modules. |
+| Full authenticated HTTP streaming round-trip | ✓ | `RealtimeSseTests.Authenticated_kestrel_sse_stream_receives_a_published_user_event` uses Kestrel instead of TestServer buffering, opens `/v1/realtime/stream`, verifies `text/event-stream`, receives replay and live frames, and asserts the wire event type is the original `notification`. |
 | Removed duplicate SseStream<T> abstraction stays removed | ✓ | No SseStream.cs exists under src; the active endpoint owns the one bounded channel implementation. |
 
-**Testy:** Realtime replay covered in Realtime building-block/integration tests (outside this area's test set); RealtimeSseTests.Sse_stream_yields_live_events_after_subscribing_before_replay pins the live enumerator path; RealtimeSseTests.Sse_stream_suppresses_replay_live_duplicate_event_ids pins the replay/live duplicate boundary.
-**Test gaps:** No full authenticated HTTP streaming round-trip over TestServer (buffers infinite SSE); endpoint stream behavior is covered through the internal enumerator.
+**Testy:** Realtime replay covered in Realtime building-block/integration tests (outside this area's test set); RealtimeSseTests.Authenticated_kestrel_sse_stream_receives_a_published_user_event pins the real HTTP transport; RealtimeSseTests.Sse_stream_yields_live_events_after_subscribing_before_replay pins the live enumerator path; RealtimeSseTests.Sse_stream_suppresses_replay_live_duplicate_event_ids pins the replay/live duplicate boundary.
+**Test gaps:** No remaining focused native SSE endpoint gap in this slice.
 
-_Endpoint is sound (bounded, owner-scoped, auth-gated). The old duplicate SseStream<T> abstraction has already been removed; remaining gaps are streaming-harness limitations._
+_Endpoint is sound (bounded, owner-scoped, auth-gated) and now covered both in-process and over a real Kestrel HTTP stream._
 
 ### Telemetry (OTel pipeline + TelemetryBehavior + PlatformMetrics) — ✅ correct
 *Outer-most CQRS span per request + OTel tracing/metrics export and a single shared Meter for platform/module instruments.*

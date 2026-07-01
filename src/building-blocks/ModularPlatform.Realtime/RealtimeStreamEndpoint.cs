@@ -39,8 +39,7 @@ public static class RealtimeStreamEndpoint
                 // Browser sends Last-Event-ID header on reconnect.
                 var lastEventId = request.Headers["Last-Event-ID"].FirstOrDefault();
 
-                return TypedResults.ServerSentEvents(
-                    StreamForUser(userId, registry, replay, lastEventId, ct), eventType: "message");
+                return TypedResults.ServerSentEvents(StreamForUser(userId, registry, replay, lastEventId, ct));
             })
             .RequireAuthorization()
             .WithTags("Realtime")

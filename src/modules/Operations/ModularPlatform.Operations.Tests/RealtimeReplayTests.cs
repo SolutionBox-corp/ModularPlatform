@@ -6,9 +6,9 @@ namespace ModularPlatform.Operations.Tests;
 
 /// <summary>
 /// Unit tests for the <see cref="LocalRealtimePublisher"/> in-memory ring buffer and
-/// <see cref="IRealtimeReplay"/> semantics. The Redis variant requires a live Redis instance and
-/// is not unit-tested here. The SSE streaming path is not tested over TestServer
-/// (buffered responses — see <see cref="RealtimeSseTests"/> notes).
+/// <see cref="IRealtimeReplay"/> semantics. The Redis variant has live Testcontainer coverage in
+/// <c>RedisRealtimeReplayTests</c>; the browser SSE transport is covered by Kestrel in
+/// <see cref="RealtimeSseTests"/>.
 /// </summary>
 public sealed class RealtimeReplayTests
 {
