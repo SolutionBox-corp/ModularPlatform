@@ -5,10 +5,12 @@ Route: `/billing` (requires auth + `billing` module entitlement)
 The billing page renders four sections:
 1. **Balance card** (`CreditBalanceCard`) — shows Available and Posted credits via `GET /v1/billing/credits/balance`.
 2. **Subscription card** (`SubscriptionCard`) — shows active plan / empty state via `GET /v1/billing/subscriptions/me`.
-3. **Workspace platform plan** (`PlatformPlanCheckout`) — lists platform-plane checkout plans from `GET /v1/tenant/me/platform-plans` and starts `POST /v1/tenant/me/platform-checkout`.
-4. **Buy credits** (`PackagesGrid`) — lists packages from `GET /v1/billing/packages`; empty state when none.
-5. **Promo code** (`PromoCodeInput`) — validates a code via `GET /v1/billing/promo-codes/{code}/validate`.
-6. **Credit balance table** (`CreditSummaryTable`) — three rows: Posted / Available / Held, derived from the balance endpoint.
+3. **Choose a plan** (`SubscriptionPlans`) — lists recurring credit subscription plans from `GET /v1/billing/subscriptions/plans`.
+4. **Workspace platform plan** (`PlatformPlanCheckout`) — lists platform-plane checkout plans from `GET /v1/tenant/me/platform-plans` and starts `POST /v1/tenant/me/platform-checkout`.
+5. **Buy credits** (`PackagesGrid`) — lists packages from `GET /v1/billing/packages`; empty state when none.
+6. **Promo code** (`PromoCodeInput`) — validates a code via `GET /v1/billing/promo-codes/{code}/validate`.
+7. **Credit balance table** (`CreditSummaryTable`) — three rows: Posted / Available / Held, derived from the balance endpoint.
+8. **Transaction history** (`CreditLedgerTable`) — paged append-only ledger from `GET /v1/billing/credits/entries`.
 
 Credit values render as `"N cr."` with tabular-nums via `MoneyAmount`. Checkout redirects are guarded by
 `safeExternalRedirect` (must be `https:` + `*.stripe.com`).
@@ -155,21 +157,21 @@ Credit values render as `"N cr."` with tabular-nums via `MoneyAmount`. Checkout 
 - **Given** the user returns from Stripe to `/billing/success` with either `?purchaseId=...` or a stored `billing:lastPurchaseId`
 - **When** the page loads
 - **Then** it calls `GET /v1/billing/purchases/{purchaseId}` and shows Pending/Completed/Abandoned state, credit amount, resolved timestamp, and a link back to Billing
-- Priority: P0 · Type: happy/edge · Automated: backend integration test covers the status contract (`Purchase_status_is_owner_scoped_and_moves_through_pending_abandoned_completed`); frontend route is typechecked, full redirect remains manual
+- Priority: P0 · Type: happy/edge · Automated: partial (backend integration test covers the status contract `Purchase_status_is_owner_scoped_and_moves_through_pending_abandoned_completed`; e2e covers missing purchase id state; full Stripe redirect remains manual)
 
 ### BILL-15b — Checkout cancel page clears pending purchase context
 
 - **Given** the user returns from Stripe to `/billing/cancel`
 - **When** the page loads
 - **Then** the stored `billing:lastPurchaseId` is cleared and the page explains no charge was completed with a link back to Billing
-- Priority: P1 · Type: happy · Automated: manual
+- Priority: P1 · Type: happy · Automated: yes (e2e: `cancel page clears pending purchase context`)
 
 ### BILL-15c — Platform plan catalogue renders on Billing page
 
 - **Given** the tenant has the `billing` module enabled and `GET /v1/tenant/me/platform-plans` returns at least one plan
 - **When** the user opens `/billing`
 - **Then** the **Workspace platform plan** section renders each plan with description, plan key, formatted price, and an **Upgrade** button
-- Priority: P0 · Type: happy · Automated: manual
+- Priority: P0 · Type: happy · Automated: partial (e2e: `platform plan checkout section reaches a settled state`; concrete plan cards require seeded platform plans)
 
 ### BILL-15d — Platform checkout starts by plan key only
 
@@ -178,6 +180,13 @@ Credit values render as `"N cr."` with tabular-nums via `MoneyAmount`. Checkout 
 - **Then** `POST /v1/tenant/me/platform-checkout` is called with `{ planKey }`
 - **And** the browser redirects to the backend-provided provider checkout URL
 - Priority: P0 · Type: happy · Automated: manual
+
+### BILL-15d-1 — Subscription plan catalogue settles on Billing page
+
+- **Given** the user opens `/billing`
+- **When** the subscription plans query resolves
+- **Then** the **Choose a plan** section shows either `"No plans available"` or one or more **Subscribe** buttons
+- Priority: P0 · Type: happy/edge · Automated: yes (e2e: `subscription plans section reaches a settled state`)
 
 ### BILL-15e — Missing platform payment gateway disables checkout
 
@@ -192,6 +201,13 @@ Credit values render as `"N cr."` with tabular-nums via `MoneyAmount`. Checkout 
 - **When** `/billing` reloads
 - **Then** the UI re-reads platform status/entitlements and does not enable modules from URL query parameters or provider ids
 - Priority: P0 · Type: security · Automated: manual
+
+### BILL-15g — Billing portal action is visible from Subscription card
+
+- **Given** the user opens `/billing`
+- **When** the Subscription card renders
+- **Then** the **Manage billing & invoices** action is visible; clicking it starts `POST /v1/billing/portal` and only redirects to a safe Stripe URL
+- Priority: P1 · Type: happy/security · Automated: partial (e2e verifies the action is visible; safe redirect guard is shared with checkout hooks; live portal redirect remains manual)
 
 ---
 

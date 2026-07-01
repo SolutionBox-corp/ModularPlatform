@@ -22,6 +22,18 @@ test.describe("Billing page — layout and page structure", () => {
     await expect(
       page.getByRole("heading", { name: "Credit balance", level: 2 }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Choose a plan", level: 2 }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Workspace platform plan", level: 2 }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Transaction history", level: 2 }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Manage billing & invoices" }),
+    ).toBeVisible();
   });
 });
 
@@ -139,6 +151,86 @@ test.describe("Billing page — subscription card", () => {
 
     // "View plans" link must still be present
     await expect(page.getByRole("link", { name: "View plans" })).toBeVisible();
+  });
+});
+
+test.describe("Billing page — subscription and platform plans", () => {
+  test("subscription plans section reaches a settled state", async ({ page }) => {
+    await page.goto("/billing");
+
+    await expect(
+      page.getByRole("heading", { name: "Choose a plan", level: 2 }),
+    ).toBeVisible();
+
+    const empty = page.getByText("No plans available", { exact: true });
+    const subscribe = page.getByRole("button", { name: "Subscribe" }).first();
+
+    await Promise.race([
+      empty.waitFor({ state: "visible", timeout: 10_000 }),
+      subscribe.waitFor({ state: "visible", timeout: 10_000 }),
+    ]).catch(() => {
+      // The assertion below will report the failed settled state.
+    });
+
+    const emptyVisible = await empty.isVisible().catch(() => false);
+    const hasSubscribe = await subscribe.isVisible().catch(() => false);
+    expect(emptyVisible || hasSubscribe, "Expected either empty subscription plans or Subscribe buttons").toBe(true);
+  });
+
+  test("platform plan checkout section reaches a settled state", async ({ page }) => {
+    await page.goto("/billing");
+
+    await expect(
+      page.getByRole("heading", { name: "Workspace platform plan", level: 2 }),
+    ).toBeVisible();
+
+    const empty = page.getByText("No platform plans available", { exact: true });
+    const upgrade = page.getByRole("button", { name: "Upgrade" }).first();
+    const current = page.getByRole("button", { name: "Current plan" }).first();
+
+    await Promise.race([
+      empty.waitFor({ state: "visible", timeout: 10_000 }),
+      upgrade.waitFor({ state: "visible", timeout: 10_000 }),
+      current.waitFor({ state: "visible", timeout: 10_000 }),
+    ]).catch(() => {
+      // The assertion below will report the failed settled state.
+    });
+
+    const emptyVisible = await empty.isVisible().catch(() => false);
+    const hasUpgrade = await upgrade.isVisible().catch(() => false);
+    const hasCurrent = await current.isVisible().catch(() => false);
+    expect(
+      emptyVisible || hasUpgrade || hasCurrent,
+      "Expected either empty platform plans or platform plan buttons",
+    ).toBe(true);
+  });
+});
+
+test.describe("Billing checkout return pages", () => {
+  test("success page without purchase id shows missing-purchase state", async ({ page }) => {
+    await page.goto("/billing/success");
+
+    await expect(page.getByText("Purchase id missing")).toBeVisible();
+    await expect(
+      page.getByText(/No purchase id was found/i),
+    ).toBeVisible();
+  });
+
+  test("cancel page clears pending purchase context", async ({ page }) => {
+    await page.goto("/billing");
+    await page.evaluate(() => {
+      sessionStorage.setItem("billing:lastPurchaseId", "00000000-0000-7000-8000-000000000001");
+    });
+
+    await page.goto("/billing/cancel");
+
+    await expect(
+      page.getByRole("heading", { name: "Checkout canceled" }),
+    ).toBeVisible();
+    await expect(page.getByRole("link", { name: "Back to billing" })).toBeVisible();
+    await expect
+      .poll(() => page.evaluate(() => sessionStorage.getItem("billing:lastPurchaseId")))
+      .toBeNull();
   });
 });
 
