@@ -35,6 +35,13 @@ test.describe("Realtime indicator", () => {
     await expect(indicator).toBeVisible();
     await expect(indicator).toHaveAttribute("aria-label", /Live/i);
   });
+
+  test("status is announced through a polite live region", async ({ page }) => {
+    await page.goto("/");
+    const indicator = page.locator('[aria-label*="Realtime:"]');
+    await expect(indicator).toBeVisible();
+    await expect(indicator).toHaveAttribute("aria-live", "polite");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -110,6 +117,19 @@ test.describe("Locale toggle", () => {
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
     const sidebarEn = page.locator('[data-slot="sidebar"]').or(page.getByRole("navigation")).first();
     await expect(sidebarEn.getByRole("link", { name: "Dashboard", exact: true })).toBeVisible();
+  });
+
+  test("Czech locale does not translate the login form copy", async ({ page }) => {
+    await page.context().clearCookies();
+    await page.context().addCookies([
+      { name: "NEXT_LOCALE", value: "cs", domain: "localhost", path: "/" },
+    ]);
+
+    await page.goto("/login");
+
+    await expect(page.locator("html")).toHaveAttribute("lang", "cs");
+    await expect(page.getByRole("heading", { name: "Sign in", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
   });
 });
 
@@ -200,6 +220,19 @@ test.describe("Entitlement-gated nav", () => {
     await expect(sidebar.getByRole("link", { name: "Privacy", exact: true })).toBeVisible();
   });
 
+  test("active dashboard nav link exposes aria-current=page", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: /welcome back/i })).toBeVisible();
+
+    const sidebar = page.locator('[data-slot="sidebar"]').or(page.getByRole("navigation")).first();
+    const activeLinks = sidebar.locator('a[aria-current="page"]');
+    await expect(activeLinks).toHaveCount(1);
+    await expect(sidebar.getByRole("link", { name: "Dashboard", exact: true })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
   test("platform-admin nav items are absent for a self-registered user", async ({ page }) => {
     // Primary user has no platform.tenants.manage or identity.manage_roles → platform nav hidden.
     await page.goto("/");
@@ -271,6 +304,35 @@ test.describe("Accessibility (axe)", () => {
       // color-contrast is disabled: axe-core mis-samples our OKLCH design tokens in headless
       // Chromium and reports phantom ratios (the actual ratios are AA-compliant — verified by
       // computed-style measurement + the darkened --muted-foreground token + visual review).
+      .disableRules(["color-contrast"])
+      .analyze();
+
+    const criticalOrSerious = results.violations.filter((v) =>
+      v.impact === "critical" || v.impact === "serious",
+    );
+    expect(
+      criticalOrSerious,
+      `Found ${criticalOrSerious.length} critical/serious axe violation(s):\n` +
+        criticalOrSerious
+          .map((v) => `  [${v.impact}] ${v.id}: ${v.description}`)
+          .join("\n"),
+    ).toHaveLength(0);
+  });
+
+  test("404 page has no critical axe violations", async ({ page }) => {
+    await page.addInitScript(() => {
+      try {
+        localStorage.setItem("theme", "light");
+      } catch {
+        /* ignore */
+      }
+    });
+    await page.goto("/this-route-does-not-exist-xyz-e2e");
+    await expect(page.getByRole("heading", { name: "Page not found", exact: true })).toBeVisible();
+    await waitForThemeSettled(page);
+
+    const results = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
       .disableRules(["color-contrast"])
       .analyze();
 
