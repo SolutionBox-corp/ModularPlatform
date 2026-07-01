@@ -23,7 +23,7 @@ is treated as a valid "no subscription" empty state and MUST NOT produce an erro
   - Given: an authenticated user whose account has no display name set visits `/`
   - When: the page finishes loading
   - Then: the heading reads "Welcome back" (no trailing comma or name fragment)
-  - Priority: P1 · Type: edge · Automated: manual (requires a user registered without a display name; registerFreshUser always sets one, so this would need a dedicated registration with displayName omitted — out-of-scope for the shared primary session spec)
+  - Priority: P1 · Type: edge · Automated: yes (e2e: "welcome heading omits name when display name is empty")
 
 - **DASH-03** — Credits card shows zero balance for a new user
   - Given: a brand-new authenticated user (just registered) visits `/`
@@ -95,13 +95,13 @@ is treated as a valid "no subscription" empty state and MUST NOT produce an erro
   - Given: an unauthenticated browser (no session cookie) navigates to `/`
   - When: the server-side session check runs
   - Then: the browser lands on `/login` (Next.js `redirect()`)
-  - Priority: P0 · Type: security · Automated: manual (covered conceptually by auth.setup guard; a dedicated logged-out spec could assert `toHaveURL("/login")`)
+  - Priority: P0 · Type: security · Automated: yes (e2e: "unauthenticated user is redirected to login")
 
 - **DASH-15** — All empty states render without JS errors for a brand-new user
   - Given: a brand-new user (zero credits, no subscription, only the welcome notification) visits `/`
   - When: the full page loads including client-side hydration
   - Then: the Credits card shows "0 cr.", the Subscription card shows the empty state, the Notifications card shows the welcome notification — and the browser console has no unhandled errors / React hydration warnings
-  - Priority: P1 · Type: edge · Automated: partial (e2e assertions cover visible content; console error monitoring is manual or requires a dedicated console listener)
+  - Priority: P1 · Type: edge · Automated: yes (e2e: "Credits card shows 0 cr., Subscription empty state, no error toast, welcome notification with New badge" includes console/pageerror listener)
 
 - **DASH-16** — "View all" link in Recent Notifications navigates to /notifications
   - Given: the authenticated user is on the dashboard

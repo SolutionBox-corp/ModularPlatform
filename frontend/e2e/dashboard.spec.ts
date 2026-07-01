@@ -4,8 +4,6 @@ import { registerFreshUser, ANONYMOUS } from "./helpers";
 // Most tests reuse the shared primary session (storageState from auth.setup.ts).
 // The "new user" tests that need a guaranteed fresh tenant (zero credits, welcome
 // notification present and unread) spin up their own user via registerFreshUser.
-// ANONYMOUS is only needed if we need a logged-out assertion (none here).
-void ANONYMOUS; // imported to keep the import clean for future extension
 
 test.describe("Dashboard (/)", () => {
   // -------------------------------------------------------------------------
@@ -25,6 +23,14 @@ test.describe("Dashboard (/)", () => {
     await expect(page).toHaveTitle("Dashboard — ModularPlatform");
   });
 
+  test("welcome heading omits name when display name is empty", async ({ page }) => {
+    await registerFreshUser(page, { displayName: "" });
+
+    const heading = page.getByRole("heading", { name: /^welcome back$/i, level: 1 });
+    await expect(heading).toBeVisible();
+    await expect(page.getByRole("heading", { name: /welcome back,/i, level: 1 })).toHaveCount(0);
+  });
+
   // -------------------------------------------------------------------------
   // DASH-03 / DASH-05 / DASH-06 / DASH-08
   // Brand-new user: credits=0, no subscription, welcome notification present
@@ -34,6 +40,12 @@ test.describe("Dashboard (/)", () => {
     test("Credits card shows 0 cr., Subscription empty state, no error toast, welcome notification with New badge", async ({
       page,
     }) => {
+      const consoleErrors: string[] = [];
+      page.on("console", (msg) => {
+        if (msg.type() === "error") consoleErrors.push(msg.text());
+      });
+      page.on("pageerror", (err) => consoleErrors.push(err.message));
+
       // Register a fresh user so we get a clean tenant with zero credits,
       // no subscription, and only the seeded welcome notification.
       await registerFreshUser(page, { displayName: "Dash E2E User" });
@@ -81,6 +93,11 @@ test.describe("Dashboard (/)", () => {
         }
         await expect(notificationsCard.getByText("New")).toBeVisible();
       }).toPass({ timeout: 30_000, intervals: [2_000] });
+
+      expect(
+        consoleErrors,
+        `Unexpected dashboard console/page errors:\n${consoleErrors.join("\n")}`,
+      ).toHaveLength(0);
     });
   });
 
@@ -202,5 +219,17 @@ test.describe("Dashboard (/)", () => {
     });
     await expect(viewPlansLink).toBeVisible();
     await expect(viewPlansLink).toHaveAttribute("href", "/billing");
+  });
+});
+
+test.describe("Dashboard (/) — unauthenticated", () => {
+  test.use(ANONYMOUS);
+
+  test("unauthenticated user is redirected to login", async ({ page }) => {
+    await page.goto("/");
+
+    await expect(page).toHaveURL(/\/login/, { timeout: 15_000 });
+    await expect(page.getByRole("heading", { name: /sign in/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /welcome back/i })).toHaveCount(0);
   });
 });
