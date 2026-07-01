@@ -111,6 +111,26 @@ test.describe("Account Profile — /account/profile", () => {
     await expect(page.locator("#profile-display-name")).toHaveValue("After Profile Save");
   });
 
+  test("profile edit clears display name and survives reload", async ({ page }) => {
+    await registerFreshUser(page, { displayName: "Before Clear Profile Name" });
+    await page.goto("/account/profile");
+    await expect(page.getByRole("heading", { name: /profile/i })).toBeVisible();
+
+    const displayName = page.locator("#profile-display-name");
+    await expect(displayName).toHaveValue("Before Clear Profile Name");
+
+    await displayName.fill("");
+    await page.getByRole("button", { name: /save changes/i }).click();
+
+    await expect(page.getByText(/Profile updated/i)).toBeVisible();
+    await page.reload();
+    await expect(page.locator("#profile-display-name")).toHaveValue("");
+    await expect(page.locator("#profile-display-name")).toHaveAttribute(
+      "placeholder",
+      "Not set",
+    );
+  });
+
   test("profile save error shows toast and keeps form editable", async ({ page }) => {
     await registerFreshUser(page, { displayName: "Before Failed Profile Save" });
     await page.goto("/account/profile");

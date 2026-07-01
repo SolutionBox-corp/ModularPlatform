@@ -107,7 +107,7 @@ Email is intentionally read-only. Changing e-mail needs a separate verified e-ma
   - Given the display name field has a value
   - When the user clears it and submits
   - Then the backend stores `null` and the UI shows the empty/placeholder state
-  - Priority: P1 · Type: edge · Automated: backend covered; frontend full path not separately automated
+  - Priority: P1 · Type: edge · Automated: yes (e2e: "profile edit clears display name and survives reload"; backend also covered)
 
 - **PROF-17** — Network/API error on save
   - Given the API is unreachable or returns a validation/business error
