@@ -27,4 +27,8 @@
     <Compile Remove="$([System.IO.Directory]::GetFiles('$(MSBuildProjectDirectory)/bin', '*.cs', System.IO.SearchOption.AllDirectories))" Condition="Exists('$(MSBuildProjectDirectory)/bin')" />
   </ItemGroup>
 
+  <ItemGroup Condition="$([System.String]::Copy('$(MSBuildProjectName)').EndsWith('.Tests')) == 'true' Or '$(MSBuildProjectName)' == 'ModularPlatform.IntegrationTesting'">
+    <PackageReference Include="Microsoft.OpenApi" />
+  </ItemGroup>
+
 </Project>
