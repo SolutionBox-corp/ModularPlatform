@@ -109,8 +109,7 @@ authenticated app shell and the auth flows.
   - Then: the heading still reads "Sign in" and the submit button still says "Sign in" — auth forms
     use inline EN strings and are not wired to next-intl translations; only nav labels (e.g.
     "Dashboard" → "Přehled") switch locale
-  - Priority: P1 · Type: happy · Automated: manual (verifiable by inspecting the login page source
-    after setting the NEXT_LOCALE cookie to "cs")
+  - Priority: P1 · Type: happy · Automated: yes (e2e: "Czech locale does not translate the login form copy")
 
 - **I18-04** — Locale toggle is keyboard accessible
   - Given: authenticated user on the dashboard
@@ -213,18 +212,16 @@ authenticated app shell and the auth flows.
   - Given: user navigates to an unknown route
   - When: `AxeBuilder.analyze()` is run
   - Then: no violations with impact "critical" or "serious"
-  - Priority: P1 · Type: a11y · Automated: manual (lower risk; page is a static template)
+  - Priority: P1 · Type: a11y · Automated: yes (e2e: "404 page has no critical axe violations")
 
 - **A11Y-04** — Sidebar nav links have correct aria-current="page" on the active route
   - Given: authenticated user on the Dashboard route "/"
   - When: the sidebar is rendered
   - Then: the "Dashboard" SidebarMenuButton link has `aria-current="page"` and no other nav link does
-  - Priority: P1 · Type: a11y · Automated: manual (the AppNav sets aria-current; verifiable via axe
-    and also by direct attribute assertion — extend an existing nav test if needed)
+  - Priority: P1 · Type: a11y · Automated: yes (e2e: "active dashboard nav link exposes aria-current=page")
 
 - **A11Y-05** — RealtimeIndicator uses aria-live="polite" for status announcements
   - Given: the realtime indicator is rendered
   - When: the status changes (connecting → open)
   - Then: the status text is inside an `aria-live="polite"` region so screen readers announce it
-  - Priority: P1 · Type: a11y · Automated: manual (live-region announcement requires a screen reader;
-    the attribute is verified by reading the component source)
+  - Priority: P1 · Type: a11y · Automated: yes (e2e: "status is announced through a polite live region")

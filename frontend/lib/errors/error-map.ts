@@ -57,6 +57,7 @@ const CATALOG: Catalog = {
   "notification.not_found": { en: "Notification not found.", cs: "Oznámení nenalezeno." },
   // GDPR
   "gdpr.export_in_progress": { en: "An export is already in progress.", cs: "Export již probíhá." },
+  "gdpr.consent_failed": { en: "Consent write failed.", cs: "Uložení souhlasu selhalo." },
   // Operations
   "operations.invoke_timeout": { en: "The quick worker request timed out.", cs: "Rychlý požadavek na worker vypršel." },
 };
