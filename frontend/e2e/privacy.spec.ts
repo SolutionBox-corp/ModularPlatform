@@ -1,8 +1,11 @@
 import { test, expect } from "@playwright/test";
 import { ANONYMOUS, registerFreshUser, uniqueEmail } from "./helpers";
+import { PRIVACY_VERSION } from "../lib/legal-versions";
 
 const COOKIE_CONSENT_GRANT_PATH = /\/api\/bff\/gdpr\/consents\/grant$/;
 const COOKIE_CONSENT_WITHDRAW_PATH = /\/api\/bff\/gdpr\/consents\/withdraw$/;
+const EXPORT_PATH = /\/api\/bff\/gdpr\/me\/export$/;
+const ERASE_PATH = /\/api\/bff\/gdpr\/me\/erase$/;
 
 // ---------------------------------------------------------------------------
 // Privacy / GDPR page — /account/privacy
@@ -265,6 +268,35 @@ test.describe("Consent toggles — fresh user", () => {
     );
   });
 
+  // PRIV-09 — keyboard parity: the switch can be focused and toggled with Space.
+  test("toggle marketing consent with keyboard space", async ({ page }) => {
+    await registerFreshUser(page);
+    await page.goto("/account/privacy");
+
+    const consentSwitch = page.getByRole("switch", { name: /product news & offers/i });
+    await expect(consentSwitch).toBeVisible();
+    await expect(consentSwitch).toHaveAttribute("aria-checked", "false");
+
+    await consentSwitch.focus();
+    await page.keyboard.press("Space");
+
+    await expect(consentSwitch).toHaveAttribute("aria-checked", "true");
+    await expect(page.getByText(/consent granted/i)).toBeVisible();
+  });
+
+  // PRIV-28 — history row shows the policy version recorded with the consent.
+  test("consent history shows policy version after grant", async ({ page }) => {
+    await registerFreshUser(page);
+    await page.goto("/account/privacy");
+
+    const consentSwitch = page.getByRole("switch", { name: /product news & offers/i });
+    await expect(consentSwitch).toBeVisible();
+    await consentSwitch.click();
+
+    await expect(page.getByText(/consent granted/i)).toBeVisible();
+    await expect(page.getByText(new RegExp(`policy ${PRIVACY_VERSION}`))).toBeVisible();
+  });
+
   // PRIV-03 — grant marketing consent then withdraw and verify withdrawal persists
   test("toggle marketing consent — withdraw persists after reload", async ({ page }) => {
     await registerFreshUser(page);
@@ -416,6 +448,59 @@ test.describe("Export data — fresh user", () => {
     // Button must still be enabled after completion (not permanently disabled).
     await expect(exportBtn).toBeEnabled({ timeout: 5_000 });
   });
+
+  // PRIV-13 — duplicate export clicks are blocked while the request is in-flight.
+  test("export — button is disabled while request is pending", async ({ page }) => {
+    let releaseExport!: () => void;
+    const exportPending = new Promise<void>((resolve) => {
+      releaseExport = resolve;
+    });
+
+    await page.route(EXPORT_PATH, async (route) => {
+      await exportPending;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: { Profile: { email: "export@example.test" } } }),
+      });
+    });
+
+    await registerFreshUser(page);
+    await page.goto("/account/privacy");
+
+    const exportBtn = page.getByRole("button", { name: /download my data/i });
+    await expect(exportBtn).toBeVisible();
+    await exportBtn.click();
+
+    const pendingBtn = page.getByRole("button", { name: /preparing export/i });
+    await expect(pendingBtn).toBeDisabled();
+
+    releaseExport();
+    await expect(page.getByText("Downloaded", { exact: true })).toBeVisible({ timeout: 10_000 });
+  });
+
+  // PRIV-14 — failed export surfaces an error toast and does not set the downloaded state.
+  test("export — API failure shows error toast without downloaded state", async ({ page }) => {
+    await page.route(EXPORT_PATH, async (route) => {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/problem+json",
+        body: JSON.stringify({
+          status: 500,
+          errorCode: "gdpr.export_failed",
+          detail: "Export failed.",
+        }),
+      });
+    });
+
+    await registerFreshUser(page);
+    await page.goto("/account/privacy");
+
+    await page.getByRole("button", { name: /download my data/i }).click();
+
+    await expect(page.getByText(/Export failed/i)).toBeVisible();
+    await expect(page.getByText("Downloaded", { exact: true })).toHaveCount(0);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -453,6 +538,40 @@ test.describe("Erase account — fresh user", () => {
 
     // Verify the erasure reason is in the URL.
     await expect(page).toHaveURL(/reason=erased/, { timeout: 5_000 });
+  });
+
+  // PRIV-23 — failed erasure shows an error toast and the user stays on the privacy page.
+  test("erase account API failure shows error toast and stays on privacy page", async ({ page }) => {
+    await page.route(ERASE_PATH, async (route) => {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/problem+json",
+        body: JSON.stringify({
+          status: 500,
+          errorCode: "gdpr.erase_failed",
+          detail: "Account erasure failed.",
+        }),
+      });
+    });
+
+    await registerFreshUser(page, {
+      email: uniqueEmail("e2e-erase-fail"),
+      displayName: "Erase Failure",
+    });
+    await page.goto("/account/privacy");
+
+    await page.getByRole("button", { name: /delete my account/i }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+
+    await dialog.getByRole("textbox").fill("delete my account");
+    const submitBtn = dialog.getByRole("button", { name: /permanently delete my account/i });
+    await expect(submitBtn).toBeEnabled();
+    await submitBtn.click();
+
+    await expect(page.getByText(/Account erasure failed/i)).toBeVisible();
+    await expect(page).toHaveURL(/\/account\/privacy/);
+    await expect(dialog).toBeVisible();
   });
 });
 

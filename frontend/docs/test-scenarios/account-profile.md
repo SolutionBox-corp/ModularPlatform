@@ -113,7 +113,7 @@ Email is intentionally read-only. Changing e-mail needs a separate verified e-ma
   - Given the API is unreachable or returns a validation/business error
   - When the user submits
   - Then a toast error is displayed and the form remains editable
-  - Priority: P1 · Type: error · Automated: manual (requires network interception/API stubbing)
+  - Priority: P1 · Type: error · Automated: yes (e2e: "profile save error shows toast and keeps form editable")
 
 - **PROF-18** — Updated Terms acceptance card appears for stale accepted version
   - Given the backend profile returns `acceptedTermsVersion` different from the frontend `TERMS_VERSION`
@@ -138,6 +138,6 @@ Email is intentionally read-only. Changing e-mail needs a separate verified e-ma
 ## Known Gaps / Assumptions
 
 1. E-mail change is intentionally not part of the profile form; it needs a verified e-mail-change flow.
-2. Skeleton state (PROF-06), cache freshness (PROF-10), and save-error UI (PROF-17) need network interception or manual observation.
+2. Skeleton state (PROF-06) and cache freshness (PROF-10) need network interception or manual observation.
 3. Accessibility audit (PROF-13) requires assistive technology; PROF-14 is partially covered by e2e attribute checks.
 4. Frontend Terms-card visibility is best covered with an API-stub E2E because normal fresh users accept the current version at registration.

@@ -111,6 +111,42 @@ test.describe("Account Profile — /account/profile", () => {
     await expect(page.locator("#profile-display-name")).toHaveValue("After Profile Save");
   });
 
+  test("profile save error shows toast and keeps form editable", async ({ page }) => {
+    await registerFreshUser(page, { displayName: "Before Failed Profile Save" });
+    await page.goto("/account/profile");
+    await expect(page.getByRole("heading", { name: /profile/i })).toBeVisible();
+
+    await page.route(/\/api\/bff\/identity\/users\/me$/, async (route) => {
+      if (route.request().method() !== "PATCH") {
+        await route.fallback();
+        return;
+      }
+
+      await route.fulfill({
+        status: 500,
+        contentType: "application/problem+json",
+        body: JSON.stringify({
+          status: 500,
+          errorCode: "profile.update_failed",
+          detail: "Profile update failed.",
+        }),
+      });
+    });
+
+    const displayName = page.locator("#profile-display-name");
+    await expect(displayName).toHaveValue("Before Failed Profile Save");
+
+    await displayName.fill("After Failed Profile Save");
+    const save = page.getByRole("button", { name: /save changes/i });
+    await expect(save).toBeEnabled();
+    await save.click();
+
+    await expect(page.getByText(/Profile update failed/i)).toBeVisible();
+    await expect(displayName).toBeEnabled();
+    await expect(displayName).toHaveValue("After Failed Profile Save");
+    await expect(save).toBeEnabled();
+  });
+
   // ---------------------------------------------------------------------------
   // PROF-05: Locale toggle in topbar updates locale field
   // ---------------------------------------------------------------------------

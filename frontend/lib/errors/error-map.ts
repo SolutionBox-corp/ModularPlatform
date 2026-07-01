@@ -58,6 +58,8 @@ const CATALOG: Catalog = {
   // GDPR
   "gdpr.export_in_progress": { en: "An export is already in progress.", cs: "Export již probíhá." },
   "gdpr.consent_failed": { en: "Consent write failed.", cs: "Uložení souhlasu selhalo." },
+  "gdpr.export_failed": { en: "Export failed.", cs: "Export selhal." },
+  "gdpr.erase_failed": { en: "Account erasure failed.", cs: "Vymazání účtu selhalo." },
   // Operations
   "operations.invoke_timeout": { en: "The quick worker request timed out.", cs: "Rychlý požadavek na worker vypršel." },
 };
