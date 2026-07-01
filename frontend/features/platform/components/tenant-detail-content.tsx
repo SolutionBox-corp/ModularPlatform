@@ -13,18 +13,23 @@ import {
 import { EntitlementToggles } from "./entitlement-toggles";
 import { CreateInviteDialog } from "./create-invite-dialog";
 import { EditTenantDialog } from "./edit-tenant-dialog";
+import { MachineTokenDialog } from "./machine-token-dialog";
 import { TenantInvitesList } from "./tenant-invites-list";
 import { useTenantDetail } from "@/features/platform/hooks";
 
 interface TenantDetailContentProps {
   tenantId: string;
+  canIssueMachineTokens: boolean;
 }
 
 /**
  * Full detail view for a tenant UUID. Loads the registry row + PERSISTED entitlements via
  * GET /tenant/admin/tenants/{id} so the entitlement switches reflect the real DB state.
  */
-export function TenantDetailContent({ tenantId }: TenantDetailContentProps) {
+export function TenantDetailContent({
+  tenantId,
+  canIssueMachineTokens,
+}: TenantDetailContentProps) {
   const t = useTranslations("platform");
   const { data: detail, isLoading } = useTenantDetail(tenantId);
   return (
@@ -61,6 +66,9 @@ export function TenantDetailContent({ tenantId }: TenantDetailContentProps) {
               name={detail.name}
               subdomain={detail.subdomain}
             />
+          )}
+          {detail && canIssueMachineTokens && (
+            <MachineTokenDialog tenantId={tenantId} tenantName={detail.name} />
           )}
           <CreateInviteDialog tenantId={tenantId} />
         </div>

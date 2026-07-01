@@ -1008,6 +1008,23 @@
       "tokenLabel": "Invite token",
       "trigger": "Create invite"
     },
+    "machineTokenDialog": {
+      "copied": "Machine token copied to clipboard.",
+      "copyAria": "Copy machine token",
+      "descriptionFallback": "Issue a tenant-scoped machine token for an edge agent or device gateway. The raw token is shown once — copy it before closing.",
+      "descriptionNamed": "Issue a tenant-scoped machine token for <tenant></tenant>. The raw token is shown once — copy it before closing.",
+      "expires": "Expires {date}",
+      "nameHint": "Use a stable device or integration name. The token carries this name as machine_name.",
+      "nameLabel": "Machine name",
+      "namePlaceholder": "door-agent-1",
+      "oneTimeHint": "Store this token now. It cannot be displayed again.",
+      "submit": "Issue token",
+      "submitting": "Issuing…",
+      "title": "Issue machine token",
+      "tokenAria": "Machine token",
+      "tokenLabel": "Machine token",
+      "trigger": "Machine token"
+    },
     "meta": {
       "auditTitle": "Audit — Platform Admin",
       "overviewTitle": "Platform — ModularPlatform",

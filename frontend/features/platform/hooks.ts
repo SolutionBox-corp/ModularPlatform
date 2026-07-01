@@ -9,6 +9,7 @@ import {
   setEntitlement,
   updateTenant,
   createTenantInvite,
+  issueMachineToken,
   revokeTenantInvite,
   createCreditPackage,
   updateCreditPackage,
@@ -104,6 +105,16 @@ export function useCreateTenantInvite() {
       void queryClient.invalidateQueries({
         queryKey: [...queryRoots.admin, "platform", "tenants", variables.tenantId, "invites"],
       });
+    },
+  });
+}
+
+export function useIssueMachineToken() {
+  return useMutation({
+    mutationFn: issueMachineToken,
+    // No invalidation needed: the raw machine token is a one-shot response and there is no token list cache.
+    onSuccess: () => {
+      toast.success("Machine token issued.");
     },
   });
 }

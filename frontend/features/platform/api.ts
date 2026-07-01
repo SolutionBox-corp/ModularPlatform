@@ -51,6 +51,11 @@ export interface CreateTenantInviteResponse {
   expiresAt: string;
 }
 
+export interface IssueMachineTokenResponse {
+  accessToken: string;
+  expiresAt: string;
+}
+
 export interface TenantInviteItem {
   inviteId: string;
   status: "Pending" | "Consumed" | "Expired" | "Revoked";
@@ -356,6 +361,17 @@ export async function createTenantInvite(params: {
       body: { expiresInDays: params.expiresInDays ?? 7 },
     },
   );
+}
+
+/** POST /v1/identity/admin/machine-tokens — mint a tenant-scoped machine access token. */
+export async function issueMachineToken(params: {
+  tenantId: string;
+  name: string;
+}): Promise<IssueMachineTokenResponse> {
+  return apiFetch<IssueMachineTokenResponse>("identity/admin/machine-tokens", {
+    method: "POST",
+    body: { tenantId: params.tenantId, name: params.name },
+  });
 }
 
 /** DELETE /v1/tenant/admin/tenants/{tenantId}/invites/{inviteId} — revoke a pending invite. */

@@ -5,12 +5,16 @@
 - `POST   /v1/identity/admin/users/{userId}/roles`  — requires `identity.manage_roles`
 - `DELETE /v1/identity/admin/users/{userId}/roles/{role}` — requires `identity.manage_roles`
 - `GET    /v1/identity/admin/users/{userId}/audit`  — requires `audit.read`
-- `POST   /v1/identity/admin/machine-tokens`        — requires `machine_tokens.issue`
+- `POST   /v1/identity/admin/machine-tokens`        — requires `platform.machine_tokens`
 
 **Permission model:** The server component reads `session.user.permissions` at render time and
 passes `canManageRoles` / `canReadAudit` boolean props down to the client island. The backend is
 the real enforcement gate (`.RequirePermission`); the frontend mirrors the gate in the UI so that
 unpermitted sections are simply absent from the DOM rather than returning 403 on interaction.
+
+Machine-token issuance is exposed from `/platform/tenants/{tenantId}` because the token is tenant-scoped
+and that route already has the target tenant id. The button is shown only when the session includes
+`platform.machine_tokens`; the backend remains the real enforcement gate.
 
 **Key behaviour for self-serve users:** A freshly-registered tenant user has NO Identity admin
 permissions (`identity.manage_roles`, `audit.read`). Navigating directly to `/admin` triggers
@@ -20,9 +24,6 @@ admin page.
 **Admin nav:** `/admin` is NOT listed in `NAV_ITEMS` (the tenant sidebar). It is only reachable
 by direct URL or a future privileged nav entry. There is no "Admin" link in the sidebar for
 normal users.
-
-**Not yet implemented:** machine-token issuance (`POST /v1/identity/admin/machine-tokens`,
-`machine_tokens.issue`) has no frontend surface — covered in backend tests only.
 
 ---
 
@@ -158,32 +159,60 @@ normal users.
   - Then the empty state "No audit entries" / "No Identity audit events recorded for this user yet." is shown instead of a table
   - Priority: P1 · Type: edge · Automated: manual
 
-- **IADM-22** — Erased PII audit values render as "[erased]"
+### Machine tokens (requires `platform.machine_tokens`)
+
+- **IADM-22** — Tenant detail shows machine-token action only to permitted admins
+  - Given a platform admin opens `/platform/tenants/{tenantId}`
+  - When their session includes `platform.machine_tokens`
+  - Then the "Machine token" action is visible in the tenant header
+  - And a session without that permission does not render the action
+  - Priority: P0 · Type: security · Automated: manual
+
+- **IADM-23** — Issue machine token happy path
+  - Given a permitted admin opens the tenant detail and clicks "Machine token"
+  - When they enter a machine name and submit
+  - Then `POST /v1/identity/admin/machine-tokens` is called with `{ tenantId, name }`
+  - And the returned raw token is displayed once with its expiry timestamp
+  - Priority: P0 · Type: happy · Automated: manual
+
+- **IADM-24** — Empty machine name cannot submit
+  - Given the machine-token dialog is open
+  - When the name field is empty or whitespace
+  - Then the submit button is disabled and no request is sent
+  - Priority: P1 · Type: edge · Automated: manual
+
+- **IADM-25** — Raw machine token is one-shot UI state
+  - Given a token was issued and is visible in the dialog
+  - When the admin copies it or closes the dialog
+  - Then the token can be copied to the clipboard, and closing the dialog clears it from UI state
+  - Priority: P0 · Type: security · Automated: manual
+
+- **IADM-26** — Erased PII audit values render as "[erased]"
   - Given a user's DEK has been shredded (GDPR erasure)
   - When an admin views their audit trail
   - Then fields whose values were personal data (email, etc.) show "[erased]" in italic muted text, not the original value
   - Priority: P1 · Type: security · Automated: manual (requires GDPR erasure to have run)
 
-- **IADM-23** — Audit entries ordered newest-first
+- **IADM-27** — Audit entries ordered newest-first
   - Given a user has multiple audit entries
   - When the audit trail table renders
   - Then the most recent entry appears at the top (backend returns `OrderByDescending(Timestamp)`)
   - Priority: P1 · Type: happy · Automated: manual
 
-- **IADM-24** — Backend 403 on audit trail GET for unpermitted user surfaces as error
+- **IADM-28** — Backend 403 on audit trail GET for unpermitted user surfaces as error
   - Given a user whose token lacks `audit.read` somehow calls the audit endpoint
   - Then the backend returns 403 and the UI shows an error (empty state or toast, not a page crash)
   - Priority: P0 · Type: security · Automated: manual
 
 ### Keyboard / accessibility
 
-- **IADM-25** — User ID input and Look up button are keyboard-accessible
+- **IADM-29** — User ID input and Look up button are keyboard-accessible
   - Given an admin is on `/admin`
   - When they tab to the User ID input, type a UUID, and press Enter or Tab to "Look up" then Space/Enter
   - Then lookup fires without requiring a mouse click
   - Priority: P2 · Type: a11y · Automated: manual
 
-- **IADM-26** — Assign role input and button are keyboard-accessible
+- **IADM-30** — Assign role input and button are keyboard-accessible
   - Given the role manager is visible
   - When the admin tabs to the "Assign role" input, types a role, and presses Enter
   - Then the assign action fires

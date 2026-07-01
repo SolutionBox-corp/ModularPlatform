@@ -1008,6 +1008,23 @@
       "tokenLabel": "Token pozvánky",
       "trigger": "Vytvořit pozvánku"
     },
+    "machineTokenDialog": {
+      "copied": "Machine token byl zkopírován do schránky.",
+      "copyAria": "Kopírovat machine token",
+      "descriptionFallback": "Vystaví tenant-scoped machine token pro edge agenta nebo zařízení. Nešifrovaný token se zobrazí pouze jednou — zkopírujte jej před zavřením.",
+      "descriptionNamed": "Vystaví tenant-scoped machine token pro <tenant></tenant>. Nešifrovaný token se zobrazí pouze jednou — zkopírujte jej před zavřením.",
+      "expires": "Vyprší {date}",
+      "nameHint": "Použijte stabilní název zařízení nebo integrace. Token ponese tento název jako machine_name.",
+      "nameLabel": "Název machine principala",
+      "namePlaceholder": "door-agent-1",
+      "oneTimeHint": "Uložte token teď. Později ho už nepůjde znovu zobrazit.",
+      "submit": "Vystavit token",
+      "submitting": "Vystavuji…",
+      "title": "Vystavit machine token",
+      "tokenAria": "Machine token",
+      "tokenLabel": "Machine token",
+      "trigger": "Machine token"
+    },
     "meta": {
       "auditTitle": "Audit — Správa platformy",
       "overviewTitle": "Platforma — ModularPlatform",

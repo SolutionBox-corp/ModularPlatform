@@ -4,6 +4,8 @@ import { platformQueries } from "@/features/platform/api";
 import { TenantDetailContent } from "@/features/platform/components/tenant-detail-content";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
+import { getSession, isAuthenticated } from "@/lib/auth/session";
+import { redirect } from "next/navigation";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("platform");
@@ -25,13 +27,24 @@ interface PageProps {
  */
 export default async function TenantDetailPage({ params }: PageProps) {
   const { tenantId } = await params;
+  const session = await getSession();
+  if (!isAuthenticated(session)) {
+    redirect("/login");
+  }
+
+  const canIssueMachineTokens = session.user!.permissions.includes(
+    "platform.machine_tokens",
+  );
   const queryClient = getQueryClient();
 
   void queryClient.prefetchQuery(platformQueries.tenantById(tenantId));
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <TenantDetailContent tenantId={tenantId} />
+      <TenantDetailContent
+        tenantId={tenantId}
+        canIssueMachineTokens={canIssueMachineTokens}
+      />
     </HydrationBoundary>
   );
 }
