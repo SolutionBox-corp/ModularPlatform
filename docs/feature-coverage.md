@@ -7,6 +7,7 @@
 > (Given/When/Then) o feature-centrický pohled.
 
 **Stav: 165/165 testů zelených, build 0/0/0 (0 warnings, 0 errors).** 78 features, 8 oblastí.
+Aktuální verdict mapa: **76 correct, 2 minor-gaps, 0 has-gaps, 0 risky**.
 
 ## Jak číst
 - **Verdikt:** ✅ correct · 🟢 minor-gaps (drobné, vesměs test-coverage) · 🟡 has-gaps · 🔴 risky.
@@ -52,82 +53,82 @@ v tabulkách níže jsou **snapshot PŘED** těmito fixy:
 
 | Oblast | Feature | Verdikt |
 |---|---|---|
-| identity | User registration (RegisterUser) | 🟢 minor-gaps |
+| identity | User registration (RegisterUser) | ✅ correct |
 | identity | Login (no-enumeration, timing-equalized verify, lockout) | ✅ correct |
 | identity | Refresh-token rotation + reuse detection | ✅ correct |
-| identity | Logout / session-family revocation | 🟢 minor-gaps |
+| identity | Logout / session-family revocation | ✅ correct |
 | identity | Profile read (GetProfile /me) | ✅ correct |
-| identity | Roles & permissions (assign/revoke + token claim snapshot) | 🟢 minor-gaps |
-| identity | Authorization seeding + admin bootstrap (IdentitySeeder + login-time grant) | 🟢 minor-gaps |
+| identity | Roles & permissions (assign/revoke + token claim snapshot) | ✅ correct |
+| identity | Authorization seeding + admin bootstrap (IdentitySeeder + login-time grant) | ✅ correct |
 | identity | Audit trail reveal (admin forensics) + [erased] after shred | ✅ correct |
 | identity | Multi-tenancy provisioning + isolation | ✅ correct |
 | identity | GDPR export + erasure (Identity ports) | ✅ correct |
-| identity | PII encryption backfill (legacy rows) | 🟢 minor-gaps |
+| identity | PII encryption backfill (legacy rows) | ✅ correct |
 | identity | Token issuance + password hashing (Security primitives) | ✅ correct |
 | billing-credits | Credit account provisioning (EnsureCreditAccount + ProvisionCreditAccountHandler) | ✅ correct |
 | billing-credits | Credit top-up (CreditTopUp) | ✅ correct |
 | billing-credits | Reserve credits (atomic debit guard) | ✅ correct |
-| billing-credits | Confirm spend (FIFO bucket draw) | 🟢 minor-gaps |
+| billing-credits | Confirm spend (FIFO bucket draw) | ✅ correct |
 | billing-credits | Release hold | ✅ correct |
 | billing-credits | Expire credits sweep | ✅ correct |
 | billing-credits | Get credit balance (read) | ✅ correct |
 | billing-credits | Append-only double-entry ledger + projection invariant | ✅ correct |
-| billing-commerce | Package catalogue (CRUD) + purchasable listing | 🟢 minor-gaps |
+| billing-commerce | Package catalogue (CRUD) + purchasable listing | ✅ correct |
 | billing-commerce | Package purchase checkout + CreditPurchaseSaga | ✅ correct |
 | billing-commerce | Stripe webhook ingest (signed, atomic, idempotent) | ✅ correct |
-| billing-commerce | Stripe event router (ProcessStripeEvent) | 🟢 minor-gaps |
-| billing-commerce | Subscriptions: checkout, object-state mirror, per-invoice grant, cancel | 🟢 minor-gaps |
+| billing-commerce | Stripe event router (ProcessStripeEvent) | ✅ correct |
+| billing-commerce | Subscriptions: checkout, object-state mirror, per-invoice grant, cancel | ✅ correct |
 | billing-commerce | Promo-code validation (coupons) | ✅ correct |
-| billing-commerce | Stripe Tax flag | 🟢 minor-gaps |
-| billing-commerce | Stripe reconcile sweep (3 passes, per-item isolation) | 🟢 minor-gaps |
+| billing-commerce | Stripe Tax flag | ✅ correct |
+| billing-commerce | Stripe reconcile sweep (3 passes, per-item isolation) | ✅ correct |
 | billing-commerce | IStripeGateway anti-corruption seam (real + fake) | ✅ correct |
-| gdpr-pii | PII at rest — [Encrypted] interceptor + decrypting converter | 🟢 minor-gaps |
+| gdpr-pii | PII at rest — [Encrypted] interceptor + decrypting converter | ✅ correct |
 | gdpr-pii | PersonalDataProtector (audit-PII crypto envelope) | ✅ correct |
 | gdpr-pii | CryptoShredder (AES-256-GCM primitive) | ✅ correct |
-| gdpr-pii | Blind index (HMAC) + fail-fast key validation | 🟢 minor-gaps |
-| gdpr-pii | Erasure fan-out + crypto-shred (UserErasureRequested -> shred) | 🟢 minor-gaps |
+| gdpr-pii | Blind index (HMAC) + fail-fast key validation | ✅ correct |
+| gdpr-pii | Erasure fan-out + crypto-shred (UserErasureRequested -> shred) | ✅ correct |
 | gdpr-pii | Consent log (append-only, exported + erased) | ✅ correct |
 | gdpr-pii | Export fan-out (IExportPersonalData) | ✅ correct |
-| gdpr-pii | Retention sweep (tombstone permanent re-mint guard) | 🟢 minor-gaps |
+| gdpr-pii | Retention sweep (tombstone permanent re-mint guard) | ✅ correct |
 | notifications-realtime | SendNotification (multi-channel dispatch) | ✅ correct |
 | notifications-realtime | Email / Push channel delivery (Worker-side) | ✅ correct |
-| notifications-realtime | Templates + rendering + seeding | 🟢 minor-gaps |
+| notifications-realtime | Templates + rendering + seeding | ✅ correct |
 | notifications-realtime | In-app feed (get / mark-read) | ✅ correct |
 | notifications-realtime | Cross-module reaction handlers (welcome + purchase-completed + subscription-past-due) | ✅ correct |
 | notifications-realtime | Realtime fan-out (publisher + Redis + registry) | ✅ correct |
 | notifications-realtime | SSE stream endpoint (/realtime/stream) | 🟢 minor-gaps |
 | notifications-realtime | Replay buffer (Last-Event-ID, TTL) | ✅ correct |
-| notifications-realtime | GDPR export / erasure (Notifications) | 🟢 minor-gaps |
+| notifications-realtime | GDPR export / erasure (Notifications) | ✅ correct |
 | operations-files | Long-running operation accept (202 + outbox) | ✅ correct |
-| operations-files | Operation state machine + terminal guard (OperationStore) | 🟢 minor-gaps |
+| operations-files | Operation state machine + terminal guard (OperationStore) | ✅ correct |
 | operations-files | Operation status polling (owner-scoped read) | ✅ correct |
-| operations-files | File upload (server key, allowlist, size cap) | 🟢 minor-gaps |
-| operations-files | File download (stream, IDOR/404) | 🟢 minor-gaps |
+| operations-files | File upload (server key, allowlist, size cap) | ✅ correct |
+| operations-files | File download (stream, IDOR/404) | ✅ correct |
 | operations-files | File list (paged, owner-scoped) | ✅ correct |
 | operations-files | Blob storage providers (local + S3) & path-traversal guard | ✅ correct |
-| operations-files | Files GDPR export + erasure | 🟢 minor-gaps |
+| operations-files | Files GDPR export + erasure | ✅ correct |
 | persistence-cqrs | CQRS dispatcher + pipeline ordering | ✅ correct |
 | persistence-cqrs | Validation behavior | ✅ correct |
 | persistence-cqrs | Error types -> HTTP mapping | ✅ correct |
 | persistence-cqrs | Logging behavior (PII-safe) | ✅ correct |
-| persistence-cqrs | xmin optimistic concurrency + ConcurrencyRetryBehavior | 🟢 minor-gaps |
-| persistence-cqrs | Audit interceptor (changed-fields, stamps, converter values) | 🟢 minor-gaps |
+| persistence-cqrs | xmin optimistic concurrency + ConcurrencyRetryBehavior | ✅ correct |
+| persistence-cqrs | Audit interceptor (changed-fields, stamps, converter values) | ✅ correct |
 | persistence-cqrs | Audit IP masking (data minimization) | ✅ correct |
 | persistence-cqrs | Tenant query filter + TenantStampingInterceptor | ✅ correct |
 | persistence-cqrs | Postgres RLS (bootstrap, dual role, GUC stamping) | ✅ correct |
 | persistence-cqrs | Read DbContext factory | ✅ correct |
 | persistence-cqrs | PII at rest: encryption interceptor + decrypting converter | ✅ correct |
-| persistence-cqrs | Paging (PageRequest / PagedResponse / ToPagedResponseAsync) | 🟢 minor-gaps |
-| persistence-cqrs | Entity base + conventions (xmin, soft-delete, IUserOwned/ITenantScoped) | 🟢 minor-gaps |
+| persistence-cqrs | Paging (PageRequest / PagedResponse / ToPagedResponseAsync) | ✅ correct |
+| persistence-cqrs | Entity base + conventions (xmin, soft-delete, IUserOwned/ITenantScoped) | ✅ correct |
 | messaging-hosts-web | Wolverine durable messaging configuration (PlatformMessaging.Configure) | ✅ correct |
 | messaging-hosts-web | Host composition & DI graph (Api/Worker/Jobs/Migration builders) | ✅ correct |
 | messaging-hosts-web | Jobs host: Quartz cron (UTC), idempotency, single-instance posture | ✅ correct |
 | messaging-hosts-web | Messaging-health job + evaluation | ✅ correct |
-| messaging-hosts-web | RFC 9457 error contract + i18n (GlobalExceptionMiddleware + resx) | 🟢 minor-gaps |
+| messaging-hosts-web | RFC 9457 error contract + i18n (GlobalExceptionMiddleware + resx) | ✅ correct |
 | messaging-hosts-web | Rate limiting (global + auth policy) | ✅ correct |
 | messaging-hosts-web | Forwarded headers (proxy trust) + audit IP | ✅ correct |
-| messaging-hosts-web | JWT bearer auth + options validation | 🟢 minor-gaps |
-| messaging-hosts-web | Security headers middleware | 🟢 minor-gaps |
+| messaging-hosts-web | JWT bearer auth + options validation | ✅ correct |
+| messaging-hosts-web | Security headers middleware | ✅ correct |
 | messaging-hosts-web | SSE building block (SseStream + native SSE endpoint) | 🟢 minor-gaps |
 | messaging-hosts-web | Telemetry (OTel pipeline + TelemetryBehavior + PlatformMetrics) | ✅ correct |
 
@@ -140,7 +141,7 @@ Legenda: ✅ correct · 🟢 minor-gaps · 🟡 has-gaps · 🔴 risky. Edge-cas
 
 ## Identity — auth, authorization, tenancy, PII
 
-### User registration (RegisterUser) — 🟢 minor-gaps
+### User registration (RegisterUser) — ✅ correct
 *Anonymously create a user, provision a tenant, publish UserRegisteredIntegrationEvent atomically via the outbox.*
 
 **Use cases:** Self-service signup; Bootstrap a new tenant per registrant (B2C per-user model); Trigger downstream provisioning (Billing credit account, Notifications welcome) via the integration event
@@ -202,7 +203,7 @@ _Strong: dummy-hash timing equalization + hasRealHash gate is the right pattern;
 
 _Security-critical slice is thorough; the deliberate tracked-SaveChanges (not ExecuteUpdate) for the family revoke so the AuditInterceptor + xmin engage is correct and tested._
 
-### Logout / session-family revocation — 🟢 minor-gaps
+### Logout / session-family revocation — ✅ correct
 *User/admin kill-switch: revoke the whole rotation family of a presented refresh token.*
 
 **Use cases:** Explicit sign-out; Revoke a stolen/stale session
@@ -237,7 +238,7 @@ _Logic is correct; the cross-user-no-op IDOR guard and unknown-token idempotency
 
 _Canonical read slice._
 
-### Roles & permissions (assign/revoke + token claim snapshot) — 🟢 minor-gaps
+### Roles & permissions (assign/revoke + token claim snapshot) — ✅ correct
 *Admin grants/revokes roles; the token bakes role+permission claims so endpoints gate without a per-request DB hit.*
 
 **Use cases:** Admin role management; Permission-gated endpoint authorization; Claims refresh on re-auth/refresh
@@ -257,7 +258,7 @@ _Canonical read slice._
 
 _Snapshot semantics are intentional: revoke affects the next login/refresh token, not already-issued access tokens._
 
-### Authorization seeding + admin bootstrap (IdentitySeeder + login-time grant) — 🟢 minor-gaps
+### Authorization seeding + admin bootstrap (IdentitySeeder + login-time grant) — ✅ correct
 *Idempotently seed PlatformPermissions, the system admin role with all permissions, and grant admin to configured emails.*
 
 **Use cases:** Startup seeding of the authz model; Bootstrap the first admin without a seeded password; Catch admins who registered after startup (granted on login)
@@ -336,7 +337,7 @@ _Tenant null-escape, cross-tenant denial and same-tenant admin read are all now 
 
 _Erasure is the most thoroughly tested Identity concern; live export, post-erasure export, and replay/idempotency paths are asserted._
 
-### PII encryption backfill (legacy rows) — 🟢 minor-gaps
+### PII encryption backfill (legacy rows) — ✅ correct
 *One-time idempotent sealing of pre-encryption user rows (empty EmailHash) by computing the blind index and re-saving through the interceptors.*
 
 **Use cases:** Migrate legacy plaintext rows to penc:v2 envelopes + blind index without downtime
@@ -443,7 +444,7 @@ _CreditsToppedUpIntegrationEvent is published in the same outbox transaction (Cr
 
 _This is the money-critical path and it is the best-covered. Reservation entry uses IdempotencyKey reserve:{holdId}; the holdId is fresh per reserve so re-reservations are distinct by design._
 
-### Confirm spend (FIFO bucket draw) — 🟢 minor-gaps
+### Confirm spend (FIFO bucket draw) — ✅ correct
 *Confirm an active reservation into a posted spend, drawing buckets soonest-to-expire; keeps available = posted - pending.*
 
 **Use cases:** After work completes, confirm the reservation to permanently consume the held credits; Idempotent re-confirm returns the already-posted state
@@ -545,7 +546,7 @@ _Strong defence-in-depth: app-level append-only guard + DB CHECK + per-account U
 
 ## Billing — Stripe commerce, saga, subscriptions
 
-### Package catalogue (CRUD) + purchasable listing — 🟢 minor-gaps
+### Package catalogue (CRUD) + purchasable listing — ✅ correct
 *Admin-managed credit-package catalogue (create/update) and a buyer-facing active-only listing.*
 
 **Use cases:** Admin (billing.manage) creates a package mapping CreditAmount+Price to a Stripe Price id (CreateCreditPackageEndpoint.cs); Admin updates a package (name/amount/price/expiry/active/priceId) (UpdateCreditPackageHandler.cs); Buyer lists only Active packages, cheapest first (ListCreditPackagesHandler.cs:18-22)
@@ -605,7 +606,7 @@ _The strongest-covered feature: happy path, unpaid gate, async settlement, aband
 
 _Ingest invariants (200/row/enqueue/exactly-once/500-on-non-unique/400-on-bad-sig) are all tested deterministically. The empty-secret test caveat is documented in the test class header._
 
-### Stripe event router (ProcessStripeEvent) — 🟢 minor-gaps
+### Stripe event router (ProcessStripeEvent) — ✅ correct
 *Idempotently refetch each event from Stripe and route checkout/subscription/invoice/generic-metadata events to the right command.*
 
 **Use cases:** checkout.session.completed|async_payment_succeeded (purchase_type=package, paid) → CreditPurchaseConfirmed; customer.subscription.created|updated|deleted → UpsertSubscriptionFromStripe; invoice.paid|invoice.payment_succeeded → GrantSubscriptionCredits; invoice.payment_failed → subscription mirror refresh; any other event carrying user_id+credit_amount metadata → direct CreditTopUp (key = event id)
@@ -626,7 +627,7 @@ _Ingest invariants (200/row/enqueue/exactly-once/500-on-non-unique/400-on-bad-si
 
 _Routing is careful and idempotent. Both invoice success event names now share the same per-invoice idempotency key, so receiving both cannot double-grant._
 
-### Subscriptions: checkout, object-state mirror, per-invoice grant, cancel — 🟢 minor-gaps
+### Subscriptions: checkout, object-state mirror, per-invoice grant, cancel — ✅ correct
 *Config-driven subscription plans mirrored from Stripe object state, with exactly-once per-period credit grants and proration-safe cancel.*
 
 **Use cases:** User starts a subscription checkout for a config plan (CreateSubscriptionCheckoutHandler.cs); customer.subscription.* webhooks (or reconcile) upsert the local mirror from Stripe state (UpsertSubscriptionFromStripeCommand.cs); invoice.paid or invoice.payment_succeeded grants plan.CreditsPerPeriod exactly once per invoice (GrantSubscriptionCreditsCommand.cs); User cancels (Stripe-first, at period end by default) (CancelSubscriptionHandler.cs); GET /billing/subscriptions/me and /plans reads
@@ -668,7 +669,7 @@ _Object-state mirroring is the right design and the happy/out-of-order/cancel/fa
 
 _Thin, correctly-scoped passthrough; authoritative enforcement is rightly left to Stripe. Coverage is adequate for the read._
 
-### Stripe Tax flag — 🟢 minor-gaps
+### Stripe Tax flag — ✅ correct
 *Toggle Stripe automatic Tax (merchant-of-record VAT) on every checkout session via config.*
 
 **Use cases:** Deployment sets Billing:Stripe:AutomaticTax=true; subscription checkout requests AutomaticTax through the Stripe anti-corruption port (CreateSubscriptionCheckoutHandler.cs:56-62). Package checkout now uses the tenant payment-gateway plane, not the module Stripe gateway.
@@ -683,7 +684,7 @@ _Thin, correctly-scoped passthrough; authoritative enforcement is rightly left t
 
 _A simple config flag correctly threaded for subscription checkout. Real tax math is Stripe's responsibility._
 
-### Stripe reconcile sweep (3 passes, per-item isolation) — 🟢 minor-gaps
+### Stripe reconcile sweep (3 passes, per-item isolation) — ✅ correct
 *Periodic self-healing: requeue stuck events, correct subscription drift against live Stripe, and re-grant paid-but-stuck purchases.*
 
 **Use cases:** Cron (Jobs host) dispatches ReconcileStripeCommand; Pass 1: re-publish stripe_events stuck >30min unprocessed (cap 200); Pass 2: compare local subscription mirrors to live Stripe; on drift upsert + increment platform.billing.stripe_drift (cap 500); Pass 3: re-grant Pending/Abandoned sagas whose Stripe session is actually paid (cap 200)
@@ -730,7 +731,7 @@ _Clean ACL with a hard production safety guard on the fake. The validator is a s
 
 ## GDPR & PII crypto
 
-### PII at rest — [Encrypted] interceptor + decrypting converter — 🟢 minor-gaps
+### PII at rest — [Encrypted] interceptor + decrypting converter — ✅ correct
 *Seal [Encrypted] string columns under the subject DEK on write and decrypt transparently on read.*
 
 **Use cases:** users.Email/DisplayName ciphertext at rest under per-subject DEK; transparent decrypt on both the write context and the interceptor-free read factory; shredded subject -> column reveals [erased] instead of plaintext
@@ -788,7 +789,7 @@ _Crypto seam is careful and well-reasoned. Protector-level redaction after shred
 
 _Standard, correct AES-GCM layout [nonce|tag|ciphertext]. AAD and malformed-blob behavior are pinned directly at the primitive level._
 
-### Blind index (HMAC) + fail-fast key validation — 🟢 minor-gaps
+### Blind index (HMAC) + fail-fast key validation — ✅ correct
 *Deterministic HMAC-SHA256 keyed hash enabling equality lookups on encrypted columns (login by email).*
 
 **Use cases:** users.EmailHash UNIQUE lookup for login/duplicate-check; platform-wide secret key, dev placeholder rejected in prod
@@ -806,7 +807,7 @@ _Standard, correct AES-GCM layout [nonce|tag|ciphertext]. AAD and malformed-blob
 
 _Key handling and fail-fast are correct. The hasher stays deliberately dumb; Identity's login lookup now pins the caller-side normalization contract._
 
-### Erasure fan-out + crypto-shred (UserErasureRequested -> shred) — 🟢 minor-gaps
+### Erasure fan-out + crypto-shred (UserErasureRequested -> shred) — ✅ correct
 *On erasure, run each module's IErasePersonalData then crypto-shred the subject DEK as the authoritative act.*
 
 **Use cases:** self-service POST /gdpr/me/erase -> durable outbox event -> Worker fan-out; per-module anonymization (Notifications blanks Title/Body; Billing retains ledger; Gdpr deletes consents); DEK shred renders all ciphertext unrecoverable incl. backups/append-only
@@ -859,7 +860,7 @@ _Clean append-only model, correct token-identity, stable validation error codes,
 
 _Resilience pattern is solid and now tested both at handler level and through the real HTTP endpoint._
 
-### Retention sweep (tombstone permanent re-mint guard) — 🟢 minor-gaps
+### Retention sweep (tombstone permanent re-mint guard) — ✅ correct
 *Nightly sweep that deliberately purges NOTHING — shredded subject_key tombstones are retained permanently as the DEK re-mint guard.*
 
 **Use cases:** block PersonalDataProtector.GetOrCreateDek from minting a fresh readable DEK for an already-erased subject; seam/cron/metric kept for future module-owned purgeable retention
@@ -920,7 +921,7 @@ _Clean reuse-first slice. The 'one inapp row regardless of channels' is intentio
 
 _Worker-side email delivery has an out-of-process Worker + SMTP harness. Push delivery now has a real webhook transport while keeping local/dev no-op fallback._
 
-### Templates + rendering + seeding — 🟢 minor-gaps
+### Templates + rendering + seeding — ✅ correct
 *Reusable {placeholder} message templates keyed by (Key,Locale), rendered at send time, idempotently seeded on startup.*
 
 **Use cases:** welcome (en/cs), purchase_completed (en/cs), and subscription_past_due (en/cs) seeded so the cross-module handlers find a template; Render substitutes data dict values into Subject/Body; Admin can insert custom templates (tests do via SQL)
@@ -1032,7 +1033,7 @@ _The replay/live duplicate-by-id window is handled in-process by per-session Eve
 
 _Local path and Redis production replay path are both covered; MaxEvents is now an exact count bound and TTL is verified as the hard time bound._
 
-### GDPR export / erasure (Notifications) — 🟢 minor-gaps
+### GDPR export / erasure (Notifications) — ✅ correct
 *Export the subject's in-app feed and anonymize PII in place on erasure, keeping structural rows.*
 
 **Use cases:** GDPR data-portability fan-out includes the user's notifications; User erasure scrubs Title/Body across all the user's notification rows
@@ -1074,7 +1075,7 @@ _Implementation is correct and matches platform conventions; exporter and eraser
 
 _Canonical 202 pattern; clean, token-sourced owner, atomic outbox, and retry-safe accept via Idempotency-Key._
 
-### Operation state machine + terminal guard (OperationStore) — 🟢 minor-gaps
+### Operation state machine + terminal guard (OperationStore) — ✅ correct
 *Advance an operation Pending→Running→Succeeded/Failed with terminal states final and idempotent.*
 
 **Use cases:** Worker marks running, completes with JSON result, or fails with errorCode/detail; Redelivered/duplicate worker message must not resurrect a terminal operation
@@ -1111,7 +1112,7 @@ _State machine is solid and idempotent. Worker transitions now defend themselves
 
 _Dual-gated ownership (app filter + RLS) is exemplary._
 
-### File upload (server key, allowlist, size cap) — 🟢 minor-gaps
+### File upload (server key, allowlist, size cap) — ✅ correct
 *Accept a multipart file from the owner, store bytes under a server-generated opaque key, persist metadata.*
 
 **Use cases:** User uploads png/jpeg/pdf/txt and gets a file id + download Location; Reject disallowed content types and oversized files before persistence
@@ -1132,7 +1133,7 @@ _Dual-gated ownership (app filter + RLS) is exemplary._
 
 _Strong security posture: opaque server key, deny-by-default content type allowlist, size cap and orphan-blob compensation are covered._
 
-### File download (stream, IDOR/404) — 🟢 minor-gaps
+### File download (stream, IDOR/404) — ✅ correct
 *Stream a file's bytes with stored content-type to its owner; foreign id is a 404.*
 
 **Use cases:** Owner downloads their file; Intruder gets 404, not 403/leak
@@ -1189,7 +1190,7 @@ _Paging is clamped and owner-scoped. Ordering is deterministic and the file_obje
 
 _Defence-in-depth path guard (validate + resolved-path re-check) is excellent; S3 config is unit-tested and the S3-compatible provider now has a live MinIO round-trip._
 
-### Files GDPR export + erasure — 🟢 minor-gaps
+### Files GDPR export + erasure — ✅ correct
 *Export the subject's file inventory; on erasure delete the user's blobs and metadata outright (no retention).*
 
 **Use cases:** GDPR /me/export includes file inventory; GDPR /me/erase removes blobs + metadata
@@ -1283,7 +1284,7 @@ _errorCode==resx-key and status-code mapping are now both covered by focused tes
 
 _The PII-safe logging contract is now covered directly: request values stay out of logs, business errors are warnings, unexpected failures are errors with exception details._
 
-### xmin optimistic concurrency + ConcurrencyRetryBehavior — 🟢 minor-gaps
+### xmin optimistic concurrency + ConcurrencyRetryBehavior — ✅ correct
 *Detect concurrent writes via Postgres xmin token and retry the whole command up to 5x with backoff.*
 
 **Use cases:** Serialize confirm/release/expire/top-up on tracked entities; Recover transparently from lost-update conflicts
@@ -1301,7 +1302,7 @@ _The PII-safe logging contract is now covered directly: request values stay out 
 
 _Logic is correct and now directly regression-tested at the retry behavior layer; the headline billing concurrency test separately covers the money ExecuteUpdate guard._
 
-### Audit interceptor (changed-fields, stamps, converter values) — 🟢 minor-gaps
+### Audit interceptor (changed-fields, stamps, converter values) — ✅ correct
 *On SaveChanges, stamp Created/Updated and write one per-module audit row capturing only changed columns as JSONB.*
 
 **Use cases:** Forensic trail per entity; Capture provider-converted values (enum-as-string) not raw ints; Stamp CreatedBy/UpdatedBy from token
@@ -1417,7 +1418,7 @@ _Read-side RLS isolation is the subtle correctness point; the factory registrati
 
 _Intricate but disciplined; restore-on-failure and refuse-without-protector are now pinned directly in building-block tests._
 
-### Paging (PageRequest / PagedResponse / ToPagedResponseAsync) — 🟢 minor-gaps
+### Paging (PageRequest / PagedResponse / ToPagedResponseAsync) — ✅ correct
 *Clamp paging inputs to safe bounds and turn an ordered IQueryable into a counted page.*
 
 **Use cases:** List endpoints return bounded pages; Prevent unbounded/negative page requests
@@ -1435,7 +1436,7 @@ _Intricate but disciplined; restore-on-failure and refuse-without-protector are 
 
 _Clamp/math and the EF extension wrapper are now covered by focused building-block tests._
 
-### Entity base + conventions (xmin, soft-delete, IUserOwned/ITenantScoped) — 🟢 minor-gaps
+### Entity base + conventions (xmin, soft-delete, IUserOwned/ITenantScoped) — ✅ correct
 *Boilerplate-free entities: Guid v7 ids, xmin concurrency, shadow TenantId, soft-delete filter, auto-config scan.*
 
 **Use cases:** Derive Entity/AuditableEntity; Mark ITenantScoped/IUserOwned/ISoftDeletable to opt into platform behaviors
@@ -1534,7 +1535,7 @@ _Single-instance cross-instance coordination is now a code-enforced deployment c
 
 _Pure evaluation cleanly extracted and unit-tested; the Scheduled-vs-Outgoing bug fix is well-guarded, and alert routing is now an infrastructure webhook seam rather than WARN-only._
 
-### RFC 9457 error contract + i18n (GlobalExceptionMiddleware + resx) — 🟢 minor-gaps
+### RFC 9457 error contract + i18n (GlobalExceptionMiddleware + resx) — ✅ correct
 *Translates every exception into application/problem+json with stable errorCode title/type and Accept-Language-localized detail.*
 
 **Use cases:** Domain exceptions → correct HTTP status + stable code clients branch on; Validation failures → errors[] extension; Unhandled → 500 error.unexpected (exception detail only in Development); en/cs localized detail via resx keyed by errorCode
@@ -1590,7 +1591,7 @@ _The previously documented per-user partition, Retry-After, login auth-policy an
 
 _Best-covered security feature in the area. Validator, runtime options mapping, and IP masking are all directly tested._
 
-### JWT bearer auth + options validation — 🟢 minor-gaps
+### JWT bearer auth + options validation — ✅ correct
 *Validates HMAC-signed access tokens (issuer/audience/lifetime/key) and fail-fasts a weak/missing signing key outside Development.*
 
 **Use cases:** Authenticate API requests via bearer token; RequireRole matches 'role' claim (RoleClaimType configured); Fail host startup on misconfigured JWT in prod
@@ -1609,7 +1610,7 @@ _Best-covered security feature in the area. Validator, runtime options mapping, 
 
 _JwtOptionsValidator now has direct fail-fast coverage, and the JWT bearer options pin the platform `"role"` claim type used by RequireRole. The missing name claim does not affect rate limiting because the limiter keys on `NameIdentifier`._
 
-### Security headers middleware — 🟢 minor-gaps
+### Security headers middleware — ✅ correct
 *Adds baseline hardening headers (nosniff, frame DENY, no-referrer, restrictive CSP) to every response.*
 
 **Use cases:** Defence-in-depth on API responses against MIME-sniffing/clickjacking/referrer leak
@@ -1663,5 +1664,4 @@ _Clean single-meter design; error-code tagging and outer-most behavior ordering 
 - Rate-limiter per-user partition is fixed: PlatformWebExtensions keys authenticated traffic on `ClaimTypes.NameIdentifier`; PL11 proves user-specific buckets.
 - Retry-After drift is fixed: PlatformWebExtensions `OnRejected` emits `Retry-After`; PL12 proves the header on a throttled response.
 - Historical note: the unused SseStream<T> abstraction mentioned in older audits has already been removed; the live browser endpoint now owns the single bounded channel implementation.
-- GlobalExceptionMiddleware.WriteProblem (lines 72-73) writes status + JSON with no Response.HasStarted guard; for a streamed/SSE response that already flushed headers this throws instead of failing gracefully. Minor given current usage but an unhandled edge.
 - JwtOptionsValidator now has a focused unit suite (`JwtOptionsValidatorTests`) covering the startup fail-fast guard; this closes the previous asymmetry with `ForwardedHeadersSettingsValidatorTests`.
