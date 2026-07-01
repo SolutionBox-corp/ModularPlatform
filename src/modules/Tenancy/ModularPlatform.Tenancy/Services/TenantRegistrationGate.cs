@@ -41,7 +41,12 @@ internal sealed class TenantRegistrationGate(TenancyDbContext db, IClock clock) 
                 var hash = HashToken(inviteToken);
                 var now = clock.UtcNow;
                 var invite = await db.TenantInvites.FirstOrDefaultAsync(
-                    i => i.TenantId == tenantId && i.TokenHash == hash && i.ConsumedAt == null && i.ExpiresAt > now, ct);
+                    i => i.TenantId == tenantId
+                        && i.TokenHash == hash
+                        && i.ConsumedAt == null
+                        && i.RevokedAt == null
+                        && i.ExpiresAt > now,
+                    ct);
                 if (invite is null)
                 {
                     return false;

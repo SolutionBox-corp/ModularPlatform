@@ -8,8 +8,10 @@ import {
   provisionTenant,
   setEntitlement,
   createTenantInvite,
+  revokeTenantInvite,
   createCreditPackage,
   updateCreditPackage,
+  type ListTenantInvitesParams,
   type ListPlatformUsersParams,
   type ListPlatformTenantsParams,
   type CreatePackageInput,
@@ -31,6 +33,10 @@ export function useListPlatformTenants(params: ListPlatformTenantsParams = {}) {
 /** One tenant's registry row + persisted entitlements. An empty id keeps the query disabled. */
 export function useTenantDetail(tenantId: string) {
   return useQuery(platformQueries.tenantById(tenantId));
+}
+
+export function useTenantInvites(params: ListTenantInvitesParams) {
+  return useQuery(platformQueries.tenantInvites(params));
 }
 
 export function usePlatformUserAudit(userId: string) {
@@ -74,9 +80,27 @@ export function useSetEntitlement() {
 }
 
 export function useCreateTenantInvite() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: createTenantInvite,
-    // No invalidation needed — invite token is shown once and not cached.
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: [...queryRoots.admin, "platform", "tenants", variables.tenantId, "invites"],
+      });
+    },
+  });
+}
+
+export function useRevokeTenantInvite() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: revokeTenantInvite,
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: [...queryRoots.admin, "platform", "tenants", variables.tenantId, "invites"],
+      });
+      toast.success("Invite revoked.");
+    },
   });
 }
 

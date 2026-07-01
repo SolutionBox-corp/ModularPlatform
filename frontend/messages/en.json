@@ -1008,6 +1008,17 @@
       "invite": {
         "description": "Mint a single-use invite so a new member can join this workspace.",
         "heading": "Invite"
+      },
+      "invites": {
+        "empty": "No invites yet.",
+        "loading": "Loading invites…",
+        "revoke": "Revoke invite",
+        "status": {
+          "Consumed": "Consumed",
+          "Expired": "Expired",
+          "Pending": "Pending",
+          "Revoked": "Revoked"
+        }
       }
     },
     "tenants": {

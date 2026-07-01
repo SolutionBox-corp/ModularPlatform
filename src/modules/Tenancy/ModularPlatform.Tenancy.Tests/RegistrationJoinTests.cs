@@ -139,6 +139,99 @@ public sealed class RegistrationJoinTests(PlatformApiFactory fixture)
     }
 
     [Fact]
+    public async Task Admin_can_list_invites_without_exposing_raw_token_or_hash()
+    {
+        var admin = await AdminTokenAsync();
+        var (tenantId, _) = await ProvisionTenantAsync(admin);
+        var token = await CreateInviteAsync(admin, tenantId);
+
+        var response = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, $"/v1/tenant/admin/tenants/{tenantId}/invites", admin));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync();
+        body.ShouldNotContain(token);
+        body.ShouldNotContain("inviteToken");
+        body.ShouldNotContain("tokenHash");
+
+        var data = await PlatformApiFactory.ReadData(response);
+        data.GetProperty("total").GetInt32().ShouldBe(1);
+        var item = data.GetProperty("items").EnumerateArray().Single();
+        item.GetProperty("status").GetString().ShouldBe("Pending");
+        item.GetProperty("inviteId").GetGuid().ShouldNotBe(Guid.Empty);
+        item.GetProperty("expiresAt").GetDateTimeOffset().ShouldBeGreaterThan(DateTimeOffset.UtcNow);
+
+        var invalidStatus = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, $"/v1/tenant/admin/tenants/{tenantId}/invites?status=maybe", admin));
+        invalidStatus.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var invalidStatusData = await PlatformApiFactory.ReadData(invalidStatus);
+        invalidStatusData.GetProperty("total").GetInt32().ShouldBe(0);
+        invalidStatusData.GetProperty("items").EnumerateArray().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Revoked_invite_cannot_be_used_and_revoke_is_idempotent()
+    {
+        var admin = await AdminTokenAsync();
+        var (tenantId, subdomain) = await ProvisionTenantAsync(admin);
+        var token = await CreateInviteAsync(admin, tenantId);
+        var inviteId = await FirstInviteIdAsync(admin, tenantId, "Pending");
+
+        var revoke = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Delete, $"/v1/tenant/admin/tenants/{tenantId}/invites/{inviteId}", admin));
+        revoke.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var revokeData = await PlatformApiFactory.ReadData(revoke);
+        revokeData.GetProperty("status").GetString().ShouldBe("Revoked");
+        revokeData.GetProperty("revokedAt").ValueKind.ShouldNotBe(System.Text.Json.JsonValueKind.Null);
+
+        var secondRevoke = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Delete, $"/v1/tenant/admin/tenants/{tenantId}/invites/{inviteId}", admin));
+        secondRevoke.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PlatformApiFactory.ReadData(secondRevoke)).GetProperty("status").GetString().ShouldBe("Revoked");
+
+        var blocked = await RegisterOnHostAsync(
+            $"revoked-{Guid.CreateVersion7():N}@x.com", $"{subdomain}.lvh.me", token);
+        blocked.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        var revokedList = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, $"/v1/tenant/admin/tenants/{tenantId}/invites?status=revoked", admin));
+        revokedList.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PlatformApiFactory.ReadData(revokedList)).GetProperty("items").EnumerateArray()
+            .ShouldContain(i => i.GetProperty("inviteId").GetGuid() == inviteId);
+    }
+
+    [Fact]
+    public async Task Invite_list_reports_consumed_and_expired_statuses()
+    {
+        var admin = await AdminTokenAsync();
+        var (tenantId, subdomain) = await ProvisionTenantAsync(admin);
+        var consumedToken = await CreateInviteAsync(admin, tenantId);
+
+        var joined = await RegisterOnHostAsync(
+            $"consumed-{Guid.CreateVersion7():N}@x.com", $"{subdomain}.lvh.me", consumedToken);
+        joined.StatusCode.ShouldBe(HttpStatusCode.Created);
+
+        _ = await CreateInviteAsync(admin, tenantId);
+        await fixture.ExecuteSqlAsync(
+            $"UPDATE tenant_invites SET \"ExpiresAt\" = now() - interval '1 minute' " +
+            $"WHERE \"TenantId\" = '{tenantId}' AND \"ConsumedAt\" IS NULL AND \"RevokedAt\" IS NULL");
+
+        var consumed = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, $"/v1/tenant/admin/tenants/{tenantId}/invites?status=consumed", admin));
+        consumed.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var consumedItems = (await PlatformApiFactory.ReadData(consumed)).GetProperty("items").EnumerateArray().ToArray();
+        consumedItems.ShouldContain(i => i.GetProperty("status").GetString() == "Consumed");
+        consumedItems.ShouldAllBe(i => i.GetProperty("consumedAt").ValueKind != System.Text.Json.JsonValueKind.Null);
+
+        var expired = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, $"/v1/tenant/admin/tenants/{tenantId}/invites?status=expired", admin));
+        expired.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var expiredItems = (await PlatformApiFactory.ReadData(expired)).GetProperty("items").EnumerateArray().ToArray();
+        expiredItems.ShouldContain(i => i.GetProperty("status").GetString() == "Expired");
+        expiredItems.ShouldAllBe(i => i.GetProperty("consumedAt").ValueKind == System.Text.Json.JsonValueKind.Null);
+    }
+
+    [Fact]
     public async Task An_expired_invite_cannot_be_used_to_join_the_tenant()
     {
         var admin = await AdminTokenAsync();
@@ -196,6 +289,20 @@ public sealed class RegistrationJoinTests(PlatformApiFactory fixture)
         }
 
         return await fixture.Client.SendAsync(request);
+    }
+
+    private async Task<Guid> FirstInviteIdAsync(string admin, Guid tenantId, string status)
+    {
+        var response = await fixture.Client.SendAsync(fixture.Authed(
+            HttpMethod.Get, $"/v1/tenant/admin/tenants/{tenantId}/invites?status={status}", admin));
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        return (await PlatformApiFactory.ReadData(response))
+            .GetProperty("items")
+            .EnumerateArray()
+            .First()
+            .GetProperty("inviteId")
+            .GetGuid();
     }
 
     private async Task<Guid> TenantOfAsync(Guid userId) =>

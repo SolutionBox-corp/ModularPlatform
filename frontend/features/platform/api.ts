@@ -43,6 +43,35 @@ export interface CreateTenantInviteResponse {
   expiresAt: string;
 }
 
+export interface TenantInviteItem {
+  inviteId: string;
+  status: "Pending" | "Consumed" | "Expired" | "Revoked";
+  createdAt: string;
+  expiresAt: string;
+  consumedAt: string | null;
+  revokedAt: string | null;
+}
+
+export interface TenantInvitesResponse {
+  items: TenantInviteItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface ListTenantInvitesParams {
+  tenantId: string;
+  limit?: number;
+  offset?: number;
+  status?: string;
+}
+
+export interface RevokeTenantInviteResponse {
+  inviteId: string;
+  status: string;
+  revokedAt: string | null;
+}
+
 export interface PlatformBillingModuleView {
   key: string;
   enabled: boolean;
@@ -207,6 +236,33 @@ export const platformQueries = {
     }),
 
   /**
+   * GET /v1/tenant/admin/tenants/{id}/invites
+   * Metadata-only invite list. The raw invite token is shown only once by createTenantInvite.
+   */
+  tenantInvites: ({ tenantId, limit = 20, offset = 0, status }: ListTenantInvitesParams) =>
+    queryOptions({
+      queryKey: [
+        ...queryRoots.admin,
+        "platform",
+        "tenants",
+        tenantId,
+        "invites",
+        limit,
+        offset,
+        status?.trim() || null,
+      ],
+      queryFn: () => {
+        const sp = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+        if (status?.trim()) sp.set("status", status.trim());
+        return apiFetch<TenantInvitesResponse>(
+          `tenant/admin/tenants/${tenantId}/invites?${sp.toString()}`,
+        );
+      },
+      enabled: tenantId.trim().length > 0,
+      staleTime: 30_000,
+    }),
+
+  /**
    * GET /v1/billing/admin/packages
    * Full credit-package catalogue (active + inactive). Requires billing.manage.
    */
@@ -274,6 +330,17 @@ export async function createTenantInvite(params: {
       method: "POST",
       body: { expiresInDays: params.expiresInDays ?? 7 },
     },
+  );
+}
+
+/** DELETE /v1/tenant/admin/tenants/{tenantId}/invites/{inviteId} — revoke a pending invite. */
+export async function revokeTenantInvite(params: {
+  tenantId: string;
+  inviteId: string;
+}): Promise<RevokeTenantInviteResponse> {
+  return apiFetch<RevokeTenantInviteResponse>(
+    `tenant/admin/tenants/${params.tenantId}/invites/${params.inviteId}`,
+    { method: "DELETE" },
   );
 }
 

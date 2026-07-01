@@ -18,6 +18,7 @@ internal sealed class TenantInvite : Entity
     public string TokenHash { get; set; } = string.Empty;
     public DateTimeOffset ExpiresAt { get; set; }
     public DateTimeOffset? ConsumedAt { get; set; }
+    public DateTimeOffset? RevokedAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }
 

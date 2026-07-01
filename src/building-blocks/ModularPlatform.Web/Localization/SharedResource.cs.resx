@@ -44,6 +44,7 @@
   <data name="registration.not_allowed" xml:space="preserve"><value>Registrace do tohoto workspace není povolena.</value></data>
   <data name="tenant.invite.expiry_out_of_range" xml:space="preserve"><value>Platnost pozvánky musí být 1 až 30 dní.</value></data>
   <data name="tenant.invite.collision" xml:space="preserve"><value>Nepodařilo se vytvořit jedinečnou pozvánku. Zkuste to znovu.</value></data>
+  <data name="tenant.invite_not_found" xml:space="preserve"><value>Pozvánka nebyla nalezena.</value></data>
   <data name="tenancy.platform_plan_unknown" xml:space="preserve"><value>Neznámý platformní plán.</value></data>
   <data name="tenancy.platform_plan_misconfigured" xml:space="preserve"><value>Platformní plán není správně nakonfigurován.</value></data>
   <data name="auth.tenant_mismatch" xml:space="preserve"><value>Tato relace nepatří k této organizaci.</value></data>

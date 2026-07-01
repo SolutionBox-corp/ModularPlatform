@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { EntitlementToggles } from "./entitlement-toggles";
 import { CreateInviteDialog } from "./create-invite-dialog";
+import { TenantInvitesList } from "./tenant-invites-list";
 import { useTenantDetail } from "@/features/platform/hooks";
 
 interface TenantEntitlementEditorProps {
@@ -104,6 +105,8 @@ export function TenantEntitlementEditor({
               </div>
               <CreateInviteDialog tenantId={activeTenantId} />
             </div>
+
+            <TenantInvitesList tenantId={activeTenantId} />
 
             <Separator />
 

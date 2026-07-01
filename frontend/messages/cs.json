@@ -1008,6 +1008,17 @@
       "invite": {
         "description": "Vygenerujte jednorázovou pozvánku, aby se nový člen mohl připojit do tohoto pracovního prostoru.",
         "heading": "Pozvánka"
+      },
+      "invites": {
+        "empty": "Zatím žádné pozvánky.",
+        "loading": "Načítám pozvánky…",
+        "revoke": "Odvolat pozvánku",
+        "status": {
+          "Consumed": "Použitá",
+          "Expired": "Vypršela",
+          "Pending": "Čeká",
+          "Revoked": "Odvolaná"
+        }
       }
     },
     "tenants": {

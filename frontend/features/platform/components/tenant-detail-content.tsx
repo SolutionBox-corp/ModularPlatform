@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { EntitlementToggles } from "./entitlement-toggles";
 import { CreateInviteDialog } from "./create-invite-dialog";
+import { TenantInvitesList } from "./tenant-invites-list";
 import { useTenantDetail } from "@/features/platform/hooks";
 
 interface TenantDetailContentProps {
@@ -90,7 +91,10 @@ export function TenantDetailContent({ tenantId }: TenantDetailContentProps) {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <CreateInviteDialog tenantId={tenantId} />
+              <div className="space-y-4">
+                <CreateInviteDialog tenantId={tenantId} />
+                <TenantInvitesList tenantId={tenantId} />
+              </div>
             </CardContent>
           </Card>
         </div>
